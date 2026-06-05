@@ -9,17 +9,11 @@ local function notify(notifyType, message, duration)
     end
 end
 
-local function lerp(a, b, t)
-    return a + (b - a) * t
-end
+local function lerp(a, b, t) return a + (b - a) * t end
 
 local function normalizeAngle(angle)
     angle = angle % 360.0
-
-    if angle > 180.0 then
-        angle = angle - 360.0
-    end
-
+    if angle > 180.0 then angle = angle - 360.0 end
     return angle
 end
 
@@ -29,14 +23,10 @@ local function lerpAngle(a, b, t)
 end
 
 local function rotFromDirection(direction)
-    local dx = direction.x
-    local dy = direction.y
-    local dz = direction.z
-
+    local dx, dy, dz = direction.x, direction.y, direction.z
     local heading = math.deg(math.atan2(dy, dx)) - 90.0
     local horizontal = math.sqrt(dx * dx + dy * dy)
     local pitch = -math.deg(math.atan2(dz, horizontal))
-
     return vector3(pitch, 0.0, heading)
 end
 
@@ -44,7 +34,6 @@ local function getHeadCoords()
     local ped = PlayerPedId()
     local coords = GetPedBoneCoords(ped, 31086, 0.0, 0.0, 0.0)
     local offset = Config.HeadOffset or vector3(0.0, 0.0, 0.08)
-
     return vector3(coords.x + offset.x, coords.y + offset.y, coords.z + offset.z)
 end
 
@@ -66,14 +55,9 @@ local function destroyDrone()
 end
 
 local function createDrone(point)
-    if type(point) ~= 'table' then
-        notify('error', 'Punct drone invalid.')
-        return
-    end
-
-    local x = tonumber(point.x)
-    local y = tonumber(point.y)
-    local z = tonumber(point.z)
+    local x = type(point) == 'table' and tonumber(point.x) or nil
+    local y = type(point) == 'table' and tonumber(point.y) or nil
+    local z = type(point) == 'table' and tonumber(point.z) or nil
 
     if not x or not y or not z then
         notify('error', 'Punct drone invalid.')
@@ -87,7 +71,6 @@ local function createDrone(point)
 
     dronePoint = vector3(x + 0.0, y + 0.0, z + 0.0)
     droneCam = CreateCam('DEFAULT_SCRIPTED_CAMERA', true)
-
     SetCamCoord(droneCam, dronePoint.x, dronePoint.y, dronePoint.z)
 
     local pedCoords = GetEntityCoords(PlayerPedId())
@@ -110,19 +93,11 @@ RegisterNetEvent('driftzone_drone:client:capturePoint', function()
         while GetGameTimer() - started < (Config.CaptureTimeoutMs or 2500) do
             if not IsPedDeadOrDying(PlayerPedId(), true) then
                 local coords = getHeadCoords()
-
-                TriggerServerEvent('driftzone_drone:server:savePoint', {
-                    x = coords.x,
-                    y = coords.y,
-                    z = coords.z
-                })
-
+                TriggerServerEvent('driftzone_drone:server:savePoint', { x = coords.x, y = coords.y, z = coords.z })
                 return
             end
-
             Wait(50)
         end
-
         notify('error', 'Nu am putut captura coordonatele capului.')
     end)
 end)
@@ -134,10 +109,8 @@ end)
 CreateThread(function()
     while true do
         if droneActive and droneCam and DoesCamExist(droneCam) and dronePoint then
-            local ped = PlayerPedId()
-            local target = GetEntityCoords(ped)
-            local direction = target - dronePoint
-            local targetRot = rotFromDirection(direction)
+            local target = GetEntityCoords(PlayerPedId())
+            local targetRot = rotFromDirection(target - dronePoint)
             local t = tonumber(Config.CameraLerp or 0.08) or 0.08
 
             currentRot = vector3(
@@ -150,7 +123,6 @@ CreateThread(function()
             SetCamRot(droneCam, currentRot.x, currentRot.y, currentRot.z, 2)
             SetFocusPosAndVel(dronePoint.x, dronePoint.y, dronePoint.z, 0.0, 0.0, 0.0)
 
-            -- Blocheaza doar camera/mouse look. Caracterul poate merge normal.
             DisableControlAction(0, 1, true)
             DisableControlAction(0, 2, true)
             DisableControlAction(0, 3, true)
@@ -159,12 +131,6 @@ CreateThread(function()
             DisableControlAction(0, 6, true)
             DisableControlAction(0, 25, true)
             DisableControlAction(0, 44, true)
-            DisableControlAction(0, 80, true)
-            DisableControlAction(0, 81, true)
-            DisableControlAction(0, 82, true)
-            DisableControlAction(0, 83, true)
-            DisableControlAction(0, 84, true)
-            DisableControlAction(0, 85, true)
 
             Wait(0)
         else
@@ -175,21 +141,11 @@ end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-
-    if droneActive then
-        destroyDrone()
-    end
+    if droneActive then destroyDrone() end
 end)
 
-exports('IsDroneActive', function()
-    return droneActive
-end)
-
-exports('DisableDrone', function()
-    if droneActive then
-        destroyDrone()
-    end
-end)
+exports('IsDroneActive', function() return droneActive end)
+exports('DisableDrone', function() if droneActive then destroyDrone() end end)
 
 CreateThread(function()
     Wait(1000)
