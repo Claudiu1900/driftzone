@@ -1,60 +1,50 @@
-# DriftZone Outfits - Trigger Only + Sex Filter
+# DriftZone Outfits - SAFE Trigger Only + Sex Filter
 
-## Ce s-a schimbat
+## Important
 
-- Nu mai exista keybind intern pe `O`.
-- Nu mai exista comanda client `/outfit` sau `/outfits`.
-- Meniul se deschide doar prin trigger/export.
-- `/addoutfit` ramane activ pentru admin 7+ cu `aduty = yes`.
-- Cand creezi outfit cu `/addoutfit`, sistemul detecteaza ped-ul:
-  - `mp_m_freemode_01` => `sex = 'm'`
-  - `mp_f_freemode_01` => `sex = 'f'`
-- In DB se adauga `outfits.sex`.
-- La deschidere, jucatorul vede doar outfit-urile pentru sexul caracterului lui.
-- La wear, serverul verifica iar sexul ca sa nu poata echipa outfit gresit.
+Nu mai are keybind intern.
+Nu mai are comenzi client `/outfit` sau `/outfits`.
 
-## Trigger pentru deschidere
-
-Din client:
+Deschiderea se face doar prin:
 
 ```lua
 TriggerEvent('driftzone_outfits:client:requestOpen')
 ```
 
-Sau export client:
+sau:
 
 ```lua
 exports.driftzone_outfits:Open()
 ```
 
-Din server, daca ai src:
+## Sex filter
 
-```lua
-exports.driftzone_outfits:Open(src, 'm')
-exports.driftzone_outfits:Open(src, 'f')
+La `/addoutfit`, sistemul detecteaza ped-ul:
+
+- `mp_m_freemode_01` => `m`
+- `mp_f_freemode_01` => `f`
+
+In DB se salveaza:
+
+```sql
+outfits.sex
 ```
 
-## Pentru driftzone_keybinds
+Jucatorii vad doar outfit-uri pentru sexul caracterului lor.
 
-La keybind-ul setat de tine, pune client-side:
+## SQL
+
+Ruleaza `SQL.sql` sau lasa resource-ul sa faca automat ALTER la pornire.
+
+## driftzone_keybinds
+
+La tasta setata de tine, pune client-side:
 
 ```lua
 TriggerEvent('driftzone_outfits:client:requestOpen')
 ```
 
-Astfel se deschide doar pe tasta setata in sistemul tau de keybinds, nu pe O.
-
-## SQL
-
-Ruleaza `SQL.sql` sau lasa resource-ul sa faca automat:
-
-```sql
-ALTER TABLE `outfits` ADD COLUMN IF NOT EXISTS `sex` ENUM('m','f') NOT NULL DEFAULT 'm' AFTER `image`;
-```
-
-## Instalare
-
-In `server.cfg`:
+## server.cfg
 
 ```cfg
 ensure oxmysql

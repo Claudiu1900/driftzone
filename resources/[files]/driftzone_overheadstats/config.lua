@@ -39,12 +39,12 @@ Config.Database = {
 }
 
 Config.AdminRanks = {
-    [1] = 'HELPER',
-    [2] = 'ADMIN',
-    [3] = 'SENIOR ADMIN',
-    [4] = 'LEAD ADMIN',
+    [1] = 'TRIAL HELPER',
+    [2] = 'HELPER',
+    [3] = 'MODERATOR',
+    [4] = 'ADMIN',
     [5] = 'MANAGER',
-    [6] = 'HEAD STAFF',
+    [6] = 'CO-OWNER',
     [7] = 'OWNER',
     [8] = 'FOUNDER'
 }

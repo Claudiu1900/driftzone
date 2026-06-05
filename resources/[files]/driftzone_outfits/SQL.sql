@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS `outfits` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE `outfits` ADD COLUMN IF NOT EXISTS `sex` ENUM('m','f') NOT NULL DEFAULT 'm' AFTER `image`;
-ALTER TABLE `outfits` ADD INDEX IF NOT EXISTS `sex_idx` (`sex`);
 UPDATE `outfits` SET `sex` = 'm' WHERE `sex` IS NULL OR `sex` = '';
 
 ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `clothes` LONGTEXT NULL;

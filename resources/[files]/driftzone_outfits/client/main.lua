@@ -1,4 +1,3 @@
-
 local browserReady = false
 local outfitsOpen = false
 local pendingOpen = nil
@@ -18,10 +17,6 @@ local OUTFIT_ITEMS = {
 
 local MALE_MODEL = joaat('mp_m_freemode_01')
 local FEMALE_MODEL = joaat('mp_f_freemode_01')
-
-local function notify(type, message, duration)
-    TriggerEvent('client:notify', type or 'info', duration or 5000, tostring(message or ''))
-end
 
 local function setHudVisible(state)
     local visible = state == true
@@ -61,6 +56,7 @@ local function getPlayerSex()
         return 'f'
     end
 
+    -- default male. Daca ai ped custom non-freemode, il considera male.
     return 'm'
 end
 
@@ -141,13 +137,12 @@ local function closeMenu()
     })
 end
 
--- UI open trebuie sa vina doar de la server.
 RegisterNetEvent('driftzone_outfits:client:open', function(payload)
     openMenu(payload or {})
 end)
 
--- Trigger public pentru driftzone_keybinds sau alte scripturi.
--- Foloseste asta in keybinds: TriggerEvent('driftzone_outfits:client:requestOpen')
+-- Singura metoda client-side pentru deschidere.
+-- Din driftzone_keybinds folosesti: TriggerEvent('driftzone_outfits:client:requestOpen')
 RegisterNetEvent('driftzone_outfits:client:requestOpen', function()
     requestOpenFromServer()
 end)

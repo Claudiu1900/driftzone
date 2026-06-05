@@ -1,4 +1,3 @@
-
 local WEAR_COOLDOWN_MS = 30 * 1000
 
 local wearCooldown = {}
@@ -137,7 +136,6 @@ end
 
 local function normalizeImage(value)
     value = cleanText(value, 512)
-
     local lower = value:lower()
 
     if value ~= '' and (lower:sub(1, 7) == 'http://' or lower:sub(1, 8) == 'https://') then
@@ -165,9 +163,7 @@ local function sanitizeItem(item)
     local drawable = math.floor(tonumber(item.drawable or 0) or 0)
     local texture = math.floor(tonumber(item.texture or 0) or 0)
 
-    if texture < 0 then
-        texture = 0
-    end
+    if texture < 0 then texture = 0 end
 
     return {
         drawable = drawable,
@@ -192,6 +188,20 @@ local function cleanOutfitClothes(raw)
 end
 
 local function ensureDatabase()
+    MySQL.query.await([[
+        CREATE TABLE IF NOT EXISTS `outfits` (
+            `id` INT NOT NULL AUTO_INCREMENT,
+            `name` VARCHAR(64) NOT NULL,
+            `image` TEXT NULL,
+            `sex` ENUM('m','f') NOT NULL DEFAULT 'm',
+            `clothes` LONGTEXT NOT NULL,
+            `created_by_uid` INT NOT NULL DEFAULT 0,
+            `created_by_name` VARCHAR(64) NOT NULL DEFAULT '',
+            `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ]], {})
+
     MySQL.query.await([[
         ALTER TABLE `outfits`
         ADD COLUMN IF NOT EXISTS `sex` ENUM('m','f') NOT NULL DEFAULT 'm' AFTER `image`
@@ -514,15 +524,15 @@ local function runCommand(src, command, args)
 
     if command == 'addoutfit' then
         addOutfit(src, args or {})
-        return
+        return true
     end
 
-    -- /outfit si /outfits sunt intentionat dezactivate aici.
-    -- Deschiderea se face doar prin trigger/export, pentru driftzone_keybinds.
     if command == 'outfit' or command == 'outfits' then
         notify(src, 'warning', 'Outfits se deschide doar din keybinds.')
-        return
+        return true
     end
+
+    return false
 end
 
 RegisterCommand('addoutfit', function(src, args)
@@ -554,7 +564,7 @@ AddEventHandler('playerDropped', function()
 end)
 
 CreateThread(function()
-    Wait(500)
+    Wait(1000)
     ensureDatabase()
     print('[DRIFTZONE_OUTFITS] Server-side loaded. Trigger-only + sex filter enabled.')
 end)
