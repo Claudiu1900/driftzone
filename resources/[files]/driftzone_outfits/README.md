@@ -1,55 +1,60 @@
-# DriftZone Outfits Optimized
+# DriftZone Outfits - Trigger Only + Sex Filter
 
-Resource FiveM pentru outfit-uri globale.
+## Ce s-a schimbat
 
-## Comenzi
+- Nu mai exista keybind intern pe `O`.
+- Nu mai exista comanda client `/outfit` sau `/outfits`.
+- Meniul se deschide doar prin trigger/export.
+- `/addoutfit` ramane activ pentru admin 7+ cu `aduty = yes`.
+- Cand creezi outfit cu `/addoutfit`, sistemul detecteaza ped-ul:
+  - `mp_m_freemode_01` => `sex = 'm'`
+  - `mp_f_freemode_01` => `sex = 'f'`
+- In DB se adauga `outfits.sex`.
+- La deschidere, jucatorul vede doar outfit-urile pentru sexul caracterului lui.
+- La wear, serverul verifica iar sexul ca sa nu poata echipa outfit gresit.
 
-```txt
-/outfit
-/outfits
-/addoutfit (nume) (link imagine optional)
+## Trigger pentru deschidere
+
+Din client:
+
+```lua
+TriggerEvent('driftzone_outfits:client:requestOpen')
 ```
 
-Tasta `O` deschide meniul.
+Sau export client:
 
-`/addoutfit` este valabil doar pentru admin 7+ cu `aduty = yes`.
+```lua
+exports.driftzone_outfits:Open()
+```
 
-## Ce salveaza /addoutfit
+Din server, daca ai src:
 
-Salveaza doar:
-- mask
-- hat
-- jacket
-- torso
-- top
-- pants
-- shoes
-- insignia
-- glasses
+```lua
+exports.driftzone_outfits:Open(src, 'm')
+exports.driftzone_outfits:Open(src, 'f')
+```
 
-Nu salveaza hair.
+## Pentru driftzone_keybinds
 
-## Update
+La keybind-ul setat de tine, pune client-side:
 
-- Cardurile sunt acum verticale, cu inaltime mai mare jos-sus.
-- Imaginea are spatiu mare pentru poza cu caracterul.
-- Butonul `WEAR` nu mai iese din card.
-- `WEAR` sta jos in card cu `margin-top: auto`.
-- UI-ul foloseste `object-fit: cover` si `object-position: center top`.
-- Script JS optimizat: update la cooldown doar cand textul se schimba.
-- Server optimizat:
-  - cache pentru lista de outfit-uri;
-  - cache pentru outfit by id;
-  - cache scurt pentru admin data;
-  - cache scurt pentru clothes user;
-  - curata cache la playerDropped;
-  - curata cache outfit cand se adauga outfit nou.
+```lua
+TriggerEvent('driftzone_outfits:client:requestOpen')
+```
+
+Astfel se deschide doar pe tasta setata in sistemul tau de keybinds, nu pe O.
+
+## SQL
+
+Ruleaza `SQL.sql` sau lasa resource-ul sa faca automat:
+
+```sql
+ALTER TABLE `outfits` ADD COLUMN IF NOT EXISTS `sex` ENUM('m','f') NOT NULL DEFAULT 'm' AFTER `image`;
+```
 
 ## Instalare
 
-1. Pune folderul `driftzone_outfits` in `resources/[driftzone]/`.
-2. Ruleaza `SQL.sql`.
-3. In `server.cfg`:
+In `server.cfg`:
 
 ```cfg
 ensure oxmysql
@@ -57,18 +62,4 @@ ensure driftzone_auth
 ensure driftzone_notifications
 ensure driftzone_clothes
 ensure driftzone_outfits
-```
-
-4. Restart:
-
-```cfg
-restart driftzone_outfits
-```
-
-## Chat custom
-
-Daca folosesti `driftzone_chat`, ruta este:
-
-```lua
-exports.driftzone_outfits:RunCommand(src, command, args)
 ```

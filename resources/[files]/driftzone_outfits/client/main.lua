@@ -16,6 +16,13 @@ local OUTFIT_ITEMS = {
     { key = 'glasses', type = 'prop', propId = 1 }
 }
 
+local MALE_MODEL = joaat('mp_m_freemode_01')
+local FEMALE_MODEL = joaat('mp_f_freemode_01')
+
+local function notify(type, message, duration)
+    TriggerEvent('client:notify', type or 'info', duration or 5000, tostring(message or ''))
+end
+
 local function setHudVisible(state)
     local visible = state == true
 
@@ -44,6 +51,21 @@ local function getPed()
     end
 
     return lastPed
+end
+
+local function getPlayerSex()
+    local ped = getPed()
+    local model = GetEntityModel(ped)
+
+    if model == FEMALE_MODEL then
+        return 'f'
+    end
+
+    return 'm'
+end
+
+local function requestOpenFromServer()
+    TriggerServerEvent('driftzone_outfits:server:open', getPlayerSex())
 end
 
 local function captureOutfit()
@@ -119,8 +141,15 @@ local function closeMenu()
     })
 end
 
+-- UI open trebuie sa vina doar de la server.
 RegisterNetEvent('driftzone_outfits:client:open', function(payload)
     openMenu(payload or {})
+end)
+
+-- Trigger public pentru driftzone_keybinds sau alte scripturi.
+-- Foloseste asta in keybinds: TriggerEvent('driftzone_outfits:client:requestOpen')
+RegisterNetEvent('driftzone_outfits:client:requestOpen', function()
+    requestOpenFromServer()
 end)
 
 RegisterNetEvent('driftzone_outfits:client:apply', function(clothes)
@@ -140,6 +169,7 @@ RegisterNetEvent('driftzone_outfits:client:captureForAdd', function(data)
     TriggerServerEvent('driftzone_outfits:server:addCaptured', {
         name = tostring(data.name or ''),
         image = tostring(data.image or ''),
+        sex = getPlayerSex(),
         clothes = captureOutfit()
     })
 end)
@@ -165,21 +195,11 @@ RegisterNUICallback('wear', function(data, cb)
     local outfitId = tonumber(data and data.id or 0) or 0
 
     if outfitId > 0 then
-        TriggerServerEvent('driftzone_outfits:server:wear', outfitId)
+        TriggerServerEvent('driftzone_outfits:server:wear', outfitId, getPlayerSex())
     end
 
     cb({ ok = true })
 end)
-
-RegisterCommand('outfit', function()
-    TriggerServerEvent('driftzone_outfits:server:open')
-end, false)
-
-RegisterCommand('outfits', function()
-    TriggerServerEvent('driftzone_outfits:server:open')
-end, false)
-
-RegisterKeyMapping('outfit', 'DriftZone Outfits', 'keyboard', 'O')
 
 CreateThread(function()
     while true do
@@ -209,7 +229,11 @@ AddEventHandler('onResourceStop', function(resource)
     end
 end)
 
+exports('Open', requestOpenFromServer)
+exports('OpenMenu', requestOpenFromServer)
+exports('RequestOpen', requestOpenFromServer)
+
 CreateThread(function()
     Wait(1000)
-    print('[DRIFTZONE_OUTFITS] Client-side loaded.')
+    print('[DRIFTZONE_OUTFITS] Client-side loaded. Trigger-only mode.')
 end)

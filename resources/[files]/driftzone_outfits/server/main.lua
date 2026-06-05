@@ -3,8 +3,8 @@ local WEAR_COOLDOWN_MS = 30 * 1000
 
 local wearCooldown = {}
 local AdminCache = {}
-local OutfitListCache = nil
-local OutfitListCacheExpires = 0
+local OutfitListCache = {}
+local OutfitListCacheExpires = {}
 local OutfitByIdCache = {}
 local UserClothesCache = {}
 
@@ -20,9 +20,19 @@ local function notify(src, notifyType, message, duration)
     TriggerClientEvent('client:notify', src, notifyType or 'info', duration or 5000, tostring(message or ''))
 end
 
+local function normalizeSex(value)
+    value = tostring(value or ''):lower():gsub('%s+', '')
+
+    if value == 'f' or value == 'female' or value == 'woman' or value == 'femeie' then
+        return 'f'
+    end
+
+    return 'm'
+end
+
 local function clearOutfitCache()
-    OutfitListCache = nil
-    OutfitListCacheExpires = 0
+    OutfitListCache = {}
+    OutfitListCacheExpires = {}
     OutfitByIdCache = {}
 end
 
@@ -181,16 +191,27 @@ local function cleanOutfitClothes(raw)
     return clean
 end
 
-local function getOutfits()
+local function ensureDatabase()
+    MySQL.query.await([[
+        ALTER TABLE `outfits`
+        ADD COLUMN IF NOT EXISTS `sex` ENUM('m','f') NOT NULL DEFAULT 'm' AFTER `image`
+    ]], {})
+
+    MySQL.query.await('UPDATE outfits SET sex = "m" WHERE sex IS NULL OR sex = ""', {})
+end
+
+local function getOutfits(sex)
+    sex = normalizeSex(sex)
+
     local now = GetGameTimer()
 
-    if OutfitListCache and OutfitListCacheExpires > now then
-        return OutfitListCache
+    if OutfitListCache[sex] and (OutfitListCacheExpires[sex] or 0) > now then
+        return OutfitListCache[sex]
     end
 
     local rows = MySQL.query.await(
-        'SELECT id, name, image, created_at FROM outfits ORDER BY id DESC',
-        {}
+        'SELECT id, name, image, sex, created_at FROM outfits WHERE sex = ? ORDER BY id DESC',
+        { sex }
     ) or {}
 
     local list = {}
@@ -202,12 +223,13 @@ local function getOutfits()
             id = tonumber(row.id or 0) or 0,
             name = tostring(row.name or 'Outfit'),
             image = tostring(row.image or ''),
+            sex = normalizeSex(row.sex),
             createdAt = tostring(row.created_at or '')
         }
     end
 
-    OutfitListCache = list
-    OutfitListCacheExpires = now + 5000
+    OutfitListCache[sex] = list
+    OutfitListCacheExpires[sex] = now + 5000
 
     return list
 end
@@ -224,7 +246,7 @@ local function getOutfit(id)
     end
 
     local row = MySQL.single.await(
-        'SELECT id, name, image, clothes FROM outfits WHERE id = ? LIMIT 1',
+        'SELECT id, name, image, sex, clothes FROM outfits WHERE id = ? LIMIT 1',
         { id }
     )
 
@@ -234,6 +256,7 @@ local function getOutfit(id)
         id = tonumber(row.id or 0) or 0,
         name = tostring(row.name or 'Outfit'),
         image = tostring(row.image or ''),
+        sex = normalizeSex(row.sex),
         clothes = cleanOutfitClothes(row.clothes)
     }
 
@@ -297,7 +320,7 @@ local function createLog(action, data)
     end)
 end
 
-local function openMenu(src)
+local function openMenu(src, sex)
     if not isLogged(src) then
         notify(src, 'warning', 'Trebuie sa fii logat.')
         return
@@ -310,8 +333,11 @@ local function openMenu(src)
         return
     end
 
+    sex = normalizeSex(sex)
+
     TriggerClientEvent('driftzone_outfits:client:open', src, {
-        outfits = getOutfits(),
+        outfits = getOutfits(sex),
+        sex = sex,
         cooldownUntil = wearCooldown[uid] or 0,
         cooldown = WEAR_COOLDOWN_MS
     })
@@ -358,7 +384,7 @@ local function addOutfit(src, args)
     })
 end
 
-local function wearOutfit(src, outfitId)
+local function wearOutfit(src, outfitId, sex)
     if not isLogged(src) then
         notify(src, 'warning', 'Trebuie sa fii logat.')
         return
@@ -370,6 +396,8 @@ local function wearOutfit(src, outfitId)
         notify(src, 'warning', 'Nu ti-am gasit UID-ul.')
         return
     end
+
+    sex = normalizeSex(sex)
 
     local now = nowMs()
     local cooldownUntil = wearCooldown[uid] or 0
@@ -385,6 +413,11 @@ local function wearOutfit(src, outfitId)
 
     if not outfit then
         notify(src, 'warning', 'Outfit-ul nu exista.')
+        return
+    end
+
+    if outfit.sex ~= sex then
+        notify(src, 'warning', 'Acest outfit nu este pentru caracterul tau.')
         return
     end
 
@@ -416,16 +449,17 @@ local function wearOutfit(src, outfitId)
         user_id = uid,
         outfit_id = outfit.id,
         outfit_name = outfit.name,
+        sex = sex,
         player_name = GetPlayerName(src) or ''
     })
 end
 
-RegisterNetEvent('driftzone_outfits:server:open', function()
-    openMenu(source)
+RegisterNetEvent('driftzone_outfits:server:open', function(sex)
+    openMenu(source, sex)
 end)
 
-RegisterNetEvent('driftzone_outfits:server:wear', function(outfitId)
-    wearOutfit(source, outfitId)
+RegisterNetEvent('driftzone_outfits:server:wear', function(outfitId, sex)
+    wearOutfit(source, outfitId, sex)
 end)
 
 RegisterNetEvent('driftzone_outfits:server:addCaptured', function(payload)
@@ -437,6 +471,7 @@ RegisterNetEvent('driftzone_outfits:server:addCaptured', function(payload)
     local data = decodeJson(payload, {})
     local name = cleanText(data.name, 64)
     local image = normalizeImage(data.image)
+    local sex = normalizeSex(data.sex)
     local clothes = cleanOutfitClothes(data.clothes)
 
     if name == '' then
@@ -456,18 +491,19 @@ RegisterNetEvent('driftzone_outfits:server:addCaptured', function(payload)
     end
 
     MySQL.insert.await(
-        'INSERT INTO outfits (name, image, clothes, created_by_uid, created_by_name) VALUES (?, ?, ?, ?, ?)',
-        { name, image, json.encode(clothes), admin.uid, admin.username }
+        'INSERT INTO outfits (name, image, sex, clothes, created_by_uid, created_by_name) VALUES (?, ?, ?, ?, ?, ?)',
+        { name, image, sex, json.encode(clothes), admin.uid, admin.username }
     )
 
     clearOutfitCache()
 
-    notify(src, 'info', ('Ai creat outfit-ul "%s".'):format(name))
+    notify(src, 'info', ('Ai creat outfit-ul "%s" pentru sex "%s".'):format(name, sex))
 
     createLog('addoutfit', {
         user_id = admin.uid,
         player_name = admin.username,
         outfit_name = name,
+        sex = sex,
         image = image,
         clothes = clothes
     })
@@ -476,28 +512,18 @@ end)
 local function runCommand(src, command, args)
     command = tostring(command or ''):lower()
 
-    if command == 'outfit' or command == 'outfits' then
-        openMenu(src)
-        return
-    end
-
     if command == 'addoutfit' then
         addOutfit(src, args or {})
         return
     end
+
+    -- /outfit si /outfits sunt intentionat dezactivate aici.
+    -- Deschiderea se face doar prin trigger/export, pentru driftzone_keybinds.
+    if command == 'outfit' or command == 'outfits' then
+        notify(src, 'warning', 'Outfits se deschide doar din keybinds.')
+        return
+    end
 end
-
-RegisterCommand('outfit', function(src)
-    if src ~= 0 then
-        openMenu(src)
-    end
-end, false)
-
-RegisterCommand('outfits', function(src)
-    if src ~= 0 then
-        openMenu(src)
-    end
-end, false)
 
 RegisterCommand('addoutfit', function(src, args)
     if src ~= 0 then
@@ -509,8 +535,12 @@ exports('RunCommand', function(src, command, args)
     return runCommand(src, command, args or {})
 end)
 
-exports('Open', function(src)
-    return openMenu(src)
+exports('Open', function(src, sex)
+    return openMenu(src, sex)
+end)
+
+exports('OpenForSex', function(src, sex)
+    return openMenu(src, sex)
 end)
 
 AddEventHandler('playerDropped', function()
@@ -525,5 +555,6 @@ end)
 
 CreateThread(function()
     Wait(500)
-    print('[DRIFTZONE_OUTFITS] Server-side loaded.')
+    ensureDatabase()
+    print('[DRIFTZONE_OUTFITS] Server-side loaded. Trigger-only + sex filter enabled.')
 end)
