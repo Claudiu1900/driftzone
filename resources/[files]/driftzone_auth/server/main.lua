@@ -1,0 +1,620 @@
+local LoggedPlayers = {}
+local LastSavedPositions = {}
+
+local function trim(value)
+    return tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
+end
+
+local function notifyAuth(src, message)
+    TriggerClientEvent('driftzone_auth:client:status', src, tostring(message or 'Eroare'))
+end
+
+local function getIdentifier(src, prefix)
+    for _, identifier in ipairs(GetPlayerIdentifiers(src)) do
+        if identifier:sub(1, #prefix) == prefix then
+            return identifier
+        end
+    end
+
+    return ''
+end
+
+local function getPlayerIdentifiersData(src)
+    return {
+        license = getIdentifier(src, 'license:'),
+        discord = getIdentifier(src, 'discord:'),
+        steam = getIdentifier(src, 'steam:'),
+        fivem = getIdentifier(src, 'fivem:')
+    }
+end
+
+local function getPlayerIP(src)
+    return tostring(GetPlayerEndpoint(src) or '')
+end
+
+local function getCleanPlayerName(src)
+    return trim(GetPlayerName(src) or '')
+end
+
+local function isValidDriftZoneName(name)
+    name = trim(name)
+
+    if name == '' then
+        return false, 'Numele tau este gol. Schimba numele din FiveM.'
+    end
+
+    if #name < 3 then
+        return false, 'Numele trebuie sa aiba minim 3 caractere.'
+    end
+
+    if #name > 32 then
+        return false, 'Numele trebuie sa aiba maxim 32 caractere.'
+    end
+
+    local allowed = name:match('^[A-Za-zĂÂÎȘȚăâîșț%.!]+$') ~= nil
+
+    if not allowed then
+        return false, 'Nume invalid. Foloseste doar litere, ! si . Schimba numele din FiveM.'
+    end
+
+    return true, ''
+end
+
+local function randomSalt(length)
+    local chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    local salt = {}
+
+    for i = 1, length do
+        local index = math.random(1, #chars)
+        salt[#salt + 1] = chars:sub(index, index)
+    end
+
+    return table.concat(salt)
+end
+
+local function hashPassword(password, salt)
+    return MySQL.scalar.await(
+        'SELECT SHA2(CONCAT(@password, @salt), 256)',
+        {
+            ['@password'] = tostring(password or ''),
+            ['@salt'] = tostring(salt or '')
+        }
+    )
+end
+
+local function validEmail(email)
+    email = trim(email):lower()
+
+    if email == '' then return false end
+    if not email:find('@', 1, true) then return false end
+    if not email:find('.', 1, true) then return false end
+    if #email > 128 then return false end
+
+    return true
+end
+
+local function parseLastpos(lastpos)
+    if not lastpos or tostring(lastpos) == '' or tostring(lastpos) == 'none' then
+        return Config.DefaultSpawn
+    end
+
+    local ok, decoded = pcall(json.decode, tostring(lastpos))
+
+    if ok and type(decoded) == 'table' then
+        local x = tonumber(decoded.x)
+        local y = tonumber(decoded.y)
+        local z = tonumber(decoded.z)
+        local h = tonumber(decoded.h or decoded.heading or 0.0)
+
+        if x and y and z then
+            return {
+                x = x,
+                y = y,
+                z = z,
+                h = h or 0.0
+            }
+        end
+    end
+
+    return Config.DefaultSpawn
+end
+
+local function makeLastpos(coords, heading)
+    return json.encode({
+        x = tonumber(string.format('%.4f', coords.x)),
+        y = tonumber(string.format('%.4f', coords.y)),
+        z = tonumber(string.format('%.4f', coords.z)),
+        h = tonumber(string.format('%.4f', heading or 0.0))
+    })
+end
+
+local function distance(a, b)
+    if not a or not b then return 999999.0 end
+
+    local dx = (a.x or 0.0) - (b.x or 0.0)
+    local dy = (a.y or 0.0) - (b.y or 0.0)
+    local dz = (a.z or 0.0) - (b.z or 0.0)
+
+    return math.sqrt(dx * dx + dy * dy + dz * dz)
+end
+
+local function shouldSave(uid, coords, heading, force)
+    if force then return true end
+
+    local last = LastSavedPositions[uid]
+
+    if not last then return true end
+
+    if distance(last, coords) >= Config.MinPositionChange then
+        return true
+    end
+
+    if math.abs((last.h or 0.0) - (heading or 0.0)) >= Config.MinHeadingChange then
+        return true
+    end
+
+    return false
+end
+
+local function updateLastSaved(uid, coords, heading)
+    LastSavedPositions[uid] = {
+        x = coords.x,
+        y = coords.y,
+        z = coords.z,
+        h = heading or 0.0
+    }
+end
+
+local function getUserByUsername(username)
+    username = trim(username)
+
+    if username == '' then return nil end
+
+    return MySQL.single.await(
+        'SELECT * FROM users WHERE username = @username LIMIT 1',
+        {
+            ['@username'] = username
+        }
+    )
+end
+
+local function getUserByUid(uid)
+    uid = tonumber(uid)
+
+    if not uid or uid <= 0 then return nil end
+
+    return MySQL.single.await(
+        'SELECT * FROM users WHERE uid = @uid LIMIT 1',
+        {
+            ['@uid'] = uid
+        }
+    )
+end
+
+local function getUserByEmail(email)
+    email = trim(email):lower()
+
+    if email == '' then return nil end
+
+    return MySQL.single.await(
+        'SELECT uid FROM users WHERE email = @email LIMIT 1',
+        {
+            ['@email'] = email
+        }
+    )
+end
+
+local function isTempBanActive(uid)
+    local active = MySQL.scalar.await(
+        'SELECT IF(tempban IS NOT NULL AND tempban > NOW(), 1, 0) FROM users WHERE uid = @uid LIMIT 1',
+        {
+            ['@uid'] = tonumber(uid)
+        }
+    )
+
+    return tonumber(active) == 1
+end
+
+local function clearExpiredTempBan(uid)
+    MySQL.update.await(
+        'UPDATE users SET tempban = NULL, tempbanreason = NULL WHERE uid = @uid AND tempban IS NOT NULL AND tempban <= NOW()',
+        {
+            ['@uid'] = tonumber(uid)
+        }
+    )
+end
+
+local function checkBan(src, user)
+    local ban = trim(user.ban):lower()
+
+    if ban == 'yes' or ban == 'true' or ban == '1' then
+        notifyAuth(
+            src,
+            ('Ai BAN PERMANENT pe DriftZone!\nMotiv: %s\nDaca vrei unban, intra pe %s'):format(
+                trim(user.banreason) ~= '' and trim(user.banreason) or 'Nespecificat',
+                Config.DiscordInvite
+            )
+        )
+
+        return false
+    end
+
+    if isTempBanActive(user.uid) then
+        notifyAuth(
+            src,
+            ('Ai BAN TEMPORAR pe DriftZone!\nMotiv: %s\nDaca vrei unban mai rapid, intra pe %s'):format(
+                trim(user.tempbanreason) ~= '' and trim(user.tempbanreason) or 'Nespecificat',
+                Config.DiscordInvite
+            )
+        )
+
+        return false
+    end
+
+    clearExpiredTempBan(user.uid)
+
+    return true
+end
+
+local function savePlayerPosition(src, force)
+    local session = LoggedPlayers[src]
+
+    if not session then return false end
+
+    local ped = GetPlayerPed(src)
+
+    if not ped or ped == 0 then return false end
+
+    local coords = GetEntityCoords(ped)
+
+    if not coords then return false end
+
+    if coords.x == 0.0 and coords.y == 0.0 and coords.z == 0.0 then
+        return false
+    end
+
+    local heading = GetEntityHeading(ped) or 0.0
+    local uid = session.uid
+
+    if not shouldSave(uid, coords, heading, force) then
+        return false
+    end
+
+    local lastpos = makeLastpos(coords, heading)
+
+    MySQL.update.await(
+        'UPDATE users SET lastpos = @lastpos, ip = @ip WHERE uid = @uid',
+        {
+            ['@lastpos'] = lastpos,
+            ['@ip'] = getPlayerIP(src),
+            ['@uid'] = uid
+        }
+    )
+
+    updateLastSaved(uid, coords, heading)
+
+    return true
+end
+
+local function completeLogin(src, user)
+    local uid = tonumber(user.uid)
+
+    if not uid or uid <= 0 then
+        return notifyAuth(src, 'UID invalid.')
+    end
+
+    local currentName = getCleanPlayerName(src)
+    local validName, nameError = isValidDriftZoneName(currentName)
+
+    if not validName then
+        return notifyAuth(src, nameError)
+    end
+
+    if trim(user.username) ~= currentName then
+        return notifyAuth(src, 'Contul acesta nu este pentru numele tau actual. Schimba numele sau inregistreaza un cont nou.')
+    end
+
+    local ids = getPlayerIdentifiersData(src)
+    local spawn = parseLastpos(user.lastpos)
+
+    LoggedPlayers[src] = {
+        uid = uid,
+        username = user.username,
+        email = user.email,
+        license = ids.license,
+        admin_level = tonumber(user.admin_level or 0) or 0,
+        aduty = tonumber(user.aduty or 0) == 1
+    }
+
+    LastSavedPositions[uid] = {
+        x = spawn.x,
+        y = spawn.y,
+        z = spawn.z,
+        h = spawn.h or 0.0
+    }
+
+    Player(src).state:set('dz_logged', true, true)
+    Player(src).state:set('dz_uid', uid, true)
+    Player(src).state:set('dz_username', user.username, true)
+    Player(src).state:set('dz_admin_level', tonumber(user.admin_level or 0) or 0, true)
+    Player(src).state:set('dz_aduty', tonumber(user.aduty or 0) == 1, true)
+
+    SetPlayerRoutingBucket(src, 0)
+
+    MySQL.update.await(
+        [[
+            UPDATE users
+            SET license = @license,
+                discord = @discord,
+                steam = @steam,
+                fivem = @fivem,
+                ip = @ip,
+                last_login = NOW()
+            WHERE uid = @uid
+        ]],
+        {
+            ['@license'] = ids.license,
+            ['@discord'] = ids.discord,
+            ['@steam'] = ids.steam,
+            ['@fivem'] = ids.fivem,
+            ['@ip'] = getPlayerIP(src),
+            ['@uid'] = uid
+        }
+    )
+
+    TriggerClientEvent('driftzone_auth:client:success', src, {
+        uid = uid,
+        username = user.username or currentName,
+        cash = tonumber(user.cash or 0) or 0,
+        bank = tonumber(user.bank or 0) or 0,
+        admin_level = tonumber(user.admin_level or 0) or 0,
+        spawn = spawn
+    })
+end
+
+local function handleRegister(src, data)
+    local ids = getPlayerIdentifiersData(src)
+    local name = getCleanPlayerName(src)
+    local email = trim(data.email):lower()
+    local password = tostring(data.password or '')
+
+    local validName, nameError = isValidDriftZoneName(name)
+
+    if not validName then
+        return notifyAuth(src, nameError)
+    end
+
+    if not validEmail(email) then
+        return notifyAuth(src, 'Email invalid.')
+    end
+
+    if #password < Config.MinPasswordLength then
+        return notifyAuth(src, ('Parola prea scurta. Minim %s caractere.'):format(Config.MinPasswordLength))
+    end
+
+    local existsName = getUserByUsername(name)
+
+    if existsName then
+        return notifyAuth(src, 'Exista deja un cont pe acest nume. Foloseste Login.')
+    end
+
+    local existsEmail = getUserByEmail(email)
+
+    if existsEmail then
+        return notifyAuth(src, 'Email-ul acesta este deja folosit.')
+    end
+
+    local salt = randomSalt(32)
+    local passwordHash = hashPassword(password, salt)
+
+    local insertId = MySQL.insert.await(
+        [[
+            INSERT INTO users
+                (
+                    username,
+                    email,
+                    password_hash,
+                    password_salt,
+                    license,
+                    discord,
+                    steam,
+                    fivem,
+                    ip,
+                    cash,
+                    bank,
+                    admin_level,
+                    aduty,
+                    ban,
+                    lastpos,
+                    clothes,
+                    tattoos,
+                    outfit
+                )
+            VALUES
+                (
+                    @username,
+                    @email,
+                    @password_hash,
+                    @password_salt,
+                    @license,
+                    @discord,
+                    @steam,
+                    @fivem,
+                    @ip,
+                    @cash,
+                    @bank,
+                    0,
+                    0,
+                    'no',
+                    NULL,
+                    NULL,
+                    NULL,
+                    NULL
+                )
+        ]],
+        {
+            ['@username'] = name,
+            ['@email'] = email,
+            ['@password_hash'] = passwordHash,
+            ['@password_salt'] = salt,
+            ['@license'] = ids.license,
+            ['@discord'] = ids.discord,
+            ['@steam'] = ids.steam,
+            ['@fivem'] = ids.fivem,
+            ['@ip'] = getPlayerIP(src),
+            ['@cash'] = Config.StartCash,
+            ['@bank'] = Config.StartBank
+        }
+    )
+
+    if not insertId then
+        return notifyAuth(src, 'Nu am putut crea contul.')
+    end
+
+    local user = getUserByUid(insertId)
+
+    if not user then
+        return notifyAuth(src, 'Cont creat, dar nu poate fi incarcat. Reconnect.')
+    end
+
+    completeLogin(src, user)
+end
+
+local function handleLogin(src, data)
+    local name = getCleanPlayerName(src)
+    local password = tostring(data.password or '')
+
+    local validName, nameError = isValidDriftZoneName(name)
+
+    if not validName then
+        return notifyAuth(src, nameError)
+    end
+
+    if password == '' then
+        return notifyAuth(src, 'Parola obligatorie.')
+    end
+
+    local user = getUserByUsername(name)
+
+    if not user then
+        return notifyAuth(src, 'Nu exista cont pe acest nume. Apasa Register.')
+    end
+
+    if not checkBan(src, user) then
+        return
+    end
+
+    local passwordHash = hashPassword(password, user.password_salt or '')
+
+    if passwordHash ~= tostring(user.password_hash or '') then
+        return notifyAuth(src, 'Parola incorecta.')
+    end
+
+    completeLogin(src, user)
+end
+
+RegisterNetEvent('driftzone_auth:server:requestInit', function()
+    local src = source
+    local name = getCleanPlayerName(src)
+
+    SetPlayerRoutingBucket(src, src + 1000)
+
+    local validName, nameError = isValidDriftZoneName(name)
+    local hasAccount = false
+
+    if validName then
+        local user = getUserByUsername(name)
+        hasAccount = user ~= nil
+    end
+
+    TriggerClientEvent('driftzone_auth:client:init', src, {
+        name = name,
+        hasAccount = hasAccount
+    })
+
+    if not validName then
+        Wait(500)
+        notifyAuth(src, nameError)
+    end
+end)
+
+RegisterNetEvent('driftzone_auth:server:submit', function(payload)
+    local src = source
+
+    if LoggedPlayers[src] then return end
+
+    local data = {}
+
+    if type(payload) == 'table' then
+        data = payload
+    else
+        local ok, decoded = pcall(json.decode, tostring(payload or '{}'))
+
+        if ok and type(decoded) == 'table' then
+            data = decoded
+        end
+    end
+
+    if data.type == 'register' then
+        handleRegister(src, data)
+        return
+    end
+
+    if data.type == 'login' then
+        handleLogin(src, data)
+        return
+    end
+
+    notifyAuth(src, 'Actiune necunoscuta.')
+end)
+
+AddEventHandler('playerDropped', function()
+    local src = source
+
+    if LoggedPlayers[src] then
+        savePlayerPosition(src, true)
+        LastSavedPositions[LoggedPlayers[src].uid] = nil
+        LoggedPlayers[src] = nil
+    end
+end)
+
+CreateThread(function()
+    while true do
+        Wait(Config.AutoSaveInterval)
+
+        for _, id in ipairs(GetPlayers()) do
+            local src = tonumber(id)
+
+            if src and LoggedPlayers[src] then
+                pcall(function()
+                    savePlayerPosition(src, false)
+                end)
+            end
+        end
+    end
+end)
+
+exports('GetUser', function(src)
+    return LoggedPlayers[src]
+end)
+
+exports('GetUID', function(src)
+    return LoggedPlayers[src] and LoggedPlayers[src].uid or nil
+end)
+
+exports('IsLoggedIn', function(src)
+    return LoggedPlayers[src] ~= nil
+end)
+
+exports('GetAdminLevel', function(src)
+    return LoggedPlayers[src] and LoggedPlayers[src].admin_level or 0
+end)
+
+exports('IsAdminDuty', function(src)
+    return LoggedPlayers[src] and LoggedPlayers[src].aduty == true or false
+end)
+
+AddEventHandler('onResourceStart', function(resource)
+    if resource ~= GetCurrentResourceName() then return end
+    print('[DRIFTZONE_AUTH] Server-side loaded.')
+end)

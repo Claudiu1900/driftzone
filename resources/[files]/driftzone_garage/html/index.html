@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Garage</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="garageRoot" class="garage-root hidden">
+        <div class="garage-shell">
+            <button class="close-btn" onclick="closeGarage()">×</button>
+
+            <div class="top">
+                <div>
+                    <h1>DriftZone Garage</h1>
+                    <p>Selecteaza un vehicul pentru spawn/despawn</p>
+                </div>
+
+                <div class="badge">
+                    <span id="vehicleCount">0</span>
+                    <small>vehicles</small>
+                </div>
+            </div>
+
+            <div id="tabsRow" class="tabs-row hidden">
+                <button id="ownedTab" class="tab active" onclick="selectTab('owned')">OWNED</button>
+                <button id="vipTab" class="tab vip" onclick="selectTab('vip')">VIP</button>
+            </div>
+
+            <div class="search-row">
+                <input id="searchInput" placeholder="Cauta vehicul dupa nume, model sau numar..." oninput="queueRender()">
+            </div>
+
+            <div id="vehiclesGrid" class="vehicles-grid"></div>
+
+            <div id="bottomBar" class="bottom-bar hidden">
+                <div class="selected-info">
+                    <div id="selectedName" class="selected-name">Vehicle</div>
+                    <div id="selectedMeta" class="selected-meta">Model • Plate</div>
+                </div>
+
+                <button id="actionButton" class="bottom-action spawn" onclick="runSelectedAction()">
+                    Spawn
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

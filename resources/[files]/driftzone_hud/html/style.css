@@ -1,0 +1,221 @@
+* {
+    box-sizing: border-box;
+    user-select: none;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: transparent;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+:root {
+    --main: #2aaeff;
+    --main2: #39b9ff;
+    --white: #ffffff;
+    --shadow: rgba(0, 0, 0, 0.88);
+}
+
+.hidden {
+    opacity: 0 !important;
+    transform: translateY(-8px) scale(0.91) !important;
+    pointer-events: none !important;
+}
+
+.hud-root {
+    position: fixed;
+    top: 7px;
+    right: 12px;
+    width: 337px;
+    height: 164px;
+    pointer-events: none;
+    opacity: 1;
+    transform: translateY(0) scale(0.95);
+    transform-origin: top right;
+    transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.date-time {
+    position: absolute;
+    top: 0;
+    right: 0;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 13px;
+    line-height: 11px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    text-shadow:
+        1px 1px 2px var(--shadow),
+        0 0 5px rgba(255, 255, 255, 0.28);
+}
+
+.brand-row {
+    position: absolute;
+    top: 27px;
+    right: 0;
+    height: 74px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.brand-title {
+    color: #ffffff;
+    font-size: 31px;
+    line-height: 34px;
+    font-weight: 1000;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    text-shadow:
+        2px 2px 3px rgba(0, 0, 0, 0.95),
+        0 0 7px rgba(255, 255, 255, 0.28);
+}
+
+.brand-logo {
+    width: 138px;
+    height: 138px;
+    object-fit: contain;
+    margin-left: -8px;
+    margin-top: 0;
+    filter:
+        drop-shadow(0 0 10px rgba(42, 174, 255, 0.72))
+        drop-shadow(2px 2px 5px rgba(0, 0, 0, 0.86));
+}
+
+.stats-row {
+    position: absolute;
+    top: 125px;
+    right: 0;
+    height: 31px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.stat-number {
+    color: #ffffff;
+    font-size: 17px;
+    line-height: 19px;
+    font-weight: 1000;
+    min-width: 40px;
+    text-align: right;
+    text-shadow:
+        2px 2px 2px rgba(0, 0, 0, 0.92),
+        0 0 6px rgba(255, 255, 255, 0.25);
+}
+
+.blue-pill {
+    background:
+        linear-gradient(180deg, rgba(64, 188, 255, 0.97), rgba(22, 144, 229, 0.97));
+    border-radius: 7px;
+    box-shadow:
+        0 0 10px rgba(42, 174, 255, 0.55),
+        0 4px 10px rgba(0, 0, 0, 0.20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.20);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-pill {
+    width: 53px;
+    height: 28px;
+}
+
+.icon-pill svg {
+    width: 19px;
+    height: 19px;
+    fill: #ffffff;
+    filter: drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.28));
+}
+
+.id-pill {
+    width: 65px;
+    height: 28px;
+    padding: 0 8px;
+}
+
+.id-pill span {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 1000;
+    line-height: 28px;
+    text-shadow:
+        1px 1px 2px rgba(0, 0, 0, 0.55),
+        0 0 6px rgba(255, 255, 255, 0.18);
+}
+
+.cash-section {
+    position: absolute;
+    top: 170px;
+    right: 0;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cash-left {
+    width: 92px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+/* Scoate complet textul si patratul Bani Cash */
+.cash-label {
+    display: none;
+}
+
+.cash-value {
+    margin-top: 0;
+    color: #ffffff;
+    font-size: 18px;
+    line-height: 20px;
+    font-weight: 1000;
+    text-align: right;
+    text-shadow:
+        2px 2px 2px rgba(0, 0, 0, 0.94),
+        0 0 6px rgba(255, 255, 255, 0.26);
+}
+
+.money-pill {
+    width: 39px;
+    height: 39px;
+    border-radius: 9px;
+}
+
+.money-pill svg {
+    width: 24px;
+    height: 24px;
+    fill: #ffffff;
+    filter: drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.28));
+}
+
+@media (max-width: 1400px) {
+    .hud-root {
+        transform: scale(0.88);
+        transform-origin: top right;
+    }
+
+    .hidden {
+        transform: translateY(-8px) scale(0.84) !important;
+    }
+}
+
+@media (max-width: 1150px) {
+    .hud-root {
+        transform: scale(0.80);
+        transform-origin: top right;
+    }
+
+    .hidden {
+        transform: translateY(-8px) scale(0.76) !important;
+    }
+}

@@ -1,0 +1,84 @@
+* { box-sizing: border-box; user-select: none; }
+html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; width: 100vw; height: 100vh; font-family: Arial, Helvetica, sans-serif; }
+:root { --main: #04c7f7; --dark: rgba(3, 7, 12, 0.68); --panel: rgba(4, 9, 16, 0.72); --card: rgba(5, 12, 20, 0.86); --soft: rgba(4, 199, 247, 0.13); --line: rgba(4, 199, 247, 0.42); }
+.hidden { display: none !important; }
+.garage-root { position: fixed; inset: 0; background: radial-gradient(circle at center, rgba(4, 199, 247, 0.10), rgba(0, 0, 0, 0.42)), rgba(0, 0, 0, 0.34); color: white; animation: fadeIn 0.18s ease; }
+.garage-shell { position: fixed; inset: 0; padding: 42px 54px 110px; background: linear-gradient(145deg, rgba(4, 199, 247, 0.08), rgba(4, 199, 247, 0.02)), rgba(0, 0, 0, 0.24); }
+.close-btn { position: fixed; right: 42px; top: 34px; width: 44px; height: 44px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.18); background: rgba(5, 12, 20, 0.70); color: white; font-size: 28px; cursor: pointer; transition: 0.2s; z-index: 20; }
+.close-btn:hover { background: rgba(255,70,70,0.32); border-color: rgba(255,70,70,0.55); transform: scale(1.04); }
+.top { display: flex; justify-content: space-between; align-items: center; padding-right: 70px; margin-bottom: 18px; }
+h1 { margin: 0; font-size: 42px; letter-spacing: 0.5px; text-shadow: 0 0 20px rgba(4,199,247,0.70), 0 3px 8px rgba(0,0,0,0.95); }
+p { margin: 7px 0 0; color: rgba(255,255,255,0.78); font-size: 15px; text-shadow: 0 2px 6px rgba(0,0,0,0.95); }
+.badge { min-width: 120px; height: 64px; border-radius: 20px; border: 1px solid var(--line); background: rgba(5, 12, 20, 0.70); display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(4,199,247,0.20), inset 0 0 24px rgba(4,199,247,0.08); }
+.badge span { font-size: 26px; font-weight: 900; color: var(--main); text-shadow: 0 0 14px rgba(4,199,247,0.9); }
+.badge small { color: rgba(255,255,255,0.70); text-transform: uppercase; font-size: 10px; letter-spacing: 1.4px; }
+.tabs-row { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.tab { min-width: 132px; height: 42px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.14); background: rgba(5, 12, 20, 0.68); color: rgba(255,255,255,0.76); font-size: 13px; font-weight: 900; letter-spacing: 1.4px; cursor: pointer; transition: 0.16s; }
+.tab:hover { border-color: rgba(4,199,247,0.65); color: white; transform: translateY(-1px); }
+.tab.active { background: rgba(4,199,247,0.24); border-color: rgba(4,199,247,0.72); color: white; box-shadow: 0 0 22px rgba(4,199,247,0.18); }
+.tab.vip.active { background: rgba(255, 204, 80, 0.20); border-color: rgba(255, 204, 80, 0.72); box-shadow: 0 0 22px rgba(255,204,80,0.16); }
+.search-row { margin-bottom: 24px; }
+.search-row input { width: 100%; height: 54px; padding: 0 18px; border: 1px solid rgba(255,255,255,0.16); background: rgba(5, 12, 20, 0.68); color: white; border-radius: 18px; outline: none; font-size: 16px; transition: 0.2s; box-shadow: 0 8px 22px rgba(0,0,0,0.22); }
+.search-row input::placeholder { color: rgba(255,255,255,0.52); }
+.search-row input:focus { border-color: var(--main); box-shadow: 0 0 22px rgba(4,199,247,0.26), 0 8px 22px rgba(0,0,0,0.25); }
+.vehicles-grid { height: calc(100vh - 298px); overflow-y: auto; display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 18px; padding-right: 8px; padding-bottom: 22px; }
+.vehicles-grid.no-tabs { height: calc(100vh - 250px); }
+.vehicles-grid::-webkit-scrollbar { width: 6px; }
+.vehicles-grid::-webkit-scrollbar-thumb { background: var(--main); border-radius: 999px; }
+.vehicle-card { height: 250px; border-radius: 24px; border: 1px solid rgba(4,199,247,0.30); background: linear-gradient(145deg, rgba(4,199,247,0.10), rgba(255,255,255,0.025)), var(--card); overflow: hidden; position: relative; cursor: pointer; animation: cardIn 0.22s ease; transition: 0.18s; box-shadow: 0 12px 30px rgba(0,0,0,0.34), inset 0 0 25px rgba(255,255,255,0.025); }
+.vehicle-card.vip::after { content: 'VIP'; position: absolute; top: 12px; right: 12px; height: 25px; padding: 0 10px; border-radius: 999px; background: rgba(255,204,80,0.92); color: #161000; font-size: 11px; font-weight: 900; line-height: 25px; box-shadow: 0 0 16px rgba(255,204,80,0.4); }
+.vehicle-card:hover { transform: translateY(-4px); border-color: rgba(4,199,247,0.70); box-shadow: 0 0 30px rgba(4,199,247,0.24), 0 12px 30px rgba(0,0,0,0.40); }
+.vehicle-card.selected { border-color: var(--main); box-shadow: 0 0 36px rgba(4,199,247,0.42), 0 12px 30px rgba(0,0,0,0.42), inset 0 0 28px rgba(4,199,247,0.10); transform: translateY(-3px); }
+.vehicle-image { height: 130px; background: linear-gradient(135deg, rgba(4,199,247,0.22), rgba(255,255,255,0.05)); display: flex; align-items: center; justify-content: center; overflow: hidden; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.vehicle-image img { width: 100%; height: 100%; object-fit: cover; }
+.no-image { font-size: 48px; opacity: 0.85; filter: drop-shadow(0 0 12px rgba(4,199,247,0.35)); }
+.vehicle-info { padding: 15px; background: rgba(0,0,0,0.12); }
+.vehicle-name { font-size: 20px; font-weight: 900; margin-bottom: 7px; color: #ffffff; text-shadow: 0 0 10px rgba(4,199,247,0.35), 0 2px 6px rgba(0,0,0,0.95); }
+.vehicle-meta { color: rgba(255,255,255,0.76); font-size: 13px; margin-bottom: 9px; text-shadow: 0 2px 5px rgba(0,0,0,0.95); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 900; color: var(--main); text-shadow: 0 0 10px rgba(4,199,247,0.65); }
+.status.off { color: rgba(255,255,255,0.62); text-shadow: 0 2px 5px rgba(0,0,0,0.95); }
+.empty { grid-column: 1 / -1; height: 420px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.82); font-weight: 900; font-size: 18px; text-shadow: 0 2px 8px rgba(0,0,0,0.95); }
+.bottom-bar { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); width: calc(100vw - 110px); height: 76px; border-radius: 24px; border: 1px solid var(--line); background: linear-gradient(145deg, rgba(4,199,247,0.12), rgba(4,199,247,0.025)), rgba(4, 8, 14, 0.88); box-shadow: 0 0 42px rgba(4,199,247,0.24), 0 12px 34px rgba(0,0,0,0.38); display: flex; align-items: center; justify-content: space-between; padding: 0 22px; animation: slideUp 0.20s ease; }
+.selected-info { display: flex; flex-direction: column; gap: 4px; }
+.selected-name { font-size: 21px; font-weight: 900; color: white; text-shadow: 0 0 12px rgba(4,199,247,0.45), 0 2px 7px rgba(0,0,0,0.95); }
+.selected-meta { font-size: 13px; color: rgba(255,255,255,0.74); text-shadow: 0 2px 6px rgba(0,0,0,0.9); }
+.bottom-action { min-width: 180px; height: 46px; border-radius: 16px; border: none; color: white; font-weight: 900; cursor: pointer; text-transform: uppercase; letter-spacing: 1.2px; transition: 0.18s; }
+.bottom-action.spawn { background: rgba(4,199,247,0.38); border: 1px solid rgba(4,199,247,0.65); box-shadow: 0 0 18px rgba(4,199,247,0.20); }
+.bottom-action.despawn { background: rgba(255,70,70,0.34); border: 1px solid rgba(255,70,70,0.58); box-shadow: 0 0 18px rgba(255,70,70,0.18); }
+.bottom-action:hover { transform: translateY(-2px); filter: brightness(1.22); }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cardIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateX(-50%) translateY(25px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@media (max-width: 1450px) { .vehicles-grid { grid-template-columns: repeat(3, minmax(220px, 1fr)); } }
+@media (max-width: 1050px) { .vehicles-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); } }
+
+/* OPTIMIZARE NUI: pastreaza acelasi UI, dar reduce recalcularile si repaint-ul pe liste mari */
+.garage-root,
+.garage-shell,
+.vehicles-grid,
+.vehicle-card,
+.bottom-bar {
+    backface-visibility: hidden;
+}
+
+.vehicles-grid {
+    contain: layout paint style;
+    will-change: scroll-position;
+}
+
+.vehicle-card {
+    contain: layout paint style;
+}
+
+.vehicle-image img {
+    transform: translateZ(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .garage-root,
+    .vehicle-card,
+    .bottom-bar {
+        animation: none !important;
+        transition: none !important;
+    }
+}

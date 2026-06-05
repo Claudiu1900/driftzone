@@ -1,0 +1,229 @@
+* {
+    box-sizing: border-box;
+    user-select: none;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.chat-root {
+    position: absolute;
+    left: 22px;
+    top: 22px;
+    width: 690px;
+    height: 360px;
+    background: transparent;
+    pointer-events: none;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.chat-root.hidden-root {
+    opacity: 0;
+    transform: translateY(-6px);
+}
+
+.chat-root.opened {
+    pointer-events: auto;
+}
+
+.messages {
+    width: 690px;
+    height: 298px;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 6px;
+    padding-right: 6px;
+    background: transparent;
+    pointer-events: none;
+}
+
+.chat-root.opened .messages {
+    overflow-y: auto;
+    pointer-events: auto;
+}
+
+.messages::-webkit-scrollbar {
+    width: 5px;
+}
+
+.messages::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.12);
+    border-radius: 10px;
+}
+
+.messages::-webkit-scrollbar-thumb {
+    background: rgba(4, 199, 247, 0.55);
+    border-radius: 10px;
+}
+
+.messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(4, 199, 247, 0.9);
+}
+
+.message {
+    width: fit-content;
+    max-width: 670px;
+    color: #ffffff;
+    font-size: 17px;
+    line-height: 26px;
+    font-weight: 500;
+    text-shadow:
+        1px 1px 2px rgba(0, 0, 0, 0.98),
+        0 0 4px rgba(0, 0, 0, 0.85);
+    word-break: break-word;
+    background: transparent;
+    opacity: 0;
+    transform: translateX(-8px);
+    animation: messageFadeIn 160ms ease forwards;
+}
+
+.time {
+    display: inline-block;
+    color: rgba(255, 255, 255, 0.55);
+    margin-right: 6px;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+    min-width: 72px;
+    padding: 0 11px;
+    margin-right: 6px;
+    border-radius: 3px;
+    color: #071016;
+    font-size: 13px;
+    line-height: 26px;
+    font-weight: 900;
+    text-align: center;
+    text-shadow: none;
+    vertical-align: middle;
+    box-shadow:
+        0 0 8px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.badge-admin {
+    color: #071016;
+}
+
+.badge-rank {
+    color: #071016;
+}
+
+.badge-id {
+    background: rgba(4, 199, 247, 0.94);
+    color: #061018;
+    min-width: 76px;
+    box-shadow:
+        0 0 9px rgba(4, 199, 247, 0.38),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.name {
+    color: #ffffff;
+    font-weight: 800;
+    vertical-align: middle;
+}
+
+.text {
+    color: #f1f1f1;
+    vertical-align: middle;
+}
+
+.message.error .badge-id {
+    background: rgba(255, 77, 77, 0.94);
+    color: #170404;
+    box-shadow:
+        0 0 8px rgba(255, 77, 77, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.message.error .text {
+    color: #ffb3b3;
+}
+
+.input-box {
+    position: absolute;
+    left: 0;
+    top: 309px;
+    width: 690px;
+    height: 43px;
+    pointer-events: auto;
+    overflow: hidden;
+    border-radius: 9px;
+    background:
+        linear-gradient(135deg, rgba(0, 0, 0, 0.54), rgba(0, 0, 0, 0.34));
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.input-box.hidden {
+    opacity: 0;
+    transform: translateY(5px);
+    pointer-events: none;
+}
+
+.input-accent {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 4px;
+    height: 100%;
+    background: #04c7f7;
+    box-shadow: 0 0 14px rgba(4, 199, 247, 0.75);
+}
+
+#chatInput {
+    position: absolute;
+    left: 13px;
+    top: 5px;
+    width: calc(100% - 22px);
+    height: 33px;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: #ffffff;
+    font-size: 17px;
+    line-height: 33px;
+    font-weight: 500;
+    font-family: Arial, Helvetica, sans-serif;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 1);
+    caret-color: #04c7f7;
+}
+
+#chatInput::selection {
+    background: rgba(4, 199, 247, 0.35);
+}
+
+@keyframes messageFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}

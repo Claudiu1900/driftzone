@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Stats</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="root" class="root hidden">
+        <div class="noise"></div>
+        <div class="orb orb-a"></div>
+        <div class="orb orb-b"></div>
+
+        <button class="close-btn" onclick="closeMenu()">×</button>
+
+        <div class="shell">
+            <div class="top">
+                <div class="profile">
+                    <img class="logo" src="logo.png" onerror="this.style.display='none'">
+                    <div>
+                        <div class="kicker">DRIFTZONE PLAYER CARD</div>
+                        <h1 id="playerName">Player</h1>
+                        <p id="playerId">ID #0</p>
+                    </div>
+                </div>
+
+                <div id="rankPill" class="rank-pill">Newbie</div>
+            </div>
+
+            <div class="xp-section">
+                <div class="xp-head">
+                    <div>
+                        <span class="label">LEVEL PROGRESS</span>
+                        <b id="xpText">0/1000 XP</b>
+                    </div>
+                    <div class="level-box">
+                        <span>LEVEL</span>
+                        <b id="levelText">1</b>
+                    </div>
+                </div>
+
+                <div class="xp-bar">
+                    <div id="xpFill" class="xp-fill"></div>
+                    <div class="xp-shine"></div>
+                </div>
+            </div>
+
+            <div class="cards-grid">
+                <div class="stat-card big">
+                    <span>Playtime</span>
+                    <b id="playtimeText">0m</b>
+                    <small>Timp ul petrecut de tine pe server</small>
+                </div>
+
+                <div class="stat-card">
+                    <span>Cash</span>
+                    <b id="cashText">$0</b>
+                    <small>Bani detinuti</small>
+                </div>
+
+                <div class="stat-card">
+                    <span>Vehicles</span>
+                    <b id="vehiclesText">0</b>
+                    <small>Vehicule detinute</small>
+                </div>
+
+                <div class="stat-card">
+                    <span>Account created</span>
+                    <b id="createdText">-</b>
+                    <small>Data crearii contului</small>
+                </div>
+
+                <div class="stat-card">
+                    <span>DZ Coins</span>
+                    <b id="dzcoinsText">0</b>
+                    <small>Moneda premium a serverului</small>
+                </div>
+
+                <div id="staffCard" class="stat-card staff-card hidden">
+                    <span>Staff</span>
+                    <b id="staffText">Admin</b>
+                    <small id="staffDuty">aduty</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

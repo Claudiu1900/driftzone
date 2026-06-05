@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Voice</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="volumeBox" class="volume-box">
+        <div class="vol-title">
+            <span>Volum Voce Jucatori</span>
+            <b id="volumeText">100</b>
+        </div>
+
+        <div class="range-row">
+            <span class="speaker">VOL</span>
+            <input id="volumeSlider" type="range" min="0" max="100" value="100">
+        </div>
+    </div>
+
+    <div id="micBox" class="mic-box muted">
+        <img id="micIcon" src="images/mic_off.svg" alt="mic">
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

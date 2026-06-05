@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone ESC Menu</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="root" class="root hidden">
+        <div class="noise"></div>
+        <div class="glow glow-a"></div>
+        <div class="glow glow-b"></div>
+
+        <header class="header">
+            <div class="hello">
+                <img id="logo" src="images/logo.png" class="logo" onerror="this.style.display='none'">
+                <div>
+                    <div class="hello-title" id="helloText">Hello Player</div>
+                    <div class="hello-sub">DriftZone Network</div>
+                </div>
+            </div>
+
+            <div class="top-right">
+                <div class="coin-card">
+                    <span>DriftZone Coins</span>
+                    <b id="dzCoins">0</b>
+                </div>
+                <button class="close-btn" onclick="closeMenu()">×</button>
+            </div>
+        </header>
+
+        <main class="cards-wrap">
+            <section id="cards" class="cards"></section>
+        </main>
+
+        <div id="toast" class="toast hidden">DONE</div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

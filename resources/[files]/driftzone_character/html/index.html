@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Character</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="root" class="root hidden">
+    <aside class="creator-panel">
+        <div class="header">
+            <div class="kicker">DRIFTZONE</div>
+            <div class="title">CREATE CHARACTER</div>
+            <div class="desc">Customizeaza caracterul tau. Totul se vede live.</div>
+        </div>
+
+        <div class="gender-box">
+            <button id="maleBtn" class="gender active" onclick="setGender('male')">MALE</button>
+            <button id="femaleBtn" class="gender" onclick="setGender('female')">FEMALE</button>
+        </div>
+
+        <nav class="tabs">
+            <button class="tab active" data-tab="parents">Parents</button>
+            <button class="tab" data-tab="face">Face</button>
+            <button class="tab" data-tab="hair">Hair</button>
+            <button class="tab" data-tab="beard">Beard</button>
+            <button class="tab" data-tab="details">Details</button>
+        </nav>
+
+        <section id="controls" class="controls"></section>
+
+        <div class="footer">
+            <div class="footer-actions">
+                <button class="random" onclick="randomizeCharacter()">RANDOM</button>
+                <button class="save" onclick="saveCharacter()">SAVE CHARACTER</button>
+            </div>
+            <div class="hint">Click dreapta pe caracter si trage mouse-ul ca sa il rotesti.</div>
+        </div>
+    </aside>
+
+    <div class="preview-card">
+        <div class="preview-title">LIVE PREVIEW</div>
+        <div class="preview-text">Modificarile se aplica instant pe caracter.</div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

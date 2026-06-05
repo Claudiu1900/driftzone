@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Tickets</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="counter" class="counter hidden">
+        <span class="dot"></span>
+        <span>Tickets:</span>
+        <b id="ticketCount">0</b>
+    </div>
+
+    <div id="overlay" class="overlay hidden">
+        <div id="userPanel" class="panel hidden">
+            <button class="close" onclick="closeAll()">×</button>
+
+            <div class="header">
+                <div class="icon">🎫</div>
+                <div>
+                    <h1>Create Ticket</h1>
+                    <p>Spune-ne rapid problema ta.</p>
+                </div>
+            </div>
+
+            <label>Titlu</label>
+            <input id="ticketTitle" maxlength="80" placeholder="Ex: Am nevoie de ajutor">
+
+            <label>Subiect</label>
+            <textarea id="ticketSubject" maxlength="500" placeholder="Descrie problema ta..."></textarea>
+
+            <button class="main-btn" onclick="createTicket()">Creează ticket</button>
+            <div id="userError" class="error"></div>
+        </div>
+
+        <div id="adminPanel" class="admin-panel hidden">
+            <button class="close" onclick="closeAll()">×</button>
+
+            <div class="header">
+                <div class="icon">🛡️</div>
+                <div>
+                    <h1>Active Tickets</h1>
+                    <p>Lista ticketelor active de pe server.</p>
+                </div>
+            </div>
+
+            <div id="ticketsList" class="tickets-list"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

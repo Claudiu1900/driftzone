@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Tunning</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="root" class="root hidden">
+        <div class="left-panel">
+            <div class="brand">
+                <div class="logo">DZ</div>
+                <div>
+                    <h1>DriftZone Tunning</h1>
+                    <p id="vehicleInfo">Vehicle</p>
+                </div>
+            </div>
+
+            <div class="hint">
+                Apasa <b>`</b> pentru camera libera • ESC anuleaza modificarile
+            </div>
+
+            <div id="categories" class="categories"></div>
+        </div>
+
+        <div class="bottom-panel">
+            <div class="section-title" id="selectedTitle">Selecteaza o categorie</div>
+            <div id="options" class="options"></div>
+        </div>
+
+        <div class="right-panel">
+            <div class="money-card">
+                <span>Cash</span>
+                <b id="money">$0</b>
+            </div>
+
+            <div class="cart">
+                <div class="cart-head">
+                    <b>Cart</b>
+                    <span id="cartCount">0 items</span>
+                </div>
+
+                <div id="cartItems" class="cart-items"></div>
+
+                <div class="cart-footer">
+                    <div class="total">
+                        <span>Total</span>
+                        <b id="totalPrice">$0</b>
+                    </div>
+
+                    <button class="pay-btn" onclick="pay()">Pay & Apply</button>
+                    <button class="cancel-btn" onclick="closeMenu()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

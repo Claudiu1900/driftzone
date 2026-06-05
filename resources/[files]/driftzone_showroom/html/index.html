@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Showroom</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="root" class="root hidden">
+        <div class="top-glow"></div>
+
+        <div class="left-info">
+            <div class="brand-row">
+                <div class="logo">DZ</div>
+                <div>
+                    <h1>DRIFTZONE SHOWROOM</h1>
+                    <p>Premium drift vehicle dealership</p>
+                </div>
+            </div>
+
+            <div class="selected-box">
+                <span class="tag">SELECTED VEHICLE</span>
+                <h2 id="selectedName">Vehicle</h2>
+                <p id="selectedCategory">Category</p>
+
+                <div id="selectedPrice" class="price">$0</div>
+
+                <div class="actions">
+                    <button id="buyBtn" class="buy-btn" onclick="buySelected()">BUY VEHICLE</button>
+                    <button id="testBtn" class="test-btn" onclick="testDriveSelected()">TEST DRIVE</button>
+                </div>
+
+                <div class="tips">
+                    ESC inchide • ` camera libera • click + drag pe masina ca sa o rotesti
+                </div>
+            </div>
+        </div>
+
+        <div class="right-categories">
+            <button class="cat active" data-cat="all" onclick="selectCategory('all')">TOATE CATEGORIILE</button>
+            <button class="cat" data-cat="1" onclick="selectCategory(1)">STARTER</button>
+            <button class="cat" data-cat="2" onclick="selectCategory(2)">STREET CLASS</button>
+            <button class="cat" data-cat="3" onclick="selectCategory(3)">JDM LEGENDS</button>
+            <button class="cat" data-cat="4" onclick="selectCategory(4)">PRO DRIFT</button>
+            <button class="cat" data-cat="5" onclick="selectCategory(5)">ELITE CLASS</button>
+            <button class="cat vip" data-cat="vip" onclick="selectCategory('vip')">VIP</button>
+            <button class="cat limited" data-cat="6" onclick="selectCategory(6)">LIMITED EDITION</button>
+        </div>
+
+        <div class="bottom-list">
+            <div class="list-head">
+                <b id="listTitle">TOATE CATEGORIILE</b>
+                <span id="vehicleCount">0 vehicles</span>
+            </div>
+
+            <div id="vehicles" class="vehicles"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

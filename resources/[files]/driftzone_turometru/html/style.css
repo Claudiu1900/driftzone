@@ -1,0 +1,164 @@
+* {
+    box-sizing: border-box;
+    user-select: none;
+}
+
+html,
+body {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+:root {
+    --main: #04c7f7;
+    --danger: #ff3a3a;
+}
+
+
+
+.speedometer {
+    position: fixed;
+    right: 30px;
+    bottom: 28px;
+    width: 286px;
+    height: 178px;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition: opacity 220ms ease, transform 220ms ease;
+    pointer-events: none;
+}
+
+.speed-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    filter:
+        drop-shadow(0 7px 12px rgba(0, 0, 0, 0.95))
+        drop-shadow(0 0 16px rgba(4, 199, 247, 0.16));
+}
+
+.gauge {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 286px;
+    height: 178px;
+    overflow: visible;
+}
+
+.arc-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.18);
+    stroke-width: 9;
+    stroke-linecap: round;
+}
+
+.arc-main {
+    fill: none;
+    stroke: url(#arcGradient);
+    stroke-width: 9;
+    stroke-linecap: round;
+    stroke-dasharray: 289;
+    stroke-dashoffset: 289;
+    filter: url(#arcGlow);
+    transition: stroke-dashoffset 115ms linear;
+}
+
+.ticks line {
+    stroke: rgba(255, 255, 255, 0.55);
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.center {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    width: 210px;
+    height: 82px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gear {
+    position: absolute;
+    left: 29px;
+    bottom: 28px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid rgba(4, 199, 247, 0.9);
+    background:
+        radial-gradient(circle at center, rgba(4, 199, 247, 0.20), rgba(5, 10, 19, 0.62));
+    color: var(--main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 1000;
+    text-shadow: 0 0 12px rgba(4, 199, 247, 0.95);
+    box-shadow:
+        0 0 13px rgba(4, 199, 247, 0.36),
+        inset 0 0 12px rgba(4, 199, 247, 0.15);
+    transition: transform 130ms ease, border-color 130ms ease, color 130ms ease;
+}
+
+.gear.bump {
+    transform: scale(1.16);
+}
+
+.speed-line {
+    position: absolute;
+    right: 4px;
+    bottom: 16px;
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    min-width: 130px;
+}
+
+.speed {
+    color: #ffffff;
+    font-size: 44px;
+    line-height: 0.9;
+    font-weight: 1000;
+    letter-spacing: -1.8px;
+    text-shadow:
+        0 0 13px rgba(255, 255, 255, 0.34),
+        0 0 28px rgba(4, 199, 247, 0.18),
+        0 4px 8px rgba(0, 0, 0, 0.95);
+    font-variant-numeric: tabular-nums;
+    transition: transform 110ms ease;
+}
+
+.speed.bump {
+    transform: scale(1.07);
+}
+
+.unit {
+    margin-left: 10px;
+    transform: translate(-23px, -1px);
+    display: inline-block; 
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 11px;
+    font-weight: 900;
+    rotate: -30deg;
+    letter-spacing: 1.2px;
+    text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+}
+
+.speedometer.hot .gear {
+    border-color: rgba(255, 58, 58, 0.92);
+    color: #ff4b4b;
+    text-shadow: 0 0 12px rgba(255, 58, 58, 0.95);
+    box-shadow:
+        0 0 15px rgba(255, 58, 58, 0.34),
+        inset 0 0 12px rgba(255, 58, 58, 0.14);
+}

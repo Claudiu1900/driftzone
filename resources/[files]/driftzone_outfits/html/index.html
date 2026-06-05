@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Outfits</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="root" class="root hidden">
+        <div class="top-line"></div>
+
+        <div class="header">
+            <div class="brand">
+                <div class="logo">DZ</div>
+                <div>
+                    <h1>DRIFTZONE OUTFITS</h1>
+                    <p>Choose your saved server outfit</p>
+                </div>
+            </div>
+
+            <button class="close-btn" onclick="closeMenu()">INCHIDE</button>
+        </div>
+
+        <div id="outfitsGrid" class="outfits-grid"></div>
+
+        <div id="emptyState" class="empty-state hidden">
+            <h2>NU EXISTA OUTFIT-URI</h2>
+            <p>Un admin poate crea unul cu /addoutfit (nume) (link imagine optional)</p>
+        </div>
+
+        <div class="bottom-glow"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

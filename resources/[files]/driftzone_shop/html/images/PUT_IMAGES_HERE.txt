@@ -1,0 +1,12 @@
+Pune aici imaginile:
+
+cash_50000.png
+cash_100000.png
+cash_250000.png
+cash_500000.png
+cash_1000000.png
+garage_slots.png
+outside_vehicles.png
+test_item.png
+
+Recomandat: 900x420 px.

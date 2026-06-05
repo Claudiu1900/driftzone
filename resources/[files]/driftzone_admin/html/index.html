@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Admin Utils</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="coordsPanel" class="panel hidden">
+        <div class="title">DRIFTZONE COORDS</div>
+
+        <div class="field">
+            <label>COORDS</label>
+            <input id="coordsInput" readonly>
+        </div>
+
+        <div class="grid">
+            <div>
+                <label>X</label>
+                <input id="xInput" readonly>
+            </div>
+
+            <div>
+                <label>Y</label>
+                <input id="yInput" readonly>
+            </div>
+
+            <div>
+                <label>Z</label>
+                <input id="zInput" readonly>
+            </div>
+        </div>
+
+        <div class="grid two">
+            <div>
+                <label>HEADING</label>
+                <input id="headingInput" readonly>
+            </div>
+
+            <div>
+                <label>DIMENSION</label>
+                <input id="dimensionInput" readonly>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button onclick="copyCoords()">COPY</button>
+            <button class="ghost" onclick="closePanel()">CLOSE</button>
+        </div>
+
+        <div id="status" class="status">Auto-copy pornit...</div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

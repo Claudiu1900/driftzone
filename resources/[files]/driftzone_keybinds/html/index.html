@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Keybinds</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="root" class="root hidden">
+        <div class="shell">
+            <div class="top-line"></div>
+
+            <div class="header">
+                <div>
+                    <div class="eyebrow">DRIFTZONE SETTINGS</div>
+                    <h1>Keybinds</h1>
+                    <p>Schimba rapid tastele pentru meniurile serverului.</p>
+                </div>
+
+                <div class="header-actions">
+                    <button class="reset-all" onclick="resetAll()">RESET DEFAULT</button>
+                    <button class="close-btn" onclick="closeMenu()">×</button>
+                </div>
+            </div>
+
+            <div id="status" class="status hidden"></div>
+
+            <div id="list" class="list"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

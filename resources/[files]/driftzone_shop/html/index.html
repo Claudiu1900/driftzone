@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Shop</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="root" class="root hidden">
+        <div class="bg"></div>
+        <div class="shade"></div>
+
+        <aside class="left">
+            <div class="logo-row">
+                <div class="logo-img">DZ</div>
+                <div>
+                    <h1>DRIFT<span>ZONE</span></h1>
+                    <p>SHOP</p>
+                </div>
+            </div>
+
+            <div class="shop-title">
+                <h2>INGAME <span>SHOP</span></h2>
+                <p>Cumpără upgrade-uri premium cu DriftZone Coins.</p>
+            </div>
+
+            <div class="coins-box">
+                <div class="coins-label">DRIFTZONE COINS</div>
+                <div class="coins-main">
+                    <div class="coin-icon">DZ</div>
+                    <b id="coinValue">0</b>
+                </div>
+            </div>
+
+            <div class="cat-header">SHOP CATEGORY</div>
+            <div id="categories" class="categories"></div>
+
+            <div class="footer-note">DriftZone</div>
+        </aside>
+
+        <main class="right">
+            <div class="right-head">
+                <div>
+                    <h2 id="categoryTitle">VEHICLES</h2>
+                    <p id="categorySubtitle">Tot ce ține de garaj și vehicule.</p>
+                </div>
+                <button class="close-btn" onclick="closeShop()">×</button>
+            </div>
+
+            <div id="products" class="products"></div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

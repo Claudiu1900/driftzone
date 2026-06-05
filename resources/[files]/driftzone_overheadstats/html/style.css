@@ -1,0 +1,125 @@
+* {
+    box-sizing: border-box;
+    user-select: none;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: transparent;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+#root {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.plate {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -100%) scale(var(--scale, 1));
+    transform-origin: center bottom;
+    opacity: var(--opacity, 1);
+    text-align: center;
+    white-space: nowrap;
+    will-change: transform, opacity;
+    pointer-events: none;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.95));
+}
+
+.staff {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 17px;
+    min-width: 66px;
+    padding: 0 9px;
+    margin-bottom: 3px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, rgba(4, 199, 247, 0.95), rgba(126, 236, 255, 0.94));
+    color: #041017;
+    font-size: 9px;
+    line-height: 17px;
+    font-weight: 1000;
+    letter-spacing: 0.95px;
+    text-transform: uppercase;
+    text-shadow: none;
+    box-shadow:
+        0 0 12px rgba(4, 199, 247, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.staff.hidden {
+    display: none;
+}
+
+.name {
+    display: block;
+    color: #ffffff;
+    font-size: 14px;
+    line-height: 17px;
+    font-weight: 1000;
+    letter-spacing: 0.15px;
+    text-shadow:
+        0 0 9px rgba(4, 199, 247, 0.58),
+        0 2px 5px rgba(0, 0, 0, 1),
+        1px 1px 2px rgba(0, 0, 0, 1);
+}
+
+.uid {
+    color: rgba(255, 255, 255, 0.82);
+    font-weight: 900;
+}
+
+.rank {
+    display: block;
+    margin-top: 1px;
+    font-size: 10px;
+    line-height: 13px;
+    font-weight: 1000;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--rank-color, #04c7f7);
+    text-shadow:
+        0 0 8px currentColor,
+        0 2px 4px rgba(0, 0, 0, 1),
+        1px 1px 2px rgba(0, 0, 0, 1);
+}
+
+.accent {
+    display: block;
+    width: 38px;
+    height: 1px;
+    margin: 4px auto 0;
+    background: linear-gradient(90deg, transparent, rgba(4, 199, 247, 0.9), transparent);
+    box-shadow: 0 0 8px rgba(4, 199, 247, 0.75);
+    opacity: 0.82;
+}
+
+.plate.talking .name::before,
+.plate.talking .name::after {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    margin: 0 5px 2px;
+    border-radius: 50%;
+    background: #04c7f7;
+    box-shadow: 0 0 8px rgba(4, 199, 247, 0.9);
+}
+
+.plate.far .staff {
+    opacity: 0.82;
+}
+
+.plate.far .accent {
+    opacity: 0.45;
+}

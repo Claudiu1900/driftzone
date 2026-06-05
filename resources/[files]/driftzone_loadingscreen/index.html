@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Loading Screen</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="background"></div>
+    <div class="bg-overlay"></div>
+    <div class="scan-lines"></div>
+    <div class="noise"></div>
+
+    <div id="custom-cursor"></div>
+
+    <main class="loading-layout">
+        <section class="brand-section">
+            <div class="server-tag">DRIFTZONE NETWORK</div>
+            <div class="server-title">DRIFTZONE</div>
+            <div class="server-subtitle">STREET DRIFT EXPERIENCE</div>
+
+            <div class="status-line">
+                <span class="status-dot"></span>
+                <span id="loadingStatus">Se incarca serverul...</span>
+            </div>
+        </section>
+
+        <section class="progress-section">
+            <div class="progress-ring-container">
+                <svg class="progress-ring" width="190" height="190">
+                    <circle class="progress-ring__bg" cx="95" cy="95" r="80"></circle>
+                    <circle class="progress-ring__circle" cx="95" cy="95" r="80"></circle>
+                </svg>
+
+                <div class="progress-center">
+                    <div class="progress-text" id="progressText">0%</div>
+                    <div class="progress-small">LOADING</div>
+                </div>
+            </div>
+
+            <div class="loading-bar-wrapper">
+                <div class="loading-bar">
+                    <div class="loading-bar-fill" id="loadingBarFill"></div>
+                    <div class="loading-bar-shine"></div>
+                </div>
+
+                <div class="loading-info">
+                    <span>CONNECTING</span>
+                    <span id="progressMini">0 / 100</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="right-panel">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-kicker">OFFICIAL</div>
+                    <div class="panel-title">DRIFTZONE TEAM</div>
+                </div>
+                <div class="panel-line"></div>
+            </div>
+
+            <div class="staff-list">
+                <div class="staff-card">
+                    <img src="images/staff/founder.png" alt="Founder">
+                    <div class="staff-info">
+                        <div class="staff-role">Founder</div>
+                        <div class="staff-name">Claudiu</div>
+                    </div>
+                </div>
+
+                <div class="staff-card">
+                    <img src="images/staff/cofounder.png" alt="Co-Founder">
+                    <div class="staff-info">
+                        <div class="staff-role">Co-Founder</div>
+                        <div class="staff-name">Tristan</div>
+                    </div>
+                </div>
+
+                <div class="staff-card">
+                    <img src="images/staff/dev.png" alt="Developer">
+                    <div class="staff-info">
+                        <div class="staff-role">Developer</div>
+                        <div class="staff-name">Claudiu</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="volume-panel">
+            <div class="volume-icon">
+                <span></span>
+            </div>
+
+            <input type="range" min="0" max="100" value="30" id="volumeSlider">
+
+            <div class="volume-percent" id="volumePercent">30%</div>
+        </section>
+
+        <section class="tips-panel">
+            <div class="tip-label">TIP</div>
+            <div id="tipText" class="tip-text">Respecta ceilalti jucatori si condu curat pe zonele de drift.</div>
+        </section>
+    </main>
+
+    <audio id="music" src="music/music.mp3" autoplay loop></audio>
+
+    <script src="index.js"></script>
+</body>
+</html>

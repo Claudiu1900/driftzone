@@ -1,0 +1,18 @@
+cache/
+txData/
+logs/
+*.log
+*.zip
+*.rar
+*.7z
+*.bak
+node_modules/
+
+# fisiere sensibile
+secrets.cfg
+.env
+database.cfg
+
+# Windows
+desktop.ini
+Thumbs.db
