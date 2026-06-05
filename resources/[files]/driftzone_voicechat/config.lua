@@ -6,13 +6,13 @@ Config.MainColor = '#04c7f7'
 Config.TalkCommand = '+driftzone_voice_talk'
 Config.TalkKey = 'N'
 
--- Un singur mod: Tipa/Loud
+-- Un singur mod: Loud/Tipa
 Config.VoiceMode = {
     label = 'Tipa',
-    distance = 18.0
+    distance = 15.0
 }
 
--- Cand nu tii apasat pe N, proximitatea devine 0.
+-- Cand nu tii apasat pe N, server/client state ramane muted.
 Config.SilentDistance = 0.0
 
 Config.Volume = {
@@ -20,8 +20,9 @@ Config.Volume = {
     min = 0,
     max = 100,
 
-    -- Reaplica volumul pe playerii activi. Nu e loop greu.
-    refreshMs = 2000
+    -- Cat de des aplica volumul/mute pe jucatori.
+    -- 250ms = suficient de rapid fara lag.
+    refreshMs = 250
 }
 
 Config.UI = {

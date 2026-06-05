@@ -1,30 +1,21 @@
-# DriftZone VoiceChat Loud
+# DriftZone VoiceChat Loud - Fixed Range
 
-Standalone voice chat pentru FiveM, optimizat și simplificat.
+Standalone voice chat pentru FiveM, optimizat si simplificat.
 
-## Ce face
+## Fixuri
 
-- un singur mod: `Tipa/Loud`;
-- push-to-talk pe `N`;
-- când nu ții `N`, proximitatea este 0;
-- când ții `N`, proximitatea este `Config.VoiceMode.distance`;
-- volum voice pentru ceilalți jucători 0-100;
-- volumul se salvează în:
-  - NUI localStorage;
-  - KVP client-side;
-- icon mic stânga jos:
-  - `mic_off.svg` când nu vorbești;
-  - `mic_on.svg` când vorbești.
+- Un singur mod: `Tipa/Loud`.
+- Push-to-talk pe `N`.
+- Distanta audio hard-limit: `15.0`.
+- Jucatorii peste distanta sunt muted client-side cu `MumbleSetVolumeOverrideByServerId(..., 0.0)`.
+- Daca un jucator nu tine `N`, este muted pentru ceilalti.
+- `/voicevol` deschide cursorul.
+- Cursorul se inchide doar cu `ESC` sau cu tasta backtick/grave: `.
+- Slider-ul nu se mai inchide dupa ce schimbi volumul.
+- Volumul 0 ramane 0, nu mai sare la 100.
+- Slider mai smooth, trimite update throttled.
 
-## Instalare
-
-Pune folderul:
-
-```txt
-resources/[driftzone]/driftzone_voicechat
-```
-
-În `server.cfg`:
+## server.cfg
 
 ```cfg
 setr voice_useNativeAudio true
@@ -34,37 +25,22 @@ setr voice_enableUi 0
 ensure driftzone_voicechat
 ```
 
-Nu porni împreună cu `pma-voice` sau alt voicechat separat.
+Nu porni impreuna cu `pma-voice` sau alt voicechat.
 
-## Taste
+## Config
 
-```txt
-N = push-to-talk
+```lua
+Config.VoiceMode.distance = 15.0
 ```
 
-## Volum
-
-Slider-ul stă mereu sus.
-
-Pentru a-l modifica cu mouse-ul:
+## Comenzi
 
 ```txt
 /voicevol
 ```
 
-După ce ai schimbat volumul, ESC închide focus-ul NUI.
-
-## Structura
+## Tasta
 
 ```txt
-driftzone_voicechat/
-  fxmanifest.lua
-  config.lua
-  client/main.lua
-  server/main.lua
-  html/index.html
-  html/style.css
-  html/script.js
-  html/images/mic_on.svg
-  html/images/mic_off.svg
+N = push-to-talk
 ```

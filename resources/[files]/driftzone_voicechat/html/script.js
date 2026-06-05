@@ -5,9 +5,15 @@ const volumeSlider = document.getElementById('volumeSlider');
 const volumeText = document.getElementById('volumeText');
 const micBox = document.getElementById('micBox');
 const micIcon = document.getElementById('micIcon');
+const focusHint = document.getElementById('focusHint');
 
-let lastVolume = Number(localStorage.getItem('driftzone_voice_volume') || 100);
+const savedRaw = localStorage.getItem('driftzone_voice_volume');
+
+let lastVolume = savedRaw === null ? 100 : clampVolume(Number(savedRaw));
 let talking = false;
+let hasFocus = false;
+let sendTimer = null;
+let pendingVolume = null;
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -18,12 +24,26 @@ function nui(name, data = {}) {
 }
 
 function clampVolume(value) {
-    value = Number(value || 0);
+    value = Number(value);
 
+    if (!Number.isFinite(value)) return 100;
     if (value < 0) return 0;
     if (value > 100) return 100;
 
     return Math.round(value);
+}
+
+function queueSendVolume(value) {
+    pendingVolume = clampVolume(value);
+
+    if (sendTimer) return;
+
+    sendTimer = setTimeout(() => {
+        const valueToSend = pendingVolume;
+        pendingVolume = null;
+        sendTimer = null;
+        nui('setVolume', { volume: valueToSend });
+    }, 35);
 }
 
 function setMainColor(color) {
@@ -36,8 +56,8 @@ function setVolumeUi(value, saveLocal = true) {
     value = clampVolume(value);
 
     lastVolume = value;
-    volumeSlider.value = value;
-    volumeText.textContent = value;
+    volumeSlider.value = String(value);
+    volumeText.textContent = String(value);
     volumeSlider.style.setProperty('--progress', `${value}%`);
 
     if (saveLocal) {
@@ -53,22 +73,31 @@ function setTalkingUi(state) {
     micIcon.src = talking ? 'images/mic_on.svg' : 'images/mic_off.svg';
 }
 
+function setFocusUi(state) {
+    hasFocus = state === true;
+
+    volumeBox.classList.toggle('focused', hasFocus);
+    focusHint.classList.toggle('hidden', !hasFocus);
+}
+
 volumeSlider.addEventListener('input', () => {
     const value = clampVolume(volumeSlider.value);
+
     setVolumeUi(value, true);
-    nui('setVolume', { volume: value });
+    queueSendVolume(value);
 });
 
 volumeSlider.addEventListener('change', () => {
     const value = clampVolume(volumeSlider.value);
+
     setVolumeUi(value, true);
-    nui('setVolume', { volume: value });
-    nui('closeFocus');
+    nui('setVolume', { volume });
 });
 
 document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' || event.code === 'Backquote' || event.key === '`') {
         nui('closeFocus');
+        setFocusUi(false);
     }
 });
 
@@ -79,13 +108,13 @@ window.addEventListener('message', (event) => {
 
     if (data.action === 'setup') {
         const saved = localStorage.getItem('driftzone_voice_volume');
-        const volume = saved !== null ? Number(saved) : Number(data.volume || 100);
+        const volume = saved === null ? clampVolume(data.volume) : clampVolume(Number(saved));
 
         setVolumeUi(volume, true);
         setTalkingUi(data.talking === true);
+        setFocusUi(data.focus === true);
 
-        // Trimite inapoi volumul salvat din localStorage catre Lua, ca slider-ul sa functioneze dupa restart.
-        nui('setVolume', { volume: clampVolume(volume) });
+        nui('setVolume', { volume });
     }
 
     if (data.action === 'state') {
@@ -93,16 +122,37 @@ window.addEventListener('message', (event) => {
 
         if (typeof data.volume !== 'undefined') {
             const saved = localStorage.getItem('driftzone_voice_volume');
-            setVolumeUi(saved !== null ? Number(saved) : data.volume, true);
+            const volume = saved === null ? clampVolume(data.volume) : clampVolume(Number(saved));
+
+            setVolumeUi(volume, true);
+        }
+
+        if (typeof data.focus !== 'undefined') {
+            setFocusUi(data.focus === true);
         }
     }
 
     if (data.action === 'volume') {
-        setVolumeUi(data.volume || lastVolume || 100, true);
+        const volume = typeof data.volume === 'undefined' ? lastVolume : data.volume;
+
+        setVolumeUi(volume, true);
+
+        if (typeof data.focus !== 'undefined') {
+            setFocusUi(data.focus === true);
+        }
+    }
+
+    if (data.action === 'focus') {
+        setFocusUi(data.focus === true);
+
+        if (typeof data.volume !== 'undefined') {
+            setVolumeUi(data.volume, true);
+        }
     }
 });
 
 setVolumeUi(lastVolume, true);
 setTalkingUi(false);
+setFocusUi(false);
 
 setTimeout(() => nui('ready'), 80);

@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone standalone loud push-to-talk voice chat'
-version '2.0.0'
+description 'DriftZone standalone loud push-to-talk voice chat - fixed range + smooth volume'
+version '2.1.0'
 
 shared_scripts {
     'config.lua'
