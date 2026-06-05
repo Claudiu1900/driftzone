@@ -39,3 +39,6 @@ Config.Garages = {
         subText = 'Showroom Garage'
     }
 }
+
+-- Cooldown intre doua spawn-uri din garaj.
+Config.SpawnCooldownMs = 3000

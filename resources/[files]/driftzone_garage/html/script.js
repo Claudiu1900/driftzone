@@ -21,6 +21,7 @@ let lastRenderedKey = '';
 let renderQueued = false;
 let searchTimer = null;
 let lastSelectedCard = null;
+let actionLockedUntil = 0;
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -286,6 +287,17 @@ function selectVehicle(id) {
 function runSelectedAction() {
     const veh = getVehicleById(selectedVehicleId);
     if (!veh) return;
+
+    const now = Date.now();
+
+    if (actionLockedUntil > now) return;
+
+    actionLockedUntil = now + 3000;
+    actionButton.disabled = true;
+
+    setTimeout(() => {
+        actionButton.disabled = false;
+    }, 3000);
 
     if (veh._spawned) {
         nui('despawn', { id: veh._id });

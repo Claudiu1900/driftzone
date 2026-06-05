@@ -140,22 +140,227 @@ local function getVehicleFromNetId(netId)
     return 0
 end
 
+local MOD_KEY_TYPES = {
+    spoiler = 0, frontBumper = 1, rearBumper = 2, sideSkirt = 3, exhaust = 4, frame = 5, grille = 6, hood = 7,
+    fender = 8, rightFender = 9, roof = 10, engine = 11, brakes = 12, transmission = 13, horn = 14, horns = 14,
+    suspension = 15, armor = 16, frontWheels = 23, wheels = 23, wheel = 23, backWheels = 24, plateHolder = 25,
+    vanityPlate = 26, trimA = 27, ornaments = 28, dashboard = 29, dial = 30, doorSpeaker = 31, seats = 32,
+    steeringWheel = 33, shiftLever = 34, plaques = 35, speakers = 36, trunk = 37, hydraulics = 38, engineBlock = 39,
+    airFilter = 40, struts = 41, archCover = 42, aerials = 43, trimB = 44, tank = 45, windows = 46, livery = 48
+}
+
+local function decodeTuning(raw)
+    if type(raw) == 'table' then return raw end
+
+    local text = tostring(raw or '{}')
+
+    if text == '' or text == 'null' or text == 'nil' then return {} end
+
+    local ok, decoded = pcall(json.decode, text)
+
+    if ok and type(decoded) == 'table' then return decoded end
+
+    return {}
+end
+
+local function parseHexColor(value)
+    local clean = tostring(value or ''):gsub('#', '')
+
+    if not clean:match('^[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]$') then
+        return nil
+    end
+
+    return {
+        r = tonumber(clean:sub(1, 2), 16) or 0,
+        g = tonumber(clean:sub(3, 4), 16) or 0,
+        b = tonumber(clean:sub(5, 6), 16) or 0
+    }
+end
+
+local function normalizeColor(value)
+    if type(value) == 'string' then
+        return parseHexColor(value)
+    end
+
+    if type(value) == 'table' then
+        return {
+            r = tonumber(value.r or value[1] or 0) or 0,
+            g = tonumber(value.g or value[2] or 0) or 0,
+            b = tonumber(value.b or value[3] or 0) or 0
+        }
+    end
+
+    return nil
+end
+
+local function boolValue(value)
+    if value == true then return true end
+    local text = tostring(value or ''):lower()
+    return tonumber(value) == 1 or text == 'true' or text == 'yes' or text == 'on'
+end
+
+local function applyColorData(entity, tuning)
+    local primary = normalizeColor(tuning.primaryColor or tuning.primary or tuning.customPrimaryColor)
+    local secondary = normalizeColor(tuning.secondaryColor or tuning.secondary or tuning.customSecondaryColor)
+
+    if primary then
+        SetVehicleCustomPrimaryColour(entity, primary.r, primary.g, primary.b)
+    end
+
+    if secondary then
+        SetVehicleCustomSecondaryColour(entity, secondary.r, secondary.g, secondary.b)
+    end
+
+    local pearl, wheel = GetVehicleExtraColours(entity)
+
+    if tuning.pearlescentColor ~= nil or tuning.pearl ~= nil then
+        pearl = tonumber(tuning.pearlescentColor or tuning.pearl) or pearl or 0
+    end
+
+    if tuning.wheelColor ~= nil then
+        wheel = tonumber(tuning.wheelColor) or wheel or 0
+    end
+
+    SetVehicleExtraColours(entity, pearl or 0, wheel or 0)
+
+    if tuning.windowTint ~= nil then
+        SetVehicleWindowTint(entity, tonumber(tuning.windowTint) or 0)
+    end
+
+    if tuning.xenonColor ~= nil then
+        ToggleVehicleMod(entity, 22, true)
+        SetVehicleXenonLightsColor(entity, tonumber(tuning.xenonColor) or 0)
+    end
+
+    if tuning.neonColor ~= nil then
+        local c = normalizeColor(tuning.neonColor)
+
+        if c then
+            SetVehicleNeonLightsColour(entity, c.r, c.g, c.b)
+            for i = 0, 3 do SetVehicleNeonLightEnabled(entity, i, true) end
+        end
+    end
+
+    if tuning.tyreSmokeColor ~= nil or tuning.tireSmokeColor ~= nil then
+        local c = normalizeColor(tuning.tyreSmokeColor or tuning.tireSmokeColor)
+
+        if c then
+            ToggleVehicleMod(entity, 20, true)
+            SetVehicleTyreSmokeColor(entity, c.r, c.g, c.b)
+        end
+    end
+end
+
+local function applyNumberMods(entity, tuning)
+    for key, modType in pairs(MOD_KEY_TYPES) do
+        if tuning[key] ~= nil then
+            local value = tonumber(tuning[key])
+
+            if value ~= nil then
+                SetVehicleMod(entity, modType, value, false)
+            end
+        end
+    end
+
+    -- Compatibilitate daca tuning-ul este salvat direct pe mod type numeric/string numeric.
+    for key, value in pairs(tuning) do
+        local modType = tonumber(key)
+
+        if modType and modType >= 0 and modType <= 60 then
+            SetVehicleMod(entity, modType, tonumber(value) or -1, false)
+        end
+    end
+end
+
+local function applyToggleMods(entity, tuning)
+    if tuning.turbo ~= nil then
+        ToggleVehicleMod(entity, 18, boolValue(tuning.turbo))
+    end
+
+    if tuning.xenon ~= nil then
+        ToggleVehicleMod(entity, 22, boolValue(tuning.xenon))
+    end
+
+    if tuning.tireSmoke ~= nil or tuning.tyreSmoke ~= nil then
+        ToggleVehicleMod(entity, 20, boolValue(tuning.tireSmoke or tuning.tyreSmoke))
+    end
+end
+
+local function applyForcedGarageTuning(entity, tuningRaw)
+    if not DoesEntityExist(entity) then return false end
+
+    requestControl(entity, 2500)
+
+    SetVehicleModKit(entity, 0)
+
+    local tuning = decodeTuning(tuningRaw)
+
+    if type(tuning) ~= 'table' then return false end
+
+    applyColorData(entity, tuning)
+    applyNumberMods(entity, tuning)
+    applyToggleMods(entity, tuning)
+
+    if tuning.plate ~= nil then
+        SetVehicleNumberPlateText(entity, tostring(tuning.plate):sub(1, 8))
+    end
+
+    return true
+end
+
+local function forceGarageTuningByNetId(netId, data)
+    data = data or {}
+
+    local entity = getVehicleFromNetId(netId)
+
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
+
+    local tuningRaw = data.tuning or Entity(entity).state.dz_garage_tuning or Entity(entity).state.vehicleTunning or '{}'
+
+    -- Reaplica direct + trimite si catre driftzone_tunning, ca ambele sisteme sa fie sincronizate.
+    applyForcedGarageTuning(entity, tuningRaw)
+    TriggerEvent('client:tunning:applyVehicle', netId, tostring(tuningRaw))
+    TriggerEvent('driftzone_tunning:client:applyVehicle', netId, tostring(tuningRaw))
+
+    if data.plate then
+        SetVehicleNumberPlateText(entity, tostring(data.plate):sub(1, 8))
+    end
+
+    return true
+end
+
+
 local function prepareVehicleByNetId(netId, data)
     data = data or {}
+
     local entity = getVehicleFromNetId(netId)
+
     if not entity or entity == 0 or not DoesEntityExist(entity) then
         TriggerServerEvent('driftzone_garage:server:spawnPrepareFailed', tonumber(data.id or 0))
         return
     end
+
     requestControl(entity, 5000)
     SetVehicleNumberPlateText(entity, tostring(data.plate or 'DRIFT'):sub(1, 8))
+
     repairOnce(entity)
     setVehicleProtection(entity)
+
+    -- Prima aplicare se face inainte de a pune playerul in masina.
+    forceGarageTuningByNetId(netId, data)
+
     SetPedIntoVehicle(PlayerPedId(), entity, -1)
-    Wait(350)
-    setVehicleProtection(entity)
-    TriggerEvent('client:tunning:applyVehicle', netId, tostring(data.tuning or '{}'))
-    TriggerEvent('driftzone_tunning:client:applyVehicle', netId, tostring(data.tuning or '{}'))
+
+    -- Aplicari repetate pentru bug-ul unde uneori masina apare fara tuning din cauza streaming/control.
+    local delays = { 150, 450, 900, 1600, 2800 }
+
+    for i = 1, #delays do
+        Wait(delays[i])
+        if not DoesEntityExist(entity) then break end
+        setVehicleProtection(entity)
+        forceGarageTuningByNetId(netId, data)
+    end
+
     TriggerServerEvent('driftzone_garage:server:spawnPrepared', tonumber(data.id or 0))
 end
 
@@ -174,6 +379,12 @@ end)
 
 RegisterNetEvent('driftzone_garage:client:prepareVehicle', function(netId, data)
     CreateThread(function() prepareVehicleByNetId(netId, data or {}) end)
+end)
+
+RegisterNetEvent('driftzone_garage:client:forceTuning', function(netId, data)
+    CreateThread(function()
+        forceGarageTuningByNetId(netId, data or {})
+    end)
 end)
 
 RegisterNetEvent('driftzone_garage:client:parkCurrent', function()

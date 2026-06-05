@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Garage - old UI + VIP categories'
-version '1.0.2'
+description 'DriftZone Garage - forced tuning + spawn cooldown + optimized'
+version '1.0.3'
 
 ui_page 'html/index.html'
 
