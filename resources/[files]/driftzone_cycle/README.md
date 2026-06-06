@@ -1,31 +1,121 @@
 # DriftZone Cycle
 
-Sincronizeaza ora din joc cu ora reala din Romania si vremea din joc cu vremea reala din Mangalia, judetul Constanta.
+Sincronizeaza ora din joc cu ora reala din Romania si vremea cu Mangalia, Constanta.
+
+## Comenzi globale
+
+```txt
+/synctime
+```
+
+Forteaza sincronizarea orei si vremii pentru server.
+
+## Comenzi admin locale
+
+Necesita:
+
+```txt
+admin_level 6+
+aduty yes
+```
+
+```txt
+/time 20:23
+```
+
+Seteaza si ingheata ora doar pentru adminul care foloseste comanda.
+
+```txt
+/weather EXTRASUNNY
+```
+
+Seteaza si ingheata vremea doar pentru adminul care foloseste comanda.
+
+```txt
+/resetcycle
+```
+
+Sterge override-ul local si readuce adminul la cycle-ul normal al serverului.
+
+Accepta si typo-ul:
+
+```txt
+/resetcylce
+```
+
+## Weather acceptat
+
+```txt
+EXTRASUNNY
+CLEAR
+CLOUDS
+SMOG
+FOGGY
+OVERCAST
+RAIN
+THUNDER
+CLEARING
+NEUTRAL
+SNOW
+BLIZZARD
+SNOWLIGHT
+XMAS
+HALLOWEEN
+```
+
+## Pentru driftzone_chat custom
+
+Daca din F8 merge dar din chat nu merge, adauga ruta:
+
+```lua
+time = 'driftzone_cycle',
+weather = 'driftzone_cycle',
+resetcycle = 'driftzone_cycle',
+resetcylce = 'driftzone_cycle',
+```
+
+sau apeleaza:
+
+```lua
+exports.driftzone_cycle:RunCommand(src, command, args)
+```
 
 ## Instalare
 
 Pune folderul in:
 
-resources/[driftzone]/driftzone_cycle
+```txt
+resources/[files]/driftzone_cycle
+```
 
-In server.cfg:
+In `server.cfg`:
 
+```cfg
+ensure oxmysql
+ensure driftzone_auth
 ensure driftzone_cycle
+```
 
-## Comenzi
+## Git
 
-/synctime - forteaza sincronizarea orei si vremii.
+Pe PC:
 
-## Fara API key
+```bash
+git add -A resources/[files]/driftzone_cycle
+git commit -m "Add admin local time and weather overrides"
+git pull --rebase origin main
+git push origin main
+```
 
-Foloseste Open-Meteo, deci nu ai nevoie de cont, card sau API key.
+Pe VPS:
 
-Locatie setata:
-- Mangalia, Constanta
-- latitude: 43.8152
-- longitude: 28.5749
-- timezone: Europe/Bucharest
+```bash
+cd ~/server-data
+git pull --rebase origin main
+```
 
-## Important
+txAdmin:
 
-Daca ai alt script de time/weather, opreste-l. Altfel cele doua sisteme se vor suprascrie intre ele.
+```txt
+restart driftzone_cycle
+```

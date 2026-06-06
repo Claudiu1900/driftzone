@@ -4,7 +4,12 @@ local lastMinute = -1
 local lastSecond = -1
 local lastWeatherUpdate = 0
 
-local function applyTime(timeData)
+local localOverride = {
+    time = nil,
+    weather = nil
+}
+
+local function applyTime(timeData, force)
     if not Config.Time.enabled then return end
     if type(timeData) ~= 'table' then return end
 
@@ -12,7 +17,7 @@ local function applyTime(timeData)
     local minute = tonumber(timeData.minute or 0) or 0
     local second = tonumber(timeData.second or 0) or 0
 
-    if hour ~= lastHour or minute ~= lastMinute or second ~= lastSecond then
+    if force or hour ~= lastHour or minute ~= lastMinute or second ~= lastSecond then
         NetworkOverrideClockTime(hour, minute, second)
         lastHour = hour
         lastMinute = minute
@@ -66,8 +71,50 @@ local function applyWeather(weatherData, instant)
 end
 
 RegisterNetEvent('driftzone_cycle:client:sync', function(timeData, weatherData)
-    applyTime(timeData)
-    applyWeather(weatherData, lastWeatherUpdate == 0)
+    -- Daca adminul are override local, nu ii mai suprascriem timpul/vremea cu sync global.
+    if not localOverride.time then
+        applyTime(timeData)
+    end
+
+    if not localOverride.weather then
+        applyWeather(weatherData, lastWeatherUpdate == 0)
+    end
+end)
+
+RegisterNetEvent('driftzone_cycle:client:setLocalTime', function(timeData)
+    if type(timeData) ~= 'table' then return end
+
+    localOverride.time = {
+        hour = tonumber(timeData.hour or 12) or 12,
+        minute = tonumber(timeData.minute or 0) or 0,
+        second = tonumber(timeData.second or 0) or 0
+    }
+
+    applyTime(localOverride.time, true)
+end)
+
+RegisterNetEvent('driftzone_cycle:client:setLocalWeather', function(weatherData)
+    if type(weatherData) ~= 'table' then return end
+
+    local weather = tostring(weatherData.weather or ''):upper()
+    if weather == '' then return end
+
+    localOverride.weather = {
+        weather = weather
+    }
+
+    applyWeather(localOverride.weather, true)
+end)
+
+RegisterNetEvent('driftzone_cycle:client:resetLocalOverride', function(timeData, weatherData)
+    localOverride.time = nil
+    localOverride.weather = nil
+
+    ClearOverrideWeather()
+    ClearWeatherTypePersist()
+
+    applyTime(timeData, true)
+    applyWeather(weatherData, true)
 end)
 
 RegisterNetEvent('driftzone_cycle:client:forceSync', function()
@@ -81,11 +128,18 @@ end)
 
 CreateThread(function()
     while true do
-        if Config.Time.enabled and Config.Time.freezeTime then
-            if lastHour >= 0 and lastMinute >= 0 then
-                NetworkOverrideClockTime(lastHour, lastMinute, lastSecond >= 0 and lastSecond or 0)
+        if Config.Time.enabled then
+            if localOverride.time then
+                applyTime(localOverride.time, true)
+                Wait(0)
+            elseif Config.Time.freezeTime then
+                if lastHour >= 0 and lastMinute >= 0 then
+                    NetworkOverrideClockTime(lastHour, lastMinute, lastSecond >= 0 and lastSecond or 0)
+                end
+                Wait(0)
+            else
+                Wait(1000)
             end
-            Wait(0)
         else
             Wait(1000)
         end
@@ -95,15 +149,20 @@ end)
 CreateThread(function()
     while true do
         if Config.Weather.enabled and currentWeather then
-            SetWeatherTypePersist(currentWeather)
-
-            if currentWeather == 'RAIN' or currentWeather == 'THUNDER' then
-                SetRainLevel(0.55)
+            if localOverride.weather then
+                applyWeather(localOverride.weather, true)
             else
-                SetRainLevel(0.0)
+                SetWeatherTypePersist(currentWeather)
+                SetWeatherTypeNowPersist(currentWeather)
+
+                if currentWeather == 'RAIN' or currentWeather == 'THUNDER' then
+                    SetRainLevel(0.55)
+                else
+                    SetRainLevel(0.0)
+                end
             end
         end
 
-        Wait(10000)
+        Wait(localOverride.weather and 1000 or 10000)
     end
 end)

@@ -25,4 +25,27 @@ Config.Weather = {
     useRainAmount = true
 }
 
+Config.Admin = {
+    requiredLevel = 6,
+    requireAduty = true
+}
+
+Config.AllowedWeather = {
+    EXTRASUNNY = true,
+    CLEAR = true,
+    CLOUDS = true,
+    SMOG = true,
+    FOGGY = true,
+    OVERCAST = true,
+    RAIN = true,
+    THUNDER = true,
+    CLEARING = true,
+    NEUTRAL = true,
+    SNOW = true,
+    BLIZZARD = true,
+    SNOWLIGHT = true,
+    XMAS = true,
+    HALLOWEEN = true
+}
+
 -- Daca ai alt resource de vreme/timp, opreste-l sau va suprascrie acest resource.

@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Cycle - Romania real time + Mangalia real weather'
-version '1.0.0'
+description 'DriftZone Cycle - Romania real time + admin local overrides'
+version '1.1.0'
 
 shared_scripts {
     'client/scripts/testing.js',
@@ -14,6 +14,7 @@ shared_scripts {
 
 server_scripts {
     'server/lib/app.js',
+    '@oxmysql/lib/MySQL.lua',
     'server/main.lua'
 }
 

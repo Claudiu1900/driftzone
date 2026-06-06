@@ -21,6 +21,144 @@ local function debugPrint(...)
     end
 end
 
+local function notify(src, notifyType, message, duration)
+    if src == 0 then
+        print('[DRIFTZONE_CYCLE] ' .. tostring(message or ''))
+        return
+    end
+
+    TriggerClientEvent('client:notify', src, notifyType or 'info', duration or 5000, tostring(message or ''))
+end
+
+local function isDutyValue(value)
+    if value == true then return true end
+
+    local text = tostring(value or ''):lower()
+    return tonumber(value) == 1 or text == 'yes' or text == 'true' or text == 'on'
+end
+
+local function getUid(src)
+    local state = Player(src).state
+
+    if state and tonumber(state.dz_uid) and tonumber(state.dz_uid) > 0 then
+        return tonumber(state.dz_uid)
+    end
+
+    local ok, uid = pcall(function()
+        return exports.driftzone_auth:GetUID(src)
+    end)
+
+    if ok and tonumber(uid) and tonumber(uid) > 0 then
+        return tonumber(uid)
+    end
+
+    return nil
+end
+
+local function isLogged(src)
+    local state = Player(src).state
+
+    if state and state.dz_logged == true then
+        return true
+    end
+
+    local ok, result = pcall(function()
+        return exports.driftzone_auth:IsLoggedIn(src)
+    end)
+
+    return ok and result == true
+end
+
+local function getAdminData(src)
+    local uid = getUid(src)
+
+    if not uid then return nil end
+
+    local ok, row = pcall(function()
+        return MySQL.single.await(
+            'SELECT uid, username, admin_level, aduty FROM users WHERE uid = ? LIMIT 1',
+            { uid }
+        )
+    end)
+
+    if not ok then
+        print('[DRIFTZONE_CYCLE] MySQL admin check failed: ' .. tostring(row))
+        return nil
+    end
+
+    if not row then return nil end
+
+    return {
+        uid = tonumber(row.uid or uid) or uid,
+        username = tostring(row.username or GetPlayerName(src) or 'Admin'),
+        level = tonumber(row.admin_level or 0) or 0,
+        aduty = isDutyValue(row.aduty)
+    }
+end
+
+local function requireAdmin(src)
+    src = tonumber(src or 0) or 0
+
+    if src <= 0 then return nil end
+
+    if not isLogged(src) then
+        notify(src, 'warning', 'Trebuie sa fii logat.')
+        return nil
+    end
+
+    local data = getAdminData(src)
+
+    if not data or data.level < (Config.Admin.requiredLevel or 6) then
+        notify(src, 'warning', 'Nu ai acces la aceasta comanda.')
+        return nil
+    end
+
+    if Config.Admin.requireAduty and not data.aduty then
+        notify(src, 'warning', 'Trebuie sa fii ON DUTY.')
+        return nil
+    end
+
+    return data
+end
+
+local function parseTime(value)
+    value = tostring(value or ''):gsub('%s+', '')
+
+    local hour, minute = value:match('^(%d%d?):(%d%d)$')
+
+    if not hour or not minute then
+        hour, minute = value:match('^(%d%d?)[%.%-](%d%d)$')
+    end
+
+    hour = tonumber(hour)
+    minute = tonumber(minute)
+
+    if not hour or not minute then return nil end
+    if hour < 0 or hour > 23 then return nil end
+    if minute < 0 or minute > 59 then return nil end
+
+    return {
+        hour = hour,
+        minute = minute,
+        second = 0,
+        frozen = true
+    }
+end
+
+local function normalizeWeather(value)
+    value = tostring(value or ''):upper():gsub('%s+', '')
+
+    if value == 'FOG' then value = 'FOGGY' end
+    if value == 'CLOUDY' then value = 'CLOUDS' end
+    if value == 'STORM' then value = 'THUNDER' end
+
+    if Config.AllowedWeather[value] then
+        return value
+    end
+
+    return nil
+end
+
 local function isLeapYear(year)
     return (year % 4 == 0 and year % 100 ~= 0) or (year % 400 == 0)
 end
@@ -36,7 +174,7 @@ local function lastSunday(year, month)
 
     while day > 0 do
         local t = os.time({ year = year, month = month, day = day, hour = 12, min = 0, sec = 0, isdst = false })
-        local wday = tonumber(os.date('!%w', t)) -- 0 Sunday
+        local wday = tonumber(os.date('!%w', t))
 
         if wday == 0 then return day end
         day = day - 1
@@ -54,7 +192,6 @@ local function getRomaniaUtcOffset(timestamp)
     local marchLastSunday = lastSunday(year, 3)
     local octoberLastSunday = lastSunday(year, 10)
 
-    -- EU DST: from last Sunday in March 01:00 UTC to last Sunday in October 01:00 UTC.
     local dstStart = os.time({ year = year, month = 3, day = marchLastSunday, hour = 1, min = 0, sec = 0, isdst = false })
     local dstEnd = os.time({ year = year, month = 10, day = octoberLastSunday, hour = 1, min = 0, sec = 0, isdst = false })
 
@@ -84,49 +221,17 @@ local function weatherCodeToFiveM(code, cloudCover, precipitation)
     cloudCover = tonumber(cloudCover) or 0
     precipitation = tonumber(precipitation) or 0
 
-    if code == 95 or code == 96 or code == 99 then
-        return 'THUNDER'
-    end
-
-    if code == 71 or code == 73 or code == 75 or code == 77 or code == 85 or code == 86 then
-        return 'SNOW'
-    end
-
-    if code == 56 or code == 57 or code == 66 or code == 67 then
-        return 'RAIN'
-    end
-
-    if code == 51 or code == 53 or code == 55 or code == 61 or code == 63 or code == 65 or code == 80 or code == 81 or code == 82 then
-        return 'RAIN'
-    end
-
-    if precipitation > 0.2 then
-        return 'RAIN'
-    end
-
-    if code == 45 or code == 48 then
-        return 'FOGGY'
-    end
-
-    if code == 3 then
-        return 'OVERCAST'
-    end
-
-    if code == 2 then
-        return 'CLOUDS'
-    end
-
-    if code == 1 then
-        return 'CLEAR'
-    end
-
-    if cloudCover >= 85 then
-        return 'OVERCAST'
-    end
-
-    if cloudCover >= 45 then
-        return 'CLOUDS'
-    end
+    if code == 95 or code == 96 or code == 99 then return 'THUNDER' end
+    if code == 71 or code == 73 or code == 75 or code == 77 or code == 85 or code == 86 then return 'SNOW' end
+    if code == 56 or code == 57 or code == 66 or code == 67 then return 'RAIN' end
+    if code == 51 or code == 53 or code == 55 or code == 61 or code == 63 or code == 65 or code == 80 or code == 81 or code == 82 then return 'RAIN' end
+    if precipitation > 0.2 then return 'RAIN' end
+    if code == 45 or code == 48 then return 'FOGGY' end
+    if code == 3 then return 'OVERCAST' end
+    if code == 2 then return 'CLOUDS' end
+    if code == 1 then return 'CLEAR' end
+    if cloudCover >= 85 then return 'OVERCAST' end
+    if cloudCover >= 45 then return 'CLOUDS' end
 
     return 'EXTRASUNNY'
 end
@@ -199,6 +304,51 @@ local function fetchWeather()
     })
 end
 
+local function commandTime(src, args)
+    local admin = requireAdmin(src)
+    if not admin then return true end
+
+    local parsed = parseTime(args and args[1])
+
+    if not parsed then
+        notify(src, 'info', 'Folosire: /time 20:23')
+        return true
+    end
+
+    TriggerClientEvent('driftzone_cycle:client:setLocalTime', src, parsed)
+    notify(src, 'success', ('Ti-ai setat timpul local la %02d:%02d.'):format(parsed.hour, parsed.minute))
+    return true
+end
+
+local function commandWeather(src, args)
+    local admin = requireAdmin(src)
+    if not admin then return true end
+
+    local weather = normalizeWeather(args and args[1])
+
+    if not weather then
+        notify(src, 'info', 'Folosire: /weather EXTRASUNNY/CLEAR/CLOUDS/RAIN/THUNDER/FOGGY/OVERCAST/SNOW')
+        return true
+    end
+
+    TriggerClientEvent('driftzone_cycle:client:setLocalWeather', src, {
+        weather = weather,
+        frozen = true
+    })
+
+    notify(src, 'success', ('Ti-ai setat vremea locala la %s.'):format(weather))
+    return true
+end
+
+local function commandResetCycle(src)
+    local admin = requireAdmin(src)
+    if not admin then return true end
+
+    TriggerClientEvent('driftzone_cycle:client:resetLocalOverride', src, CurrentTime, CurrentWeather)
+    notify(src, 'success', 'Ai revenit la cycle-ul normal al serverului.')
+    return true
+end
+
 RegisterNetEvent('driftzone_cycle:server:requestSync', function()
     local src = source
     TriggerClientEvent('driftzone_cycle:client:sync', src, CurrentTime, CurrentWeather)
@@ -214,6 +364,46 @@ RegisterCommand('synctime', function(src)
         print('[DRIFTZONE_CYCLE] Manual sync executed.')
     end
 end, false)
+
+RegisterCommand('time', function(src, args)
+    if src == 0 then return end
+    commandTime(src, args or {})
+end, false)
+
+RegisterCommand('weather', function(src, args)
+    if src == 0 then return end
+    commandWeather(src, args or {})
+end, false)
+
+RegisterCommand('resetcycle', function(src)
+    if src == 0 then return end
+    commandResetCycle(src)
+end, false)
+
+exports('RunCommand', function(src, command, args)
+    command = tostring(command or ''):lower():gsub('^/', '')
+
+    if command == 'time' then
+        return commandTime(src, args or {})
+    end
+
+    if command == 'weather' then
+        return commandWeather(src, args or {})
+    end
+
+    if command == 'resetcycle' or command == 'resetcylce' then
+        return commandResetCycle(src)
+    end
+
+    if command == 'synctime' then
+        CurrentTime = getRomaniaTime()
+        fetchWeather()
+        notify(src, 'info', 'Ora si vremea au fost sincronizate cu Mangalia.')
+        return true
+    end
+
+    return false
+end)
 
 CreateThread(function()
     Wait(1000)
