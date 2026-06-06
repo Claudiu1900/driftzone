@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Character Creator - fixed live update and default outfit after save'
-version '2.1.0'
+description 'DriftZone Character Creator - gender default outfits and chat command export'
+version '2.1.1'
 
 ui_page 'html/index.html'
 

@@ -132,6 +132,43 @@ local function ensureDefaultOutfitIfNoClothes(src, uid, gender)
     return true
 end
 
+
+local function ensureDefaultOutfitForGender(src, uid, gender, force)
+    src = tonumber(src or 0) or 0
+    uid = tonumber(uid or 0) or 0
+
+    if src <= 0 or uid <= 0 then
+        return false
+    end
+
+    if not force then
+        local currentClothes = getSavedClothes(uid)
+        if not hasNoSavedClothes(currentClothes) then
+            return false
+        end
+    end
+
+    gender = gender == 'female' and 'female' or 'male'
+
+    local outfitConfig = Config.DefaultSavedOutfits or {}
+    local outfitId = gender == 'female' and tonumber(outfitConfig.female or 0) or tonumber(outfitConfig.male or 0)
+
+    if not outfitId or outfitId <= 0 then
+        return false
+    end
+
+    local ok, result = pcall(function()
+        return exports.driftzone_outfits:SetOutfitSilent(src, outfitId)
+    end)
+
+    if not ok then
+        print(('[DRIFTZONE_CHARACTER] Failed gender/default outfit %s for uid %s: %s'):format(outfitId, uid, tostring(result)))
+        return false
+    end
+
+    return true
+end
+
 local function saveCharacter(uid, character)
     if not uid then return false end
     if type(character) ~= 'table' then return false end
@@ -274,6 +311,10 @@ RegisterNetEvent('driftzone_character:server:save', function(payload)
     end
 
     data.gender = data.gender == 'female' and 'female' or 'male'
+
+    local oldCharacter = getCharacter(uid)
+    local oldGender = oldCharacter and oldCharacter.gender or nil
+
     data.savedAt = os.time()
 
     local saved = saveCharacter(uid, data)
@@ -283,9 +324,13 @@ RegisterNetEvent('driftzone_character:server:save', function(payload)
         return
     end
 
-    -- Daca users.clothes este gol / {}, seteaza outfit default silent:
-    -- male -> Config.DefaultSavedOutfits.male, female -> Config.DefaultSavedOutfits.female.
-    ensureDefaultOutfitIfNoClothes(src, uid, data.gender)
+    -- Daca a schimbat sexul in creator, forteaza outfit-ul default pentru noul sex.
+    -- Daca nu a schimbat sexul, seteaza default doar cand users.clothes este gol / {}.
+    if oldGender and oldGender ~= data.gender then
+        ensureDefaultOutfitForGender(src, uid, data.gender, true)
+    else
+        ensureDefaultOutfitIfNoClothes(src, uid, data.gender)
+    end
 
     applyCharacterAndClothes(src, uid, data)
     reloadClothesAfterSave(src)
@@ -302,6 +347,27 @@ end)
 
 RegisterNetEvent('driftzone_character:server:fixCommand', function()
     fixCharacterFor(source)
+end)
+
+
+local function runCommand(src, command, args)
+    command = tostring(command or ''):lower():gsub('^/', '')
+
+    if command == 'character' then
+        openCharacterCreatorFor(src)
+        return true
+    end
+
+    if command == 'fixcharacter' then
+        fixCharacterFor(src)
+        return true
+    end
+
+    return false
+end
+
+exports('RunCommand', function(src, command, args)
+    return runCommand(src, command, args or {})
 end)
 
 RegisterCommand('character', function(src)
@@ -339,7 +405,7 @@ end)
 AddEventHandler('onResourceStart', function(resource)
     if resource ~= GetCurrentResourceName() then return end
 
-    print('[DRIFTZONE_CHARACTER] Server-side loaded. Creator clothes + default outfit fix enabled.')
+    print('[DRIFTZONE_CHARACTER] Server-side loaded. Gender outfits + chat command export enabled.')
 end)
 exports('EnsureDefaultOutfitIfNoClothes', function(src)
     local uid = getUid(src)

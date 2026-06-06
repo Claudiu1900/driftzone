@@ -1,20 +1,20 @@
-# DriftZone Character - Fixed Creator + Default Outfit
+# DriftZone Character - Gender Outfit + Chat Commands Fix
 
-## Fixuri
+## Fixuri noi
 
-- In character creator, caracterul este dezbracat/curatat mai bine pentru editare.
-- La slider/update nu mai da `SetPlayerModel` de fiecare data.
-  Asta rezolva bug-ul cand caracterul dispare si apare iar.
-- Dupa save caracter:
-  - verifica `users.clothes`;
-  - daca este gol / `{}` / `null`, seteaza outfit default silent:
-    - male: `Config.DefaultSavedOutfits.male`
-    - female: `Config.DefaultSavedOutfits.female`
-  - apoi da reload la haine prin `driftzone_clothes`, fara notificari.
-- Foloseste `exports.driftzone_outfits:SetOutfitSilent(...)`.
-- Foloseste `exports.driftzone_clothes:ReloadClothes(...)`.
+- Daca jucatorul intra in `/character` si schimba sexul:
+  - male -> female: seteaza outfit-ul default de female;
+  - female -> male: seteaza outfit-ul default de male.
+- Setarea outfit-ului este silent, prin:
+  - `exports.driftzone_outfits:SetOutfitSilent(...)`
+  - `exports.driftzone_clothes:ReloadClothes(...)`
+- Daca `users.clothes` este gol / `{}` si sexul nu s-a schimbat:
+  - male primeste outfit ID din `Config.DefaultSavedOutfits.male`;
+  - female primeste outfit ID din `Config.DefaultSavedOutfits.female`.
+- `/character` si `/fixcharacter` raman RegisterCommand native.
+- Adaugat `exports.driftzone_character:RunCommand(src, command, args)` pentru driftzone_chat custom.
 
-## Config important
+## Config
 
 In `config.lua`:
 
@@ -25,7 +25,21 @@ Config.DefaultSavedOutfits = {
 }
 ```
 
-Poti schimba ID-urile de outfit acolo.
+## Pentru driftzone_chat
+
+Daca din F8 merg comenzile, dar din chat nu merg, chat-ul tau intercepteaza comenzile.
+Adauga ruta in driftzone_chat:
+
+```lua
+character = 'driftzone_character',
+fixcharacter = 'driftzone_character',
+```
+
+sau unde procesezi comenzile:
+
+```lua
+exports.driftzone_character:RunCommand(src, command, args)
+```
 
 ## server.cfg order
 
@@ -43,7 +57,7 @@ Pe PC:
 
 ```bash
 git add -A resources/[files]/driftzone_character
-git commit -m "Fix character creator and default outfits"
+git commit -m "Fix character gender outfits and chat commands"
 git pull --rebase origin main
 git push origin main
 ```
@@ -58,13 +72,13 @@ git pull --rebase origin main
 txAdmin:
 
 ```txt
-restart driftzone_character
-```
-
-Recomand dupa update:
-
-```txt
 restart driftzone_outfits
 restart driftzone_clothes
 restart driftzone_character
+```
+
+Daca folosesti driftzone_chat custom, dupa ce adaugi ruta:
+
+```txt
+restart driftzone_chat
 ```
