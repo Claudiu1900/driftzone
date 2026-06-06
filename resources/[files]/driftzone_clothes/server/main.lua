@@ -307,12 +307,39 @@ local function openMenu(src)
     })
 end
 
-local function applySavedClothes(src)
-    local uid = getUid(src)
-    if not uid then return end
+local function applySavedClothes(src, attempt)
+    src = tonumber(src or 0) or 0
+    attempt = tonumber(attempt or 0) or 0
 
-    local clothes = getSavedClothes(uid)
-    TriggerClientEvent('driftzone_clothes:client:fix', src, clothes)
+    if src <= 0 or not GetPlayerName(src) then
+        return false
+    end
+
+    local uid = getUid(src)
+
+    -- La join, UID-ul/state-ul poate aparea cu delay dupa driftzone_auth.
+    -- De asta reincercam de cateva ori, ca hainele sa se incarce automat dupa login/spawn.
+    if not uid then
+        if attempt < 10 then
+            SetTimeout(1000, function()
+                applySavedClothes(src, attempt + 1)
+            end)
+        end
+
+        return false
+    end
+
+    local ok, clothes = pcall(function()
+        return getSavedClothes(uid)
+    end)
+
+    if not ok then
+        print(('[DRIFTZONE_CLOTHES] Failed loading clothes for src %s uid %s: %s'):format(src, uid, tostring(clothes)))
+        return false
+    end
+
+    TriggerClientEvent('driftzone_clothes:client:fix', src, clothes or {})
+    return true
 end
 
 local function sendUsage(src, command)
@@ -492,7 +519,36 @@ RegisterNetEvent('driftzone_clothes:server:abandon', function()
 end)
 
 RegisterNetEvent('driftzone_clothes:server:requestFix', function()
-    applySavedClothes(source)
+    applySavedClothes(source, 0)
+end)
+
+-- Trigger pentru reload haine salvate din users.clothes la jucatorul care il cheama.
+-- Client: TriggerServerEvent('driftzone_clothes:server:reloadSaved')
+RegisterNetEvent('driftzone_clothes:server:reloadSaved', function()
+    applySavedClothes(source, 0)
+end)
+
+-- Trigger server-side pentru alt script:
+-- TriggerEvent('driftzone_clothes:server:reloadPlayerClothes', targetSource)
+AddEventHandler('driftzone_clothes:server:reloadPlayerClothes', function(target)
+    applySavedClothes(tonumber(target or 0) or 0, 0)
+end)
+
+-- Trigger client protejat pentru admin 7+ aduty yes:
+-- TriggerServerEvent('driftzone_clothes:server:adminReloadPlayerClothes', targetIdSauUid)
+RegisterNetEvent('driftzone_clothes:server:adminReloadPlayerClothes', function(targetId)
+    local src = source
+    local admin = requireAdmin7(src)
+    if not admin then return end
+
+    local target = getPlayerByAnyId(targetId)
+    if not target then
+        notify(src, 'warning', 'Jucatorul nu este online sau id/uid invalid.')
+        return
+    end
+
+    applySavedClothes(target, 0)
+    notify(src, 'info', ('Ai dat reload la hainele lui %s.'):format(GetPlayerName(target) or target))
 end)
 
 for _, cmd in ipairs({ 'haine', 'clothes', 'fixskin', 'setcl', 'bancl' }) do
@@ -502,12 +558,39 @@ for _, cmd in ipairs({ 'haine', 'clothes', 'fixskin', 'setcl', 'bancl' }) do
     end, false)
 end
 
+
+RegisterCommand('reloadclothes', function(src, args)
+    if src == 0 then return end
+
+    if args and args[1] then
+        local admin = requireAdmin7(src)
+        if not admin then return end
+
+        local target = getPlayerByAnyId(args[1])
+        if not target then
+            notify(src, 'warning', 'Jucatorul nu este online sau id/uid invalid.')
+            return
+        end
+
+        applySavedClothes(target, 0)
+        notify(src, 'info', ('Ai dat reload la hainele lui %s.'):format(GetPlayerName(target) or target))
+        return
+    end
+
+    applySavedClothes(src, 0)
+    notify(src, 'info', 'Ti-ai reincarcat hainele salvate.')
+end, false)
+
 exports('RunCommand', function(src, command, args)
     return runCommand(src, command, args or {})
 end)
 
 exports('ApplySavedClothes', function(src)
-    return applySavedClothes(src)
+    return applySavedClothes(src, 0)
+end)
+
+exports('ReloadClothes', function(src)
+    return applySavedClothes(src, 0)
 end)
 
 CreateThread(function()
@@ -520,5 +603,5 @@ CreateThread(function()
         print(err)
     end
 
-    print('[DRIFTZONE_CLOTHES] Server-side loaded. Admin required: 7 + aduty yes.')
+    print('[DRIFTZONE_CLOTHES] Server-side loaded. Auto-load on join + reload triggers enabled.')
 end)

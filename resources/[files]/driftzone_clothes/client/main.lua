@@ -27,6 +27,16 @@ local function notify(notifyType, message, duration)
     TriggerEvent('client:notify', notifyType or 'info', duration or 5000, tostring(message or ''))
 end
 
+local function requestSavedClothesReload()
+    TriggerServerEvent('driftzone_clothes:server:reloadSaved')
+end
+
+local function requestSavedClothesReloadDelayed(ms)
+    SetTimeout(ms or 0, function()
+        requestSavedClothesReload()
+    end)
+end
+
 local function sendNui(data)
     if not browserReady then return end
     SendNUIMessage(data)
@@ -529,17 +539,21 @@ RegisterCommand('clothes', function()
 end, false)
 
 CreateThread(function()
-    Wait(1500)
-    TriggerServerEvent('driftzone_clothes:server:requestFix')
-    Wait(3000)
-    TriggerServerEvent('driftzone_clothes:server:requestFix')
+    -- Mai multe incercari pentru ca driftzone_auth seteaza UID-ul cu delay dupa join.
+    local delays = { 1200, 2500, 4500, 7000, 10000, 14000 }
+
+    for i = 1, #delays do
+        Wait(i == 1 and delays[i] or (delays[i] - delays[i - 1]))
+        requestSavedClothesReload()
+    end
 end)
 
 AddEventHandler('playerSpawned', function()
     unfreeze()
-    SetTimeout(1500, function()
-        TriggerServerEvent('driftzone_clothes:server:requestFix')
-    end)
+
+    requestSavedClothesReloadDelayed(1000)
+    requestSavedClothesReloadDelayed(3000)
+    requestSavedClothesReloadDelayed(6000)
 end)
 
 CreateThread(function()
@@ -562,6 +576,15 @@ CreateThread(function()
         end
     end
 end)
+
+RegisterNetEvent('driftzone_clothes:client:reloadSaved', function()
+    requestSavedClothesReload()
+end)
+
+RegisterCommand('reloadclothes', function()
+    requestSavedClothesReload()
+    notify('info', 'Se reincarca hainele salvate...')
+end, false)
 
 exports('ApplyClothes', function(clothes)
     applyClothes(clothes or {})

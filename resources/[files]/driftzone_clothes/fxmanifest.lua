@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Clothes - Admin Only - fixed SQL logs database'
-version '1.0.1'
+description 'DriftZone Clothes - fixed load on join and reload trigger'
+version '1.0.2'
 
 ui_page 'html/index.html'
 

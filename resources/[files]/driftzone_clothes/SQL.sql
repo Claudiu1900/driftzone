@@ -1,6 +1,4 @@
--- DriftZone Clothes SQL FIXED
--- Ruleaza in baza principala driftzone.
-
+-- DriftZone Clothes SQL
 ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `clothes` LONGTEXT NULL;
 
 CREATE TABLE IF NOT EXISTS `unallowed_clothes` (
