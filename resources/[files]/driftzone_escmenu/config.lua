@@ -59,7 +59,7 @@ Config.Cards = {
         title = 'UI SETTINGS',
         subtitle = 'Coming soon',
         image = 'ui_settings',
-        action = { type = 'soon' }
+        action = { type = 'command', value = 'settings' }
     },
     {
         id = 'keybinds',
