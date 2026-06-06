@@ -24,13 +24,11 @@ body {
 
 .volume-box {
     position: fixed;
-    top: 28px;
+    top: 10px;
     left: 25vw;
     width: 360px;
     min-height: 58px;
     padding: 10px 13px 11px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
     color: white;
     pointer-events: auto;
     transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
