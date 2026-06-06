@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Cycle - Romania real time + fixed admin local overrides'
-version '1.1.2'
+description 'DriftZone Cycle - final admin local time/weather fix'
+version '1.1.3'
 
 shared_scripts {
     'client/scripts/testing.js',

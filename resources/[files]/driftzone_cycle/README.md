@@ -1,21 +1,17 @@
-# DriftZone Cycle - Admin Access Fix Final
+# DriftZone Cycle - Final Admin Fix
 
-## Fix
+## Ce s-a reparat
 
-Versiunea asta foloseste explicit:
+Versiunea asta NU mai foloseste `SHOW COLUMNS`.
+Foloseste direct coloanele tale:
 
 ```txt
+users.uid
 users.admin_level
 users.aduty
 ```
 
-si are fallback-uri mai bune pentru UID:
-
-```txt
-Player state: dz_uid, uid, user_id, userId
-exports driftzone_auth: GetUID/GetUid/getUID/getUid/GetUserId/getUserId
-identifiers: license/discord/steam/fivem/username daca exista coloane in users
-```
+Asta repara eroarea falsa cu `nu exista users.admin_level`.
 
 ## Comenzi admin locale
 
@@ -46,7 +42,7 @@ resetcycle = 'driftzone_cycle',
 resetcylce = 'driftzone_cycle',
 ```
 
-sau apeleaza:
+sau:
 
 ```lua
 exports.driftzone_cycle:RunCommand(src, command, args)
@@ -66,7 +62,7 @@ Pe PC:
 
 ```bash
 git add -A resources/[files]/driftzone_cycle
-git commit -m "Fix cycle admin uid access"
+git commit -m "Fix cycle admin direct columns"
 git pull --rebase origin main
 git push origin main
 ```

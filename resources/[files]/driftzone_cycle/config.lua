@@ -2,7 +2,6 @@ Config = {}
 
 Config.Debug = false
 
--- Mangalia, judetul Constanta
 Config.Location = {
     name = 'Mangalia, Constanta',
     latitude = 43.8152,
@@ -29,11 +28,12 @@ Config.Admin = {
     requiredLevel = 6,
     requireAduty = true,
 
-    -- Coloanele tale exacte:
+    -- FIX FINAL: foloseste direct aceste coloane, fara SHOW COLUMNS.
+    uidColumn = 'uid',
     adminColumn = 'admin_level',
     adutyColumn = 'aduty',
 
-    -- Fallback-uri pentru UID in caz ca driftzone_auth nu a setat inca dz_uid.
+    -- Daca auth-ul intarzie, incearca si aceste state keys.
     uidStateKeys = {
         'dz_uid',
         'uid',
@@ -59,5 +59,3 @@ Config.AllowedWeather = {
     XMAS = true,
     HALLOWEEN = true
 }
-
--- Daca ai alt resource de vreme/timp, opreste-l sau va suprascrie acest resource.

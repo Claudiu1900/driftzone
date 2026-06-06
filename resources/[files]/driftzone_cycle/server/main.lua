@@ -15,11 +15,6 @@ local CurrentWeather = {
     updatedAt = 0
 }
 
-local ColumnCache = {
-    checked = false,
-    has = {}
-}
-
 local function debugPrint(...)
     if Config.Debug then
         print('[DRIFTZONE_CYCLE]', ...)
@@ -42,95 +37,90 @@ local function isDutyValue(value)
     return tonumber(value) == 1 or text == 'yes' or text == 'true' or text == 'on'
 end
 
-local function refreshColumnCache()
-    if ColumnCache.checked then
-        return ColumnCache.has
-    end
-
-    ColumnCache.checked = true
-    ColumnCache.has = {}
-
-    local ok, rows = pcall(function()
-        return MySQL.query.await('SHOW COLUMNS FROM users', {})
-    end)
-
-    if not ok or type(rows) ~= 'table' then
-        print('[DRIFTZONE_CYCLE] SHOW COLUMNS users failed: ' .. tostring(rows))
-        return ColumnCache.has
-    end
-
-    for i = 1, #rows do
-        local field = rows[i] and rows[i].Field
-        if field then
-            ColumnCache.has[tostring(field)] = true
-        end
-    end
-
-    return ColumnCache.has
-end
-
 local function getIdentifierMap(src)
-    local ids = {
-        license = nil,
-        license2 = nil,
-        discord = nil,
-        steam = nil,
-        fivem = nil
-    }
+    local ids = {}
 
     for _, identifier in ipairs(GetPlayerIdentifiers(src)) do
         local key, value = tostring(identifier):match('^([^:]+):(.+)$')
 
         if key and value then
             ids[key] = value
+            ids[key .. '_full'] = tostring(identifier)
         end
     end
 
     return ids
 end
 
-local function getUidFromKnownColumns(src)
-    local has = refreshColumnCache()
-    local ids = getIdentifierMap(src)
-    local conditions = {}
-    local params = {}
+local function getUidFromState(src)
+    local state = Player(src).state
+    if not state then return nil end
 
-    local candidates = {
-        { column = 'license', value = ids.license and ('license:' .. ids.license) or nil },
-        { column = 'license', value = ids.license },
-        { column = 'identifier', value = ids.license and ('license:' .. ids.license) or nil },
-        { column = 'identifier', value = ids.license },
-        { column = 'identifier', value = ids.steam and ('steam:' .. ids.steam) or nil },
-        { column = 'steam', value = ids.steam and ('steam:' .. ids.steam) or nil },
-        { column = 'steam', value = ids.steam },
-        { column = 'discord', value = ids.discord and ('discord:' .. ids.discord) or nil },
-        { column = 'discord', value = ids.discord },
-        { column = 'fivem', value = ids.fivem and ('fivem:' .. ids.fivem) or nil },
-        { column = 'fivem', value = ids.fivem },
-        { column = 'username', value = GetPlayerName(src) }
-    }
+    local keys = (Config.Admin and Config.Admin.uidStateKeys) or { 'dz_uid', 'uid', 'user_id', 'userId' }
 
-    for i = 1, #candidates do
-        local item = candidates[i]
-
-        if item.value and item.value ~= '' and has[item.column] then
-            conditions[#conditions + 1] = ('`%s` = ?'):format(item.column)
-            params[#params + 1] = item.value
+    for i = 1, #keys do
+        local value = state[keys[i]]
+        if tonumber(value) and tonumber(value) > 0 then
+            return tonumber(value)
         end
     end
 
-    if #conditions <= 0 then
-        return nil
+    return nil
+end
+
+local function getUidFromExports(src)
+    local attempts = {
+        function() return exports.driftzone_auth:GetUID(src) end,
+        function() return exports.driftzone_auth:GetUid(src) end,
+        function() return exports.driftzone_auth:getUID(src) end,
+        function() return exports.driftzone_auth:getUid(src) end,
+        function() return exports.driftzone_auth:GetUserId(src) end,
+        function() return exports.driftzone_auth:getUserId(src) end,
+        function() return exports.driftzone_auth:GetPlayerUID(src) end,
+        function() return exports.driftzone_auth:getPlayerUID(src) end
+    }
+
+    for i = 1, #attempts do
+        local ok, uid = pcall(attempts[i])
+
+        if ok and tonumber(uid) and tonumber(uid) > 0 then
+            return tonumber(uid)
+        end
     end
 
-    local query = ('SELECT uid FROM users WHERE %s LIMIT 1'):format(table.concat(conditions, ' OR '))
+    return nil
+end
 
-    local ok, row = pcall(function()
-        return MySQL.single.await(query, params)
-    end)
+local function getUidFromIdentifiers(src)
+    local ids = getIdentifierMap(src)
+    local playerName = GetPlayerName(src) or ''
+    local conditions = {}
+    local params = {}
 
-    if ok and row and tonumber(row.uid) then
-        return tonumber(row.uid)
+    -- Aceste query-uri sunt facute individual cu pcall ca sa nu cada daca lipseste o coloana.
+    local checks = {
+        { column = 'license', values = { ids.license_full, ids.license } },
+        { column = 'identifier', values = { ids.license_full, ids.license, ids.steam_full, ids.steam } },
+        { column = 'steam', values = { ids.steam_full, ids.steam } },
+        { column = 'discord', values = { ids.discord_full, ids.discord } },
+        { column = 'fivem', values = { ids.fivem_full, ids.fivem } },
+        { column = 'username', values = { playerName } }
+    }
+
+    for _, check in ipairs(checks) do
+        for _, value in ipairs(check.values or {}) do
+            if value and value ~= '' then
+                local query = ('SELECT uid FROM users WHERE `%s` = ? LIMIT 1'):format(check.column)
+
+                local ok, row = pcall(function()
+                    return MySQL.single.await(query, { value })
+                end)
+
+                if ok and row and tonumber(row.uid) then
+                    return tonumber(row.uid)
+                end
+            end
+        end
     end
 
     return nil
@@ -138,40 +128,9 @@ end
 
 local function getUid(src)
     src = tonumber(src or 0) or 0
-
     if src <= 0 then return nil end
 
-    local state = Player(src).state
-
-    if state then
-        local keys = (Config.Admin and Config.Admin.uidStateKeys) or { 'dz_uid', 'uid', 'user_id', 'userId' }
-
-        for i = 1, #keys do
-            local value = state[keys[i]]
-            if tonumber(value) and tonumber(value) > 0 then
-                return tonumber(value)
-            end
-        end
-    end
-
-    local exportAttempts = {
-        function() return exports.driftzone_auth:GetUID(src) end,
-        function() return exports.driftzone_auth:GetUid(src) end,
-        function() return exports.driftzone_auth:getUID(src) end,
-        function() return exports.driftzone_auth:getUid(src) end,
-        function() return exports.driftzone_auth:GetUserId(src) end,
-        function() return exports.driftzone_auth:getUserId(src) end
-    }
-
-    for i = 1, #exportAttempts do
-        local ok, uid = pcall(exportAttempts[i])
-
-        if ok and tonumber(uid) and tonumber(uid) > 0 then
-            return tonumber(uid)
-        end
-    end
-
-    return getUidFromKnownColumns(src)
+    return getUidFromState(src) or getUidFromExports(src) or getUidFromIdentifiers(src)
 end
 
 local function isLogged(src)
@@ -183,21 +142,20 @@ local function isLogged(src)
         end
     end
 
-    local exportAttempts = {
+    local attempts = {
         function() return exports.driftzone_auth:IsLoggedIn(src) end,
         function() return exports.driftzone_auth:isLoggedIn(src) end,
         function() return exports.driftzone_auth:IsLogged(src) end
     }
 
-    for i = 1, #exportAttempts do
-        local ok, result = pcall(exportAttempts[i])
-
+    for i = 1, #attempts do
+        local ok, result = pcall(attempts[i])
         if ok and result == true then
             return true
         end
     end
 
-    -- Pentru comenzi admin, daca avem UID si row in DB, nu blocam comanda doar fiindca auth nu expune logged.
+    -- Nu bloca adminul daca auth-ul nu expune logged, dar UID-ul exista.
     return getUid(src) ~= nil
 end
 
@@ -208,36 +166,19 @@ local function getAdminData(src)
         return nil, 'uid_missing'
     end
 
-    local has = refreshColumnCache()
-    local adminColumn = (Config.Admin and Config.Admin.adminColumn) or 'admin_level'
-    local adutyColumn = (Config.Admin and Config.Admin.adutyColumn) or 'aduty'
-
-    if not has[adminColumn] then
-        return nil, 'admin_column_missing'
-    end
-
-    if Config.Admin.requireAduty and not has[adutyColumn] then
-        return nil, 'aduty_column_missing'
-    end
-
-    local selectParts = {
-        'uid',
-        ('`%s` AS admin_level'):format(adminColumn),
-        ('`%s` AS aduty'):format(adutyColumn)
-    }
-
-    if has.username then
-        selectParts[#selectParts + 1] = 'username'
-    end
-
-    local query = ('SELECT %s FROM users WHERE uid = ? LIMIT 1'):format(table.concat(selectParts, ', '))
-
+    -- FIX FINAL: nu mai folosim SHOW COLUMNS.
+    -- Query direct pe coloanele tale exacte: users.uid, users.admin_level, users.aduty.
     local ok, row = pcall(function()
-        return MySQL.single.await(query, { uid })
+        return MySQL.single.await([[
+            SELECT uid, username, admin_level, aduty
+            FROM users
+            WHERE uid = ?
+            LIMIT 1
+        ]], { uid })
     end)
 
     if not ok then
-        print('[DRIFTZONE_CYCLE] MySQL admin check failed: ' .. tostring(row))
+        print('[DRIFTZONE_CYCLE] Admin query failed: ' .. tostring(row))
         return nil, 'query_failed'
     end
 
@@ -255,7 +196,6 @@ end
 
 local function requireAdmin(src)
     src = tonumber(src or 0) or 0
-
     if src <= 0 then return nil end
 
     if not isLogged(src) then
@@ -267,13 +207,11 @@ local function requireAdmin(src)
 
     if not data then
         if reason == 'uid_missing' then
-            notify(src, 'warning', 'Nu ti-am gasit UID-ul. Relog sau asteapta sa se incarce auth-ul.')
-        elseif reason == 'admin_column_missing' then
-            notify(src, 'warning', 'Nu exista coloana users.admin_level.')
-        elseif reason == 'aduty_column_missing' then
-            notify(src, 'warning', 'Nu exista coloana users.aduty.')
+            notify(src, 'warning', 'Nu ti-am gasit UID-ul. Asteapta cateva secunde dupa login sau da relog.')
         elseif reason == 'row_missing' then
             notify(src, 'warning', 'Nu exista rand in users pentru UID-ul tau.')
+        elseif reason == 'query_failed' then
+            notify(src, 'warning', 'Query-ul de admin a esuat. Verifica server console.')
         else
             notify(src, 'warning', 'Nu ti-am gasit datele de admin in baza de date.')
         end
@@ -296,7 +234,6 @@ end
 
 local function parseTime(value)
     value = tostring(value or ''):gsub('%s+', '')
-
     local hour, minute = value:match('^(%d%d?):(%d%d)$')
 
     if not hour or not minute then
@@ -358,13 +295,10 @@ end
 
 local function getRomaniaUtcOffset(timestamp)
     timestamp = timestamp or os.time()
-
     local utc = os.date('!*t', timestamp)
     local year = utc.year
-
     local marchLastSunday = lastSunday(year, 3)
     local octoberLastSunday = lastSunday(year, 10)
-
     local dstStart = os.time({ year = year, month = 3, day = marchLastSunday, hour = 1, min = 0, sec = 0, isdst = false })
     local dstEnd = os.time({ year = year, month = 10, day = octoberLastSunday, hour = 1, min = 0, sec = 0, isdst = false })
 
@@ -458,7 +392,6 @@ local function fetchWeather()
         local showers = tonumber(current.showers or 0) or 0
         local snowfall = tonumber(current.snowfall or 0) or 0
         local totalPrecip = precipitation + rain + showers + snowfall
-
         local mapped = weatherCodeToFiveM(code, cloudCover, totalPrecip)
 
         CurrentWeather = {
@@ -590,7 +523,7 @@ CreateThread(function()
     fetchWeather()
     syncAll()
 
-    print(('[DRIFTZONE_CYCLE] Loaded. Timezone: Europe/Bucharest | Weather: %s'):format(Config.Location.name))
+    print(('[DRIFTZONE_CYCLE] Loaded final admin fix. Timezone: Europe/Bucharest | Weather: %s'):format(Config.Location.name))
 
     while true do
         if Config.Time.enabled then
