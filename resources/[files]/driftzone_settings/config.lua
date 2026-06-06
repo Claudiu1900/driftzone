@@ -8,13 +8,6 @@ Config.KvpPrefix = 'driftzone_settings_'
 -- HUD, radar/minimap, overhead pentru ceilalti si overhead personal.
 Config.Toggles = {
     {
-        id = 'hud',
-        title = 'DriftZone HUD',
-        description = 'Ascunde sau afiseaza HUD-ul principal DriftZone.',
-        category = 'Interface',
-        default = true
-    },
-    {
         id = 'radar',
         title = 'Radar / Minimap',
         description = 'Ascunde sau afiseaza minimap-ul GTA. Cand este OFF ramane ascuns corect.',
