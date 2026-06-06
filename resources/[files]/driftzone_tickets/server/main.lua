@@ -1,5 +1,6 @@
 local Tickets = {}
 local NextTicketId = 1
+local ColumnCache = {}
 
 local function notify(src, notifyType, message, duration)
     TriggerClientEvent('client:notify', src, notifyType or 'info', duration or 5000, tostring(message or ''))
@@ -21,10 +22,9 @@ local function cleanText(value, maxLength)
 end
 
 local function isDutyValue(value)
-    -- FIX FINAL:
-    -- ON DUTY = users.aduty = 1
-    -- OFF DUTY = users.aduty = 0
-    -- Acceptam si valori text pentru compatibilitate.
+    -- Regula stricta:
+    -- users.aduty = 1 -> ON DUTY
+    -- users.aduty = 0 -> OFF DUTY
     if value == true then return true end
 
     local n = tonumber(value)
@@ -38,6 +38,71 @@ end
 
 local function getPlayerNameSafe(src)
     return GetPlayerName(src) or ('Player ' .. tostring(src))
+end
+
+local function sqlIdent(value)
+    return tostring(value or ''):gsub('`', '')
+end
+
+local function tableName()
+    return sqlIdent(Config.UsersTable or 'users')
+end
+
+local function uidColumn()
+    return sqlIdent(Config.UsersIdColumn or 'uid')
+end
+
+local function columnExists(tbl, col)
+    tbl = sqlIdent(tbl)
+    col = sqlIdent(col)
+
+    if tbl == '' or col == '' then return false end
+
+    local key = tbl .. '.' .. col
+    if ColumnCache[key] ~= nil then
+        return ColumnCache[key] == true
+    end
+
+    local ok, result = pcall(function()
+        return MySQL.scalar.await(
+            [[
+                SELECT COUNT(*)
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = ?
+                  AND COLUMN_NAME = ?
+            ]],
+            { tbl, col }
+        )
+    end)
+
+    local exists = ok and tonumber(result or 0) and tonumber(result or 0) > 0
+    ColumnCache[key] = exists == true
+
+    return ColumnCache[key] == true
+end
+
+local function firstExistingColumn(tbl, columns, fallback)
+    tbl = sqlIdent(tbl)
+
+    local list = {}
+
+    if fallback and fallback ~= '' then
+        list[#list + 1] = fallback
+    end
+
+    for _, col in ipairs(columns or {}) do
+        list[#list + 1] = col
+    end
+
+    for _, col in ipairs(list) do
+        col = sqlIdent(col)
+        if col ~= '' and columnExists(tbl, col) then
+            return col
+        end
+    end
+
+    return nil
 end
 
 local function getIdentifierMap(src)
@@ -99,12 +164,15 @@ local function getUidFromExports(src)
     return nil
 end
 
-local function queryUidByColumn(tableName, uidColumn, column, value)
-    if not value or value == '' then return nil end
+local function queryUidByColumn(tbl, uidCol, column, value)
+    column = sqlIdent(column)
+
+    if not value or value == '' or column == '' then return nil end
+    if not columnExists(tbl, column) then return nil end
 
     local ok, row = pcall(function()
         return MySQL.single.await(
-            ('SELECT `%s` AS uid FROM `%s` WHERE `%s` = ? LIMIT 1'):format(uidColumn, tableName, column),
+            ('SELECT `%s` AS uid FROM `%s` WHERE `%s` = ? LIMIT 1'):format(uidCol, tbl, column),
             { value }
         )
     end)
@@ -117,8 +185,8 @@ local function queryUidByColumn(tableName, uidColumn, column, value)
 end
 
 local function getUidFromIdentifiers(src)
-    local tableName = Config.UsersTable or 'users'
-    local uidColumn = Config.UsersIdColumn or 'uid'
+    local tbl = tableName()
+    local uidCol = uidColumn()
     local ids = getIdentifierMap(src)
     local playerName = getPlayerNameSafe(src)
 
@@ -133,7 +201,7 @@ local function getUidFromIdentifiers(src)
 
     for _, check in ipairs(checks) do
         for _, value in ipairs(check.values or {}) do
-            local uid = queryUidByColumn(tableName, uidColumn, check.column, value)
+            local uid = queryUidByColumn(tbl, uidCol, check.column, value)
             if uid then return uid end
         end
     end
@@ -149,35 +217,9 @@ local function getUid(src)
 end
 
 local function getSafeTicketUid(src)
-    -- Pentru deschidere/creare ticket, nu blocam complet daca auth-ul intarzie.
-    -- Daca UID-ul real lipseste, folosim source temporar ca sa se deschida UI-ul.
+    -- Pentru /ticket nu blocam UI-ul daca auth-ul intarzie.
+    -- Daca UID-ul real lipseste, folosim temporar source-ul.
     return getUid(src) or tonumber(src)
-end
-
-local function isLogged(src)
-    local state = Player(src).state
-
-    if state and (state.dz_logged == true or state.logged == true or state.isLoggedIn == true) then
-        return true
-    end
-
-    local attempts = {
-        function() return exports.driftzone_auth:IsLoggedIn(src) end,
-        function() return exports.driftzone_auth:isLoggedIn(src) end,
-        function() return exports.driftzone_auth:IsLogged(src) end
-    }
-
-    for i = 1, #attempts do
-        local ok, result = pcall(attempts[i])
-
-        if ok and result == true then
-            return true
-        end
-    end
-
-    -- Fix: dupa /aduty off unele auth-uri nu mai raspund true, dar UID-ul exista.
-    -- Nu blocam /ticket din cauza asta.
-    return getSafeTicketUid(src) ~= nil
 end
 
 local function getAdminData(src)
@@ -187,20 +229,52 @@ local function getAdminData(src)
         return nil, 'uid_missing'
     end
 
-    local tableName = Config.UsersTable or 'users'
-    local uidColumn = Config.UsersIdColumn or 'uid'
-    local adminColumn = Config.AdminLevelColumn or 'admin_level'
-    local adutyColumn = Config.AdminDutyColumn or 'aduty'
+    local tbl = tableName()
+    local uidCol = uidColumn()
+
+    if not columnExists(tbl, uidCol) then
+        return nil, 'uid_column_missing'
+    end
+
+    local adminColumn = firstExistingColumn(
+        tbl,
+        Config.AdminLevelFallbackColumns or { 'admin', 'adminLvl', 'adminLevel', 'admin_level' },
+        Config.AdminLevelColumn or 'admin_level'
+    )
+
+    local adutyColumn = firstExistingColumn(
+        tbl,
+        Config.AdminDutyFallbackColumns or { 'aduty', 'onduty', 'onDuty' },
+        Config.AdminDutyColumn or 'aduty'
+    )
+
+    local usernameColumn = columnExists(tbl, 'username') and 'username' or nil
+
+    local selectParts = {
+        ('`%s` AS uid'):format(uidCol)
+    }
+
+    if usernameColumn then
+        selectParts[#selectParts + 1] = '`username` AS username'
+    else
+        selectParts[#selectParts + 1] = 'NULL AS username'
+    end
+
+    if adminColumn then
+        selectParts[#selectParts + 1] = ('`%s` AS admin_level'):format(adminColumn)
+    else
+        selectParts[#selectParts + 1] = '0 AS admin_level'
+    end
+
+    if adutyColumn then
+        selectParts[#selectParts + 1] = ('`%s` AS aduty'):format(adutyColumn)
+    else
+        selectParts[#selectParts + 1] = '0 AS aduty'
+    end
 
     local ok, row = pcall(function()
         return MySQL.single.await(
-            ('SELECT `%s` AS uid, username, `%s` AS admin_level, `%s` AS aduty FROM `%s` WHERE `%s` = ? LIMIT 1'):format(
-                uidColumn,
-                adminColumn,
-                adutyColumn,
-                tableName,
-                uidColumn
-            ),
+            ('SELECT %s FROM `%s` WHERE `%s` = ? LIMIT 1'):format(table.concat(selectParts, ', '), tbl, uidCol),
             { uid }
         )
     end)
@@ -223,11 +297,6 @@ local function getAdminData(src)
         aduty = isDutyValue(row.aduty),
         rankName = Config.AdminRanks[level] or 'Staff'
     }, nil
-end
-
-local function isStaff(src)
-    local data = getAdminData(src)
-    return data ~= nil and data.level >= (Config.MinAdminLevel or 1), data
 end
 
 local function isStaffOnDuty(src)
@@ -349,10 +418,10 @@ local function teleportAdminToPlayer(adminSrc, targetSrc)
 end
 
 local function openTicketMenu(src)
-    -- FIX FINAL:
-    -- /ticket trebuie sa mearga mereu:
-    -- aduty = 1 => staff panel
-    -- aduty = 0 => player ticket panel
+    -- Regula:
+    -- users.aduty = 1 + admin >= MinAdminLevel -> staff panel
+    -- users.aduty = 0 -> player panel
+    -- admin 0 / fara admin -> player panel
     local uid = getSafeTicketUid(src)
 
     if not uid then
@@ -368,9 +437,14 @@ local function openTicketMenu(src)
         return
     end
 
-    -- Daca este admin OFF DUTY, curatam counter-ul si il tratam ca player normal.
+    -- Daca adminul era ON DUTY inainte si acum este OFF, curatam counter-ul.
+    TriggerClientEvent('driftzone_tickets:client:count', src, 0)
+
     if adminData and reason == 'off_duty' then
-        TriggerClientEvent('driftzone_tickets:client:count', src, 0)
+        print(('[DRIFTZONE_TICKETS] %s (%s) este admin OFF DUTY. /ticket deschide meniul normal de player.'):format(
+            getPlayerNameSafe(src),
+            adminData.uid
+        ))
     end
 
     if getTicketByPlayerUid(uid) then
@@ -603,7 +677,7 @@ end)
 
 RegisterNetEvent('driftzone_tickets:server:teleport', function(ticketId)
     local src = source
-    local allowed, adminData = isStaffOnDuty(src)
+    local allowed = isStaffOnDuty(src)
 
     if not allowed then
         notify(src, 'warning', 'Trebuie sa fii staff ON DUTY.')
@@ -698,7 +772,7 @@ end)
 
 CreateThread(function()
     Wait(500)
-    print('[DRIFTZONE_TICKETS] Server-side loaded. FINAL aduty 1/0 fix.')
+    print('[DRIFTZONE_TICKETS] Server-side loaded. /ticket rule: aduty 1 = staff panel, aduty 0 = player panel.')
 
     while true do
         updateAdminCounters()

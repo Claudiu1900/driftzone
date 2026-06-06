@@ -1,25 +1,37 @@
-# driftzone_tickets - Modern Fullscreen UI
+# driftzone_tickets - FIX aduty 1/0
 
-## Ce s-a schimbat
-
-- UI refacut complet fullscreen.
-- Design modern/futuristic, fara emoji-uri.
-- Iconurile sunt SVG inline.
-- Admin panel cu search.
-- Counter-ul de tickete ramane.
-- Logica ticketelor ramane aceeasi.
-- Bug accept fix: adminul nu mai este teleportat de doua ori.
-- Anti double-click pe Accept in NUI.
-
-## Comenzi
+## Regula reparata
 
 ```txt
-/ticket
-/tickets
-/cancelticket
+users.aduty = 1 -> admin ON DUTY -> /ticket deschide meniul de admin
+users.aduty = 0 -> admin OFF DUTY -> /ticket deschide meniul normal de player
 ```
 
-## server.cfg
+## Ce am reparat
+
+- `/ticket` verifica baza de date live de fiecare data.
+- `aduty = 0` nu mai blocheaza comanda.
+- Adminii OFF DUTY sunt tratati ca player normal cand folosesc `/ticket`.
+- Accept/Delete/Teleport raman permise doar pentru staff ON DUTY.
+- Scriptul cauta automat coloana de admin: `admin_level`, `admin`, `adminLvl`, `adminLevel`.
+- Scriptul cauta automat coloana duty: `aduty`, `onduty`, `onDuty`.
+
+## Config important
+
+In `config.lua` poti lasa asa:
+
+```lua
+Config.UsersTable = 'users'
+Config.UsersIdColumn = 'uid'
+Config.AdminLevelColumn = 'admin_level'
+Config.AdminLevelFallbackColumns = { 'admin', 'adminLvl', 'adminLevel', 'admin_level' }
+Config.AdminDutyColumn = 'aduty'
+Config.RequireAduty = true
+```
+
+Daca baza ta are `users.admin`, scriptul il detecteaza automat.
+
+## Instalare
 
 ```cfg
 ensure oxmysql
@@ -28,11 +40,27 @@ ensure driftzone_notifications
 ensure driftzone_tickets
 ```
 
+Dupa inlocuire:
+
+```cfg
+restart driftzone_tickets
+```
+
+## Comenzi
+
+```txt
+/ticket
+/tickets
+/tikcet
+/cancelticket
+```
+
 ## Pentru driftzone_chat custom
 
 ```lua
 ticket = 'driftzone_tickets',
 tickets = 'driftzone_tickets',
+tikcet = 'driftzone_tickets',
 cancelticket = 'driftzone_tickets',
 ```
 
@@ -41,47 +69,3 @@ sau:
 ```lua
 exports.driftzone_tickets:RunCommand(src, command)
 ```
-
-## Git
-
-Pe PC:
-
-```bash
-git add -A resources/[files]/driftzone_tickets
-git commit -m "Modernize tickets UI and fix double teleport"
-git pull --rebase origin main
-git push origin main
-```
-
-Pe VPS:
-
-```bash
-cd ~/server-data
-git pull --rebase origin main
-```
-
-txAdmin:
-
-```txt
-restart driftzone_tickets
-```
-
-
-## FINAL aduty fix
-
-Regula este strict:
-
-```txt
-users.aduty = 1 -> admin ON DUTY -> /ticket deschide staff panel
-users.aduty = 0 -> admin OFF DUTY -> /ticket deschide ticket normal de player
-```
-
-Nu mai blocheaza /ticket dupa ce schimbi ON/OFF duty.
-
-Ce s-a schimbat:
-- nu mai depinde strict de `IsLoggedIn` cand UID-ul exista;
-- `isDutyValue()` trateaza numeric: doar `1` inseamna ON;
-- `0` inseamna OFF;
-- /ticket verifica DB live de fiecare data;
-- /ticket deschide mereu ceva: staff panel daca esti aduty 1, player panel daca esti aduty 0;
-- accept/delete/teleport raman doar pentru staff ON DUTY.
