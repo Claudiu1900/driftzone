@@ -31,16 +31,6 @@ html, body {
         linear-gradient(125deg, rgba(0, 0, 0, 0.86), rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.82));
 }
 
-.top-line {
-    position: fixed;
-    left: 14%;
-    right: 14%;
-    top: 0;
-    height: 3px;
-    background: var(--main);
-    box-shadow: 0 0 34px rgba(4, 199, 247, 0.95);
-}
-
 .header {
     position: absolute;
     left: 42px;
@@ -152,7 +142,6 @@ p {
 }
 
 .outfit-card:hover {
-    transform: translateY(-6px);
     border-color: rgba(4, 199, 247, 0.82);
     box-shadow:
         0 26px 74px rgba(0, 0, 0, 0.50),
@@ -172,9 +161,6 @@ p {
     height: 100%;
     object-fit: cover;
     object-position: center top;
-    background:
-        radial-gradient(circle at center, rgba(4, 199, 247, 0.18), rgba(0, 0, 0, 0.42)),
-        rgba(0, 0, 0, 0.35);
     transition: transform 0.22s ease;
 }
 
@@ -185,9 +171,6 @@ p {
 .image-overlay {
     position: absolute;
     inset: 0;
-    background:
-        linear-gradient(180deg, transparent 54%, rgba(3, 8, 15, 0.94)),
-        radial-gradient(circle at 50% 20%, rgba(4, 199, 247, 0.12), transparent 54%);
     pointer-events: none;
 }
 
