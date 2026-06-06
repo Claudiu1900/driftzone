@@ -1,44 +1,24 @@
-# driftzone_clothes
+# driftzone_clothes - FIXED SQL
 
-Admin-only clothes editor for FiveM.
+Resource-ul nu mai incearca sa creeze baza separata `driftzone_logs`.
+Foloseste baza principala `driftzone` pentru:
+- `users.clothes`
+- `unallowed_clothes`
+- `clothes_logs`
 
-Access:
-- /haine or /clothes: admin_level 7+ and aduty yes only
-- /fixskin id: admin_level 7+ and aduty yes only
-- /setcl id category drawable: admin_level 7+ and aduty yes only
-- /bancl category drawable: admin_level 7+ and aduty yes only
+## Comenzi
+/haine, /clothes, /fixskin id, /setcl id categorie drawable, /bancl categorie drawable
 
-Categories:
-1 hair
-2 hat
-3 mask
-4 glasses
-5 jacket
-6 torso
-7 top
-8 insignia
-9 pants
-10 shoes
+Access: admin_level 7+ si aduty yes.
 
-Database:
-- users.clothes in database driftzone
-- unallowed_clothes and clothes_logs in database driftzone_logs
+## server.cfg
+ensure oxmysql
+ensure driftzone_auth
+ensure driftzone_notifications
+ensure driftzone_clothes
 
-If your MySQL does not support ADD COLUMN IF NOT EXISTS, manually add:
-ALTER TABLE users ADD COLUMN clothes LONGTEXT NULL;
-
-
-Categorii comenzi:
-1 hair
-2 hat
-3 mask
-4 glasses
-5 jacket
-6 torso
-7 top
-8 insignia
-9 pants
-10 shoes
-11 bag/geanta
-
-Update: categoria bag/geanta foloseste component ID 5 si se salveaza in users.clothes cu cheia bag.
+## Git
+git add -A resources/[files]/driftzone_clothes
+git commit -m "Fix clothes SQL logs database"
+git pull --rebase origin main
+git push origin main

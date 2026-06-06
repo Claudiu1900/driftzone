@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Clothes - Admin Only'
-version '1.0.0'
+description 'DriftZone Clothes - Admin Only - fixed SQL logs database'
+version '1.0.1'
 
 ui_page 'html/index.html'
 
@@ -22,7 +22,6 @@ server_scripts {
 }
 
 client_scripts {
-    'client/apply.lua',
     'client/main.lua'
 }
 

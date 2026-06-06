@@ -1,5 +1,5 @@
 local MAIN_DB = 'driftzone'
-local LOGS_DB = 'driftzone_logs'
+local LOGS_DB = MAIN_DB
 local ADMIN_REQUIRED = 7
 
 local ALLOWED_KEYS = {
@@ -146,7 +146,7 @@ end
 
 local function ensureTables()
     MySQL.query.await('ALTER TABLE users ADD COLUMN IF NOT EXISTS clothes LONGTEXT NULL', {})
-    MySQL.query.await(('CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'):format(LOGS_DB), {})
+    -- FIX: nu mai creeaza database separat. Foloseste baza principala.
 
     MySQL.query.await(([[
         CREATE TABLE IF NOT EXISTS `%s`.unallowed_clothes (
