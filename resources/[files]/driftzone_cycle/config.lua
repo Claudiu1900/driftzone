@@ -27,7 +27,19 @@ Config.Weather = {
 
 Config.Admin = {
     requiredLevel = 6,
-    requireAduty = true
+    requireAduty = true,
+
+    -- Coloanele tale exacte:
+    adminColumn = 'admin_level',
+    adutyColumn = 'aduty',
+
+    -- Fallback-uri pentru UID in caz ca driftzone_auth nu a setat inca dz_uid.
+    uidStateKeys = {
+        'dz_uid',
+        'uid',
+        'user_id',
+        'userId'
+    }
 }
 
 Config.AllowedWeather = {

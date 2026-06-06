@@ -71,7 +71,6 @@ local function applyWeather(weatherData, instant)
 end
 
 RegisterNetEvent('driftzone_cycle:client:sync', function(timeData, weatherData)
-    -- Daca adminul are override local, nu ii mai suprascriem timpul/vremea cu sync global.
     if not localOverride.time then
         applyTime(timeData)
     end

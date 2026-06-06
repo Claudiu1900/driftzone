@@ -15,6 +15,11 @@ local CurrentWeather = {
     updatedAt = 0
 }
 
+local ColumnCache = {
+    checked = false,
+    has = {}
+}
+
 local function debugPrint(...)
     if Config.Debug then
         print('[DRIFTZONE_CYCLE]', ...)
@@ -37,129 +42,215 @@ local function isDutyValue(value)
     return tonumber(value) == 1 or text == 'yes' or text == 'true' or text == 'on'
 end
 
-local function getUid(src)
-    local state = Player(src).state
-
-    if state and tonumber(state.dz_uid) and tonumber(state.dz_uid) > 0 then
-        return tonumber(state.dz_uid)
+local function refreshColumnCache()
+    if ColumnCache.checked then
+        return ColumnCache.has
     end
 
-    local ok, uid = pcall(function()
-        return exports.driftzone_auth:GetUID(src)
+    ColumnCache.checked = true
+    ColumnCache.has = {}
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await('SHOW COLUMNS FROM users', {})
     end)
 
-    if ok and tonumber(uid) and tonumber(uid) > 0 then
-        return tonumber(uid)
+    if not ok or type(rows) ~= 'table' then
+        print('[DRIFTZONE_CYCLE] SHOW COLUMNS users failed: ' .. tostring(rows))
+        return ColumnCache.has
+    end
+
+    for i = 1, #rows do
+        local field = rows[i] and rows[i].Field
+        if field then
+            ColumnCache.has[tostring(field)] = true
+        end
+    end
+
+    return ColumnCache.has
+end
+
+local function getIdentifierMap(src)
+    local ids = {
+        license = nil,
+        license2 = nil,
+        discord = nil,
+        steam = nil,
+        fivem = nil
+    }
+
+    for _, identifier in ipairs(GetPlayerIdentifiers(src)) do
+        local key, value = tostring(identifier):match('^([^:]+):(.+)$')
+
+        if key and value then
+            ids[key] = value
+        end
+    end
+
+    return ids
+end
+
+local function getUidFromKnownColumns(src)
+    local has = refreshColumnCache()
+    local ids = getIdentifierMap(src)
+    local conditions = {}
+    local params = {}
+
+    local candidates = {
+        { column = 'license', value = ids.license and ('license:' .. ids.license) or nil },
+        { column = 'license', value = ids.license },
+        { column = 'identifier', value = ids.license and ('license:' .. ids.license) or nil },
+        { column = 'identifier', value = ids.license },
+        { column = 'identifier', value = ids.steam and ('steam:' .. ids.steam) or nil },
+        { column = 'steam', value = ids.steam and ('steam:' .. ids.steam) or nil },
+        { column = 'steam', value = ids.steam },
+        { column = 'discord', value = ids.discord and ('discord:' .. ids.discord) or nil },
+        { column = 'discord', value = ids.discord },
+        { column = 'fivem', value = ids.fivem and ('fivem:' .. ids.fivem) or nil },
+        { column = 'fivem', value = ids.fivem },
+        { column = 'username', value = GetPlayerName(src) }
+    }
+
+    for i = 1, #candidates do
+        local item = candidates[i]
+
+        if item.value and item.value ~= '' and has[item.column] then
+            conditions[#conditions + 1] = ('`%s` = ?'):format(item.column)
+            params[#params + 1] = item.value
+        end
+    end
+
+    if #conditions <= 0 then
+        return nil
+    end
+
+    local query = ('SELECT uid FROM users WHERE %s LIMIT 1'):format(table.concat(conditions, ' OR '))
+
+    local ok, row = pcall(function()
+        return MySQL.single.await(query, params)
+    end)
+
+    if ok and row and tonumber(row.uid) then
+        return tonumber(row.uid)
     end
 
     return nil
 end
 
+local function getUid(src)
+    src = tonumber(src or 0) or 0
+
+    if src <= 0 then return nil end
+
+    local state = Player(src).state
+
+    if state then
+        local keys = (Config.Admin and Config.Admin.uidStateKeys) or { 'dz_uid', 'uid', 'user_id', 'userId' }
+
+        for i = 1, #keys do
+            local value = state[keys[i]]
+            if tonumber(value) and tonumber(value) > 0 then
+                return tonumber(value)
+            end
+        end
+    end
+
+    local exportAttempts = {
+        function() return exports.driftzone_auth:GetUID(src) end,
+        function() return exports.driftzone_auth:GetUid(src) end,
+        function() return exports.driftzone_auth:getUID(src) end,
+        function() return exports.driftzone_auth:getUid(src) end,
+        function() return exports.driftzone_auth:GetUserId(src) end,
+        function() return exports.driftzone_auth:getUserId(src) end
+    }
+
+    for i = 1, #exportAttempts do
+        local ok, uid = pcall(exportAttempts[i])
+
+        if ok and tonumber(uid) and tonumber(uid) > 0 then
+            return tonumber(uid)
+        end
+    end
+
+    return getUidFromKnownColumns(src)
+end
+
 local function isLogged(src)
     local state = Player(src).state
 
-    if state and state.dz_logged == true then
-        return true
+    if state then
+        if state.dz_logged == true or state.logged == true or state.isLoggedIn == true then
+            return true
+        end
     end
 
-    local ok, result = pcall(function()
-        return exports.driftzone_auth:IsLoggedIn(src)
-    end)
+    local exportAttempts = {
+        function() return exports.driftzone_auth:IsLoggedIn(src) end,
+        function() return exports.driftzone_auth:isLoggedIn(src) end,
+        function() return exports.driftzone_auth:IsLogged(src) end
+    }
 
-    return ok and result == true
+    for i = 1, #exportAttempts do
+        local ok, result = pcall(exportAttempts[i])
+
+        if ok and result == true then
+            return true
+        end
+    end
+
+    -- Pentru comenzi admin, daca avem UID si row in DB, nu blocam comanda doar fiindca auth nu expune logged.
+    return getUid(src) ~= nil
 end
 
 local function getAdminData(src)
     local uid = getUid(src)
 
     if not uid then
-        return nil
+        return nil, 'uid_missing'
     end
 
-    -- Robust pentru baze diferite:
-    -- unele tabele au admin_level, altele au adminLvl/admin.
-    -- Nu selectam direct o coloana care poate lipsi, ca sa nu cada query-ul.
-    local ok, rows = pcall(function()
-        return MySQL.query.await('SHOW COLUMNS FROM users', {})
-    end)
+    local has = refreshColumnCache()
+    local adminColumn = (Config.Admin and Config.Admin.adminColumn) or 'admin_level'
+    local adutyColumn = (Config.Admin and Config.Admin.adutyColumn) or 'aduty'
 
-    if not ok or type(rows) ~= 'table' then
-        print('[DRIFTZONE_CYCLE] Could not read users columns: ' .. tostring(rows))
-        return nil
+    if not has[adminColumn] then
+        return nil, 'admin_column_missing'
     end
 
-    local has = {}
-
-    for i = 1, #rows do
-        local field = rows[i] and rows[i].Field
-        if field then
-            has[tostring(field)] = true
-        end
+    if Config.Admin.requireAduty and not has[adutyColumn] then
+        return nil, 'aduty_column_missing'
     end
 
-    local adminColumn = nil
-
-    if has.admin_level then
-        adminColumn = 'admin_level'
-    elseif has.adminLvl then
-        adminColumn = 'adminLvl'
-    elseif has.admin then
-        adminColumn = 'admin'
-    end
-
-    local adutyColumn = nil
-
-    if has.aduty then
-        adutyColumn = 'aduty'
-    elseif has.aDuty then
-        adutyColumn = 'aDuty'
-    elseif has.adminDuty then
-        adutyColumn = 'adminDuty'
-    end
-
-    if not adminColumn then
-        print('[DRIFTZONE_CYCLE] No admin column found in users. Expected admin_level/adminLvl/admin.')
-        return nil
-    end
-
-    local selectParts = { 'uid' }
+    local selectParts = {
+        'uid',
+        ('`%s` AS admin_level'):format(adminColumn),
+        ('`%s` AS aduty'):format(adutyColumn)
+    }
 
     if has.username then
         selectParts[#selectParts + 1] = 'username'
     end
 
-    selectParts[#selectParts + 1] = adminColumn .. ' AS admin_level'
-
-    if adutyColumn then
-        selectParts[#selectParts + 1] = adutyColumn .. ' AS aduty'
-    else
-        selectParts[#selectParts + 1] = '"yes" AS aduty'
-    end
-
     local query = ('SELECT %s FROM users WHERE uid = ? LIMIT 1'):format(table.concat(selectParts, ', '))
 
-    local ok2, row = pcall(function()
+    local ok, row = pcall(function()
         return MySQL.single.await(query, { uid })
     end)
 
-    if not ok2 then
+    if not ok then
         print('[DRIFTZONE_CYCLE] MySQL admin check failed: ' .. tostring(row))
-        return nil
+        return nil, 'query_failed'
     end
 
     if not row then
-        return nil
+        return nil, 'row_missing'
     end
-
-    local level = tonumber(row.admin_level or 0) or 0
-    local duty = adutyColumn and isDutyValue(row.aduty) or true
 
     return {
         uid = tonumber(row.uid or uid) or uid,
         username = tostring(row.username or GetPlayerName(src) or 'Admin'),
-        level = level,
-        aduty = duty
-    }
+        level = tonumber(row.admin_level or 0) or 0,
+        aduty = isDutyValue(row.aduty)
+    }, nil
 end
 
 local function requireAdmin(src)
@@ -172,10 +263,21 @@ local function requireAdmin(src)
         return nil
     end
 
-    local data = getAdminData(src)
+    local data, reason = getAdminData(src)
 
     if not data then
-        notify(src, 'warning', 'Nu ti-am gasit datele de admin in baza de date.')
+        if reason == 'uid_missing' then
+            notify(src, 'warning', 'Nu ti-am gasit UID-ul. Relog sau asteapta sa se incarce auth-ul.')
+        elseif reason == 'admin_column_missing' then
+            notify(src, 'warning', 'Nu exista coloana users.admin_level.')
+        elseif reason == 'aduty_column_missing' then
+            notify(src, 'warning', 'Nu exista coloana users.aduty.')
+        elseif reason == 'row_missing' then
+            notify(src, 'warning', 'Nu exista rand in users pentru UID-ul tau.')
+        else
+            notify(src, 'warning', 'Nu ti-am gasit datele de admin in baza de date.')
+        end
+
         return nil
     end
 
@@ -450,7 +552,6 @@ RegisterCommand('resetcycle', function(src)
     if src == 0 then return end
     commandResetCycle(src)
 end, false)
-
 
 RegisterCommand('resetcylce', function(src)
     if src == 0 then return end

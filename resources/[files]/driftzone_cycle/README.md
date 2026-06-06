@@ -1,67 +1,39 @@
-# DriftZone Cycle
+# DriftZone Cycle - Admin Access Fix Final
 
-Sincronizeaza ora din joc cu ora reala din Romania si vremea cu Mangalia, Constanta.
+## Fix
 
-## Comenzi globale
+Versiunea asta foloseste explicit:
 
 ```txt
-/synctime
+users.admin_level
+users.aduty
 ```
 
-Forteaza sincronizarea orei si vremii pentru server.
+si are fallback-uri mai bune pentru UID:
+
+```txt
+Player state: dz_uid, uid, user_id, userId
+exports driftzone_auth: GetUID/GetUid/getUID/getUid/GetUserId/getUserId
+identifiers: license/discord/steam/fivem/username daca exista coloane in users
+```
 
 ## Comenzi admin locale
 
 Necesita:
 
 ```txt
-admin_level 6+
-aduty yes
+users.admin_level >= 6
+users.aduty = yes / true / 1
 ```
 
 ```txt
 /time 20:23
-```
-
-Seteaza si ingheata ora doar pentru adminul care foloseste comanda.
-
-```txt
 /weather EXTRASUNNY
-```
-
-Seteaza si ingheata vremea doar pentru adminul care foloseste comanda.
-
-```txt
 /resetcycle
-```
-
-Sterge override-ul local si readuce adminul la cycle-ul normal al serverului.
-
-Accepta si typo-ul:
-
-```txt
 /resetcylce
 ```
 
-## Weather acceptat
-
-```txt
-EXTRASUNNY
-CLEAR
-CLOUDS
-SMOG
-FOGGY
-OVERCAST
-RAIN
-THUNDER
-CLEARING
-NEUTRAL
-SNOW
-BLIZZARD
-SNOWLIGHT
-XMAS
-HALLOWEEN
-```
+Override-ul este doar pentru adminul care foloseste comanda. Restul serverului ramane in cycle normal.
 
 ## Pentru driftzone_chat custom
 
@@ -80,15 +52,7 @@ sau apeleaza:
 exports.driftzone_cycle:RunCommand(src, command, args)
 ```
 
-## Instalare
-
-Pune folderul in:
-
-```txt
-resources/[files]/driftzone_cycle
-```
-
-In `server.cfg`:
+## server.cfg
 
 ```cfg
 ensure oxmysql
@@ -102,7 +66,7 @@ Pe PC:
 
 ```bash
 git add -A resources/[files]/driftzone_cycle
-git commit -m "Add admin local time and weather overrides"
+git commit -m "Fix cycle admin uid access"
 git pull --rebase origin main
 git push origin main
 ```
@@ -119,24 +83,3 @@ txAdmin:
 ```txt
 restart driftzone_cycle
 ```
-
-
-## Fix admin access
-
-Versiunea asta detecteaza automat coloana de admin din `users`:
-
-```txt
-admin_level
-adminLvl
-admin
-```
-
-si coloana de aduty:
-
-```txt
-aduty
-aDuty
-adminDuty
-```
-
-Daca primesti `Ai admin 0, trebuie 6+`, inseamna ca gradul e salvat in alta coloana sau UID-ul tau nu este cel corect in `users`.
