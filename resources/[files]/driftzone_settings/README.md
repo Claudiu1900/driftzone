@@ -42,3 +42,20 @@ ensure driftzone_settings
 ```txt
 /settings
 ```
+
+
+## HUD hard hide
+
+Toggle-ul `DriftZone HUD` foloseste acum hard hide din `driftzone_hud`.
+Cand este OFF, HUD-ul nu mai apare nici daca alt script trimite un trigger normal de show.
+Cand este ON, hard hide-ul este deblocat si HUD-ul apare normal.
+
+Server.cfg recomandat:
+
+```cfg
+ensure driftzone_hud
+ensure driftzone_overheadstats
+ensure driftzone_turometru
+ensure driftzone_voicechat
+ensure driftzone_settings
+```

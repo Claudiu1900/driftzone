@@ -70,14 +70,37 @@ end
 local function setHudVisible(value)
     value = value == true
 
-    -- Eventuri compatibile cu sistemele tale anterioare.
-    TriggerEvent('driftzone_hud:visible', value)
-    TriggerEvent('driftzone_hud:client:visible', value)
-    TriggerEvent('driftzone_hud:client:setVisible', value)
-    TriggerEvent('driftzone_hud:setVisible', value)
+    if value then
+        -- Deblocheaza hard hide-ul din driftzone_hud, apoi afiseaza HUD-ul.
+        TriggerEvent('driftzone_hud:client:unlockHide')
+        TriggerEvent('driftzone_hud:client:forceShow')
+        TriggerEvent('driftzone_hud:client:show')
+        TriggerEvent('driftzone_hud:visible', true)
+        TriggerEvent('driftzone_hud:client:visible', true)
+        TriggerEvent('driftzone_hud:client:setVisible', true)
+        TriggerEvent('driftzone_hud:setVisible', true)
 
-    safeExport('driftzone_hud', 'SetVisible', value)
-    safeExport('driftzone_hud', 'setVisible', value)
+        safeExport('driftzone_hud', 'UnlockHide')
+        safeExport('driftzone_hud', 'ForceShow')
+        safeExport('driftzone_hud', 'SetHardHidden', false)
+        safeExport('driftzone_hud', 'SetVisible', true)
+        safeExport('driftzone_hud', 'Show')
+    else
+        -- Hard hide: ascunde HUD-ul si blocheaza orice show normal pana toggle-ul revine pe ON.
+        TriggerEvent('driftzone_hud:client:lockHide')
+        TriggerEvent('driftzone_hud:client:forceHide')
+        TriggerEvent('driftzone_hud:client:hide')
+        TriggerEvent('driftzone_hud:visible', false)
+        TriggerEvent('driftzone_hud:client:visible', false)
+        TriggerEvent('driftzone_hud:client:setVisible', false)
+        TriggerEvent('driftzone_hud:setVisible', false)
+
+        safeExport('driftzone_hud', 'LockHide')
+        safeExport('driftzone_hud', 'ForceHide')
+        safeExport('driftzone_hud', 'SetHardHidden', true)
+        safeExport('driftzone_hud', 'SetVisible', false)
+        safeExport('driftzone_hud', 'Hide')
+    end
 
     LocalPlayer.state:set('settings:hud', value, true)
 end

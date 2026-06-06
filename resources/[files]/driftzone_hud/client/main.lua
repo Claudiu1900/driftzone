@@ -1,5 +1,6 @@
 local hudVisible = true
 local hudReady = false
+local hardHidden = false
 
 local hudData = {
     id = 0,
@@ -7,17 +8,49 @@ local hudData = {
     cash = 0
 }
 
+local function effectiveVisible()
+    return hudVisible == true and hardHidden ~= true
+end
+
 local function sendHud(payload)
     SendNUIMessage(payload)
 end
 
-local function setHudVisible(state)
-    hudVisible = state == true
-
+local function pushVisible()
     sendHud({
         action = 'visible',
-        visible = hudVisible
+        visible = effectiveVisible()
     })
+end
+
+local function setHudVisible(state)
+    hudVisible = state == true
+    pushVisible()
+end
+
+local function lockHide()
+    hardHidden = true
+    pushVisible()
+    LocalPlayer.state:set('driftzone_hud:hard_hidden', true, true)
+end
+
+local function unlockHide(showAfter)
+    hardHidden = false
+
+    if showAfter == true then
+        hudVisible = true
+    end
+
+    pushVisible()
+    LocalPlayer.state:set('driftzone_hud:hard_hidden', false, true)
+end
+
+local function setHardHidden(state)
+    if state == true then
+        lockHide()
+    else
+        unlockHide(true)
+    end
 end
 
 local function updateHud()
@@ -29,7 +62,7 @@ local function updateHud()
             id = hudData.id or 0,
             online = hudData.online or 0,
             cash = hudData.cash or 0,
-            visible = hudVisible,
+            visible = effectiveVisible(),
             mainColor = Config.MainColor,
             logo = Config.Logo
         }
@@ -46,6 +79,7 @@ RegisterNetEvent('driftzone_hud:client:updateData', function(data)
     updateHud()
 end)
 
+-- Triggere normale. Acestea NU pot afisa HUD-ul daca este blocat cu hard hide.
 RegisterNetEvent('driftzone_hud:client:show', function()
     setHudVisible(true)
 end)
@@ -68,6 +102,51 @@ end)
 
 RegisterNetEvent('hud:visible', function(state)
     setHudVisible(state == true)
+end)
+
+RegisterNetEvent('driftzone_hud:client:visible', function(state)
+    setHudVisible(state == true)
+end)
+
+RegisterNetEvent('driftzone_hud:client:setVisible', function(state)
+    setHudVisible(state == true)
+end)
+
+RegisterNetEvent('driftzone_hud:setVisible', function(state)
+    setHudVisible(state == true)
+end)
+
+-- Triggere hard hide. Cand e hard hidden, orice show normal este ignorat vizual.
+RegisterNetEvent('driftzone_hud:client:lockHide', function()
+    lockHide()
+end)
+
+RegisterNetEvent('driftzone_hud:client:hardHide', function()
+    lockHide()
+end)
+
+RegisterNetEvent('driftzone_hud:client:forceHide', function()
+    lockHide()
+end)
+
+RegisterNetEvent('driftzone_hud:client:unlockHide', function()
+    unlockHide(true)
+end)
+
+RegisterNetEvent('driftzone_hud:client:hardShow', function()
+    unlockHide(true)
+end)
+
+RegisterNetEvent('driftzone_hud:client:forceShow', function()
+    unlockHide(true)
+end)
+
+RegisterNetEvent('driftzone_hud:hardVisible', function(state)
+    setHardHidden(state ~= true)
+end)
+
+RegisterNetEvent('driftzone_hud:client:setHardHidden', function(state)
+    setHardHidden(state == true)
 end)
 
 RegisterNetEvent('driftzone_hud:client:refresh', function()
@@ -98,6 +177,7 @@ RegisterNUICallback('ready', function(_, cb)
 
     TriggerServerEvent('driftzone_hud:server:requestData')
     updateHud()
+    pushVisible()
 
     cb({ ok = true })
 end)
@@ -111,6 +191,7 @@ CreateThread(function()
 
     TriggerServerEvent('driftzone_hud:server:requestData')
     updateHud()
+    pushVisible()
 end)
 
 CreateThread(function()
@@ -134,6 +215,30 @@ end)
 
 exports('SetVisible', function(state)
     setHudVisible(state == true)
+end)
+
+exports('LockHide', lockHide)
+exports('HardHide', lockHide)
+exports('ForceHide', lockHide)
+
+exports('UnlockHide', function()
+    unlockHide(true)
+end)
+
+exports('HardShow', function()
+    unlockHide(true)
+end)
+
+exports('ForceShow', function()
+    unlockHide(true)
+end)
+
+exports('SetHardHidden', function(state)
+    setHardHidden(state == true)
+end)
+
+exports('IsHardHidden', function()
+    return hardHidden == true
 end)
 
 exports('Refresh', function()
