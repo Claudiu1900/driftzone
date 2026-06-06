@@ -255,16 +255,6 @@ p {
     line-height: 1.45;
 }
 
-.bottom-glow {
-    position: fixed;
-    left: 22%;
-    right: 22%;
-    bottom: 0;
-    height: 2px;
-    background: rgba(4, 199, 247, 0.80);
-    box-shadow: 0 0 28px rgba(4, 199, 247, 0.78);
-}
-
 @keyframes cardIn {
     from { opacity: 0; transform: translateY(14px) scale(0.98); }
     to { opacity: 1; transform: translateY(0) scale(1); }
