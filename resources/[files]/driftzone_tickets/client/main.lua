@@ -20,28 +20,46 @@ local function setFocus(state)
 
     if menuOpen then
         TriggerEvent('driftzone_hud:visible', false)
+        TriggerEvent('driftzone_hud:client:hide')
     else
         TriggerEvent('driftzone_hud:visible', true)
+        TriggerEvent('driftzone_hud:client:show')
     end
 end
 
+local function closeLocal(sendUi)
+    pendingUserOpen = false
+    pendingAdminList = nil
+
+    if sendUi ~= false then
+        sendNui({ action = 'close' })
+    end
+
+    setFocus(false)
+end
+
 local function openUser()
+    pendingAdminList = nil
+
     if not sendNui({ action = 'openUser' }) then
         pendingUserOpen = true
         return
     end
 
+    pendingUserOpen = false
     setFocus(true)
 end
 
 local function openAdmin(tickets)
     tickets = tickets or {}
+    pendingUserOpen = false
 
     if not sendNui({ action = 'openAdmin', tickets = tickets }) then
         pendingAdminList = tickets
         return
     end
 
+    pendingAdminList = nil
     setFocus(true)
 end
 
@@ -54,9 +72,8 @@ local function setCount(count)
     })
 end
 
-local function closeMenu(sendServer)
-    sendNui({ action = 'close' })
-    setFocus(false)
+local function closeMenu(sendServer, sendUi)
+    closeLocal(sendUi)
 
     if sendServer == true then
         TriggerServerEvent('driftzone_tickets:server:closed')
@@ -85,8 +102,9 @@ RegisterNUICallback('ready', function(_, cb)
     cb({ ok = true })
 end)
 
+-- IMPORTANT: cand NUI cere close, nu mai trimitem inapoi action='close', ca intra in loop.
 RegisterNUICallback('close', function(_, cb)
-    closeMenu(true)
+    closeMenu(true, false)
     cb({ ok = true })
 end)
 
@@ -96,10 +114,9 @@ RegisterNUICallback('create', function(data, cb)
 end)
 
 RegisterNUICallback('accept', function(data, cb)
-    local id = tonumber(data.id or 0) or 0
+    local id = tonumber(data and data.id or 0) or 0
     local now = GetGameTimer()
 
-    -- Anti double-click / NUI duplicate callback.
     if id > 0 and lastAcceptId == id and now - lastAcceptAt < 1500 then
         cb({ ok = true, blocked = true })
         return
@@ -113,12 +130,12 @@ RegisterNUICallback('accept', function(data, cb)
 end)
 
 RegisterNUICallback('delete', function(data, cb)
-    TriggerServerEvent('driftzone_tickets:server:delete', tonumber(data.id or 0) or 0)
+    TriggerServerEvent('driftzone_tickets:server:delete', tonumber(data and data.id or 0) or 0)
     cb({ ok = true })
 end)
 
 RegisterNUICallback('teleport', function(data, cb)
-    TriggerServerEvent('driftzone_tickets:server:teleport', tonumber(data.id or 0) or 0)
+    TriggerServerEvent('driftzone_tickets:server:teleport', tonumber(data and data.id or 0) or 0)
     cb({ ok = true })
 end)
 
@@ -135,7 +152,7 @@ RegisterNetEvent('driftzone_tickets:client:count', function(count)
 end)
 
 RegisterNetEvent('driftzone_tickets:client:close', function()
-    closeMenu(false)
+    closeMenu(false, true)
 end)
 
 RegisterNetEvent('client:tickets:openUser', function()
@@ -162,22 +179,24 @@ RegisterNetEvent('client:tickets:count', function(count)
 end)
 
 RegisterNetEvent('client:tickets:close', function()
-    closeMenu(false)
+    closeMenu(false, true)
 end)
 
-RegisterCommand('ticket', function()
-    TriggerServerEvent('driftzone_tickets:server:refreshState')
+local function requestOpen()
+    -- Nu inchidem UI-ul cu callback aici; lasam serverul sa decida panelul si NUI schimba direct panelul.
     TriggerServerEvent('driftzone_tickets:server:open')
+end
+
+RegisterCommand('ticket', function()
+    requestOpen()
 end, false)
 
 RegisterCommand('tickets', function()
-    TriggerServerEvent('driftzone_tickets:server:refreshState')
-    TriggerServerEvent('driftzone_tickets:server:open')
+    requestOpen()
 end, false)
 
 RegisterCommand('tikcet', function()
-    TriggerServerEvent('driftzone_tickets:server:refreshState')
-    TriggerServerEvent('driftzone_tickets:server:open')
+    requestOpen()
 end, false)
 
 RegisterCommand('cancelticket', function()
@@ -196,7 +215,7 @@ CreateThread(function()
             DisableControlAction(0, 322, true)
 
             if IsControlJustPressed(0, 200) or IsControlJustPressed(0, 322) then
-                closeMenu(true)
+                closeMenu(true, true)
             end
 
             Wait(0)
@@ -206,10 +225,9 @@ CreateThread(function()
     end
 end)
 
-
 CreateThread(function()
     while true do
         TriggerServerEvent('driftzone_tickets:server:requestCount')
-        Wait(5000)
+        Wait(Config.CounterRefreshMs or 5000)
     end
 end)

@@ -5,14 +5,14 @@ Config.MainColor = '#04c7f7'
 Config.UsersTable = 'users'
 Config.UsersIdColumn = 'uid'
 
--- Scriptul incearca automat si coloanele astea, in ordine.
--- Daca la tine coloana de admin este "admin", merge.
--- Daca este "admin_level" sau "adminLvl", merge la fel.
-Config.AdminLevelColumn = 'admin_level'
+-- Pentru DriftZone, coloana principala este de obicei users.admin.
+-- Scriptul verifica automat si fallback-urile de mai jos daca numele difera.
+Config.AdminLevelColumn = 'admin'
 Config.AdminLevelFallbackColumns = { 'admin', 'adminLvl', 'adminLevel', 'admin_level' }
 
--- ON DUTY = users.aduty = 1
--- OFF DUTY = users.aduty = 0
+-- Regula ceruta:
+-- users.aduty = 1 -> admin ON DUTY -> /ticket deschide staff panel
+-- users.aduty = 0 -> admin OFF DUTY -> /ticket deschide ticket normal de player
 Config.AdminDutyColumn = 'aduty'
 Config.AdminDutyFallbackColumns = { 'aduty', 'onduty', 'onDuty' }
 

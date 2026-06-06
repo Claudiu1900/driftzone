@@ -418,15 +418,15 @@ local function teleportAdminToPlayer(adminSrc, targetSrc)
 end
 
 local function openTicketMenu(src)
-    -- Regula:
+    -- FIX FINAL:
     -- users.aduty = 1 + admin >= MinAdminLevel -> staff panel
-    -- users.aduty = 0 -> player panel
-    -- admin 0 / fara admin -> player panel
+    -- users.aduty = 0 -> player ticket panel
+    -- daca adminul a avut staff panel deschis si apoi trece OFF DUTY, /ticket comuta direct pe player panel.
     local uid = getSafeTicketUid(src)
 
     if not uid then
-        notify(src, 'warning', 'Nu ti-am gasit UID-ul.')
-        return
+        -- Nu lasam comanda moarta. Deschidem player panel si folosim source ca fallback la creare.
+        uid = tonumber(src)
     end
 
     local onDuty, adminData, reason = isStaffOnDuty(src)
@@ -437,19 +437,20 @@ local function openTicketMenu(src)
         return
     end
 
-    -- Daca adminul era ON DUTY inainte si acum este OFF, curatam counter-ul.
+    -- Nu mai lasam counter/staff panel ramas de la ON DUTY.
     TriggerClientEvent('driftzone_tickets:client:count', src, 0)
 
     if adminData and reason == 'off_duty' then
-        print(('[DRIFTZONE_TICKETS] %s (%s) este admin OFF DUTY. /ticket deschide meniul normal de player.'):format(
+        print(('[DRIFTZONE_TICKETS] %s (%s) este OFF DUTY. /ticket deschide player panel.'):format(
             getPlayerNameSafe(src),
             adminData.uid
         ))
     end
 
+    -- Chiar daca are deja ticket activ, deschidem UI-ul normal ca sa nu para ca nu se intampla nimic.
+    -- Crearea ramane blocata in eventul create, unde primeste notify.
     if getTicketByPlayerUid(uid) then
         notify(src, 'warning', 'Ai deja un ticket activ.')
-        return
     end
 
     TriggerClientEvent('driftzone_tickets:client:openUser', src)

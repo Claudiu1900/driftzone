@@ -160,12 +160,15 @@ function openAdmin(tickets) {
     }, 50);
 }
 
-function closeAll() {
+function closeLocal() {
     overlayEl.classList.add('hidden');
     userPanelEl.classList.add('hidden');
     adminPanelEl.classList.add('hidden');
     acceptLocks.clear();
+}
 
+function closeAll() {
+    closeLocal();
     nui('close');
 }
 
@@ -219,7 +222,8 @@ window.driftTickets = {
     setCount,
     openUser,
     openAdmin,
-    closeAll
+    closeAll,
+    closeLocal
 };
 
 window.addEventListener('message', (event) => {
@@ -228,7 +232,7 @@ window.addEventListener('message', (event) => {
     if (data.action === 'setCount') setCount(data.count || 0);
     if (data.action === 'openUser') openUser();
     if (data.action === 'openAdmin') openAdmin(data.tickets || []);
-    if (data.action === 'close') closeAll();
+    if (data.action === 'close') closeLocal();
 });
 
 setTimeout(() => nui('ready'), 50);
