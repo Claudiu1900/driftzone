@@ -1,22 +1,23 @@
-# driftzone_tickets
+# driftzone_tickets - Modern Fullscreen UI
 
-Sistem de tickete pentru FiveM + oxmysql.
+## Ce s-a schimbat
+
+- UI refacut complet fullscreen.
+- Design modern/futuristic, fara emoji-uri.
+- Iconurile sunt SVG inline.
+- Admin panel cu search.
+- Counter-ul de tickete ramane.
+- Logica ticketelor ramane aceeasi.
+- Bug accept fix: adminul nu mai este teleportat de doua ori.
+- Anti double-click pe Accept in NUI.
 
 ## Comenzi
 
-- `/ticket` - playerii creează ticket, adminii ON DUTY văd lista.
-- `/tickets` - alias pentru admin panel.
-- `/cancelticket` - playerul își anulează ticketul activ.
-
-## Permisiuni
-
-Verifică în `users`:
-
-- `uid`
-- `admin_level`
-- `aduty`
-
-Setările se pot schimba în `config.lua`.
+```txt
+/ticket
+/tickets
+/cancelticket
+```
 
 ## server.cfg
 
@@ -27,8 +28,40 @@ ensure driftzone_notifications
 ensure driftzone_tickets
 ```
 
-Dacă folosești chat custom și comenzile nu ajung, trimite comenzile `ticket`, `tickets`, `cancelticket` către exportul:
+## Pentru driftzone_chat custom
+
+```lua
+ticket = 'driftzone_tickets',
+tickets = 'driftzone_tickets',
+cancelticket = 'driftzone_tickets',
+```
+
+sau:
 
 ```lua
 exports.driftzone_tickets:RunCommand(src, command)
+```
+
+## Git
+
+Pe PC:
+
+```bash
+git add -A resources/[files]/driftzone_tickets
+git commit -m "Modernize tickets UI and fix double teleport"
+git pull --rebase origin main
+git push origin main
+```
+
+Pe VPS:
+
+```bash
+cd ~/server-data
+git pull --rebase origin main
+```
+
+txAdmin:
+
+```txt
+restart driftzone_tickets
 ```

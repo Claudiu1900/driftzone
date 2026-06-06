@@ -3,6 +3,8 @@ local pendingCount = 0
 local pendingUserOpen = false
 local pendingAdminList = nil
 local menuOpen = false
+local lastAcceptAt = 0
+local lastAcceptId = 0
 
 local function sendNui(data)
     if not nuiReady then return false end
@@ -94,7 +96,19 @@ RegisterNUICallback('create', function(data, cb)
 end)
 
 RegisterNUICallback('accept', function(data, cb)
-    TriggerServerEvent('driftzone_tickets:server:accept', tonumber(data.id or 0) or 0)
+    local id = tonumber(data.id or 0) or 0
+    local now = GetGameTimer()
+
+    -- Anti double-click / NUI duplicate callback.
+    if id > 0 and lastAcceptId == id and now - lastAcceptAt < 1500 then
+        cb({ ok = true, blocked = true })
+        return
+    end
+
+    lastAcceptId = id
+    lastAcceptAt = now
+
+    TriggerServerEvent('driftzone_tickets:server:accept', id)
     cb({ ok = true })
 end)
 

@@ -199,16 +199,11 @@ local function teleportAdminToPlayer(adminSrc, targetSrc)
     local coords = GetEntityCoords(targetPed)
     local bucket = GetPlayerRoutingBucket(targetSrc)
 
+    -- Fix: inainte teleporta o data instant si inca o data dupa 300ms.
+    -- Acum face un singur teleport, dar pastreaza routing bucket-ul corect.
     SetPlayerRoutingBucket(adminSrc, bucket)
     SetEntityCoords(adminPed, coords.x + 1.3, coords.y + 1.3, coords.z + 0.2, false, false, false, false)
-
-    SetTimeout(300, function()
-        if GetPlayerPing(adminSrc) <= 0 or GetPlayerPing(targetSrc) <= 0 then return end
-
-        local fresh = GetEntityCoords(GetPlayerPed(targetSrc))
-        SetPlayerRoutingBucket(adminSrc, GetPlayerRoutingBucket(targetSrc))
-        SetEntityCoords(GetPlayerPed(adminSrc), fresh.x + 1.3, fresh.y + 1.3, fresh.z + 0.2, false, false, false, false)
-    end)
+    SetEntityHeading(adminPed, GetEntityHeading(targetPed))
 
     return true
 end
@@ -557,7 +552,7 @@ end)
 
 CreateThread(function()
     Wait(500)
-    print('[DRIFTZONE_TICKETS] Server-side loaded.')
+    print('[DRIFTZONE_TICKETS] Server-side loaded. Modern UI + single teleport fix.')
 
     while true do
         updateAdminCounters()

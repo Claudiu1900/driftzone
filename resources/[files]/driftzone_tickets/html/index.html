@@ -7,45 +7,125 @@
 </head>
 <body>
     <div id="counter" class="counter hidden">
-        <span class="dot"></span>
-        <span>Tickets:</span>
+        <span class="counterPulse"></span>
+        <span class="counterLabel">Tickets</span>
         <b id="ticketCount">0</b>
     </div>
 
     <div id="overlay" class="overlay hidden">
-        <div id="userPanel" class="panel hidden">
-            <button class="close" onclick="closeAll()">×</button>
+        <div class="bg-grid"></div>
+        <div class="bg-glow glow-a"></div>
+        <div class="bg-glow glow-b"></div>
 
-            <div class="header">
-                <div class="icon">🎫</div>
-                <div>
-                    <h1>Create Ticket</h1>
-                    <p>Spune-ne rapid problema ta.</p>
+        <div class="shell">
+            <aside class="side">
+                <div class="brand">
+                    <div class="brand-mark">
+                        <svg viewBox="0 0 64 64" aria-hidden="true">
+                            <path d="M10 18L32 6l22 12v28L32 58 10 46V18z" fill="none" stroke="currentColor" stroke-width="3"/>
+                            <path d="M22 34h20M22 24h20M22 44h12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="brand-title">DriftZone</div>
+                        <div class="brand-sub">Support Interface</div>
+                    </div>
                 </div>
-            </div>
 
-            <label>Titlu</label>
-            <input id="ticketTitle" maxlength="80" placeholder="Ex: Am nevoie de ajutor">
-
-            <label>Subiect</label>
-            <textarea id="ticketSubject" maxlength="500" placeholder="Descrie problema ta..."></textarea>
-
-            <button class="main-btn" onclick="createTicket()">Creează ticket</button>
-            <div id="userError" class="error"></div>
-        </div>
-
-        <div id="adminPanel" class="admin-panel hidden">
-            <button class="close" onclick="closeAll()">×</button>
-
-            <div class="header">
-                <div class="icon">🛡️</div>
-                <div>
-                    <h1>Active Tickets</h1>
-                    <p>Lista ticketelor active de pe server.</p>
+                <div class="side-card">
+                    <div class="side-kicker">System</div>
+                    <div class="side-value">Ticket Core</div>
+                    <div class="side-line"></div>
+                    <div class="side-note">Fullscreen staff tools and player support request panel.</div>
                 </div>
-            </div>
 
-            <div id="ticketsList" class="tickets-list"></div>
+                <div class="side-stats">
+                    <div>
+                        <span>Active</span>
+                        <b id="sideTicketCount">0</b>
+                    </div>
+                    <div>
+                        <span>Status</span>
+                        <b>ONLINE</b>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="main">
+                <button class="close" onclick="closeAll()" aria-label="Close">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                    </svg>
+                </button>
+
+                <section id="userPanel" class="panel user-panel hidden">
+                    <div class="panel-head">
+                        <div class="panel-icon">
+                            <svg viewBox="0 0 64 64">
+                                <path d="M14 20h36a4 4 0 0 1 4 4v6a6 6 0 0 0 0 12v6a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4v-6a6 6 0 0 0 0-12v-6a4 4 0 0 1 4-4z" fill="none" stroke="currentColor" stroke-width="3"/>
+                                <path d="M26 20v32M36 30h10M36 40h10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="eyebrow">Player Request</p>
+                            <h1>Create Ticket</h1>
+                            <span>Trimite un ticket clar către staff. Completează titlul și problema.</span>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="field">
+                            <label>Titlu</label>
+                            <input id="ticketTitle" maxlength="80" placeholder="Ex: Am nevoie de ajutor la garaj">
+                        </div>
+
+                        <div class="field">
+                            <label>Subiect</label>
+                            <textarea id="ticketSubject" maxlength="500" placeholder="Descrie problema cât mai exact..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="footer-actions">
+                        <button class="ghost-btn" onclick="closeAll()">Cancel</button>
+                        <button class="main-btn" onclick="createTicket()">
+                            <span>Create ticket</span>
+                            <svg viewBox="0 0 24 24">
+                                <path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div id="userError" class="error"></div>
+                </section>
+
+                <section id="adminPanel" class="panel admin-panel hidden">
+                    <div class="panel-head admin-head">
+                        <div class="panel-icon">
+                            <svg viewBox="0 0 64 64">
+                                <path d="M32 6l22 10v15c0 14-9 23-22 27C19 54 10 45 10 31V16L32 6z" fill="none" stroke="currentColor" stroke-width="3"/>
+                                <path d="M23 32l6 6 13-15" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="eyebrow">Staff Control</p>
+                            <h1>Active Tickets</h1>
+                            <span>Admin panel pentru ticketele active de pe server.</span>
+                        </div>
+                    </div>
+
+                    <div class="toolbar">
+                        <div class="search-box">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M10.8 18.2a7.4 7.4 0 1 1 0-14.8 7.4 7.4 0 0 1 0 14.8zM16.3 16.3L21 21" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                            </svg>
+                            <input id="ticketSearch" placeholder="Search ticket, player, UID..." oninput="filterTickets()">
+                        </div>
+                        <div class="toolbar-count"><b id="adminTicketCount">0</b> active</div>
+                    </div>
+
+                    <div id="ticketsList" class="tickets-list"></div>
+                </section>
+            </main>
         </div>
     </div>
 
