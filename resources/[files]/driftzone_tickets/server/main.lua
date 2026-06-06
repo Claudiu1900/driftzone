@@ -21,8 +21,19 @@ local function cleanText(value, maxLength)
 end
 
 local function isDutyValue(value)
+    -- FIX FINAL:
+    -- ON DUTY = users.aduty = 1
+    -- OFF DUTY = users.aduty = 0
+    -- Acceptam si valori text pentru compatibilitate.
+    if value == true then return true end
+
+    local n = tonumber(value)
+    if n ~= nil then
+        return n == 1
+    end
+
     local text = tostring(value or ''):lower():gsub('%s+', '')
-    return value == true or tonumber(value) == 1 or text == 'yes' or text == 'true' or text == 'on'
+    return text == 'yes' or text == 'true' or text == 'on'
 end
 
 local function getPlayerNameSafe(src)
@@ -88,7 +99,26 @@ local function getUidFromExports(src)
     return nil
 end
 
+local function queryUidByColumn(tableName, uidColumn, column, value)
+    if not value or value == '' then return nil end
+
+    local ok, row = pcall(function()
+        return MySQL.single.await(
+            ('SELECT `%s` AS uid FROM `%s` WHERE `%s` = ? LIMIT 1'):format(uidColumn, tableName, column),
+            { value }
+        )
+    end)
+
+    if ok and row and tonumber(row.uid) then
+        return tonumber(row.uid)
+    end
+
+    return nil
+end
+
 local function getUidFromIdentifiers(src)
+    local tableName = Config.UsersTable or 'users'
+    local uidColumn = Config.UsersIdColumn or 'uid'
     local ids = getIdentifierMap(src)
     local playerName = getPlayerNameSafe(src)
 
@@ -103,21 +133,8 @@ local function getUidFromIdentifiers(src)
 
     for _, check in ipairs(checks) do
         for _, value in ipairs(check.values or {}) do
-            if value and value ~= '' then
-                local query = ('SELECT `%s` AS uid FROM `%s` WHERE `%s` = ? LIMIT 1'):format(
-                    Config.UsersIdColumn or 'uid',
-                    Config.UsersTable or 'users',
-                    check.column
-                )
-
-                local ok, row = pcall(function()
-                    return MySQL.single.await(query, { value })
-                end)
-
-                if ok and row and tonumber(row.uid) then
-                    return tonumber(row.uid)
-                end
-            end
+            local uid = queryUidByColumn(tableName, uidColumn, check.column, value)
+            if uid then return uid end
         end
     end
 
@@ -129,6 +146,12 @@ local function getUid(src)
     if src <= 0 then return nil end
 
     return getUidFromState(src) or getUidFromExports(src) or getUidFromIdentifiers(src)
+end
+
+local function getSafeTicketUid(src)
+    -- Pentru deschidere/creare ticket, nu blocam complet daca auth-ul intarzie.
+    -- Daca UID-ul real lipseste, folosim source temporar ca sa se deschida UI-ul.
+    return getUid(src) or tonumber(src)
 end
 
 local function isLogged(src)
@@ -152,8 +175,9 @@ local function isLogged(src)
         end
     end
 
-    -- Daca UID-ul exista, nu blocam /ticket doar fiindca auth-ul nu expune logged dupa aduty toggle.
-    return getUid(src) ~= nil
+    -- Fix: dupa /aduty off unele auth-uri nu mai raspund true, dar UID-ul exista.
+    -- Nu blocam /ticket din cauza asta.
+    return getSafeTicketUid(src) ~= nil
 end
 
 local function getAdminData(src)
@@ -163,14 +187,19 @@ local function getAdminData(src)
         return nil, 'uid_missing'
     end
 
+    local tableName = Config.UsersTable or 'users'
+    local uidColumn = Config.UsersIdColumn or 'uid'
+    local adminColumn = Config.AdminLevelColumn or 'admin_level'
+    local adutyColumn = Config.AdminDutyColumn or 'aduty'
+
     local ok, row = pcall(function()
         return MySQL.single.await(
             ('SELECT `%s` AS uid, username, `%s` AS admin_level, `%s` AS aduty FROM `%s` WHERE `%s` = ? LIMIT 1'):format(
-                Config.UsersIdColumn or 'uid',
-                Config.AdminLevelColumn or 'admin_level',
-                Config.AdminDutyColumn or 'aduty',
-                Config.UsersTable or 'users',
-                Config.UsersIdColumn or 'uid'
+                uidColumn,
+                adminColumn,
+                adutyColumn,
+                tableName,
+                uidColumn
             ),
             { uid }
         )
@@ -226,7 +255,7 @@ local function getPlayerByUid(uid)
 
     for _, id in ipairs(GetPlayers()) do
         local src = tonumber(id)
-        if src and getUid(src) == uid then
+        if src and getSafeTicketUid(src) == uid then
             return src
         end
     end
@@ -268,14 +297,13 @@ local function getTicketList()
 end
 
 local function sendCountTo(src)
-    local ok = false
+    local allowed = false
 
     pcall(function()
-        local allowed = isStaffOnDuty(src)
-        ok = allowed == true
+        allowed = isStaffOnDuty(src) == true
     end)
 
-    TriggerClientEvent('driftzone_tickets:client:count', src, ok and #getTicketList() or 0)
+    TriggerClientEvent('driftzone_tickets:client:count', src, allowed and #getTicketList() or 0)
 end
 
 local function updateAdminCounters()
@@ -285,14 +313,13 @@ local function updateAdminCounters()
         local src = tonumber(id)
 
         if src then
-            local ok = false
+            local allowed = false
 
             pcall(function()
-                local allowed = isStaffOnDuty(src)
-                ok = allowed == true
+                allowed = isStaffOnDuty(src) == true
             end)
 
-            TriggerClientEvent('driftzone_tickets:client:count', src, ok and count or 0)
+            TriggerClientEvent('driftzone_tickets:client:count', src, allowed and count or 0)
         end
     end
 end
@@ -314,8 +341,6 @@ local function teleportAdminToPlayer(adminSrc, targetSrc)
     local coords = GetEntityCoords(targetPed)
     local bucket = GetPlayerRoutingBucket(targetSrc)
 
-    -- Fix: inainte teleporta o data instant si inca o data dupa 300ms.
-    -- Acum face un singur teleport, dar pastreaza routing bucket-ul corect.
     SetPlayerRoutingBucket(adminSrc, bucket)
     SetEntityCoords(adminPed, coords.x + 1.3, coords.y + 1.3, coords.z + 0.2, false, false, false, false)
     SetEntityHeading(adminPed, GetEntityHeading(targetPed))
@@ -324,12 +349,11 @@ local function teleportAdminToPlayer(adminSrc, targetSrc)
 end
 
 local function openTicketMenu(src)
-    if not isLogged(src) then
-        notify(src, 'warning', 'Trebuie sa fii logat ca sa folosesti /ticket.')
-        return
-    end
-
-    local uid = getUid(src)
+    -- FIX FINAL:
+    -- /ticket trebuie sa mearga mereu:
+    -- aduty = 1 => staff panel
+    -- aduty = 0 => player ticket panel
+    local uid = getSafeTicketUid(src)
 
     if not uid then
         notify(src, 'warning', 'Nu ti-am gasit UID-ul.')
@@ -338,16 +362,14 @@ local function openTicketMenu(src)
 
     local onDuty, adminData, reason = isStaffOnDuty(src)
 
-    -- Daca este staff ON DUTY, vede lista de tickete.
     if onDuty then
         TriggerClientEvent('driftzone_tickets:client:openAdmin', src, getTicketList())
         sendCountTo(src)
         return
     end
 
-    -- Daca este admin OFF DUTY, il lasam sa foloseasca sistemul ca player normal.
-    -- Asta rezolva bug-ul cand dupa off duty / on duty nu mai mergea corect.
-    if adminData and adminData.level >= (Config.MinAdminLevel or 1) and reason == 'off_duty' then
+    -- Daca este admin OFF DUTY, curatam counter-ul si il tratam ca player normal.
+    if adminData and reason == 'off_duty' then
         TriggerClientEvent('driftzone_tickets:client:count', src, 0)
     end
 
@@ -360,12 +382,7 @@ local function openTicketMenu(src)
 end
 
 local function cancelTicket(src)
-    if not isLogged(src) then
-        notify(src, 'warning', 'Trebuie sa fii logat.')
-        return
-    end
-
-    local uid = getUid(src)
+    local uid = getSafeTicketUid(src)
 
     if not uid then
         notify(src, 'warning', 'Nu ti-am gasit UID-ul.')
@@ -387,11 +404,6 @@ local function cancelTicket(src)
     updateAdminCounters()
 end
 
-
-RegisterNetEvent('driftzone_tickets:server:refreshState', function()
-    sendCountTo(source)
-end)
-
 RegisterNetEvent('driftzone_tickets:server:open', function()
     openTicketMenu(source)
 end)
@@ -404,18 +416,16 @@ RegisterNetEvent('driftzone_tickets:server:requestCount', function()
     sendCountTo(source)
 end)
 
+RegisterNetEvent('driftzone_tickets:server:refreshState', function()
+    sendCountTo(source)
+end)
+
 RegisterNetEvent('driftzone_tickets:server:closed', function()
 end)
 
 RegisterNetEvent('driftzone_tickets:server:create', function(payload)
     local src = source
-
-    if not isLogged(src) then
-        notify(src, 'warning', 'Trebuie sa fii logat ca sa creezi ticket.')
-        return
-    end
-
-    local uid = getUid(src)
+    local uid = getSafeTicketUid(src)
 
     if not uid then
         notify(src, 'warning', 'Nu ti-am gasit UID-ul.')
@@ -479,13 +489,13 @@ RegisterNetEvent('driftzone_tickets:server:create', function(payload)
     for _, id in ipairs(GetPlayers()) do
         local adminSrc = tonumber(id)
         if adminSrc then
-            local ok = false
+            local allowed = false
+
             pcall(function()
-                local allowed = isStaffOnDuty(adminSrc)
-                ok = allowed == true
+                allowed = isStaffOnDuty(adminSrc) == true
             end)
 
-            if ok then
+            if allowed then
                 notify(adminSrc, 'info', ('Ticket nou #%s de la %s (%s).'):format(ticket.id, ticket.playerName, ticket.playerUid), 6000)
             end
         end
@@ -574,7 +584,7 @@ RegisterNetEvent('driftzone_tickets:server:delete', function(ticketId)
         notify(target, 'error', 'Ticket-ul tau a fost sters de un admin.')
     end
 
-    createLog('deletedtickets_logs', {
+    createLog('deletetickets_logs', {
         ticket_id = id,
         player_name = ticket.playerName,
         player_uid = ticket.playerUid,
@@ -582,20 +592,18 @@ RegisterNetEvent('driftzone_tickets:server:delete', function(ticketId)
         admin_uid = adminData.uid,
         admin_level = adminData.level,
         title = ticket.title,
-        subject = ticket.subject,
-        reason = 'Deleted by admin'
+        subject = ticket.subject
     })
 
     Tickets[id] = nil
 
-    notify(src, 'info', 'Ai sters ticket-ul.')
     TriggerClientEvent('driftzone_tickets:client:openAdmin', src, getTicketList())
     updateAdminCounters()
 end)
 
 RegisterNetEvent('driftzone_tickets:server:teleport', function(ticketId)
     local src = source
-    local allowed = isStaffOnDuty(src)
+    local allowed, adminData = isStaffOnDuty(src)
 
     if not allowed then
         notify(src, 'warning', 'Trebuie sa fii staff ON DUTY.')
@@ -662,17 +670,21 @@ exports('RunCommand', function(src, command)
     command = tostring(command or ''):lower():gsub('^/', '')
 
     if command == 'ticket' or command == 'tickets' or command == 'tikcet' then
-        return openTicketMenu(src)
+        openTicketMenu(src)
+        return true
     end
 
     if command == 'cancelticket' then
-        return cancelTicket(src)
+        cancelTicket(src)
+        return true
     end
+
+    return false
 end)
 
 AddEventHandler('playerDropped', function()
     local src = source
-    local uid = getUid(src)
+    local uid = getSafeTicketUid(src)
 
     if not uid then return end
 
@@ -686,7 +698,7 @@ end)
 
 CreateThread(function()
     Wait(500)
-    print('[DRIFTZONE_TICKETS] Server-side loaded. Duty state fix + modern UI.')
+    print('[DRIFTZONE_TICKETS] Server-side loaded. FINAL aduty 1/0 fix.')
 
     while true do
         updateAdminCounters()

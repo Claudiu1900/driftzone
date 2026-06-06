@@ -209,7 +209,7 @@ end)
 
 CreateThread(function()
     while true do
-        TriggerServerEvent('driftzone_tickets:server:refreshState')
-        Wait(2500)
+        TriggerServerEvent('driftzone_tickets:server:requestCount')
+        Wait(5000)
     end
 end)

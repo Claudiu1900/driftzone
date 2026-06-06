@@ -67,16 +67,21 @@ restart driftzone_tickets
 ```
 
 
-## Fix duty state
+## FINAL aduty fix
 
-Versiunea asta repara cazul:
-- esti ON DUTY si `/ticket` deschide staff panel;
-- dai OFF DUTY si `/ticket` devine ticket normal de player;
-- dai iar ON DUTY si `/ticket` revine la staff panel.
+Regula este strict:
 
-Fixuri:
-- UID fallback mai robust;
-- nu mai blocheaza comanda daca `IsLoggedIn` nu raspunde dupa toggle aduty, dar UID-ul exista;
-- verifica `users.admin_level` si `users.aduty` direct din DB la fiecare folosire;
-- refresh la counter/state la 2.5 secunde si cand folosesti comanda;
-- `RunCommand` accepta si comenzi primite cu slash, ex `/ticket`.
+```txt
+users.aduty = 1 -> admin ON DUTY -> /ticket deschide staff panel
+users.aduty = 0 -> admin OFF DUTY -> /ticket deschide ticket normal de player
+```
+
+Nu mai blocheaza /ticket dupa ce schimbi ON/OFF duty.
+
+Ce s-a schimbat:
+- nu mai depinde strict de `IsLoggedIn` cand UID-ul exista;
+- `isDutyValue()` trateaza numeric: doar `1` inseamna ON;
+- `0` inseamna OFF;
+- /ticket verifica DB live de fiecare data;
+- /ticket deschide mereu ceva: staff panel daca esti aduty 1, player panel daca esti aduty 0;
+- accept/delete/teleport raman doar pentru staff ON DUTY.
