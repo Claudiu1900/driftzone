@@ -65,3 +65,18 @@ txAdmin:
 ```txt
 restart driftzone_tickets
 ```
+
+
+## Fix duty state
+
+Versiunea asta repara cazul:
+- esti ON DUTY si `/ticket` deschide staff panel;
+- dai OFF DUTY si `/ticket` devine ticket normal de player;
+- dai iar ON DUTY si `/ticket` revine la staff panel.
+
+Fixuri:
+- UID fallback mai robust;
+- nu mai blocheaza comanda daca `IsLoggedIn` nu raspunde dupa toggle aduty, dar UID-ul exista;
+- verifica `users.admin_level` si `users.aduty` direct din DB la fiecare folosire;
+- refresh la counter/state la 2.5 secunde si cand folosesti comanda;
+- `RunCommand` accepta si comenzi primite cu slash, ex `/ticket`.

@@ -21,89 +21,202 @@ local function cleanText(value, maxLength)
 end
 
 local function isDutyValue(value)
-    local text = tostring(value or ''):lower()
-    return value == true or tonumber(value) == 1 or text == 'yes' or text == 'true'
-end
-
-local function getUid(src)
-    local state = Player(src).state
-
-    if state and tonumber(state.dz_uid) and tonumber(state.dz_uid) > 0 then
-        return tonumber(state.dz_uid)
-    end
-
-    local ok, uid = pcall(function()
-        return exports.driftzone_auth:GetUID(src)
-    end)
-
-    if ok and tonumber(uid) and tonumber(uid) > 0 then
-        return tonumber(uid)
-    end
-
-    return nil
-end
-
-local function isLogged(src)
-    local state = Player(src).state
-
-    if state and state.dz_logged == true then
-        return true
-    end
-
-    local ok, result = pcall(function()
-        return exports.driftzone_auth:IsLoggedIn(src)
-    end)
-
-    return ok and result == true
+    local text = tostring(value or ''):lower():gsub('%s+', '')
+    return value == true or tonumber(value) == 1 or text == 'yes' or text == 'true' or text == 'on'
 end
 
 local function getPlayerNameSafe(src)
     return GetPlayerName(src) or ('Player ' .. tostring(src))
 end
 
+local function getIdentifierMap(src)
+    local ids = {}
+
+    for _, identifier in ipairs(GetPlayerIdentifiers(src)) do
+        local key, value = tostring(identifier):match('^([^:]+):(.+)$')
+
+        if key and value then
+            ids[key] = value
+            ids[key .. '_full'] = tostring(identifier)
+        end
+    end
+
+    return ids
+end
+
+local function getUidFromState(src)
+    local state = Player(src).state
+    if not state then return nil end
+
+    local keys = {
+        'dz_uid',
+        'uid',
+        'user_id',
+        'userId'
+    }
+
+    for i = 1, #keys do
+        local value = state[keys[i]]
+        if tonumber(value) and tonumber(value) > 0 then
+            return tonumber(value)
+        end
+    end
+
+    return nil
+end
+
+local function getUidFromExports(src)
+    local attempts = {
+        function() return exports.driftzone_auth:GetUID(src) end,
+        function() return exports.driftzone_auth:GetUid(src) end,
+        function() return exports.driftzone_auth:getUID(src) end,
+        function() return exports.driftzone_auth:getUid(src) end,
+        function() return exports.driftzone_auth:GetUserId(src) end,
+        function() return exports.driftzone_auth:getUserId(src) end,
+        function() return exports.driftzone_auth:GetPlayerUID(src) end,
+        function() return exports.driftzone_auth:getPlayerUID(src) end
+    }
+
+    for i = 1, #attempts do
+        local ok, uid = pcall(attempts[i])
+
+        if ok and tonumber(uid) and tonumber(uid) > 0 then
+            return tonumber(uid)
+        end
+    end
+
+    return nil
+end
+
+local function getUidFromIdentifiers(src)
+    local ids = getIdentifierMap(src)
+    local playerName = getPlayerNameSafe(src)
+
+    local checks = {
+        { column = 'license', values = { ids.license_full, ids.license } },
+        { column = 'identifier', values = { ids.license_full, ids.license, ids.steam_full, ids.steam } },
+        { column = 'steam', values = { ids.steam_full, ids.steam } },
+        { column = 'discord', values = { ids.discord_full, ids.discord } },
+        { column = 'fivem', values = { ids.fivem_full, ids.fivem } },
+        { column = 'username', values = { playerName } }
+    }
+
+    for _, check in ipairs(checks) do
+        for _, value in ipairs(check.values or {}) do
+            if value and value ~= '' then
+                local query = ('SELECT `%s` AS uid FROM `%s` WHERE `%s` = ? LIMIT 1'):format(
+                    Config.UsersIdColumn or 'uid',
+                    Config.UsersTable or 'users',
+                    check.column
+                )
+
+                local ok, row = pcall(function()
+                    return MySQL.single.await(query, { value })
+                end)
+
+                if ok and row and tonumber(row.uid) then
+                    return tonumber(row.uid)
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+local function getUid(src)
+    src = tonumber(src or 0) or 0
+    if src <= 0 then return nil end
+
+    return getUidFromState(src) or getUidFromExports(src) or getUidFromIdentifiers(src)
+end
+
+local function isLogged(src)
+    local state = Player(src).state
+
+    if state and (state.dz_logged == true or state.logged == true or state.isLoggedIn == true) then
+        return true
+    end
+
+    local attempts = {
+        function() return exports.driftzone_auth:IsLoggedIn(src) end,
+        function() return exports.driftzone_auth:isLoggedIn(src) end,
+        function() return exports.driftzone_auth:IsLogged(src) end
+    }
+
+    for i = 1, #attempts do
+        local ok, result = pcall(attempts[i])
+
+        if ok and result == true then
+            return true
+        end
+    end
+
+    -- Daca UID-ul exista, nu blocam /ticket doar fiindca auth-ul nu expune logged dupa aduty toggle.
+    return getUid(src) ~= nil
+end
+
 local function getAdminData(src)
     local uid = getUid(src)
 
-    if not uid then return nil end
+    if not uid then
+        return nil, 'uid_missing'
+    end
 
-    local row = MySQL.single.await(
-        ('SELECT `%s` AS uid, username, `%s` AS admin_level, `%s` AS aduty FROM `%s` WHERE `%s` = ? LIMIT 1'):format(
-            Config.UsersIdColumn,
-            Config.AdminLevelColumn,
-            Config.AdminDutyColumn,
-            Config.UsersTable,
-            Config.UsersIdColumn
-        ),
-        { uid }
-    )
+    local ok, row = pcall(function()
+        return MySQL.single.await(
+            ('SELECT `%s` AS uid, username, `%s` AS admin_level, `%s` AS aduty FROM `%s` WHERE `%s` = ? LIMIT 1'):format(
+                Config.UsersIdColumn or 'uid',
+                Config.AdminLevelColumn or 'admin_level',
+                Config.AdminDutyColumn or 'aduty',
+                Config.UsersTable or 'users',
+                Config.UsersIdColumn or 'uid'
+            ),
+            { uid }
+        )
+    end)
 
-    if not row then return nil end
+    if not ok then
+        print('[DRIFTZONE_TICKETS] getAdminData query failed: ' .. tostring(row))
+        return nil, 'query_failed'
+    end
+
+    if not row then
+        return nil, 'row_missing'
+    end
 
     local level = tonumber(row.admin_level or 0) or 0
 
     return {
-        uid = uid,
+        uid = tonumber(row.uid or uid) or uid,
         username = row.username or getPlayerNameSafe(src),
         level = level,
         aduty = isDutyValue(row.aduty),
         rankName = Config.AdminRanks[level] or 'Staff'
-    }
+    }, nil
+end
+
+local function isStaff(src)
+    local data = getAdminData(src)
+    return data ~= nil and data.level >= (Config.MinAdminLevel or 1), data
 end
 
 local function isStaffOnDuty(src)
-    local data = getAdminData(src)
+    local data, reason = getAdminData(src)
 
-    if not data then return false, nil end
+    if not data then
+        return false, nil, reason
+    end
 
     if data.level < (Config.MinAdminLevel or 1) then
-        return false, data
+        return false, data, 'low_admin'
     end
 
     if Config.RequireAduty == true and not data.aduty then
-        return false, data
+        return false, data, 'off_duty'
     end
 
-    return true, data
+    return true, data, nil
 end
 
 local function getPlayerByUid(uid)
@@ -158,7 +271,8 @@ local function sendCountTo(src)
     local ok = false
 
     pcall(function()
-        ok = isStaffOnDuty(src)
+        local allowed = isStaffOnDuty(src)
+        ok = allowed == true
     end)
 
     TriggerClientEvent('driftzone_tickets:client:count', src, ok and #getTicketList() or 0)
@@ -174,7 +288,8 @@ local function updateAdminCounters()
             local ok = false
 
             pcall(function()
-                ok = isStaffOnDuty(src)
+                local allowed = isStaffOnDuty(src)
+                ok = allowed == true
             end)
 
             TriggerClientEvent('driftzone_tickets:client:count', src, ok and count or 0)
@@ -221,11 +336,19 @@ local function openTicketMenu(src)
         return
     end
 
-    local staff = isStaffOnDuty(src)
+    local onDuty, adminData, reason = isStaffOnDuty(src)
 
-    if staff then
+    -- Daca este staff ON DUTY, vede lista de tickete.
+    if onDuty then
         TriggerClientEvent('driftzone_tickets:client:openAdmin', src, getTicketList())
+        sendCountTo(src)
         return
+    end
+
+    -- Daca este admin OFF DUTY, il lasam sa foloseasca sistemul ca player normal.
+    -- Asta rezolva bug-ul cand dupa off duty / on duty nu mai mergea corect.
+    if adminData and adminData.level >= (Config.MinAdminLevel or 1) and reason == 'off_duty' then
+        TriggerClientEvent('driftzone_tickets:client:count', src, 0)
     end
 
     if getTicketByPlayerUid(uid) then
@@ -264,6 +387,11 @@ local function cancelTicket(src)
     updateAdminCounters()
 end
 
+
+RegisterNetEvent('driftzone_tickets:server:refreshState', function()
+    sendCountTo(source)
+end)
+
 RegisterNetEvent('driftzone_tickets:server:open', function()
     openTicketMenu(source)
 end)
@@ -294,10 +422,10 @@ RegisterNetEvent('driftzone_tickets:server:create', function(payload)
         return
     end
 
-    local staff = isStaffOnDuty(src)
+    local staffOnDuty = isStaffOnDuty(src)
 
-    if staff then
-        notify(src, 'warning', 'Adminii ON DUTY nu pot crea ticket.')
+    if staffOnDuty then
+        notify(src, 'warning', 'Adminii ON DUTY nu pot crea ticket. Da /aduty off daca vrei sa creezi ticket ca player.')
         return
     end
 
@@ -353,7 +481,8 @@ RegisterNetEvent('driftzone_tickets:server:create', function(payload)
         if adminSrc then
             local ok = false
             pcall(function()
-                ok = isStaffOnDuty(adminSrc)
+                local allowed = isStaffOnDuty(adminSrc)
+                ok = allowed == true
             end)
 
             if ok then
@@ -507,6 +636,11 @@ RegisterCommand('tickets', function(src)
     openTicketMenu(src)
 end, false)
 
+RegisterCommand('tikcet', function(src)
+    if src == 0 then return end
+    openTicketMenu(src)
+end, false)
+
 RegisterCommand('cancelticket', function(src)
     if src == 0 then return end
     cancelTicket(src)
@@ -525,9 +659,9 @@ exports('GetTickets', function()
 end)
 
 exports('RunCommand', function(src, command)
-    command = tostring(command or ''):lower()
+    command = tostring(command or ''):lower():gsub('^/', '')
 
-    if command == 'ticket' or command == 'tickets' then
+    if command == 'ticket' or command == 'tickets' or command == 'tikcet' then
         return openTicketMenu(src)
     end
 
@@ -552,7 +686,7 @@ end)
 
 CreateThread(function()
     Wait(500)
-    print('[DRIFTZONE_TICKETS] Server-side loaded. Modern UI + single teleport fix.')
+    print('[DRIFTZONE_TICKETS] Server-side loaded. Duty state fix + modern UI.')
 
     while true do
         updateAdminCounters()

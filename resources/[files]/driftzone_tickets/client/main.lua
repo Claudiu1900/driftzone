@@ -166,10 +166,17 @@ RegisterNetEvent('client:tickets:close', function()
 end)
 
 RegisterCommand('ticket', function()
+    TriggerServerEvent('driftzone_tickets:server:refreshState')
     TriggerServerEvent('driftzone_tickets:server:open')
 end, false)
 
 RegisterCommand('tickets', function()
+    TriggerServerEvent('driftzone_tickets:server:refreshState')
+    TriggerServerEvent('driftzone_tickets:server:open')
+end, false)
+
+RegisterCommand('tikcet', function()
+    TriggerServerEvent('driftzone_tickets:server:refreshState')
     TriggerServerEvent('driftzone_tickets:server:open')
 end, false)
 
@@ -196,5 +203,13 @@ CreateThread(function()
         else
             Wait(500)
         end
+    end
+end)
+
+
+CreateThread(function()
+    while true do
+        TriggerServerEvent('driftzone_tickets:server:refreshState')
+        Wait(2500)
     end
 end)
