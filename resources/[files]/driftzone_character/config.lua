@@ -37,9 +37,9 @@ Config.DefaultCreatorClothes = {
 
     female = {
         arms = { component = 3, drawable = 15, texture = 0 },
-        pants = { component = 4, drawable = 15, texture = 0 },
-        shoes = { component = 6, drawable = 35, texture = 0 },
-        tshirt = { component = 8, drawable = 15, texture = 0 },
+        pants = { component = 4, drawable = 21, texture = 0 },
+        shoes = { component = 6, drawable = 34, texture = 0 },
+        tshirt = { component = 8, drawable = 91, texture = 0 },
         torso = { component = 11, drawable = 15, texture = 0 }
     }
 }
