@@ -2,9 +2,12 @@ Config = {}
 
 Config.Command = 'editor'
 
--- true = cand opresti /editor salveaza clipul
--- false = cand opresti /editor sterge clipul
+-- true = la oprire salveaza clipul
+-- false = la oprire sterge clipul
 Config.SaveClipOnStop = true
+
+-- Anti spam pentru /editor
+Config.CooldownMs = 1200
 
 Config.Notify = {
     enabled = true,
@@ -15,5 +18,5 @@ Config.Messages = {
     started = 'Rockstar Editor recording pornit.',
     stoppedSaved = 'Rockstar Editor recording oprit si salvat.',
     stoppedDiscarded = 'Rockstar Editor recording oprit fara salvare.',
-    failedStart = 'Nu am putut porni Rockstar Editor recording.'
+    alreadyProcessing = 'Asteapta putin inainte sa folosesti iar /editor.'
 }

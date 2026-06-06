@@ -1,37 +1,43 @@
-# driftzone_rockstareditor
+# driftzone_rockstareditor fixed
 
-Resource simplu pentru FiveM care pornește/oprește recording-ul Rockstar Editor.
+## Fix
 
-## Comandă
+Versiunea asta rezolva bug-ul unde `/editor` zicea ca nu poate porni, desi pornea, si dupa nu mai stia sa opreasca.
+
+Cauza principala era verificarea prea rapida cu `IsRecording()` si posibil dublu trigger daca era comanda si pe client si pe server.
+
+Acum:
+- `/editor` este comandă server-side;
+- serverul trimite un singur event clientului;
+- clientul tine state intern `recording`;
+- `IsRecording()` este folosit doar ca backup;
+- nu mai asteapta confirmare stricta de la native dupa `StartRecording(1)`;
+- anti-spam 1.2 secunde.
+
+## Comenzi
 
 ```txt
 /editor
 ```
 
-Prima dată pornește recording-ul.
-A doua oară îl oprește și salvează clipul.
+Prima data porneste recording.
+A doua data opreste si salveaza.
 
-Este valabil pentru toată lumea, fără admin.
+```txt
+/editorstatus
+```
+
+Arata status ON/OFF.
 
 ## Config
-
-În `config.lua`:
 
 ```lua
 Config.SaveClipOnStop = true
 ```
 
-Dacă îl pui `false`, când dai a doua oară `/editor`, clipul se șterge în loc să fie salvat.
+Daca pui `false`, clipul este aruncat la oprire.
 
-## Instalare
-
-Pune folderul în:
-
-```txt
-resources/[files]/driftzone_rockstareditor
-```
-
-În `server.cfg`:
+## server.cfg
 
 ```cfg
 ensure driftzone_rockstareditor
@@ -39,13 +45,14 @@ ensure driftzone_rockstareditor
 
 ## Pentru driftzone_chat custom
 
-Dacă din F8 merge, dar din chat nu merge, adaugă ruta:
+Daca din F8 merge, dar din chat nu merge, adauga ruta:
 
 ```lua
 editor = 'driftzone_rockstareditor',
+editorstatus = 'driftzone_rockstareditor',
 ```
 
-sau apelează:
+sau:
 
 ```lua
 exports.driftzone_rockstareditor:RunCommand(src, command, args)
@@ -57,7 +64,7 @@ Pe PC:
 
 ```bash
 git add -A resources/[files]/driftzone_rockstareditor
-git commit -m "Add Rockstar Editor command"
+git commit -m "Fix Rockstar Editor toggle"
 git pull --rebase origin main
 git push origin main
 ```
@@ -70,12 +77,6 @@ git pull --rebase origin main
 ```
 
 txAdmin:
-
-```txt
-ensure driftzone_rockstareditor
-```
-
-sau dacă e deja în server.cfg:
 
 ```txt
 restart driftzone_rockstareditor

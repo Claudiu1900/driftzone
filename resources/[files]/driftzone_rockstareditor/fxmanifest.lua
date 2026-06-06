@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Rockstar Editor command'
-version '1.0.0'
+description 'DriftZone Rockstar Editor command - fixed toggle'
+version '1.0.1'
 
 shared_script 'config.lua'
 

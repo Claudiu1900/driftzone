@@ -1,10 +1,19 @@
 RegisterCommand(Config.Command or 'editor', function(src)
     if src == 0 then
-        print('[DRIFTZONE_EDITOR] Comanda este client-side. Foloseste /editor in joc.')
+        print('[DRIFTZONE_EDITOR] Comanda se foloseste in joc.')
         return
     end
 
     TriggerClientEvent('driftzone_rockstareditor:client:toggle', src)
+end, false)
+
+RegisterCommand('editorstatus', function(src)
+    if src == 0 then
+        print('[DRIFTZONE_EDITOR] Comanda se foloseste in joc.')
+        return
+    end
+
+    TriggerClientEvent('driftzone_rockstareditor:client:status', src)
 end, false)
 
 exports('RunCommand', function(src, command, args)
@@ -12,6 +21,11 @@ exports('RunCommand', function(src, command, args)
 
     if command == tostring(Config.Command or 'editor'):lower() then
         TriggerClientEvent('driftzone_rockstareditor:client:toggle', src)
+        return true
+    end
+
+    if command == 'editorstatus' then
+        TriggerClientEvent('driftzone_rockstareditor:client:status', src)
         return true
     end
 
