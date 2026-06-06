@@ -4,6 +4,7 @@ local activeInteraction = nil
 local lastShownId = nil
 local lastUse = 0
 local createdBlips = {}
+local dismissedInteractions = {}
 
 local function sendNui(data)
     if not nuiReady then return end
@@ -117,6 +118,7 @@ end
 local function removeInteraction(id)
     id = tostring(id or '')
     interactions[id] = nil
+    dismissedInteractions[id] = nil
     removeInteractionBlip(id)
     if activeInteraction and activeInteraction.id == id then
         activeInteraction = nil
@@ -128,6 +130,7 @@ end
 local function clearInteractions()
     for id in pairs(createdBlips) do removeInteractionBlip(id) end
     interactions = {}
+    dismissedInteractions = {}
     activeInteraction = nil
     lastShownId = nil
     sendNui({ action = 'hide' })
@@ -137,6 +140,7 @@ local function setHidden(id, hidden)
     local interaction = interactions[tostring(id or '')]
     if not interaction then return end
     interaction.hidden = hidden == true
+    if not interaction.hidden then dismissedInteractions[interaction.id] = nil end
     if interaction.hidden and activeInteraction and activeInteraction.id == interaction.id then
         activeInteraction = nil
         lastShownId = nil
@@ -164,15 +168,26 @@ local function nearestInteraction()
     local ped = PlayerPedId()
     local coords = GetEntityCoords(ped)
     local nearest, nearestDistance = nil, 999999.0
+
     for _, interaction in pairs(interactions) do
         if canUseInteraction(interaction) then
             local dist = #(coords - interaction.coords)
-            if dist <= interaction.range and dist < nearestDistance then
+
+            -- Dupa ce jucatorul apasa E, ascundem prompt-ul pentru interactiunea respectiva.
+            -- Prompt-ul revine doar dupa ce iese complet din radius si intra inapoi.
+            if dismissedInteractions[interaction.id] and dist > interaction.range then
+                dismissedInteractions[interaction.id] = nil
+            end
+
+            if not dismissedInteractions[interaction.id] and dist <= interaction.range and dist < nearestDistance then
                 nearest = interaction
                 nearestDistance = dist
             end
+        else
+            dismissedInteractions[interaction.id] = nil
         end
     end
+
     return nearest
 end
 
@@ -193,6 +208,14 @@ local function runInteraction(interaction)
     local now = GetGameTimer()
     if now - lastUse < 750 then return end
     lastUse = now
+
+    -- Ascunde UI-ul imediat dupa folosire si tine-l ascuns pana jucatorul iese din radius.
+    dismissedInteractions[interaction.id] = true
+    if lastShownId == interaction.id then
+        hideInteraction()
+    end
+    activeInteraction = nil
+
     local payload = interaction.data or {}
     if interaction.event ~= '' then TriggerEvent(interaction.event, payload, interaction.id) end
     if interaction.remoteEvent ~= '' then TriggerServerEvent(interaction.remoteEvent, payload, interaction.id) end
@@ -233,7 +256,13 @@ end)
 CreateThread(function()
     while true do
         activeInteraction = nearestInteraction()
-        if activeInteraction then showInteraction(activeInteraction) else hideInteraction() end
+
+        if activeInteraction then
+            showInteraction(activeInteraction)
+        else
+            hideInteraction()
+        end
+
         Wait(Config.CheckInterval or 180)
     end
 end)
