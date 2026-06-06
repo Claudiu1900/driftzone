@@ -102,7 +102,6 @@ body {
         linear-gradient(145deg, rgba(4,199,247,.115), rgba(255,255,255,.025)),
         var(--panel);
     box-shadow: 0 32px 95px rgba(0,0,0,.58), inset 0 0 34px rgba(255,255,255,.025);
-    backdrop-filter: blur(18px);
 }
 
 .side {
