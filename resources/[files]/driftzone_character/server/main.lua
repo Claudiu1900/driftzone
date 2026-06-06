@@ -64,6 +64,74 @@ local function getSavedClothes(uid)
     return tostring(value)
 end
 
+local function hasNoSavedClothes(raw)
+    if not raw or tostring(raw) == '' or tostring(raw) == 'null' then
+        return true
+    end
+
+    local text = tostring(raw):gsub('%s+', '')
+
+    if text == '' or text == '{}' or text == '[]' then
+        return true
+    end
+
+    local ok, decoded = pcall(json.decode, tostring(raw))
+
+    if not ok or type(decoded) ~= 'table' then
+        return true
+    end
+
+    return next(decoded) == nil
+end
+
+local function reloadClothesSilent(src)
+    src = tonumber(src or 0) or 0
+    if src <= 0 or GetPlayerPing(src) <= 0 then return end
+
+    pcall(function()
+        exports.driftzone_clothes:ReloadClothes(src)
+    end)
+
+    TriggerClientEvent('driftzone_clothes:client:reloadSaved', src)
+    TriggerClientEvent('driftzone_clothes:client:forceUnfreeze', src)
+end
+
+local function reloadClothesAfterSave(src)
+    local delays = Config.ClothesReloadDelays or { 300, 900, 1800, 3500 }
+
+    for _, delay in ipairs(delays) do
+        SetTimeout(tonumber(delay or 0) or 0, function()
+            reloadClothesSilent(src)
+        end)
+    end
+end
+
+local function ensureDefaultOutfitIfNoClothes(src, uid, gender)
+    local currentClothes = getSavedClothes(uid)
+
+    if not hasNoSavedClothes(currentClothes) then
+        return false
+    end
+
+    local outfitConfig = Config.DefaultSavedOutfits or {}
+    local outfitId = gender == 'female' and tonumber(outfitConfig.female or 0) or tonumber(outfitConfig.male or 0)
+
+    if not outfitId or outfitId <= 0 then
+        return false
+    end
+
+    local ok, result = pcall(function()
+        return exports.driftzone_outfits:SetOutfitSilent(src, outfitId)
+    end)
+
+    if not ok then
+        print(('[DRIFTZONE_CHARACTER] Failed default outfit %s for uid %s: %s'):format(outfitId, uid, tostring(result)))
+        return false
+    end
+
+    return true
+end
+
 local function saveCharacter(uid, character)
     if not uid then return false end
     if type(character) ~= 'table' then return false end
@@ -87,11 +155,7 @@ local function sendClothesApply(src, uid)
     if not uid or uid <= 0 then return end
     if GetPlayerPing(src) <= 0 then return end
 
-    local clothes = getSavedClothes(uid)
-
-    TriggerClientEvent('client:clothes:fix', src, clothes)
-    TriggerClientEvent('driftzone_clothes:client:apply', src, clothes)
-    TriggerClientEvent('client:clothes:forceUnfreeze', src)
+    reloadClothesSilent(src)
 end
 
 local function applyClothesAfterCharacter(src, uid)
@@ -219,7 +283,12 @@ RegisterNetEvent('driftzone_character:server:save', function(payload)
         return
     end
 
+    -- Daca users.clothes este gol / {}, seteaza outfit default silent:
+    -- male -> Config.DefaultSavedOutfits.male, female -> Config.DefaultSavedOutfits.female.
+    ensureDefaultOutfitIfNoClothes(src, uid, data.gender)
+
     applyCharacterAndClothes(src, uid, data)
+    reloadClothesAfterSave(src)
 
     TriggerClientEvent('driftzone_character:client:saved', src, data)
 
@@ -270,5 +339,14 @@ end)
 AddEventHandler('onResourceStart', function(resource)
     if resource ~= GetCurrentResourceName() then return end
 
-    print('[DRIFTZONE_CHARACTER] Server-side loaded.')
+    print('[DRIFTZONE_CHARACTER] Server-side loaded. Creator clothes + default outfit fix enabled.')
+end)
+exports('EnsureDefaultOutfitIfNoClothes', function(src)
+    local uid = getUid(src)
+    if not uid then return false end
+
+    local character = getCharacter(uid)
+    local gender = character and character.gender or 'male'
+
+    return ensureDefaultOutfitIfNoClothes(src, uid, gender)
 end)

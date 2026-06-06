@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Character Creator'
-version '2.0.0'
+description 'DriftZone Character Creator - fixed live update and default outfit after save'
+version '2.1.0'
 
 ui_page 'html/index.html'
 

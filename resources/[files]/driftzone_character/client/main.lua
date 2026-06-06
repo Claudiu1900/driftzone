@@ -77,8 +77,16 @@ local function nui(data)
     SendNUIMessage(data)
 end
 
-local function loadModel(model)
+local function loadModel(model, force)
     local hash = type(model) == 'number' and model or joaat(model)
+    local ped = PlayerPedId()
+
+    -- IMPORTANT:
+    -- Nu mai dam SetPlayerModel la fiecare slider/update.
+    -- Asta facea caracterul sa dispara si sa apara la loc.
+    if not force and ped and ped ~= 0 and GetEntityModel(ped) == hash then
+        return true, false
+    end
 
     RequestModel(hash)
 
@@ -88,16 +96,16 @@ local function loadModel(model)
         Wait(0)
 
         if GetGameTimer() > timeout then
-            return false
+            return false, false
         end
     end
 
     SetPlayerModel(PlayerId(), hash)
     SetModelAsNoLongerNeeded(hash)
 
-    Wait(250)
+    Wait(120)
 
-    return true
+    return true, true
 end
 
 local function normalize(data)
@@ -145,15 +153,21 @@ local function applyCreatorClothes(gender)
     local ped = PlayerPedId()
     local set = gender == 'female' and Config.DefaultCreatorClothes.female or Config.DefaultCreatorClothes.male
 
-    for _, item in pairs(set) do
-        SetPedComponentVariation(ped, item.component, item.drawable, item.texture, 0)
+    -- Curata toate prop-urile relevante.
+    for _, propId in ipairs({ 0, 1, 2, 6, 7 }) do
+        ClearPedProp(ped, propId)
     end
 
-    ClearPedProp(ped, 0)
-    ClearPedProp(ped, 1)
-    ClearPedProp(ped, 2)
-    ClearPedProp(ped, 6)
-    ClearPedProp(ped, 7)
+    -- Aplica hainele de creator complete.
+    for _, item in pairs(set) do
+        SetPedComponentVariation(
+            ped,
+            tonumber(item.component or 0) or 0,
+            tonumber(item.drawable or 0) or 0,
+            tonumber(item.texture or 0) or 0,
+            0
+        )
+    end
 end
 
 local function applyCharacter(data, creatorMode)
@@ -168,11 +182,16 @@ local function applyCharacter(data, creatorMode)
     local c = normalize(data)
     local model = c.gender == 'female' and 'mp_f_freemode_01' or 'mp_m_freemode_01'
 
-    loadModel(model)
+    local loaded, modelChanged = loadModel(model, false)
+
+    if not loaded then return end
 
     local ped = PlayerPedId()
 
-    SetPedDefaultComponentVariation(ped)
+    if modelChanged then
+        SetPedDefaultComponentVariation(ped)
+    end
+
     ClearPedDecorations(ped)
 
     SetPedHeadBlendData(
@@ -272,7 +291,7 @@ local function openCreator(characterData, isFirstCreation)
     local character = characterData or copy(defaultCharacter)
     character = normalize(character)
 
-    loadModel(character.gender == 'female' and 'mp_f_freemode_01' or 'mp_m_freemode_01')
+    loadModel(character.gender == 'female' and 'mp_f_freemode_01' or 'mp_m_freemode_01', true)
 
     ped = PlayerPedId()
 
@@ -353,7 +372,7 @@ RegisterNetEvent('driftzone_character:client:apply', function(data)
 end)
 
 RegisterNetEvent('driftzone_character:client:saved', function(data)
-    applyCharacter(data, false)
+    currentCharacter = normalize(data)
     closeCreator()
 end)
 
