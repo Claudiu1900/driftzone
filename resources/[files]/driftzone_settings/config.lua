@@ -41,6 +41,13 @@ Config.Toggles = {
         description = 'Ascunde sau afiseaza turometrul / speedometer-ul DriftZone.',
         category = 'Interface',
         default = true
+    },
+    {
+        id = 'voice_volume_ui',
+        title = 'Voice Volume UI',
+        description = 'Ascunde sau afiseaza bara de volum pentru voice chat.',
+        category = 'Voice Chat',
+        default = true
     }
 }
 

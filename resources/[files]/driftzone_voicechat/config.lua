@@ -27,7 +27,10 @@ Config.Volume = {
 
 Config.UI = {
     showVolume = true,
-    showMicIcon = true
+    showMicIcon = true,
+
+    -- Comanda pentru hide/show la UI-ul de volum.
+    toggleCommand = 'voiceui'
 }
 
 Config.Debug = false

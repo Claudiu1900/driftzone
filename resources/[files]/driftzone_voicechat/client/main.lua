@@ -3,6 +3,7 @@ local uiReady = false
 local voiceVolume = Config.Volume.default or 100
 local resourceStarted = false
 local volumeFocus = false
+local volumeUiVisible = true
 local lastVolumeApply = 0
 
 local function clamp(value, min, max)
@@ -117,6 +118,25 @@ local function applyVolumeToPlayers()
     end
 end
 
+local function setVolumeUiVisible(state)
+    volumeUiVisible = state == true
+    SetResourceKvp('driftzone_voice_volume_ui', volumeUiVisible and 'true' or 'false')
+
+    if not volumeUiVisible and volumeFocus then
+        SetNuiFocus(false, false)
+        SetNuiFocusKeepInput(false)
+        volumeFocus = false
+    end
+
+    sendUi({
+        action = 'visibility',
+        showVolume = volumeUiVisible and (Config.UI.showVolume ~= false),
+        showMicIcon = Config.UI.showMicIcon ~= false,
+        focus = volumeFocus,
+        volume = voiceVolume
+    })
+end
+
 local function saveVolume(value)
     voiceVolume = math.floor(clamp(value, Config.Volume.min or 0, Config.Volume.max or 100) + 0.5)
     SetResourceKvpInt('driftzone_voice_volume', voiceVolume)
@@ -137,11 +157,17 @@ local function updateUi()
         mainColor = Config.MainColor,
         mode = Config.VoiceMode.label or 'Tipa',
         distance = getVoiceDistance(),
-        focus = volumeFocus
+        focus = volumeFocus,
+        showVolume = volumeUiVisible and (Config.UI.showVolume ~= false),
+        showMicIcon = Config.UI.showMicIcon ~= false
     })
 end
 
 local function setVolumeFocus(state)
+    if state == true and not volumeUiVisible then
+        setVolumeUiVisible(true)
+    end
+
     volumeFocus = state == true
 
     SetNuiFocus(volumeFocus, volumeFocus)
@@ -168,6 +194,15 @@ local function setTalking(state)
 end
 
 local function initVoice()
+    local savedUi = GetResourceKvpString('driftzone_voice_volume_ui')
+
+    if savedUi == nil or savedUi == '' then
+        volumeUiVisible = Config.UI.showVolume ~= false
+    else
+        savedUi = tostring(savedUi):lower()
+        volumeUiVisible = savedUi == 'true' or savedUi == '1' or savedUi == 'yes' or savedUi == 'on'
+    end
+
     local savedVolume = GetResourceKvpInt('driftzone_voice_volume')
 
     if savedVolume ~= nil and savedVolume >= 0 then
@@ -210,8 +245,8 @@ RegisterNUICallback('ready', function(_, cb)
         talking = talking,
         volume = voiceVolume,
         mainColor = Config.MainColor,
-        showVolume = Config.UI.showVolume,
-        showMicIcon = Config.UI.showMicIcon,
+        showVolume = volumeUiVisible and (Config.UI.showVolume ~= false),
+        showMicIcon = Config.UI.showMicIcon ~= false,
         mode = Config.VoiceMode.label or 'Tipa',
         distance = getVoiceDistance(),
         focus = volumeFocus
@@ -236,7 +271,28 @@ RegisterNUICallback('closeFocus', function(_, cb)
     cb({ ok = true })
 end)
 
+
+RegisterCommand(Config.UI.toggleCommand or 'voiceui', function()
+    setVolumeUiVisible(not volumeUiVisible)
+end, false)
+
+RegisterNetEvent('driftzone_voicechat:client:showVolumeUi', function()
+    setVolumeUiVisible(true)
+end)
+
+RegisterNetEvent('driftzone_voicechat:client:hideVolumeUi', function()
+    setVolumeUiVisible(false)
+end)
+
+RegisterNetEvent('driftzone_voicechat:client:toggleVolumeUi', function()
+    setVolumeUiVisible(not volumeUiVisible)
+end)
+
 RegisterCommand('voicevol', function()
+    if not volumeUiVisible then
+        setVolumeUiVisible(true)
+    end
+
     setVolumeFocus(true)
 
     sendUi({
@@ -315,6 +371,22 @@ AddEventHandler('onResourceStop', function(resource)
 end)
 
 exports('SetVolume', saveVolume)
+
+exports('ShowVolumeUi', function()
+    setVolumeUiVisible(true)
+end)
+
+exports('HideVolumeUi', function()
+    setVolumeUiVisible(false)
+end)
+
+exports('ToggleVolumeUi', function()
+    setVolumeUiVisible(not volumeUiVisible)
+end)
+
+exports('IsVolumeUiVisible', function()
+    return volumeUiVisible
+end)
 
 exports('GetVolume', function()
     return voiceVolume

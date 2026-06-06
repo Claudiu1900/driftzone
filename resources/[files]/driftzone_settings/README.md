@@ -1,84 +1,44 @@
-# driftzone_settings v2
+# driftzone_settings - Voice Volume UI Toggle
 
-Settings fullscreen doar pentru:
+Settings fullscreen pentru:
 - driftzone_hud
-- driftzone_overheadstats
 - radar/minimap
+- driftzone_overheadstats
+- driftzone_turometru
+- voice chat volume UI
 
-## Toggle-uri
+## Toggle nou
 
 ```txt
-DriftZone HUD
-Radar / Minimap
-Overhead Players
-Overhead Personal
+Voice Volume UI
 ```
 
-## Overhead corect
-
-Conform `driftzone_overheadstats`:
+Cand este ON:
 
 ```lua
-TriggerEvent('driftzone_overheadstats:client:showAll')
-TriggerEvent('driftzone_overheadstats:client:hideAll')
-
-TriggerEvent('driftzone_overheadstats:client:showPersonal')
-TriggerEvent('driftzone_overheadstats:client:hidePersonal')
+TriggerEvent('driftzone_voicechat:client:showVolumeUi')
+exports['driftzone_voicechat']:ShowVolumeUi()
 ```
 
-## Radar/minimap
-
-Cand radarul este OFF, resource-ul ruleaza loop si forteaza:
+Cand este OFF:
 
 ```lua
-DisplayRadar(false)
-SetRadarBigmapEnabled(false, false)
+TriggerEvent('driftzone_voicechat:client:hideVolumeUi')
+exports['driftzone_voicechat']:HideVolumeUi()
 ```
 
-ca sa nu reapara cand intri in masina.
-
-## server.cfg
+## server.cfg recomandat
 
 ```cfg
 ensure driftzone_hud
 ensure driftzone_overheadstats
+ensure driftzone_turometru
+ensure driftzone_voicechat
 ensure driftzone_settings
 ```
 
-## Chat custom
-
-Daca din F8 merge dar din chat nu:
-
-```lua
-settings = 'driftzone_settings',
-```
-
-sau:
-
-```lua
-exports.driftzone_settings:RunCommand(src, command, args)
-```
-
-## Git
-
-Pe PC:
-
-```bash
-git add -A resources/[files]/driftzone_settings
-git commit -m "Fix settings toggles for hud overhead radar"
-git pull --rebase origin main
-git push origin main
-```
-
-Pe VPS:
-
-```bash
-cd ~/server-data
-git pull --rebase origin main
-```
-
-txAdmin:
+## Comanda
 
 ```txt
-restart driftzone_settings
+/settings
 ```

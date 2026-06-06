@@ -12,6 +12,8 @@ const savedRaw = localStorage.getItem('driftzone_voice_volume');
 let lastVolume = savedRaw === null ? 100 : clampVolume(Number(savedRaw));
 let talking = false;
 let hasFocus = false;
+let volumeVisible = true;
+let micVisible = true;
 let sendTimer = null;
 let pendingVolume = null;
 
@@ -80,6 +82,18 @@ function setFocusUi(state) {
     focusHint.classList.toggle('hidden', !hasFocus);
 }
 
+function setVisibilityUi(showVolume, showMicIcon) {
+    volumeVisible = showVolume !== false;
+    micVisible = showMicIcon !== false;
+
+    volumeBox.classList.toggle('hidden', !volumeVisible);
+    micBox.classList.toggle('hidden', !micVisible);
+
+    if (!volumeVisible) {
+        setFocusUi(false);
+    }
+}
+
 volumeSlider.addEventListener('input', () => {
     const value = clampVolume(volumeSlider.value);
 
@@ -91,7 +105,7 @@ volumeSlider.addEventListener('change', () => {
     const value = clampVolume(volumeSlider.value);
 
     setVolumeUi(value, true);
-    nui('setVolume', { volume });
+    nui('setVolume', { volume: value });
 });
 
 document.addEventListener('keydown', (event) => {
@@ -112,13 +126,18 @@ window.addEventListener('message', (event) => {
 
         setVolumeUi(volume, true);
         setTalkingUi(data.talking === true);
+        setVisibilityUi(data.showVolume !== false, data.showMicIcon !== false);
         setFocusUi(data.focus === true);
 
-        nui('setVolume', { volume });
+        nui('setVolume', { volume: value });
     }
 
     if (data.action === 'state') {
         setTalkingUi(data.talking === true);
+
+        if (typeof data.showVolume !== 'undefined' || typeof data.showMicIcon !== 'undefined') {
+            setVisibilityUi(data.showVolume !== false, data.showMicIcon !== false);
+        }
 
         if (typeof data.volume !== 'undefined') {
             const saved = localStorage.getItem('driftzone_voice_volume');
@@ -142,6 +161,18 @@ window.addEventListener('message', (event) => {
         }
     }
 
+    if (data.action === 'visibility') {
+        setVisibilityUi(data.showVolume !== false, data.showMicIcon !== false);
+
+        if (typeof data.focus !== 'undefined') {
+            setFocusUi(data.focus === true);
+        }
+
+        if (typeof data.volume !== 'undefined') {
+            setVolumeUi(data.volume, true);
+        }
+    }
+
     if (data.action === 'focus') {
         setFocusUi(data.focus === true);
 
@@ -153,6 +184,7 @@ window.addEventListener('message', (event) => {
 
 setVolumeUi(lastVolume, true);
 setTalkingUi(false);
+setVisibilityUi(true, true);
 setFocusUi(false);
 
 setTimeout(() => nui('ready'), 80);

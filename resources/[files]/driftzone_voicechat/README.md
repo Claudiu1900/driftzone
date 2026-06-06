@@ -44,3 +44,29 @@ Config.VoiceMode.distance = 15.0
 ```txt
 N = push-to-talk
 ```
+
+
+## UI update
+
+- Icon-ul de microfon care apare cand tii `N` este mutat in dreapta jos si este mai mic.
+- UI-ul de volum poate fi ascuns/afisat cu:
+
+```txt
+/voiceui
+```
+
+Trigger client-side:
+
+```lua
+TriggerEvent('driftzone_voicechat:client:showVolumeUi')
+TriggerEvent('driftzone_voicechat:client:hideVolumeUi')
+TriggerEvent('driftzone_voicechat:client:toggleVolumeUi')
+```
+
+Exports client-side:
+
+```lua
+exports['driftzone_voicechat']:ShowVolumeUi()
+exports['driftzone_voicechat']:HideVolumeUi()
+exports['driftzone_voicechat']:ToggleVolumeUi()
+```

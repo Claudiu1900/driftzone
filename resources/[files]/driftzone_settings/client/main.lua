@@ -142,6 +142,21 @@ local function setTurometruVisible(value)
     LocalPlayer.state:set('settings:turometru', value, true)
 end
 
+
+local function setVoiceVolumeUiVisible(value)
+    value = value == true
+
+    if value then
+        TriggerEvent('driftzone_voicechat:client:showVolumeUi')
+        safeExport('driftzone_voicechat', 'ShowVolumeUi')
+    else
+        TriggerEvent('driftzone_voicechat:client:hideVolumeUi')
+        safeExport('driftzone_voicechat', 'HideVolumeUi')
+    end
+
+    LocalPlayer.state:set('settings:voice_volume_ui', value, true)
+end
+
 local function applySingle(id, value)
     value = value == true
 
@@ -155,6 +170,8 @@ local function applySingle(id, value)
         setOverheadSelf(value)
     elseif id == 'turometru' then
         setTurometruVisible(value)
+    elseif id == 'voice_volume_ui' then
+        setVoiceVolumeUiVisible(value)
     end
 
     TriggerEvent('driftzone_settings:client:changed', id, value)
@@ -167,6 +184,7 @@ local function applyAll()
     applySingle('overhead_others', settings.overhead_others == true)
     applySingle('overhead_self', settings.overhead_self == true)
     applySingle('turometru', settings.turometru == true)
+    applySingle('voice_volume_ui', settings.voice_volume_ui == true)
 end
 
 local function payload()
