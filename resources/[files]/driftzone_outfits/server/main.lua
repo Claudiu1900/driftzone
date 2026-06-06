@@ -519,6 +519,140 @@ RegisterNetEvent('driftzone_outfits:server:addCaptured', function(payload)
     })
 end)
 
+
+local function getPlayerBySourceOrUid(value)
+    value = tonumber(value or 0) or 0
+
+    if value <= 0 then return nil end
+
+    if GetPlayerName(value) then
+        return value
+    end
+
+    for _, playerId in ipairs(GetPlayers()) do
+        local src = tonumber(playerId)
+        local uid = getUid(src)
+
+        if uid and uid == value then
+            return src
+        end
+    end
+
+    return nil
+end
+
+local function setOutfitForTarget(target, outfitId, options)
+    options = options or {}
+
+    local targetSrc = getPlayerBySourceOrUid(target)
+    local targetUid = nil
+
+    if targetSrc then
+        targetUid = getUid(targetSrc)
+    else
+        targetUid = tonumber(target or 0) or 0
+    end
+
+    if not targetUid or targetUid <= 0 then
+        return false, 'target_not_found'
+    end
+
+    local outfit = getOutfit(outfitId)
+
+    if not outfit then
+        return false, 'outfit_not_found'
+    end
+
+    local saved = getSavedUserClothes(targetUid)
+
+    for i = 1, #ORDERED_KEYS do
+        local key = ORDERED_KEYS[i]
+
+        if outfit.clothes[key] ~= nil then
+            saved[key] = outfit.clothes[key]
+        end
+    end
+
+    saveUserClothes(targetUid, saved)
+
+    if targetSrc then
+        TriggerClientEvent('driftzone_outfits:client:apply', targetSrc, outfit.clothes)
+
+        pcall(function()
+            TriggerClientEvent('client:clothes:fix', targetSrc, json.encode(saved))
+        end)
+
+        if options.notify ~= false then
+            notify(targetSrc, 'info', ('Ai primit outfit-ul "%s".'):format(outfit.name))
+        end
+    end
+
+    createLog('setoutfit', {
+        user_id = targetUid,
+        outfit_id = outfit.id,
+        outfit_name = outfit.name,
+        sex = outfit.sex,
+        target_uid = targetUid,
+        target_name = targetSrc and (GetPlayerName(targetSrc) or '') or '',
+        player_name = targetSrc and (GetPlayerName(targetSrc) or '') or '',
+        source = tostring(options.source or 'trigger')
+    })
+
+    return true, {
+        targetUid = targetUid,
+        targetSrc = targetSrc,
+        outfitId = outfit.id,
+        outfitName = outfit.name,
+        clothes = outfit.clothes
+    }
+end
+
+-- SERVER EVENT pentru alte scripturi server-side:
+-- TriggerEvent('driftzone_outfits:server:setOutfit', targetSourceSauUid, outfitId)
+RegisterNetEvent('driftzone_outfits:server:setOutfit', function(target, outfitId)
+    local ok, result = setOutfitForTarget(target, outfitId, {
+        source = GetInvokingResource() or 'server_event'
+    })
+
+    if not ok then
+        print(('[DRIFTZONE_OUTFITS] setOutfit failed: %s | target=%s outfit=%s'):format(tostring(result), tostring(target), tostring(outfitId)))
+    end
+end)
+
+-- CLIENT EVENT protejat pentru admin 7 aduty yes:
+-- TriggerServerEvent('driftzone_outfits:server:adminSetOutfit', targetSourceSauUid, outfitId)
+RegisterNetEvent('driftzone_outfits:server:adminSetOutfit', function(target, outfitId)
+    local src = source
+    local admin = requireAdmin7(src)
+
+    if not admin then return end
+
+    local ok, result = setOutfitForTarget(target, outfitId, {
+        source = ('admin:%s'):format(admin.uid)
+    })
+
+    if not ok then
+        notify(src, 'warning', 'Nu am putut seta outfit-ul: ' .. tostring(result))
+        return
+    end
+
+    notify(src, 'success', ('Ai setat outfit-ul "%s" la UID %s.'):format(result.outfitName, result.targetUid))
+end)
+
+exports('SetOutfit', function(target, outfitId)
+    return setOutfitForTarget(target, outfitId, {
+        source = GetInvokingResource() or 'export',
+        notify = true
+    })
+end)
+
+exports('SetOutfitSilent', function(target, outfitId)
+    return setOutfitForTarget(target, outfitId, {
+        source = GetInvokingResource() or 'export_silent',
+        notify = false
+    })
+end)
+
 local function runCommand(src, command, args)
     command = tostring(command or ''):lower()
 
@@ -580,5 +714,35 @@ end)
 CreateThread(function()
     Wait(1000)
     ensureDatabase()
-    print('[DRIFTZONE_OUTFITS] Server-side loaded. Commands enabled: /outfit, /outfits, /addoutfit.')
+    print('[DRIFTZONE_OUTFITS] Server-side loaded. Commands + set outfit trigger enabled.')
 end)
+
+
+RegisterCommand('setoutfit', function(src, args)
+    if src == 0 then
+        print('Usage: /setoutfit targetSourceOrUid outfitId')
+        return
+    end
+
+    local admin = requireAdmin7(src)
+    if not admin then return end
+
+    local target = tonumber(args and args[1] or 0) or 0
+    local outfitId = tonumber(args and args[2] or 0) or 0
+
+    if target <= 0 or outfitId <= 0 then
+        notify(src, 'info', '/setoutfit (id/uid) (outfitId)')
+        return
+    end
+
+    local ok, result = setOutfitForTarget(target, outfitId, {
+        source = ('command_admin:%s'):format(admin.uid)
+    })
+
+    if not ok then
+        notify(src, 'warning', 'Nu am putut seta outfit-ul: ' .. tostring(result))
+        return
+    end
+
+    notify(src, 'success', ('Ai setat outfit-ul "%s" la UID %s.'):format(result.outfitName, result.targetUid))
+end, false)

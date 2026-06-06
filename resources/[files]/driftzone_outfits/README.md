@@ -1,29 +1,64 @@
-# DriftZone Outfits - Commands + Keybinds + Sex Filter
+# DriftZone Outfits - Set Outfit Trigger
 
-## Fix
+## Ce este varianta asta
 
-- Meniul se deschide din `/outfit`.
-- Meniul se deschide din `/outfits`.
-- Keybinds poate folosi `eventType = 'command'` cu `eventName = 'outfits'`.
-- Nu exista RegisterKeyMapping intern in `driftzone_outfits`, deci nu mai deschide singur pe O.
-- Sex filter ramane activ:
-  - `m` pentru `mp_m_freemode_01`
-  - `f` pentru `mp_f_freemode_01`
-- `/addoutfit` salveaza automat `sex` in tabela `outfits`.
+Este varianta cu:
+- `/outfit`
+- `/outfits`
+- keybinds pe command `outfits`
+- sex filter normal
+- `/addoutfit` salveaza `sex = m/f`
+- trigger/export ca sa setezi un outfit la cineva si sa salveze in `users.clothes`
 
-## Comenzi
+## Trigger server-side
 
-```txt
-/outfit
-/outfits
-/addoutfit (nume) (link imagine optional)
+Din orice script server-side:
+
+```lua
+TriggerEvent('driftzone_outfits:server:setOutfit', targetSourceSauUid, outfitId)
 ```
 
-`/addoutfit` necesita admin 7+ si aduty yes.
+Exemplu:
 
-## Ce pui in driftzone_keybinds/config.lua
+```lua
+TriggerEvent('driftzone_outfits:server:setOutfit', 1, 3)
+```
 
-Varianta recomandata:
+Asta seteaza outfit ID 3 la jucatorul source/UID 1, il aplica daca este online si salveaza in `users.clothes`.
+
+## Export server-side
+
+Recomandat:
+
+```lua
+local ok, result = exports.driftzone_outfits:SetOutfit(targetSourceSauUid, outfitId)
+```
+
+Silent, fara notificare la target:
+
+```lua
+local ok, result = exports.driftzone_outfits:SetOutfitSilent(targetSourceSauUid, outfitId)
+```
+
+## Trigger client admin-protected
+
+Din client, doar admin 7+ aduty yes:
+
+```lua
+TriggerServerEvent('driftzone_outfits:server:adminSetOutfit', targetSourceSauUid, outfitId)
+```
+
+## Comanda admin
+
+```txt
+/setoutfit (id/uid) (outfitId)
+```
+
+Necesita admin 7+ si aduty yes.
+
+## Keybinds config
+
+In `driftzone_keybinds/config.lua`:
 
 ```lua
 {
@@ -37,13 +72,7 @@ Varianta recomandata:
 }
 ```
 
-Daca vrei pe alta tasta, schimbi doar:
-
-```lua
-key = 'K'
-```
-
-Nu folosi `O`, pentru ca la tine in `Config.KeyMap` este `O = nil`.
+Nu folosi `O`, pentru ca la tine `O = nil`.
 
 ## server.cfg
 
@@ -55,22 +84,13 @@ ensure driftzone_clothes
 ensure driftzone_outfits
 ```
 
-## SQL
-
-Ruleaza `SQL.sql` in baza `driftzone`, sau lasa resource-ul sa faca automat:
-
-```sql
-ALTER TABLE `outfits` ADD COLUMN IF NOT EXISTS `sex` ENUM('m','f') NOT NULL DEFAULT 'm' AFTER `image`;
-```
-
 ## Git
 
 Pe PC:
 
 ```bash
 git add -A resources/[files]/driftzone_outfits
-git add -A resources/[files]/driftzone_keybinds
-git commit -m "Fix outfits commands and keybind open"
+git commit -m "Add set outfit trigger"
 git pull --rebase origin main
 git push origin main
 ```
@@ -86,5 +106,4 @@ txAdmin:
 
 ```txt
 restart driftzone_outfits
-restart driftzone_keybinds
 ```
