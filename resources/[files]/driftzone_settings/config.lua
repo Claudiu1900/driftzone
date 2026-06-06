@@ -34,6 +34,13 @@ Config.Toggles = {
         description = 'Controleaza daca TU iti vezi propriul overhead local.',
         category = 'Overhead',
         default = true
+    },
+    {
+        id = 'turometru',
+        title = 'Turometru',
+        description = 'Ascunde sau afiseaza turometrul / speedometer-ul DriftZone.',
+        category = 'Interface',
+        default = true
     }
 }
 

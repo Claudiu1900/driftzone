@@ -129,6 +129,19 @@ local function setOverheadSelf(value)
     LocalPlayer.state:set('settings:overhead_self', value, true)
 end
 
+
+local function setTurometruVisible(value)
+    value = value == true
+
+    if value then
+        TriggerEvent('driftzone_turometru:client:show')
+    else
+        TriggerEvent('driftzone_turometru:client:hide')
+    end
+
+    LocalPlayer.state:set('settings:turometru', value, true)
+end
+
 local function applySingle(id, value)
     value = value == true
 
@@ -140,6 +153,8 @@ local function applySingle(id, value)
         setOverheadOthers(value)
     elseif id == 'overhead_self' then
         setOverheadSelf(value)
+    elseif id == 'turometru' then
+        setTurometruVisible(value)
     end
 
     TriggerEvent('driftzone_settings:client:changed', id, value)
@@ -151,6 +166,7 @@ local function applyAll()
     applySingle('radar', settings.radar == true)
     applySingle('overhead_others', settings.overhead_others == true)
     applySingle('overhead_self', settings.overhead_self == true)
+    applySingle('turometru', settings.turometru == true)
 end
 
 local function payload()
