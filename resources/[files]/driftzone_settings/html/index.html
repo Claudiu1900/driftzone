@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Settings</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="overlay" class="overlay hidden">
+        <div class="grid"></div>
+        <div class="orb orb-a"></div>
+        <div class="orb orb-b"></div>
+
+        <div class="shell">
+            <aside class="side">
+                <div class="brand">
+                    <div class="brand-icon">
+                        <svg viewBox="0 0 64 64">
+                            <path d="M32 6l22 13v26L32 58 10 45V19L32 6z" fill="none" stroke="currentColor" stroke-width="3"/>
+                            <path d="M32 22a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" fill="none" stroke="currentColor" stroke-width="3"/>
+                            <path d="M32 13v8M32 43v8M13 32h8M43 32h8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="brand-title">DriftZone</div>
+                        <div class="brand-sub">Settings Core</div>
+                    </div>
+                </div>
+
+                <div class="side-card">
+                    <div class="kicker">Profile</div>
+                    <div class="side-title">Client Settings</div>
+                    <p>Setarile se salveaza local pe PC-ul tau si se aplica automat la reconnect.</p>
+                </div>
+
+                <div class="nav" id="categoryList"></div>
+
+                <button class="reset" onclick="resetSettings()">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M4 12a8 8 0 1 0 2.34-5.66M4 4v6h6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Reset defaults
+                </button>
+            </aside>
+
+            <main class="main">
+                <button class="close" onclick="closeSettings()">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                    </svg>
+                </button>
+
+                <header class="header">
+                    <div>
+                        <div class="kicker">Interface Control</div>
+                        <h1>Settings</h1>
+                        <p>Controleaza rapid HUD-ul, overhead stats, voice UI si sistemele vizuale DriftZone.</p>
+                    </div>
+
+                    <div class="status">
+                        <span></span>
+                        LIVE
+                    </div>
+                </header>
+
+                <section id="settingsList" class="settings-list"></section>
+            </main>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
