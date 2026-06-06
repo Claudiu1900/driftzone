@@ -5,7 +5,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'DriftZone Cycle - Romania real time + admin local overrides'
-version '1.1.0'
+version '1.1.1'
 
 shared_scripts {
     'client/scripts/testing.js',

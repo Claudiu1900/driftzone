@@ -72,27 +72,93 @@ end
 local function getAdminData(src)
     local uid = getUid(src)
 
-    if not uid then return nil end
+    if not uid then
+        return nil
+    end
 
-    local ok, row = pcall(function()
-        return MySQL.single.await(
-            'SELECT uid, username, admin_level, aduty FROM users WHERE uid = ? LIMIT 1',
-            { uid }
-        )
+    -- Robust pentru baze diferite:
+    -- unele tabele au admin_level, altele au adminLvl/admin.
+    -- Nu selectam direct o coloana care poate lipsi, ca sa nu cada query-ul.
+    local ok, rows = pcall(function()
+        return MySQL.query.await('SHOW COLUMNS FROM users', {})
     end)
 
-    if not ok then
+    if not ok or type(rows) ~= 'table' then
+        print('[DRIFTZONE_CYCLE] Could not read users columns: ' .. tostring(rows))
+        return nil
+    end
+
+    local has = {}
+
+    for i = 1, #rows do
+        local field = rows[i] and rows[i].Field
+        if field then
+            has[tostring(field)] = true
+        end
+    end
+
+    local adminColumn = nil
+
+    if has.admin_level then
+        adminColumn = 'admin_level'
+    elseif has.adminLvl then
+        adminColumn = 'adminLvl'
+    elseif has.admin then
+        adminColumn = 'admin'
+    end
+
+    local adutyColumn = nil
+
+    if has.aduty then
+        adutyColumn = 'aduty'
+    elseif has.aDuty then
+        adutyColumn = 'aDuty'
+    elseif has.adminDuty then
+        adutyColumn = 'adminDuty'
+    end
+
+    if not adminColumn then
+        print('[DRIFTZONE_CYCLE] No admin column found in users. Expected admin_level/adminLvl/admin.')
+        return nil
+    end
+
+    local selectParts = { 'uid' }
+
+    if has.username then
+        selectParts[#selectParts + 1] = 'username'
+    end
+
+    selectParts[#selectParts + 1] = adminColumn .. ' AS admin_level'
+
+    if adutyColumn then
+        selectParts[#selectParts + 1] = adutyColumn .. ' AS aduty'
+    else
+        selectParts[#selectParts + 1] = '"yes" AS aduty'
+    end
+
+    local query = ('SELECT %s FROM users WHERE uid = ? LIMIT 1'):format(table.concat(selectParts, ', '))
+
+    local ok2, row = pcall(function()
+        return MySQL.single.await(query, { uid })
+    end)
+
+    if not ok2 then
         print('[DRIFTZONE_CYCLE] MySQL admin check failed: ' .. tostring(row))
         return nil
     end
 
-    if not row then return nil end
+    if not row then
+        return nil
+    end
+
+    local level = tonumber(row.admin_level or 0) or 0
+    local duty = adutyColumn and isDutyValue(row.aduty) or true
 
     return {
         uid = tonumber(row.uid or uid) or uid,
         username = tostring(row.username or GetPlayerName(src) or 'Admin'),
-        level = tonumber(row.admin_level or 0) or 0,
-        aduty = isDutyValue(row.aduty)
+        level = level,
+        aduty = duty
     }
 end
 
@@ -108,8 +174,13 @@ local function requireAdmin(src)
 
     local data = getAdminData(src)
 
-    if not data or data.level < (Config.Admin.requiredLevel or 6) then
-        notify(src, 'warning', 'Nu ai acces la aceasta comanda.')
+    if not data then
+        notify(src, 'warning', 'Nu ti-am gasit datele de admin in baza de date.')
+        return nil
+    end
+
+    if data.level < (Config.Admin.requiredLevel or 6) then
+        notify(src, 'warning', ('Nu ai acces la aceasta comanda. Ai admin %s, trebuie %s+.'):format(data.level, Config.Admin.requiredLevel or 6))
         return nil
     end
 
@@ -376,6 +447,12 @@ RegisterCommand('weather', function(src, args)
 end, false)
 
 RegisterCommand('resetcycle', function(src)
+    if src == 0 then return end
+    commandResetCycle(src)
+end, false)
+
+
+RegisterCommand('resetcylce', function(src)
     if src == 0 then return end
     commandResetCycle(src)
 end, false)

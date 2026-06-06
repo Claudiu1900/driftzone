@@ -119,3 +119,24 @@ txAdmin:
 ```txt
 restart driftzone_cycle
 ```
+
+
+## Fix admin access
+
+Versiunea asta detecteaza automat coloana de admin din `users`:
+
+```txt
+admin_level
+adminLvl
+admin
+```
+
+si coloana de aduty:
+
+```txt
+aduty
+aDuty
+adminDuty
+```
+
+Daca primesti `Ai admin 0, trebuie 6+`, inseamna ca gradul e salvat in alta coloana sau UID-ul tau nu este cel corect in `users`.
