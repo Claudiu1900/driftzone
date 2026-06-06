@@ -18,7 +18,11 @@ body {
     --danger: #ff3a3a;
 }
 
-
+.hidden {
+    opacity: 0 !important;
+    transform: translateY(26px) scale(0.94) !important;
+    pointer-events: none !important;
+}
 
 .speedometer {
     position: fixed;
