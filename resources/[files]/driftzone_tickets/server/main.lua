@@ -399,6 +399,73 @@ local function createLog(eventName, data)
     end)
 end
 
+local function insertTicketLog(action, ticket, adminData, adminSrc)
+    if not ticket then return end
+
+    action = tostring(action or 'unknown')
+
+    local adminUid = nil
+    local adminName = nil
+    local adminLevel = nil
+
+    if adminData then
+        adminUid = tonumber(adminData.uid)
+        adminName = adminData.username or (adminSrc and getPlayerNameSafe(adminSrc)) or nil
+        adminLevel = tonumber(adminData.level)
+    elseif adminSrc then
+        adminName = getPlayerNameSafe(adminSrc)
+    end
+
+    local ok, err = pcall(function()
+        MySQL.insert.await([[
+            INSERT INTO ticket_logs
+                (ticket_id, action, player_uid, player_name, admin_uid, admin_name, admin_level, title, subject, ticket_created_at, created_at)
+            VALUES
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ]], {
+            tonumber(ticket.id) or 0,
+            action,
+            tonumber(ticket.playerUid) or 0,
+            tostring(ticket.playerName or ''),
+            adminUid,
+            adminName,
+            adminLevel,
+            tostring(ticket.title or ''),
+            tostring(ticket.subject or ''),
+            tostring(ticket.createdAt or '')
+        })
+    end)
+
+    if not ok then
+        print('[DRIFTZONE_TICKETS] ticket_logs insert failed: ' .. tostring(err))
+    end
+end
+
+local function incrementAdminTickets(adminUid)
+    adminUid = tonumber(adminUid)
+
+    if not adminUid or adminUid <= 0 then return end
+
+    local tbl = tableName()
+    local uidCol = uidColumn()
+
+    if not columnExists(tbl, 'tickets') then
+        print('[DRIFTZONE_TICKETS] users.tickets lipseste. Ruleaza SQL-ul pentru coloana tickets.')
+        return
+    end
+
+    local ok, err = pcall(function()
+        MySQL.update.await(
+            ('UPDATE `%s` SET `tickets` = COALESCE(`tickets`, 0) + 1 WHERE `%s` = ? LIMIT 1'):format(tbl, uidCol),
+            { adminUid }
+        )
+    end)
+
+    if not ok then
+        print('[DRIFTZONE_TICKETS] increment users.tickets failed: ' .. tostring(err))
+    end
+end
+
 local function teleportAdminToPlayer(adminSrc, targetSrc)
     local adminPed = GetPlayerPed(adminSrc)
     local targetPed = GetPlayerPed(targetSrc)
@@ -471,6 +538,7 @@ local function cancelTicket(src)
         return
     end
 
+    insertTicketLog('cancelled', ticket, nil, nil)
     Tickets[ticket.id] = nil
 
     notify(src, 'info', 'Ai anulat ticket-ul.')
@@ -556,6 +624,8 @@ RegisterNetEvent('driftzone_tickets:server:create', function(payload)
     NextTicketId = NextTicketId + 1
     Tickets[ticket.id] = ticket
 
+    insertTicketLog('created', ticket, nil, nil)
+
     notify(src, 'info', 'Ai creat un ticket cu succes.')
     TriggerClientEvent('driftzone_tickets:client:close', src)
 
@@ -599,6 +669,7 @@ RegisterNetEvent('driftzone_tickets:server:accept', function(ticketId)
     local target = getPlayerByUid(ticket.playerUid)
 
     if not target then
+        insertTicketLog('deleted_offline', ticket, adminData, src)
         Tickets[id] = nil
         notify(src, 'warning', 'Jucatorul nu mai este online.')
         TriggerClientEvent('driftzone_tickets:client:openAdmin', src, getTicketList())
@@ -613,6 +684,9 @@ RegisterNetEvent('driftzone_tickets:server:accept', function(ticketId)
 
     local targetPed = GetPlayerPed(target)
     local coords = targetPed ~= 0 and GetEntityCoords(targetPed) or vector3(0, 0, 0)
+
+    insertTicketLog('accepted', ticket, adminData, src)
+    incrementAdminTickets(adminData.uid)
 
     createLog('acceptedtickets_logs', {
         ticket_id = id,
@@ -658,6 +732,8 @@ RegisterNetEvent('driftzone_tickets:server:delete', function(ticketId)
     if target then
         notify(target, 'error', 'Ticket-ul tau a fost sters de un admin.')
     end
+
+    insertTicketLog('deleted', ticket, adminData, src)
 
     createLog('deletetickets_logs', {
         ticket_id = id,

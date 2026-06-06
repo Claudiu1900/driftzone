@@ -5,7 +5,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'DriftZone Tickets System - Futuristic Optimized UI'
-version '1.1.0'
+version '1.2.0'
 
 ui_page 'html/index.html'
 

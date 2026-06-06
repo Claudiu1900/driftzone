@@ -4,9 +4,7 @@ const $ = (id) => document.getElementById(id);
 
 const counterEl = $('counter');
 const ticketCountEl = $('ticketCount');
-const sideTicketCountEl = $('sideTicketCount');
 const adminTicketCountEl = $('adminTicketCount');
-const modeLabelEl = $('modeLabel');
 const overlayEl = $('overlay');
 const userPanelEl = $('userPanel');
 const adminPanelEl = $('adminPanel');
@@ -45,7 +43,6 @@ function setCount(count) {
     const number = safeNumber(count);
 
     ticketCountEl.textContent = String(number);
-    sideTicketCountEl.textContent = String(number);
     adminTicketCountEl.textContent = String(number);
 
     counterEl.classList.toggle('hidden', number <= 0);
@@ -53,7 +50,6 @@ function setCount(count) {
 
 function setMode(mode) {
     lastMode = mode === 'admin' ? 'admin' : 'player';
-    modeLabelEl.textContent = lastMode === 'admin' ? 'STAFF' : 'PLAYER';
 }
 
 function closeLocal() {
@@ -108,7 +104,6 @@ function renderTickets(tickets) {
         : list;
 
     adminTicketCountEl.textContent = String(list.length);
-    sideTicketCountEl.textContent = String(list.length);
 
     if (filtered.length === 0) {
         ticketsListEl.innerHTML = `
