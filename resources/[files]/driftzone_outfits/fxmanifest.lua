@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Outfits - trigger only and sex filter'
-version '1.2.1'
+description 'DriftZone Outfits - commands, keybinds and sex filter'
+version '1.2.2'
 
 ui_page 'html/index.html'
 

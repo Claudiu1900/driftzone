@@ -1,48 +1,49 @@
-# DriftZone Outfits - SAFE Trigger Only + Sex Filter
+# DriftZone Outfits - Commands + Keybinds + Sex Filter
 
-## Important
+## Fix
 
-Nu mai are keybind intern.
-Nu mai are comenzi client `/outfit` sau `/outfits`.
+- Meniul se deschide din `/outfit`.
+- Meniul se deschide din `/outfits`.
+- Keybinds poate folosi `eventType = 'command'` cu `eventName = 'outfits'`.
+- Nu exista RegisterKeyMapping intern in `driftzone_outfits`, deci nu mai deschide singur pe O.
+- Sex filter ramane activ:
+  - `m` pentru `mp_m_freemode_01`
+  - `f` pentru `mp_f_freemode_01`
+- `/addoutfit` salveaza automat `sex` in tabela `outfits`.
 
-Deschiderea se face doar prin:
+## Comenzi
+
+```txt
+/outfit
+/outfits
+/addoutfit (nume) (link imagine optional)
+```
+
+`/addoutfit` necesita admin 7+ si aduty yes.
+
+## Ce pui in driftzone_keybinds/config.lua
+
+Varianta recomandata:
 
 ```lua
-TriggerEvent('driftzone_outfits:client:requestOpen')
+{
+    id = 'outfits',
+    name = 'Outfits',
+    description = 'Deschide meniul de outfit-uri',
+    key = 'K',
+    eventType = 'command',
+    eventName = 'outfits',
+    enabled = true
+}
 ```
 
-sau:
+Daca vrei pe alta tasta, schimbi doar:
 
 ```lua
-exports.driftzone_outfits:Open()
+key = 'K'
 ```
 
-## Sex filter
-
-La `/addoutfit`, sistemul detecteaza ped-ul:
-
-- `mp_m_freemode_01` => `m`
-- `mp_f_freemode_01` => `f`
-
-In DB se salveaza:
-
-```sql
-outfits.sex
-```
-
-Jucatorii vad doar outfit-uri pentru sexul caracterului lor.
-
-## SQL
-
-Ruleaza `SQL.sql` sau lasa resource-ul sa faca automat ALTER la pornire.
-
-## driftzone_keybinds
-
-La tasta setata de tine, pune client-side:
-
-```lua
-TriggerEvent('driftzone_outfits:client:requestOpen')
-```
+Nu folosi `O`, pentru ca la tine in `Config.KeyMap` este `O = nil`.
 
 ## server.cfg
 
@@ -52,4 +53,38 @@ ensure driftzone_auth
 ensure driftzone_notifications
 ensure driftzone_clothes
 ensure driftzone_outfits
+```
+
+## SQL
+
+Ruleaza `SQL.sql` in baza `driftzone`, sau lasa resource-ul sa faca automat:
+
+```sql
+ALTER TABLE `outfits` ADD COLUMN IF NOT EXISTS `sex` ENUM('m','f') NOT NULL DEFAULT 'm' AFTER `image`;
+```
+
+## Git
+
+Pe PC:
+
+```bash
+git add -A resources/[files]/driftzone_outfits
+git add -A resources/[files]/driftzone_keybinds
+git commit -m "Fix outfits commands and keybind open"
+git pull --rebase origin main
+git push origin main
+```
+
+Pe VPS:
+
+```bash
+cd ~/server-data
+git pull --rebase origin main
+```
+
+txAdmin:
+
+```txt
+restart driftzone_outfits
+restart driftzone_keybinds
 ```

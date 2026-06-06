@@ -147,6 +147,17 @@ RegisterNetEvent('driftzone_outfits:client:requestOpen', function()
     requestOpenFromServer()
 end)
 
+-- Comenzi client pentru keybinds si pentru /outfit /outfits.
+-- Nu are RegisterKeyMapping intern, deci nu mai deschide pe O singur.
+RegisterCommand('outfit', function()
+    requestOpenFromServer()
+end, false)
+
+RegisterCommand('outfits', function()
+    requestOpenFromServer()
+end, false)
+
+
 RegisterNetEvent('driftzone_outfits:client:apply', function(clothes)
     applyOutfit(clothes or {})
 end)
@@ -230,5 +241,5 @@ exports('RequestOpen', requestOpenFromServer)
 
 CreateThread(function()
     Wait(1000)
-    print('[DRIFTZONE_OUTFITS] Client-side loaded. Trigger-only mode.')
+    print('[DRIFTZONE_OUTFITS] Client-side loaded. Commands enabled: /outfit, /outfits.')
 end)

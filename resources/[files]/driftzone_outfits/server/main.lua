@@ -528,7 +528,7 @@ local function runCommand(src, command, args)
     end
 
     if command == 'outfit' or command == 'outfits' then
-        notify(src, 'warning', 'Outfits se deschide doar din keybinds.')
+        TriggerClientEvent('driftzone_outfits:client:requestOpen', src)
         return true
     end
 
@@ -540,6 +540,20 @@ RegisterCommand('addoutfit', function(src, args)
         addOutfit(src, args or {})
     end
 end, false)
+
+
+RegisterCommand('outfit', function(src)
+    if src ~= 0 then
+        TriggerClientEvent('driftzone_outfits:client:requestOpen', src)
+    end
+end, false)
+
+RegisterCommand('outfits', function(src)
+    if src ~= 0 then
+        TriggerClientEvent('driftzone_outfits:client:requestOpen', src)
+    end
+end, false)
+
 
 exports('RunCommand', function(src, command, args)
     return runCommand(src, command, args or {})
@@ -566,5 +580,5 @@ end)
 CreateThread(function()
     Wait(1000)
     ensureDatabase()
-    print('[DRIFTZONE_OUTFITS] Server-side loaded. Trigger-only + sex filter enabled.')
+    print('[DRIFTZONE_OUTFITS] Server-side loaded. Commands enabled: /outfit, /outfits, /addoutfit.')
 end)
