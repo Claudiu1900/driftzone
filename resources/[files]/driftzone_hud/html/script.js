@@ -9,6 +9,7 @@ const cashValue = document.getElementById('cashValue');
 const logo = document.getElementById('logo');
 
 let hudVisible = true;
+let hardHidden = false;
 let currentId = 0;
 let currentOnline = 0;
 let currentCash = 0;
@@ -46,18 +47,30 @@ function updateClock() {
     timeValue.textContent = `${hour}:${minute}`;
 }
 
-function setVisible(state) {
-    hudVisible = state === true;
-
-    if (hudVisible) {
+function applyVisibility() {
+    if (hudVisible === true && hardHidden !== true) {
         root.classList.remove('hidden');
     } else {
         root.classList.add('hidden');
     }
 }
 
+function setVisible(state) {
+    hudVisible = state === true;
+    applyVisibility();
+}
+
+function setHardHidden(state) {
+    hardHidden = state === true;
+    applyVisibility();
+}
+
 function update(data) {
     const payload = data || {};
+
+    if (typeof payload.hardHidden !== 'undefined') {
+        hardHidden = payload.hardHidden === true;
+    }
 
     if (payload.mainColor) {
         document.documentElement.style.setProperty('--main', payload.mainColor);
@@ -75,17 +88,31 @@ function update(data) {
     onlineValue.textContent = String(currentOnline);
     cashValue.textContent = formatMoney(currentCash);
 
-    setVisible(payload.visible !== false);
+    hudVisible = payload.visible !== false;
+    applyVisibility();
 }
 
 window.addEventListener('message', (event) => {
     const data = event.data || {};
+
+    if (data.action === 'hardHidden') {
+        setHardHidden(data.hardHidden === true);
+
+        if (typeof data.visible !== 'undefined') {
+            hudVisible = data.visible === true;
+            applyVisibility();
+        }
+    }
 
     if (data.action === 'update') {
         update(data.data || {});
     }
 
     if (data.action === 'visible') {
+        if (typeof data.hardHidden !== 'undefined') {
+            hardHidden = data.hardHidden === true;
+        }
+
         setVisible(data.visible === true);
     }
 });

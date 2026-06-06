@@ -1,8 +1,9 @@
 # driftzone_hud
 
-HUD DriftZone cu sistem normal show/hide si sistem hard hide.
+HUD DriftZone cu suport pentru normal hide/show si HARD HIDE.
 
 ## Triggere normale
+Acestea functioneaza doar daca HUD-ul nu este blocat cu hard hide:
 
 ```lua
 TriggerEvent('driftzone_hud:client:show')
@@ -13,26 +14,21 @@ TriggerEvent('driftzone_hud:visible', false)
 ```
 
 ## Hard hide
-
-Cand hard hide este activ, orice trigger normal de show nu mai poate afisa HUD-ul.
+Cand hard hide este activ, niciun trigger vechi de show nu mai poate afisa HUD-ul.
 
 ```lua
 TriggerEvent('driftzone_hud:client:lockHide')
-TriggerEvent('driftzone_hud:client:unlockHide')
+TriggerEvent('driftzone_hud:client:setHardHidden', true)
 ```
 
-Compatibil:
+Pentru deblocare:
 
 ```lua
-TriggerEvent('driftzone_hud:client:forceHide')
-TriggerEvent('driftzone_hud:client:forceShow')
-TriggerEvent('driftzone_hud:client:hardHide')
-TriggerEvent('driftzone_hud:client:hardShow')
-TriggerEvent('driftzone_hud:client:setHardHidden', true)
+TriggerEvent('driftzone_hud:client:unlockHide')
 TriggerEvent('driftzone_hud:client:setHardHidden', false)
 ```
 
-## Exports
+## Exporturi
 
 ```lua
 exports['driftzone_hud']:LockHide()
@@ -40,3 +36,6 @@ exports['driftzone_hud']:UnlockHide()
 exports['driftzone_hud']:SetHardHidden(true)
 exports['driftzone_hud']:SetHardHidden(false)
 ```
+
+## Important
+Hard hide se salveaza in KVP, deci ramane activ si dupa restart resource pana cand este dezactivat din settings sau cu `unlockHide`.

@@ -71,14 +71,12 @@ local function setHudVisible(value)
     value = value == true
 
     if value then
-        -- Deblocheaza hard hide-ul din driftzone_hud, apoi afiseaza HUD-ul.
+        -- ON din settings = deblocheaza hard hide-ul si arata HUD-ul.
         TriggerEvent('driftzone_hud:client:unlockHide')
         TriggerEvent('driftzone_hud:client:forceShow')
+        TriggerEvent('driftzone_hud:client:setHardHidden', false)
         TriggerEvent('driftzone_hud:client:show')
         TriggerEvent('driftzone_hud:visible', true)
-        TriggerEvent('driftzone_hud:client:visible', true)
-        TriggerEvent('driftzone_hud:client:setVisible', true)
-        TriggerEvent('driftzone_hud:setVisible', true)
 
         safeExport('driftzone_hud', 'UnlockHide')
         safeExport('driftzone_hud', 'ForceShow')
@@ -86,20 +84,15 @@ local function setHudVisible(value)
         safeExport('driftzone_hud', 'SetVisible', true)
         safeExport('driftzone_hud', 'Show')
     else
-        -- Hard hide: ascunde HUD-ul si blocheaza orice show normal pana toggle-ul revine pe ON.
+        -- OFF din settings = HARD HIDE.
+        -- Dupa asta, trigger-ele vechi de show NU mai pot afisa HUD-ul.
         TriggerEvent('driftzone_hud:client:lockHide')
         TriggerEvent('driftzone_hud:client:forceHide')
-        TriggerEvent('driftzone_hud:client:hide')
-        TriggerEvent('driftzone_hud:visible', false)
-        TriggerEvent('driftzone_hud:client:visible', false)
-        TriggerEvent('driftzone_hud:client:setVisible', false)
-        TriggerEvent('driftzone_hud:setVisible', false)
+        TriggerEvent('driftzone_hud:client:setHardHidden', true)
 
         safeExport('driftzone_hud', 'LockHide')
         safeExport('driftzone_hud', 'ForceHide')
         safeExport('driftzone_hud', 'SetHardHidden', true)
-        safeExport('driftzone_hud', 'SetVisible', false)
-        safeExport('driftzone_hud', 'Hide')
     end
 
     LocalPlayer.state:set('settings:hud', value, true)

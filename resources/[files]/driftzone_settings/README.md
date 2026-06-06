@@ -1,61 +1,17 @@
-# driftzone_settings - Voice Volume UI Toggle
+# driftzone_settings
 
-Settings fullscreen pentru:
-- driftzone_hud
-- radar/minimap
-- driftzone_overheadstats
-- driftzone_turometru
-- voice chat volume UI
+Settings pentru DriftZone:
+- HUD cu hard hide real;
+- Radar / minimap;
+- Overhead players;
+- Overhead personal;
+- Turometru;
+- Voice Volume UI.
 
-## Toggle nou
-
-```txt
-Voice Volume UI
-```
-
-Cand este ON:
+Cand toggle-ul HUD este OFF, foloseste hard hide:
 
 ```lua
-TriggerEvent('driftzone_voicechat:client:showVolumeUi')
-exports['driftzone_voicechat']:ShowVolumeUi()
+TriggerEvent('driftzone_hud:client:lockHide')
 ```
 
-Cand este OFF:
-
-```lua
-TriggerEvent('driftzone_voicechat:client:hideVolumeUi')
-exports['driftzone_voicechat']:HideVolumeUi()
-```
-
-## server.cfg recomandat
-
-```cfg
-ensure driftzone_hud
-ensure driftzone_overheadstats
-ensure driftzone_turometru
-ensure driftzone_voicechat
-ensure driftzone_settings
-```
-
-## Comanda
-
-```txt
-/settings
-```
-
-
-## HUD hard hide
-
-Toggle-ul `DriftZone HUD` foloseste acum hard hide din `driftzone_hud`.
-Cand este OFF, HUD-ul nu mai apare nici daca alt script trimite un trigger normal de show.
-Cand este ON, hard hide-ul este deblocat si HUD-ul apare normal.
-
-Server.cfg recomandat:
-
-```cfg
-ensure driftzone_hud
-ensure driftzone_overheadstats
-ensure driftzone_turometru
-ensure driftzone_voicechat
-ensure driftzone_settings
-```
+Cat timp hard hide este activ, trigger-ele vechi precum `driftzone_hud:client:show` sau `driftzone_hud:visible, true` nu mai pot afisa HUD-ul.
