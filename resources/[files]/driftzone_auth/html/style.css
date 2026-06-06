@@ -238,16 +238,6 @@ input[readonly] {
     color: var(--main);
 }
 
-.bottom-line {
-    position: fixed;
-    left: 24%;
-    right: 24%;
-    bottom: 0;
-    height: 2px;
-    background: var(--main);
-    box-shadow: 0 0 24px var(--glow);
-}
-
 @keyframes panelIn {
     from {
         opacity: 0;
