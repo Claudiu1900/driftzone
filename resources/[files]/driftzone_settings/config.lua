@@ -26,7 +26,7 @@ Config.Toggles = {
         title = 'Overhead Personal',
         description = 'Controleaza daca TU iti vezi propriul overhead local.',
         category = 'Overhead',
-        default = true
+        default = false
     },
     {
         id = 'turometru',
