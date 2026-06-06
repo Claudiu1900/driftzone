@@ -138,9 +138,6 @@ local function setOthersVisible(value, silent)
         sendNui({ action = 'clear' })
     end
 
-    if not silent then
-        notify(showOthers and 'Overhead pentru ceilalti ON.' or 'Overhead pentru ceilalti OFF.')
-    end
 end
 
 local function setSelfVisible(value, silent)
@@ -149,10 +146,6 @@ local function setSelfVisible(value, silent)
 
     if not showOthers and not showSelf then
         sendNui({ action = 'clear' })
-    end
-
-    if not silent then
-        notify(showSelf and 'Overhead personal ON.' or 'Overhead personal OFF.')
     end
 end
 
