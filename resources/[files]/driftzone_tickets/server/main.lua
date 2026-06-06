@@ -630,7 +630,7 @@ RegisterNetEvent('driftzone_tickets:server:accept', function(ticketId)
 
     Tickets[id] = nil
 
-    TriggerClientEvent('driftzone_tickets:client:openAdmin', src, getTicketList())
+    TriggerClientEvent('driftzone_tickets:client:close', src)
     updateAdminCounters()
 end)
 
