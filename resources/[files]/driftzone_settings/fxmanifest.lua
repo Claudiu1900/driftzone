@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Settings - fullscreen futuristic settings menu'
-version '1.0.0'
+description 'DriftZone Settings - HUD Overhead Radar'
+version '1.1.0'
 
 ui_page 'html/index.html'
 

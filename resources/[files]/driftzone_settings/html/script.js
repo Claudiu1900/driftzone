@@ -3,6 +3,9 @@
 const overlay = document.getElementById('overlay');
 const list = document.getElementById('settingsList');
 const categoryList = document.getElementById('categoryList');
+const enabledCount = document.getElementById('enabledCount');
+const disabledCount = document.getElementById('disabledCount');
+const totalCount = document.getElementById('totalCount');
 
 let toggles = [];
 let values = {};
@@ -26,15 +29,15 @@ function escapeHtml(value) {
         .replace(/'/g, '&#039;');
 }
 
-function iconFor(category) {
+function iconFor(id, category) {
     const icons = {
-        Interface: `<svg viewBox="0 0 24 24"><path d="M4 5h16v11H4zM8 21h8M10 16l-1 5M14 16l1 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-        Overhead: `<svg viewBox="0 0 24 24"><path d="M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 21a8 8 0 0 1 16 0M5 5l2 2M19 5l-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
-        Vehicle: `<svg viewBox="0 0 24 24"><path d="M5 14l2-6h10l2 6M6 14h12v5H6zM8 19v2M16 19v2M7 14l-2 2M17 14l2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-        Voice: `<svg viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+        hud: `<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h5M8 13h8M8 17h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+        radar: `<svg viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 12l5-3M12 3v3M12 18v3M3 12h3M18 12h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+        overhead_others: `<svg viewBox="0 0 24 24"><path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM16.5 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 21a6 6 0 0 1 12 0M13.5 18a5 5 0 0 1 8.5 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+        overhead_self: `<svg viewBox="0 0 24 24"><path d="M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0M12 14v4M10 16h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
     };
 
-    return icons[category] || `<svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 12h2M18 12h2M12 4v2M12 18v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+    return icons[id] || `<svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 12h2M18 12h2M12 4v2M12 18v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 }
 
 function categories() {
@@ -50,8 +53,7 @@ function renderCategories() {
         const active = category === activeCategory ? 'active' : '';
 
         return `
-            <button class="nav-item ${active}" onclick="setCategory('${escapeHtml(category)}')">
-                ${category === 'All' ? iconFor('Other') : iconFor(category)}
+            <button class="navItem ${active}" onclick="setCategory('${escapeHtml(category)}')">
                 <span>${escapeHtml(category)}</span>
             </button>
         `;
@@ -64,30 +66,42 @@ function setCategory(category) {
     renderList();
 }
 
+function updateStats() {
+    const total = toggles.length;
+    const enabled = toggles.filter((item) => values[item.id] === true).length;
+    const disabled = total - enabled;
+
+    enabledCount.textContent = String(enabled);
+    disabledCount.textContent = String(disabled);
+    totalCount.textContent = String(total);
+}
+
 function renderList() {
     const visible = activeCategory === 'All'
         ? toggles
         : toggles.filter((item) => (item.category || 'Other') === activeCategory);
+
+    updateStats();
 
     list.innerHTML = visible.map((item) => {
         const enabled = values[item.id] === true;
         const state = enabled ? 'on' : 'off';
 
         return `
-            <div class="setting-card">
-                <div class="setting-left">
-                    <div class="setting-icon">${iconFor(item.category)}</div>
+            <div class="settingCard ${state}">
+                <div class="left">
+                    <div class="icon">${iconFor(item.id, item.category)}</div>
                     <div>
+                        <div class="topline">${escapeHtml(item.category || 'Other')}</div>
                         <h2>${escapeHtml(item.title)}</h2>
                         <p>${escapeHtml(item.description)}</p>
-                        <span class="tag">${escapeHtml(item.category || 'Other')}</span>
                     </div>
                 </div>
 
                 <button class="toggle ${state}" onclick="toggleSetting('${escapeHtml(item.id)}')">
-                    <span class="toggle-text off-text">OFF</span>
-                    <span class="toggle-knob"></span>
-                    <span class="toggle-text on-text">ON</span>
+                    <span class="text offText">OFF</span>
+                    <span class="knob"></span>
+                    <span class="text onText">ON</span>
                 </button>
             </div>
         `;

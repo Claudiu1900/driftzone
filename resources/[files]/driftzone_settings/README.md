@@ -1,81 +1,53 @@
-# driftzone_settings
+# driftzone_settings v2
 
-Fullscreen futuristic settings UI pentru DriftZone.
+Settings fullscreen doar pentru:
+- driftzone_hud
+- driftzone_overheadstats
+- radar/minimap
 
-## Comanda
+## Toggle-uri
 
 ```txt
-/settings
+DriftZone HUD
+Radar / Minimap
+Overhead Players
+Overhead Personal
 ```
 
-## Toggle-uri incluse
+## Overhead corect
 
-- HUD
-- Minimap
-- Tickets Counter
-- Turometru / Speedometer
-- Vehicle Stats
-- Voice UI
-- Overhead Stats
-- Overhead Names
-- Overhead IDs
-- Overhead Admin Badge
-- Overhead Health / Armor
-- Notifications
-
-## Cum functioneaza
-
-Setarile sunt salvate local cu KVP pe fiecare client.
-
-Resource-ul trimite eventuri/exports catre sistemele deja existente:
+Conform `driftzone_overheadstats`:
 
 ```lua
-driftzone_hud
-driftzone_overheadstats
-driftzone_turometru
-driftzone_vs
-driftzone_voicechat
-driftzone_tickets
-driftzone_notifications
+TriggerEvent('driftzone_overheadstats:client:showAll')
+TriggerEvent('driftzone_overheadstats:client:hideAll')
+
+TriggerEvent('driftzone_overheadstats:client:showPersonal')
+TriggerEvent('driftzone_overheadstats:client:hidePersonal')
 ```
 
-Pentru integrare extra, alte resource-uri pot asculta:
+## Radar/minimap
+
+Cand radarul este OFF, resource-ul ruleaza loop si forteaza:
 
 ```lua
-AddEventHandler('driftzone_settings:client:changed', function(id, value)
-    -- id = toggle id
-    -- value = true/false
-end)
+DisplayRadar(false)
+SetRadarBigmapEnabled(false, false)
 ```
 
-Sau pot citi state bag:
-
-```lua
-LocalPlayer.state['settings:hud']
-LocalPlayer.state['settings:overhead']
-```
+ca sa nu reapara cand intri in masina.
 
 ## server.cfg
 
 ```cfg
-ensure driftzone_settings
-```
-
-Recomandat dupa HUD/voice/overhead:
-
-```cfg
 ensure driftzone_hud
 ensure driftzone_overheadstats
-ensure driftzone_voicechat
-ensure driftzone_turometru
-ensure driftzone_vs
-ensure driftzone_tickets
 ensure driftzone_settings
 ```
 
-## Pentru driftzone_chat custom
+## Chat custom
 
-Daca din F8 merge, dar din chat nu merge:
+Daca din F8 merge dar din chat nu:
 
 ```lua
 settings = 'driftzone_settings',
@@ -93,7 +65,7 @@ Pe PC:
 
 ```bash
 git add -A resources/[files]/driftzone_settings
-git commit -m "Add fullscreen settings menu"
+git commit -m "Fix settings toggles for hud overhead radar"
 git pull --rebase origin main
 git push origin main
 ```
@@ -106,12 +78,6 @@ git pull --rebase origin main
 ```
 
 txAdmin:
-
-```txt
-ensure driftzone_settings
-```
-
-sau:
 
 ```txt
 restart driftzone_settings

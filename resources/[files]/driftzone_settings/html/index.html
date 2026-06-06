@@ -8,53 +8,54 @@
 <body>
     <div id="overlay" class="overlay hidden">
         <div class="grid"></div>
+        <div class="scanlines"></div>
         <div class="orb orb-a"></div>
         <div class="orb orb-b"></div>
 
         <div class="shell">
             <aside class="side">
                 <div class="brand">
-                    <div class="brand-icon">
+                    <div class="brandIcon">
                         <svg viewBox="0 0 64 64">
                             <path d="M32 6l22 13v26L32 58 10 45V19L32 6z" fill="none" stroke="currentColor" stroke-width="3"/>
-                            <path d="M32 22a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" fill="none" stroke="currentColor" stroke-width="3"/>
-                            <path d="M32 13v8M32 43v8M13 32h8M43 32h8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                            <path d="M22 32h20M32 22v20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                            <path d="M20 18l12-7 12 7" fill="none" stroke="currentColor" stroke-width="2" opacity=".55"/>
                         </svg>
                     </div>
                     <div>
-                        <div class="brand-title">DriftZone</div>
-                        <div class="brand-sub">Settings Core</div>
+                        <div class="brandTitle">DriftZone</div>
+                        <div class="brandSub">Client Settings</div>
                     </div>
                 </div>
 
-                <div class="side-card">
-                    <div class="kicker">Profile</div>
-                    <div class="side-title">Client Settings</div>
-                    <p>Setarile se salveaza local pe PC-ul tau si se aplica automat la reconnect.</p>
+                <div class="sideCard">
+                    <span class="kicker">Active Profile</span>
+                    <h2>Visual Core</h2>
+                    <p>Setari locale pentru HUD, radar si overhead stats. Se salveaza automat pe client.</p>
                 </div>
 
                 <div class="nav" id="categoryList"></div>
 
                 <button class="reset" onclick="resetSettings()">
                     <svg viewBox="0 0 24 24">
-                        <path d="M4 12a8 8 0 1 0 2.34-5.66M4 4v6h6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M4 12a8 8 0 1 0 2.34-5.66M4 4v6h6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    Reset defaults
+                    Reset
                 </button>
             </aside>
 
             <main class="main">
                 <button class="close" onclick="closeSettings()">
                     <svg viewBox="0 0 24 24">
-                        <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                        <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
                     </svg>
                 </button>
 
                 <header class="header">
                     <div>
-                        <div class="kicker">Interface Control</div>
+                        <span class="kicker">DriftZone Control Panel</span>
                         <h1>Settings</h1>
-                        <p>Controleaza rapid HUD-ul, overhead stats, voice UI si sistemele vizuale DriftZone.</p>
+                        <p>Controleaza rapid elementele vizuale importante ale serverului.</p>
                     </div>
 
                     <div class="status">
@@ -63,7 +64,22 @@
                     </div>
                 </header>
 
-                <section id="settingsList" class="settings-list"></section>
+                <section class="summary">
+                    <div>
+                        <b id="enabledCount">0</b>
+                        <span>Enabled</span>
+                    </div>
+                    <div>
+                        <b id="disabledCount">0</b>
+                        <span>Disabled</span>
+                    </div>
+                    <div>
+                        <b id="totalCount">0</b>
+                        <span>Total Toggles</span>
+                    </div>
+                </section>
+
+                <section id="settingsList" class="settingsList"></section>
             </main>
         </div>
     </div>

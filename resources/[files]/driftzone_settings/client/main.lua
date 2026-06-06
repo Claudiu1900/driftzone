@@ -2,6 +2,7 @@ local nuiReady = false
 local menuOpen = false
 local settings = {}
 local pendingOpen = false
+local radarHidden = false
 
 local function kvpKey(id)
     return tostring(Config.KvpPrefix or 'driftzone_settings_') .. tostring(id)
@@ -16,24 +17,16 @@ local function boolFromKvp(value, default)
     return value == '1' or value == 'true' or value == 'yes' or value == 'on'
 end
 
+local function notify(message)
+    if Config.Notify and Config.Notify.enabled then
+        TriggerEvent(Config.Notify.event or 'client:notify', 'info', 3000, tostring(message or ''))
+    end
+end
+
 local function sendNui(data)
     if not nuiReady then return false end
     SendNUIMessage(data)
     return true
-end
-
-local function setFocus(state)
-    menuOpen = state == true
-    SetNuiFocus(menuOpen, menuOpen)
-    SetNuiFocusKeepInput(false)
-
-    if menuOpen then
-        TriggerEvent('driftzone_hud:visible', false)
-    else
-        if settings.hud ~= false then
-            TriggerEvent('driftzone_hud:visible', true)
-        end
-    end
 end
 
 local function defaultSettings()
@@ -63,73 +56,101 @@ local function saveSetting(id, value)
 end
 
 local function safeExport(resource, exportName, ...)
-    if GetResourceState(resource) ~= 'started' then return end
+    if GetResourceState(resource) ~= 'started' then return false end
 
-    pcall(function(...)
-        exports[resource][exportName](exports[resource], ...)
-    end, ...)
+    local args = { ... }
+
+    local ok = pcall(function()
+        exports[resource][exportName](table.unpack(args))
+    end)
+
+    return ok == true
 end
 
-local function emitSettingEvent(id, value)
-    TriggerEvent('driftzone_settings:client:changed', id, value)
-    TriggerEvent(('driftzone_settings:client:%s'):format(id), value)
+local function setHudVisible(value)
+    value = value == true
 
-    -- Server/client resources pot asculta aceste state bags daca vor integra direct.
-    LocalPlayer.state:set(('settings:%s'):format(id), value, true)
+    -- Eventuri compatibile cu sistemele tale anterioare.
+    TriggerEvent('driftzone_hud:visible', value)
+    TriggerEvent('driftzone_hud:client:visible', value)
+    TriggerEvent('driftzone_hud:client:setVisible', value)
+    TriggerEvent('driftzone_hud:setVisible', value)
+
+    safeExport('driftzone_hud', 'SetVisible', value)
+    safeExport('driftzone_hud', 'setVisible', value)
+
+    LocalPlayer.state:set('settings:hud', value, true)
+end
+
+local function setRadarVisible(value)
+    value = value == true
+    radarHidden = not value
+
+    if value then
+        DisplayRadar(true)
+        SetRadarBigmapEnabled(false, false)
+    else
+        SetRadarBigmapEnabled(false, false)
+        DisplayRadar(false)
+    end
+
+    LocalPlayer.state:set('settings:radar', value, true)
+end
+
+local function setOverheadOthers(value)
+    value = value == true
+
+    -- Corect conform driftzone_overheadstats:
+    -- showAll/hideAll controleaza DOAR ce vezi tu la ceilalti.
+    if value then
+        TriggerEvent('driftzone_overheadstats:client:showAll')
+        safeExport('driftzone_overheadstats', 'ShowAll')
+    else
+        TriggerEvent('driftzone_overheadstats:client:hideAll')
+        safeExport('driftzone_overheadstats', 'HideAll')
+    end
+
+    LocalPlayer.state:set('settings:overhead_others', value, true)
+end
+
+local function setOverheadSelf(value)
+    value = value == true
+
+    -- Corect conform driftzone_overheadstats:
+    -- showPersonal/hidePersonal controleaza DOAR overhead-ul tau local.
+    if value then
+        TriggerEvent('driftzone_overheadstats:client:showPersonal')
+        safeExport('driftzone_overheadstats', 'ShowPersonal')
+    else
+        TriggerEvent('driftzone_overheadstats:client:hidePersonal')
+        safeExport('driftzone_overheadstats', 'HidePersonal')
+    end
+
+    LocalPlayer.state:set('settings:overhead_self', value, true)
 end
 
 local function applySingle(id, value)
     value = value == true
 
     if id == 'hud' then
-        TriggerEvent('driftzone_hud:visible', value)
-        TriggerEvent('driftzone_hud:client:visible', value)
-        TriggerEvent('driftzone_hud:client:setVisible', value)
-        safeExport('driftzone_hud', 'SetVisible', value)
-    elseif id == 'minimap' then
-        DisplayRadar(value)
-    elseif id == 'tickets_counter' then
-        TriggerEvent('driftzone_tickets:client:setCounterVisible', value)
-        safeExport('driftzone_tickets', 'SetCounterVisible', value)
-    elseif id == 'speedometer' then
-        TriggerEvent('driftzone_turometru:client:setVisible', value)
-        TriggerEvent('driftzone_turometru:setVisible', value)
-        safeExport('driftzone_turometru', 'SetVisible', value)
-    elseif id == 'vehicle_stats' then
-        TriggerEvent('driftzone_vs:client:setVisible', value)
-        safeExport('driftzone_vs', 'SetVisible', value)
-    elseif id == 'voice_ui' then
-        TriggerEvent('driftzone_voicechat:client:setVisible', value)
-        safeExport('driftzone_voicechat', 'SetVisible', value)
-    elseif id == 'overhead' then
-        TriggerEvent('driftzone_overheadstats:client:setVisible', value)
-        TriggerEvent('driftzone_overheadstats:client:setEnabled', value)
-        safeExport('driftzone_overheadstats', 'SetVisible', value)
-        safeExport('driftzone_overheadstats', 'SetEnabled', value)
-    elseif id == 'overhead_names' then
-        TriggerEvent('driftzone_overheadstats:client:setNamesVisible', value)
-        safeExport('driftzone_overheadstats', 'SetNamesVisible', value)
-    elseif id == 'overhead_ids' then
-        TriggerEvent('driftzone_overheadstats:client:setIdsVisible', value)
-        safeExport('driftzone_overheadstats', 'SetIdsVisible', value)
-    elseif id == 'overhead_admin' then
-        TriggerEvent('driftzone_overheadstats:client:setAdminVisible', value)
-        safeExport('driftzone_overheadstats', 'SetAdminVisible', value)
-    elseif id == 'overhead_health' then
-        TriggerEvent('driftzone_overheadstats:client:setHealthVisible', value)
-        safeExport('driftzone_overheadstats', 'SetHealthVisible', value)
-    elseif id == 'notifications' then
-        TriggerEvent('driftzone_notifications:client:setVisible', value)
-        safeExport('driftzone_notifications', 'SetVisible', value)
+        setHudVisible(value)
+    elseif id == 'radar' then
+        setRadarVisible(value)
+    elseif id == 'overhead_others' then
+        setOverheadOthers(value)
+    elseif id == 'overhead_self' then
+        setOverheadSelf(value)
     end
 
-    emitSettingEvent(id, value)
+    TriggerEvent('driftzone_settings:client:changed', id, value)
+    TriggerEvent(('driftzone_settings:client:%s'):format(id), value)
 end
 
 local function applyAll()
-    for id, value in pairs(settings) do
-        applySingle(id, value)
-    end
+    applySingle('hud', settings.hud == true)
+    applySingle('radar', settings.radar == true)
+    applySingle('overhead_others', settings.overhead_others == true)
+    applySingle('overhead_self', settings.overhead_self == true)
 end
 
 local function payload()
@@ -139,6 +160,12 @@ local function payload()
         toggles = Config.Toggles or {},
         values = settings
     }
+end
+
+local function setFocus(state)
+    menuOpen = state == true
+    SetNuiFocus(menuOpen, menuOpen)
+    SetNuiFocusKeepInput(false)
 end
 
 local function openSettings()
@@ -158,6 +185,7 @@ end
 
 RegisterNUICallback('ready', function(_, cb)
     nuiReady = true
+
     sendNui({
         action = 'init',
         mainColor = Config.MainColor or '#04c7f7',
@@ -234,19 +262,23 @@ exports('Apply', applyAll)
 CreateThread(function()
     loadSettings()
 
-    Wait(1500)
+    Wait(1200)
     applyAll()
 
     print('[DRIFTZONE_SETTINGS] Client-side loaded. Command: /' .. tostring(Config.Command or 'settings'))
 end)
 
+-- Radar OFF corect: GTA/FiveM poate reaprinde radarul cand intri in vehicul.
+-- Cand toggle-ul radar este OFF, il fortam ascuns constant.
 CreateThread(function()
     while true do
-        if settings.minimap == false then
+        if radarHidden then
             DisplayRadar(false)
-            Wait(500)
+            SetRadarBigmapEnabled(false, false)
+
+            Wait((Config.Radar and Config.Radar.hideLoopWait) or 0)
         else
-            Wait(1500)
+            Wait(750)
         end
     end
 end)
