@@ -107,11 +107,24 @@ function renderRaces() {
         const special = race.special === true;
         const title = escapeHtml(race.label || race.id);
         const cd = special ? timeFmtHMS(race.cooldownLeft) : timeFmt(race.cooldownLeft);
+        const stateText = locked ? cd : 'READY';
+        const desc = special
+            ? `${race.subLabel || 'Duo Race'} • ${race.description || ''}`
+            : (race.description || 'Race job DriftZone');
+
         return `<button class="race-card ${selected ? 'selected' : ''} ${locked ? 'locked' : ''} ${special ? 'special' : ''}" onclick="selectRace('${escapeHtml(race.id)}')">
-            <div class="race-top"><b>${title}</b><span>${locked ? cd : 'READY'}</span></div>
-            <p>${escapeHtml(special ? `${race.subLabel || 'Duo Race'} - ${race.description || ''}` : race.description)}</p>
+            <div class="race-glow"></div>
+            <div class="race-top">
+                <div class="race-name">
+                    <span>${special ? 'SPECIAL' : 'RACE'}</span>
+                    <b>${title}</b>
+                </div>
+                <em>${stateText}</em>
+            </div>
+            <p>${escapeHtml(desc)}</p>
             <div class="race-meta">
-                <span>${money(race.rewardMin)} - ${money(race.rewardMax)}</span><span>${timeFmt(race.timeLimit)}</span>
+                <span>${money(race.rewardMin)} - ${money(race.rewardMax)}</span>
+                <span>${timeFmt(race.timeLimit)}</span>
             </div>
         </button>`;
     }).join('');
@@ -123,8 +136,17 @@ function renderVehicles() {
 }
 function vehicleCard(veh, duo = false) {
     const selected = duo ? (duoSelectedVehicle && Number(duoSelectedVehicle.id) === Number(veh.id)) : (selectedVehicle && Number(selectedVehicle.id) === Number(veh.id));
+    const title = escapeHtml(veh.name || veh.model || 'Vehicle');
+    const model = escapeHtml(veh.model || 'model');
+    const plate = escapeHtml(veh.plate || 'DRIFT');
+
     return `<button class="vehicle-card ${selected ? 'selected' : ''}" onclick="${duo ? 'selectDuoVehicle' : 'selectVehicle'}(${Number(veh.id || 0)})">
-        <div class="vehicle-info"><b>${escapeHtml(veh.name || veh.model || 'Vehicle')}</b><span>${escapeHtml(veh.model || 'model')} • ${escapeHtml(veh.plate || 'DRIFT')}</span></div>
+        <div class="vehicle-mark"><svg viewBox="0 0 24 24"><path d="M5 13l1.7-4.5A3 3 0 0 1 9.5 6.6h5a3 3 0 0 1 2.8 1.9L19 13M4.5 13h15v5.2H17v-1.7H7v1.7H4.5V13Zm3.2 0h8.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="vehicle-info">
+            <b>${title}</b>
+            <span>${model}</span>
+        </div>
+        <small>${plate}</small>
     </button>`;
 }
 function selectRace(id) {

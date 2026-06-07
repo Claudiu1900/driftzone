@@ -2,57 +2,102 @@
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DriftZone Race Job</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="raceMenu" class="race-menu hidden">
-        <div class="bg-grid"></div>
-        <div class="panel">
-            <button class="close" onclick="closeMenu()">×</button>
-            <header class="header">
-                <span class="eyebrow">DriftZone Work System</span>
-                <h1>Race Job</h1>
-                <p>Alege o cursa, selecteaza o singura masina personala si porneste job-ul.</p>
+        <div class="scene">
+            <div class="aurora aurora-a"></div>
+            <div class="aurora aurora-b"></div>
+            <div class="noise"></div>
+            <div class="gridline"></div>
+        </div>
+
+        <div class="app-shell">
+            <button class="close" onclick="closeMenu()" aria-label="Inchide">×</button>
+
+            <header class="hero">
+                <div class="hero-copy">
+                    <span class="eyebrow">DriftZone Jobs</span>
+                    <h1>Race Job</h1>
+                    <p>Alege cursa, selecteaza masina personala si porneste job-ul. Totul este privat, rapid si sincronizat.</p>
+                </div>
+                <div class="hero-status">
+                    <span class="live-dot"></span>
+                    <b>ONLINE</b>
+                    <small>Race Core</small>
+                </div>
             </header>
 
-            <section class="layout">
-                <div class="race-column">
-                    <div class="section-title">Curse disponibile</div>
+            <section class="content-grid">
+                <div class="column races-col">
+                    <div class="section-head">
+                        <div>
+                            <span>01</span>
+                            <b>Curse disponibile</b>
+                        </div>
+                        <small>Selecteaza ruta</small>
+                    </div>
                     <div id="raceList" class="race-list"></div>
                 </div>
-                <div class="vehicle-column">
-                    <div class="section-title">Masina ta</div>
-                    <input id="searchInput" class="search" placeholder="Cauta masina dupa nume, model sau numar..." oninput="renderVehicles()">
+
+                <div class="column vehicles-col">
+                    <div class="section-head">
+                        <div>
+                            <span>02</span>
+                            <b>Garaj personal</b>
+                        </div>
+                        <small>Alege o masina</small>
+                    </div>
+
+                    <div class="search-wrap">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.8 18.1a7.3 7.3 0 1 1 0-14.6 7.3 7.3 0 0 1 0 14.6Zm5.3-1.7 4.2 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                        <input id="searchInput" class="search" placeholder="Cauta dupa nume, model sau numar..." oninput="renderVehicles()">
+                    </div>
+
                     <div id="vehicleList" class="vehicle-list"></div>
                 </div>
             </section>
 
-            <footer class="bottom">
-                <div class="selected-box">
+            <footer class="selection-bar">
+                <div class="selection-panel">
+                    <span class="selection-kicker">Selectie curenta</span>
                     <b id="selectedTitle">Nimic selectat</b>
-                    <span id="selectedSub">Alege o cursa si o masina pentru start.</span>
+                    <small id="selectedSub">Alege o cursa si o masina pentru start.</small>
                 </div>
-                <button id="startBtn" class="start-btn" onclick="startRace()" disabled>START</button>
+                <button id="startBtn" class="primary-btn" onclick="startRace()" disabled>
+                    <span>START RACE</span>
+                    <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
             </footer>
         </div>
     </div>
 
     <div id="inviteMenu" class="invite-menu hidden">
-        <div class="invite-panel">
-            <button class="close" onclick="closeInvite()">×</button>
-            <span class="gold-kicker">SPECIAL</span>
+        <div class="scene"><div class="aurora aurora-gold"></div><div class="noise"></div></div>
+        <div class="invite-panel glass-gold">
+            <button class="close" onclick="closeInvite()" aria-label="Inchide">×</button>
+            <span class="gold-kicker">SPECIAL DELIVERY</span>
             <h2>Duo Race</h2>
-            <p>Invita un prieten, alegeti fiecare masina personala si impartiti recompensa finala.</p>
-            <input id="friendId" class="friend-input" placeholder="Pune UID-ul prietenului tau...">
+            <p>Invita un prieten cu UID-ul lui. Dupa accept, fiecare isi alege masina si porniti cursa sincronizat.</p>
+
+            <label class="input-label">UID prieten</label>
+            <input id="friendId" class="friend-input" placeholder="Ex: 24" inputmode="numeric">
             <div id="inviteError" class="invite-error hidden"></div>
-            <button id="inviteBtn" class="invite-btn" onclick="sendInvite()">INVITE</button>
+
+            <button id="inviteBtn" class="gold-btn" onclick="sendInvite()">
+                <span>Trimite invite</span>
+                <svg viewBox="0 0 24 24"><path d="M4 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
         </div>
     </div>
 
     <div id="duoGarage" class="duo-garage hidden">
-        <div class="duo-panel">
-            <button class="close" onclick="closeDuoGarage()">×</button>
+        <div class="scene"><div class="aurora aurora-gold"></div><div class="noise"></div><div class="gridline"></div></div>
+        <div class="duo-panel glass-gold">
+            <button class="close" onclick="closeDuoGarage()" aria-label="Inchide">×</button>
             <div class="duo-head">
                 <div>
                     <span class="gold-kicker">SPECIAL DUO</span>
@@ -62,7 +107,10 @@
                 <div class="ready-box"><span id="readyState">WAITING</span></div>
             </div>
             <div id="duoVehicleList" class="vehicle-list duo-list"></div>
-            <button id="duoReadyBtn" class="start-btn duo-ready" onclick="duoReady()" disabled>READY</button>
+            <button id="duoReadyBtn" class="gold-btn duo-ready" onclick="duoReady()" disabled>
+                <span>READY</span>
+                <svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
         </div>
     </div>
 
@@ -77,20 +125,21 @@
     <div id="rewardScreen" class="reward-screen hidden">
         <div class="reward-card">
             <span class="gold-kicker">DUO RACE COMPLETE</span>
-            <div class="reward-totals">
+            <h2>Reward Split</h2>
+            <div class="reward-pool">
                 <div>
-                    <h2 id="rewardTotal">$0</h2>
-                    <p>Cash total ramas</p>
+                    <small>Cash pool</small>
+                    <b id="rewardTotal">$0</b>
                 </div>
                 <div>
-                    <h3 id="rewardTotalXp">0 XP</h3>
-                    <p>XP total ramas</p>
+                    <small>XP pool</small>
+                    <b id="rewardTotalXp">0 XP</b>
                 </div>
             </div>
             <div class="split-row">
-                <div class="player-reward left"><b id="rewardP1Name">Player 1</b><span id="rewardP1Cash">$0</span><small id="rewardP1Xp">0 XP</small></div>
-                <div class="split-line"></div>
-                <div class="player-reward right"><b id="rewardP2Name">Player 2</b><span id="rewardP2Cash">$0</span><small id="rewardP2Xp">0 XP</small></div>
+                <div class="player-reward"><b id="rewardP1Name">Player 1</b><span id="rewardP1Cash">$0</span><small id="rewardP1Xp">0 XP</small></div>
+                <div class="split-core"><span></span></div>
+                <div class="player-reward"><b id="rewardP2Name">Player 2</b><span id="rewardP2Cash">$0</span><small id="rewardP2Xp">0 XP</small></div>
             </div>
         </div>
     </div>
