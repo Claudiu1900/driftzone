@@ -2,51 +2,59 @@
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
-    <title>DriftZone RaceJob</title>
+    <title>DriftZone Race Job</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="root" class="root hidden">
-        <div class="grid"></div>
-        <div class="glow glow-a"></div>
-        <div class="glow glow-b"></div>
-
-        <div class="shell">
+    <div id="raceMenu" class="race-menu hidden">
+        <div class="grid-bg"></div>
+        <div class="panel">
             <button class="close" onclick="closeMenu()">×</button>
 
             <header class="header">
                 <div>
-                    <div class="kicker">DriftZone Jobs</div>
+                    <span class="eyebrow">DriftZone Work System</span>
                     <h1>Race Job</h1>
-                    <p>Alege cursa, selecteaza masina ta si porneste job-ul.</p>
+                    <p>Alege cursa, selecteaza masina personala si porneste job-ul.</p>
                 </div>
-                <div class="status">
-                    <span></span>
-                    ACTIVE
+                <div class="status-card">
+                    <b id="raceCount">3</b>
+                    <span>race modes</span>
                 </div>
             </header>
 
-            <section class="modes" id="raceModes"></section>
-
-            <div class="section-title">
-                <div>
-                    <span class="kicker">Owned Vehicles</span>
-                    <h2>Masinile tale</h2>
+            <section class="layout">
+                <div class="race-column">
+                    <div class="section-title">Race Mode</div>
+                    <div id="raceList" class="race-list"></div>
                 </div>
-                <input id="searchInput" placeholder="Cauta masina..." oninput="renderVehicles()">
-            </div>
 
-            <section id="vehiclesGrid" class="vehicles"></section>
+                <div class="vehicle-column">
+                    <div class="section-title">Masina ta</div>
+                    <input id="searchInput" class="search" placeholder="Cauta masina dupa nume, model sau numar..." oninput="renderVehicles()">
+                    <div id="vehicleList" class="vehicle-list"></div>
+                </div>
+            </section>
 
             <footer class="bottom">
-                <div class="selected">
-                    <b id="selectedTitle">Nicio masina selectata</b>
-                    <span id="selectedMeta">Selecteaza un mod si o masina pentru a incepe.</span>
+                <div class="selected-box">
+                    <b id="selectedTitle">Nimic selectat</b>
+                    <span id="selectedSub">Alege o cursa si o masina pentru start.</span>
                 </div>
-
-                <button id="startButton" class="start" onclick="startRace()">START RACE</button>
+                <button id="startBtn" class="start-btn" onclick="startRace()" disabled>START RACE</button>
             </footer>
         </div>
+    </div>
+
+    <div id="raceHud" class="race-hud hidden">
+        <div class="hud-corner"></div>
+        <div class="hud-label" id="hudRaceName">Race</div>
+        <div class="hud-time" id="hudTime">0:00</div>
+        <div class="hud-sub">Timp ramas</div>
+    </div>
+
+    <div id="countdown" class="countdown hidden">
+        <div id="countdownText" class="countdown-text">3</div>
     </div>
 
     <script src="script.js"></script>

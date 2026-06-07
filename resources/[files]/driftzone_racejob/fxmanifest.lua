@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone RaceJob - short race job with owned vehicles'
-version '1.0.1'
+description 'DriftZone Race Job - private bucket races, cooldowns, tuning, rewards'
+version '2.0.0'
 
 ui_page 'html/index.html'
 

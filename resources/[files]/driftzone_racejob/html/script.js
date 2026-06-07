@@ -1,18 +1,23 @@
 'use strict';
 
-const root = document.getElementById('root');
-const raceModesEl = document.getElementById('raceModes');
-const vehiclesGrid = document.getElementById('vehiclesGrid');
+const raceMenu = document.getElementById('raceMenu');
+const raceList = document.getElementById('raceList');
+const vehicleList = document.getElementById('vehicleList');
 const searchInput = document.getElementById('searchInput');
+const startBtn = document.getElementById('startBtn');
 const selectedTitle = document.getElementById('selectedTitle');
-const selectedMeta = document.getElementById('selectedMeta');
-const startButton = document.getElementById('startButton');
+const selectedSub = document.getElementById('selectedSub');
+const raceCount = document.getElementById('raceCount');
+const raceHud = document.getElementById('raceHud');
+const hudRaceName = document.getElementById('hudRaceName');
+const hudTime = document.getElementById('hudTime');
+const countdown = document.getElementById('countdown');
+const countdownText = document.getElementById('countdownText');
 
 let races = [];
 let vehicles = [];
-let selectedRace = 'short';
-let selectedVehicleId = null;
-let mainColor = '#04c7f7';
+let selectedRace = null;
+let selectedVehicle = null;
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -31,55 +36,84 @@ function escapeHtml(value) {
         .replace(/'/g, '&#039;');
 }
 
-function currentRace() {
-    return races.find((race) => race.id === selectedRace) || races[0] || null;
+function money(value) {
+    return '$' + Number(value || 0).toLocaleString('en-US');
 }
 
-function currentVehicle() {
-    return vehicles.find((veh) => Number(veh.id) === Number(selectedVehicleId)) || null;
+function timeFmt(seconds) {
+    seconds = Math.max(0, Number(seconds || 0));
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function renderModes() {
-    raceModesEl.innerHTML = races.map((race) => {
-        const active = race.id === selectedRace ? 'active' : '';
-        const disabled = race.enabled === false ? 'disabled' : '';
+function setMainColor(color) {
+    if (color) document.documentElement.style.setProperty('--main', color);
+}
 
+function openMenu(data) {
+    races = Array.isArray(data.races) ? data.races : [];
+    vehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
+    selectedRace = null;
+    selectedVehicle = null;
+
+    setMainColor(data.mainColor);
+    raceCount.textContent = String(races.length);
+
+    renderRaces();
+    renderVehicles();
+    updateBottom();
+    raceMenu.classList.remove('hidden');
+}
+
+function closeMenu() {
+    raceMenu.classList.add('hidden');
+    nui('close');
+}
+
+function renderRaces() {
+    if (!races.length) {
+        raceList.innerHTML = '<div class="empty">Nu exista curse configurate.</div>';
+        return;
+    }
+
+    raceList.innerHTML = races.map((race) => {
+        const selected = selectedRace && selectedRace.id === race.id;
+        const locked = Number(race.cooldownLeft || 0) > 0;
         return `
-            <button class="mode ${active} ${disabled}" onclick="selectRace('${escapeHtml(race.id)}')" ${race.enabled === false ? 'disabled' : ''}>
-                <span>${escapeHtml(race.title)}</span>
-                <small>${escapeHtml(race.description)}</small>
+            <button class="race-card ${selected ? 'selected' : ''} ${locked ? 'locked' : ''}" onclick="selectRace('${escapeHtml(race.id)}')">
+                <div class="race-top">
+                    <b>${escapeHtml(race.label)}</b>
+                    <span>${locked ? timeFmt(race.cooldownLeft) : 'READY'}</span>
+                </div>
+                <p>${escapeHtml(race.description)}</p>
+                <div class="race-meta">
+                    <span>${money(race.rewardMin)} - ${money(race.rewardMax)}</span>
+                    <span>${timeFmt(race.timeLimit)}</span>
+                </div>
             </button>
         `;
     }).join('');
 }
 
 function renderVehicles() {
-    const query = (searchInput.value || '').trim().toLowerCase();
-    const list = query
-        ? vehicles.filter((veh) => `${veh.name} ${veh.model} ${veh.plate}`.toLowerCase().includes(query))
-        : vehicles;
+    const q = String(searchInput.value || '').trim().toLowerCase();
+    const list = vehicles.filter((v) => {
+        const text = `${v.name || ''} ${v.model || ''} ${v.plate || ''}`.toLowerCase();
+        return !q || text.includes(q);
+    });
 
     if (!list.length) {
-        vehiclesGrid.innerHTML = `
-            <div class="empty">
-                <b>Nu ai masini disponibile</b>
-                <span>Ai nevoie de o masina in ownedvehicles ca sa pornesti Race Job.</span>
-            </div>
-        `;
+        vehicleList.innerHTML = '<div class="empty">Nu ai masini disponibile.</div>';
         return;
     }
 
-    vehiclesGrid.innerHTML = list.map((veh) => {
-        const id = Number(veh.id || 0);
-        const active = id === Number(selectedVehicleId) ? 'selected' : '';
-        const img = String(veh.image || '').trim();
-
+    vehicleList.innerHTML = list.map((veh) => {
+        const selected = selectedVehicle && Number(selectedVehicle.id) === Number(veh.id);
         return `
-            <button class="vehicle ${active}" onclick="selectVehicle(${id})">
-                <div class="vehicle-img">
-                    ${img ? `<img src="${escapeHtml(img)}" onerror="this.remove()">` : `<span>${escapeHtml(String(veh.model || 'CAR').slice(0, 3).toUpperCase())}</span>`}
-                </div>
-                <div class="vehicle-info">
+            <button class="vehicle-card ${selected ? 'selected' : ''}" onclick="selectVehicle(${Number(veh.id || 0)})">
+                <div class="vehicle-icon">DZ</div>
+                <div>
                     <b>${escapeHtml(veh.name || veh.model || 'Vehicle')}</b>
                     <span>${escapeHtml(veh.model || 'model')} • ${escapeHtml(veh.plate || 'DRIFT')}</span>
                 </div>
@@ -88,94 +122,91 @@ function renderVehicles() {
     }).join('');
 }
 
-function updateSelected() {
-    const race = currentRace();
-    const veh = currentVehicle();
-
-    if (!race || !veh) {
-        selectedTitle.textContent = 'Nicio masina selectata';
-        selectedMeta.textContent = 'Selecteaza Short Race si o masina pentru a incepe.';
-        startButton.disabled = true;
-        return;
-    }
-
-    selectedTitle.textContent = `${race.title} cu ${veh.name || veh.model}`;
-    selectedMeta.textContent = `${veh.model || 'model'} • ${veh.plate || 'DRIFT'} • Reward $2.000 - $5.000`;
-    startButton.disabled = false;
-}
-
 function selectRace(id) {
-    const race = races.find((item) => item.id === id);
-
-    if (!race || race.enabled === false) return;
-
-    selectedRace = id;
-    renderModes();
-    updateSelected();
+    const race = races.find(r => String(r.id) === String(id));
+    if (!race) return;
+    selectedRace = race;
+    renderRaces();
+    updateBottom();
 }
 
 function selectVehicle(id) {
-    selectedVehicleId = Number(id || 0);
+    const vehicle = vehicles.find(v => Number(v.id) === Number(id));
+    if (!vehicle) return;
+    selectedVehicle = vehicle;
     renderVehicles();
-    updateSelected();
+    updateBottom();
+}
+
+function updateBottom() {
+    const raceReady = selectedRace && Number(selectedRace.cooldownLeft || 0) <= 0;
+    const ok = raceReady && selectedVehicle;
+
+    if (selectedRace && selectedVehicle) {
+        selectedTitle.textContent = `${selectedRace.label} cu ${selectedVehicle.name || selectedVehicle.model}`;
+        selectedSub.textContent = raceReady
+            ? `${money(selectedRace.rewardMin)} - ${money(selectedRace.rewardMax)} • timp ${timeFmt(selectedRace.timeLimit)}`
+            : `Cooldown ramas: ${timeFmt(selectedRace.cooldownLeft)}`;
+    } else if (selectedRace) {
+        selectedTitle.textContent = selectedRace.label;
+        selectedSub.textContent = raceReady ? 'Selecteaza masina pentru cursa.' : `Cooldown ramas: ${timeFmt(selectedRace.cooldownLeft)}`;
+    } else if (selectedVehicle) {
+        selectedTitle.textContent = selectedVehicle.name || selectedVehicle.model;
+        selectedSub.textContent = 'Selecteaza cursa pentru start.';
+    } else {
+        selectedTitle.textContent = 'Nimic selectat';
+        selectedSub.textContent = 'Alege o cursa si o masina pentru start.';
+    }
+
+    startBtn.disabled = !ok;
 }
 
 function startRace() {
-    const race = currentRace();
-    const veh = currentVehicle();
-
-    if (!race || !veh || race.enabled === false) return;
-
-    startButton.disabled = true;
-
-    nui('start', {
-        race: race.id,
-        vehicleId: Number(veh.id)
-    });
-
-    setTimeout(() => {
-        startButton.disabled = false;
-    }, 1500);
-}
-
-function open(data) {
-    mainColor = data.mainColor || mainColor;
-    document.documentElement.style.setProperty('--main', mainColor);
-
-    races = Array.isArray(data.races) ? data.races : [];
-    vehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
-    selectedRace = 'short';
-    selectedVehicleId = null;
-
-    if (searchInput) searchInput.value = '';
-
-    renderModes();
-    renderVehicles();
-    updateSelected();
-
-    root.classList.remove('hidden');
-}
-
-function closeMenu() {
-    root.classList.add('hidden');
-    nui('close');
+    if (!selectedRace || !selectedVehicle) return;
+    if (Number(selectedRace.cooldownLeft || 0) > 0) return;
+    startBtn.disabled = true;
+    nui('start', { raceId: selectedRace.id, vehicleId: selectedVehicle.id });
 }
 
 window.addEventListener('message', (event) => {
     const data = event.data || {};
 
-    if (data.action === 'open') open(data);
-    if (data.action === 'close') root.classList.add('hidden');
+    if (data.action === 'openMenu') openMenu(data);
+    if (data.action === 'closeMenu') raceMenu.classList.add('hidden');
+
+    if (data.action === 'raceHud') {
+        if (data.visible === true) {
+            raceHud.classList.remove('hidden');
+            hudRaceName.textContent = String(data.race || 'Race');
+            hudTime.textContent = String(data.time || '0:00');
+            raceHud.classList.remove('danger');
+        } else {
+            raceHud.classList.add('hidden');
+        }
+    }
+
+    if (data.action === 'timer') {
+        hudTime.textContent = String(data.time || '0:00');
+        raceHud.classList.toggle('danger', data.danger === true);
+    }
+
+    if (data.action === 'countdown') {
+        if (data.visible === true) {
+            countdownText.textContent = String(data.text || '3');
+            countdownText.classList.remove('pop');
+            void countdownText.offsetWidth;
+            countdownText.classList.add('pop');
+            countdown.classList.remove('hidden');
+        } else {
+            countdown.classList.add('hidden');
+        }
+    }
 });
 
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeMenu();
-});
-
+window.closeMenu = closeMenu;
 window.selectRace = selectRace;
 window.selectVehicle = selectVehicle;
-window.startRace = startRace;
-window.closeMenu = closeMenu;
 window.renderVehicles = renderVehicles;
+window.startRace = startRace;
 
 setTimeout(() => nui('ready'), 80);

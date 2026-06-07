@@ -1,5 +1,4 @@
--- Adauga acest item in Config.DefaultInteractions din driftzone_interactions/config.lua
-
+-- Adauga asta in Config.DefaultInteractions din driftzone_interactions/config.lua
 {
     id = 'driftzone_racejob_main',
     coords = vector3(-116.835160, -604.720886, 36.272584),

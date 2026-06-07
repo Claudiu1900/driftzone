@@ -2,64 +2,19 @@ Config = {}
 
 Config.MainColor = '#04c7f7'
 
-Config.OpenEvent = 'driftzone_racejob:client:openFromInteraction'
-
-Config.Reward = {
-    min = 2000,
-    max = 5000
-}
-
 Config.UsersTable = 'users'
 Config.UsersIdColumn = 'uid'
-Config.UsersCashColumn = 'cash'
+Config.CashColumn = 'cash'
+Config.RacesColumn = 'races'
 
 Config.OwnedVehiclesTable = 'ownedvehicles'
-Config.VehicleNamesTable = 'vehiclenames'
+Config.OwnedVehicleIdColumn = 'id'
+Config.OwnedVehicleOwnerColumn = 'owner_id'
+Config.OwnedVehicleModelColumn = 'vehicle_model'
+Config.OwnedVehiclePlateColumn = 'vehicle_plate'
+Config.OwnedVehicleTuningColumn = 'vehicle_tunning'
 
-Config.SpawnDeleteExisting = true
-Config.FinishRadius = 8.0
-Config.CheckpointRadius = 8.0
-
-Config.Races = {
-    short = {
-        id = 'short',
-        title = 'Short Race',
-        description = 'Cursa scurta prin oras. Reward: $2.000 - $5.000',
-        enabled = true,
-
-        start = vector4(-490.958252, -751.094482, 32.144288, 170.08),
-
-        checkpoints = {
-            vector3(-509.617584, -831.573608, 30.476196),
-            vector3(-626.914306, -830.505494, 25.151612),
-            vector3(-737.076904, -829.542846, 22.843262),
-            vector3(-743.235168, -657.520874, 30.324584),
-            vector3(-832.681336, -641.643982, 27.695922),
-            vector3(-926.703308, -489.072540, 36.676880),
-        },
-
-        finish = vector3(-850.378052, -453.323060, 36.626342)
-    },
-
-    medium = {
-        id = 'medium',
-        title = 'Medium Race',
-        description = 'In curand.',
-        enabled = false
-    },
-
-    long = {
-        id = 'long',
-        title = 'Long Race',
-        description = 'In curand.',
-        enabled = false
-    }
-}
-
-Config.InteractionConfig = [[
--- Adauga acest item in Config.DefaultInteractions din driftzone_interactions/config.lua
-
-{
+Config.Interaction = {
     id = 'driftzone_racejob_main',
     coords = vector3(-116.835160, -604.720886, 36.272584),
     range = 2.8,
@@ -69,5 +24,59 @@ Config.InteractionConfig = [[
     marker = true,
     event = 'driftzone_racejob:client:openFromInteraction',
     blip = { sprite = 315, color = 3, scale = 0.85, name = 'DriftZone Race Job' }
-},
-]]
+}
+
+Config.ReturnPosition = vector4(-100.826370, -612.079102, 36.255738, 65.20)
+Config.ReturnBucket = 0
+
+Config.FinishRadius = 9.0
+Config.CountdownSeconds = 3
+Config.RaceBucketBase = 62000
+
+Config.Vehicle = {
+    deleteExistingOwnedVehicle = true,
+    freezeDuringCountdown = true,
+    protectVehicle = true,
+    cleanupOnFinish = true,
+    cleanupOnFail = true,
+    spawnZOffset = 0.45
+}
+
+Config.Races = {
+    short = {
+        id = 'short',
+        label = 'Short Race',
+        description = 'Cursa rapida prin oras, risc mic si cash rapid.',
+        reward = { min = 2500, max = 5000 },
+        cooldown = 5 * 60,
+        timeLimit = 180,
+        start = vector4(-490.958252, -751.094482, 32.144288, 170.08),
+        finish = vector3(-853.806580, -1257.784668, 4.999268)
+    },
+    medium = {
+        id = 'medium',
+        label = 'Medium Race',
+        description = 'Distanta medie, recompensa mai buna si timp limitat.',
+        reward = { min = 7500, max = 15000 },
+        cooldown = 15 * 60,
+        timeLimit = 360,
+        start = vector4(1364.373658, -2023.503296, 51.858642, 28.35),
+        finish = vector3(2539.938476, -279.837372, 92.989014)
+    },
+    long = {
+        id = 'long',
+        label = 'Long Race',
+        description = 'Cursa lunga pe toata harta, recompensa mare.',
+        reward = { min = 15000, max = 30000 },
+        cooldown = 60 * 60,
+        timeLimit = 700,
+        start = vector4(164.202194, -3290.650634, 5.909180, 269.29),
+        finish = vector3(162.764832, 6448.338378, 31.301880)
+    }
+}
+
+Config.Notify = {
+    event = 'client:notify'
+}
+
+Config.Debug = false
