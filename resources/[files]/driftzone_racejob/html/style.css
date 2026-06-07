@@ -1,37 +1,39 @@
 * { box-sizing: border-box; user-select: none; }
-html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: transparent; font-family: Inter, Arial, Helvetica, sans-serif; }
-:root { --main: #04c7f7; --danger: #ff3d5a; --panel: rgba(2, 8, 16, .82); --card: rgba(5, 15, 27, .78); --line: rgba(4,199,247,.35); --muted: rgba(255,255,255,.58); }
+html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: transparent; font-family: Arial, Helvetica, sans-serif; }
+:root { --main: #04c7f7; --bg: rgba(2, 6, 12, .92); --panel: rgba(5, 11, 18, .86); --card: rgba(8, 17, 27, .78); --line: rgba(4, 199, 247, .34); --text: rgba(255,255,255,.96); --muted: rgba(255,255,255,.56); --danger: #ff3d5a; }
 .hidden { display: none !important; }
-button, input { font-family: inherit; }
-.race-menu { position: fixed; inset: 0; color: white; background: radial-gradient(circle at 78% 22%, rgba(4,199,247,.22), transparent 34%), radial-gradient(circle at 10% 80%, rgba(4,199,247,.12), transparent 38%), linear-gradient(135deg, rgba(1,4,9,.96), rgba(4,10,18,.93)); display: grid; place-items: center; animation: fadeIn .16s ease; }
-.grid-bg { position: absolute; inset: 0; opacity: .19; background-image: linear-gradient(rgba(4,199,247,.13) 1px, transparent 1px), linear-gradient(90deg, rgba(4,199,247,.13) 1px, transparent 1px); background-size: 52px 52px; mask-image: radial-gradient(circle at center, black 0%, transparent 74%); }
-.panel { position: relative; z-index: 2; width: min(1500px, calc(100vw - 70px)); height: min(860px, calc(100vh - 70px)); border: 1px solid var(--line); border-radius: 34px; background: linear-gradient(145deg, rgba(4,199,247,.105), rgba(255,255,255,.025)), var(--panel); box-shadow: 0 34px 96px rgba(0,0,0,.60), inset 0 0 36px rgba(255,255,255,.025); overflow: hidden; padding: 34px; backdrop-filter: blur(18px); }
-.close { position: absolute; right: 26px; top: 24px; z-index: 8; width: 44px; height: 44px; border-radius: 16px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: white; font-size: 28px; cursor: pointer; transition: .18s ease; }
-.close:hover { color: var(--danger); border-color: rgba(255,61,90,.55); background: rgba(255,61,90,.12); transform: translateY(-1px); }
-.header { display: flex; align-items: flex-start; justify-content: space-between; padding-right: 70px; margin-bottom: 22px; }
-.eyebrow, .section-title { color: var(--main); font-size: 11px; font-weight: 950; letter-spacing: 2px; text-transform: uppercase; }
-h1 { margin: 6px 0 0; font-size: 58px; line-height: .95; letter-spacing: -1.5px; text-shadow: 0 0 22px rgba(4,199,247,.33); }
-p { margin: 11px 0 0; color: var(--muted); font-size: 15px; }
-.status-card { min-width: 128px; height: 76px; border-radius: 24px; border: 1px solid var(--line); background: rgba(4,199,247,.10); display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(4,199,247,.18), inset 0 0 22px rgba(4,199,247,.06); }
-.status-card b { color: var(--main); font-size: 28px; line-height: 1; text-shadow: 0 0 14px rgba(4,199,247,.75); }
-.status-card span { margin-top: 6px; color: rgba(255,255,255,.64); font-size: 10px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px; }
-.layout { display: grid; grid-template-columns: 430px 1fr; gap: 22px; height: calc(100% - 168px); padding-bottom: 96px; }
-.race-column, .vehicle-column { border: 1px solid rgba(255,255,255,.08); border-radius: 28px; padding: 18px; background: rgba(255,255,255,.035); overflow: hidden; }
-.race-list, .vehicle-list { margin-top: 14px; display: grid; align-content: start; gap: 12px; overflow-y: auto; max-height: calc(100% - 34px); padding-right: 6px; }
-.vehicle-list { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: calc(100% - 96px); }
+
+.race-menu { position: fixed; inset: 0; color: var(--text); display: grid; place-items: center; background: radial-gradient(circle at 80% 18%, rgba(4,199,247,.18), transparent 34%), radial-gradient(circle at 16% 82%, rgba(4,199,247,.10), transparent 40%), rgba(0,0,0,.58); }
+.grid-bg { position: absolute; inset: 0; opacity: .20; background-image: linear-gradient(rgba(4,199,247,.14) 1px, transparent 1px), linear-gradient(90deg, rgba(4,199,247,.14) 1px, transparent 1px); background-size: 56px 56px; mask-image: radial-gradient(circle at center, black 0%, transparent 75%); }
+.panel { position: relative; width: min(1460px, calc(100vw - 72px)); height: min(840px, calc(100vh - 72px)); padding: 34px; border-radius: 32px; border: 1px solid var(--line); background: linear-gradient(145deg, rgba(4,199,247,.10), rgba(255,255,255,.025)), var(--panel); box-shadow: 0 32px 110px rgba(0,0,0,.62), inset 0 0 34px rgba(255,255,255,.025); overflow: hidden; animation: fadeIn .16s ease; }
+.panel:before { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(135deg, transparent 0 18px, rgba(4,199,247,.22) 18px 20px, transparent 20px), linear-gradient(315deg, transparent 0 24px, rgba(4,199,247,.16) 24px 26px, transparent 26px); opacity: .65; }
+.close { position: absolute; right: 28px; top: 24px; z-index: 5; width: 46px; height: 46px; border-radius: 14px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.055); color: white; font-size: 31px; line-height: 1; cursor: pointer; transition: .18s ease; }
+.close:hover { color: var(--danger); border-color: rgba(255,61,90,.55); background: rgba(255,61,90,.13); }
+.header { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: flex-start; padding-right: 68px; margin-bottom: 24px; }
+.eyebrow, .section-title { color: var(--main); font-size: 11px; font-weight: 950; text-transform: uppercase; letter-spacing: 2px; }
+h1 { margin: 6px 0 0; font-size: 58px; line-height: .94; letter-spacing: -1.6px; text-shadow: 0 0 22px rgba(4,199,247,.36), 0 5px 12px rgba(0,0,0,.9); }
+p { margin: 11px 0 0; color: var(--muted); line-height: 1.45; }
+.status-card { min-width: 132px; height: 78px; border: 1px solid var(--line); border-radius: 22px; background: rgba(4,199,247,.10); display: grid; place-items: center; box-shadow: 0 0 28px rgba(4,199,247,.13), inset 0 0 18px rgba(255,255,255,.03); }
+.status-card b { color: var(--main); font-size: 28px; line-height: 1; }
+.status-card span { color: var(--muted); font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; }
+.layout { position: relative; z-index: 2; display: grid; grid-template-columns: 440px 1fr; gap: 20px; height: calc(100% - 190px); }
+.race-column, .vehicle-column { min-height: 0; padding: 20px; border: 1px solid rgba(255,255,255,.08); border-radius: 26px; background: rgba(255,255,255,.035); overflow: hidden; }
+.section-title { margin-bottom: 14px; }
+.race-list, .vehicle-list { display: grid; gap: 12px; overflow-y: auto; max-height: calc(100% - 34px); padding-right: 4px; }
+.vehicle-list { max-height: calc(100% - 88px); grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
 .race-list::-webkit-scrollbar, .vehicle-list::-webkit-scrollbar { width: 6px; }
 .race-list::-webkit-scrollbar-thumb, .vehicle-list::-webkit-scrollbar-thumb { background: var(--main); border-radius: 20px; }
-.race-card, .vehicle-card { border: 1px solid rgba(255,255,255,.09); border-radius: 22px; background: linear-gradient(145deg, rgba(255,255,255,.048), rgba(255,255,255,.022)); color: white; text-align: left; cursor: pointer; transition: .17s ease; }
-.race-card { min-height: 150px; padding: 17px; }
+.race-card, .vehicle-card { border: 1px solid rgba(255,255,255,.09); border-radius: 22px; background: linear-gradient(145deg, rgba(4,199,247,.08), rgba(255,255,255,.025)); color: white; cursor: pointer; text-align: left; transition: .16s ease; }
+.race-card { min-height: 145px; padding: 19px; }
 .race-card:hover, .vehicle-card:hover { transform: translateY(-2px); border-color: rgba(4,199,247,.48); background: linear-gradient(145deg, rgba(4,199,247,.16), rgba(255,255,255,.035)); }
 .race-card.selected, .vehicle-card.selected { border-color: var(--main); box-shadow: 0 0 28px rgba(4,199,247,.20), inset 0 0 20px rgba(4,199,247,.07); }
-.race-card.locked { opacity: .68; }
+.race-card.locked { opacity: .66; }
 .race-top, .race-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .race-top b { font-size: 22px; font-weight: 950; }
 .race-top span { color: var(--main); font-size: 12px; font-weight: 950; border: 1px solid rgba(4,199,247,.34); border-radius: 999px; padding: 7px 10px; background: rgba(4,199,247,.08); }
 .race-card p { font-size: 13px; min-height: 38px; }
 .race-meta { margin-top: 15px; color: rgba(255,255,255,.78); font-size: 12px; font-weight: 850; }
-.search { width: 100%; height: 50px; margin: 14px 0; border: 1px solid rgba(255,255,255,.10); border-radius: 17px; background: rgba(2,7,12,.62); color: white; padding: 0 16px; outline: none; font-size: 14px; }
+.search { width: 100%; height: 48px; margin-bottom: 14px; border: 1px solid rgba(255,255,255,.10); border-radius: 17px; background: rgba(2,7,12,.62); color: white; padding: 0 16px; outline: none; font-size: 14px; }
 .search:focus { border-color: var(--main); box-shadow: 0 0 0 4px rgba(4,199,247,.08); }
 .vehicle-card { min-height: 94px; padding: 14px; display: flex; align-items: center; gap: 13px; }
 .vehicle-icon { width: 50px; height: 50px; flex: 0 0 50px; border-radius: 17px; display: grid; place-items: center; color: var(--main); font-weight: 950; border: 1px solid rgba(4,199,247,.40); background: rgba(4,199,247,.11); box-shadow: inset 0 0 16px rgba(4,199,247,.07); }
@@ -44,6 +46,7 @@ p { margin: 11px 0 0; color: var(--muted); font-size: 15px; }
 .start-btn { min-width: 220px; height: 52px; border: none; border-radius: 18px; color: #00131d; font-weight: 1000; letter-spacing: 1.3px; cursor: pointer; background: linear-gradient(135deg, var(--main), #a7f2ff); box-shadow: 0 0 32px rgba(4,199,247,.24); transition: .16s ease; }
 .start-btn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.12); }
 .start-btn:disabled { opacity: .38; cursor: not-allowed; filter: grayscale(.6); }
+
 .race-hud { position: fixed; left: 26px; bottom: 196px; width: 202px; min-height: 92px; padding: 16px 18px; border: 1px solid rgba(4,199,247,.40); border-radius: 22px 22px 22px 8px; background: linear-gradient(145deg, rgba(4,199,247,.12), rgba(255,255,255,.025)), rgba(3,8,14,.72); box-shadow: 0 16px 34px rgba(0,0,0,.48), 0 0 24px rgba(4,199,247,.16); color: white; pointer-events: none; animation: slideHud .22s ease; }
 .hud-corner { position: absolute; right: 10px; top: 10px; width: 22px; height: 22px; border-top: 2px solid var(--main); border-right: 2px solid var(--main); opacity: .65; }
 .hud-label { color: var(--muted); font-size: 12px; text-transform: uppercase; font-weight: 950; letter-spacing: 1.4px; }
@@ -51,42 +54,16 @@ p { margin: 11px 0 0; color: var(--muted); font-size: 15px; }
 .hud-sub { margin-top: 6px; color: rgba(255,255,255,.65); font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.2px; }
 .race-hud.danger { border-color: rgba(255,61,90,.55); box-shadow: 0 16px 34px rgba(0,0,0,.48), 0 0 30px rgba(255,61,90,.24); }
 .race-hud.danger .hud-time { color: var(--danger); text-shadow: 0 0 18px rgba(255,61,90,.45); }
+
 .countdown { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; background: radial-gradient(circle, rgba(4,199,247,.10), transparent 40%); }
 .countdown-text { color: white; font-size: 138px; font-weight: 1000; letter-spacing: 4px; text-shadow: 0 0 28px rgba(4,199,247,.65), 0 18px 34px rgba(0,0,0,.85); }
 .countdown-text.pop { animation: popFade .95s ease; }
+
 @keyframes fadeIn { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 @keyframes slideHud { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes popFade { 0% { opacity: 0; transform: scale(.62); } 18% { opacity: 1; transform: scale(1.08); } 72% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.18); } }
 @media (max-width: 1200px) { .vehicle-list { grid-template-columns: 1fr; } .layout { grid-template-columns: 390px 1fr; } }
 
-/* Minimal race timer langa minimap: doar timpul ramas */
-.race-hud {
-    left: 318px !important;
-    bottom: 31px !important;
-    width: auto !important;
-    min-width: 92px !important;
-    min-height: 38px !important;
-    padding: 7px 12px !important;
-    border-radius: 10px 2px 10px 2px !important;
-    background: linear-gradient(135deg, rgba(4,199,247,.18), rgba(2,7,12,.78)) !important;
-    border: 1px solid rgba(4,199,247,.55) !important;
-    box-shadow: 0 8px 18px rgba(0,0,0,.46), 0 0 18px rgba(4,199,247,.16) !important;
-}
-.race-hud .hud-corner,
-.race-hud .hud-label,
-.race-hud .hud-sub { display: none !important; }
-.race-hud .hud-time {
-    margin: 0 !important;
-    font-size: 24px !important;
-    line-height: 1 !important;
-    letter-spacing: .5px !important;
-    color: #fff !important;
-    text-shadow: 0 0 12px rgba(4,199,247,.48), 0 2px 8px rgba(0,0,0,.9) !important;
-}
-.race-hud.danger .hud-time { color: var(--danger) !important; }
-.countdown-text {
-    font-size: 150px !important;
-    font-family: Impact, Inter, Arial, sans-serif !important;
-    letter-spacing: 6px !important;
-    -webkit-text-stroke: 2px rgba(4,199,247,.28);
-}
+/* Update: fara Race Modes card in header */
+.status-card { display: none !important; }
+.header { padding-right: 60px; }

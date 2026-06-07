@@ -1,6 +1,6 @@
 local ActiveRaces = {}
+local Cooldowns = {}
 local RaceVehicles = {}
-local StartTokens = {}
 
 local function debugPrint(...)
     if Config.Debug then print('[DRIFTZONE_RACEJOB]', ...) end
@@ -41,9 +41,7 @@ local function getUid(src)
         function() return exports.driftzone_auth:getUID(src) end,
         function() return exports.driftzone_auth:getUid(src) end,
         function() return exports.driftzone_auth:GetUserId(src) end,
-        function() return exports.driftzone_auth:getUserId(src) end,
-        function() return exports.driftzone_auth:GetPlayerUID(src) end,
-        function() return exports.driftzone_auth:getPlayerUID(src) end
+        function() return exports.driftzone_auth:getUserId(src) end
     }
 
     for i = 1, #attempts do
@@ -94,141 +92,29 @@ local function formatTime(seconds)
     return ('%d:%02d'):format(math.floor(seconds / 60), seconds % 60)
 end
 
-
-local function getCashColumnMax(usersTable, cashCol)
-    local ok, row = pcall(function()
-        return MySQL.single.await([[
-            SELECT DATA_TYPE AS data_type, COLUMN_TYPE AS column_type
-            FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = ?
-              AND COLUMN_NAME = ?
-            LIMIT 1
-        ]], { usersTable, cashCol })
-    end)
-
-    if not ok or not row then
-        return tonumber(Config.SafeCashMax or 2147483647) or 2147483647
-    end
-
-    local dataType = tostring(row.data_type or ''):lower()
-    local columnType = tostring(row.column_type or ''):lower()
-    local unsigned = columnType:find('unsigned', 1, true) ~= nil
-
-    if dataType == 'tinyint' then return unsigned and 255 or 127 end
-    if dataType == 'smallint' then return unsigned and 65535 or 32767 end
-    if dataType == 'mediumint' then return unsigned and 16777215 or 8388607 end
-    if dataType == 'int' or dataType == 'integer' then return unsigned and 4294967295 or 2147483647 end
-
-    -- Pentru BIGINT evitam valori peste limita sigura JS/Lua. Daca vrei mai mult, ruleaza SQL-ul inclus.
-    if dataType == 'bigint' then return 9007199254740991 end
-
-    return tonumber(Config.SafeCashMax or 2147483647) or 2147483647
-end
-
-local function addRewardAndRace(uid, reward)
-    uid = tonumber(uid or 0) or 0
-    reward = tonumber(reward or 0) or 0
-    if uid <= 0 or reward <= 0 then return false, 0, 'bad_args' end
-
-    local usersTable = tableName(Config.UsersTable or 'users')
-    local uidCol = col(Config.UsersIdColumn or 'uid')
-    local cashCol = col(Config.CashColumn or 'cash')
-    local racesCol = col(Config.RacesColumn or 'races')
-
-    local ok, result = pcall(function()
-        local maxCash = getCashColumnMax(usersTable, cashCol)
-        local row = MySQL.single.await(('SELECT `%s` AS cash FROM `%s` WHERE `%s` = ? LIMIT 1'):format(cashCol, usersTable, uidCol), { uid })
-        if not row then return { ok = false, added = 0, error = 'user_missing' } end
-
-        local current = tonumber(row.cash or 0) or 0
-        if current < 0 then current = 0 end
-
-        local newCash = current + reward
-        if newCash > maxCash then newCash = maxCash end
-        if newCash < current then newCash = current end
-
-        local added = math.floor(newCash - current)
-
-        MySQL.update.await(('UPDATE `%s` SET `%s` = ?, `%s` = COALESCE(`%s`, 0) + 1 WHERE `%s` = ? LIMIT 1'):format(
-            usersTable, cashCol, racesCol, racesCol, uidCol
-        ), { math.floor(newCash), uid })
-
-        return { ok = true, added = added, capped = added < reward, maxCash = maxCash }
-    end)
-
-    if not ok then return false, 0, result end
-    if type(result) ~= 'table' or result.ok ~= true then return false, 0, result and result.error or 'unknown' end
-    return true, tonumber(result.added or 0) or 0, result
-end
-
-local function cooldownKey(uid, raceId)
-    return ('driftzone_racejob_cd_%s_%s'):format(tostring(uid), tostring(raceId))
-end
-
-local function getCooldownUntil(uid, raceId)
+local function getCooldownLeft(uid, raceId)
     uid = tonumber(uid or 0) or 0
     if uid <= 0 then return 0 end
-    local untilTime = tonumber(GetResourceKvpString(cooldownKey(uid, raceId)) or 0) or 0
-    if untilTime <= os.time() then
-        DeleteResourceKvp(cooldownKey(uid, raceId))
-        return 0
-    end
-    return untilTime
-end
-
-local function getCooldownLeft(uid, raceId)
-    local left = getCooldownUntil(uid, raceId) - os.time()
+    local key = tostring(uid) .. ':' .. tostring(raceId)
+    local untilTime = Cooldowns[key] or 0
+    local left = untilTime - os.time()
     if left < 0 then left = 0 end
     return left
 end
 
 local function setCooldown(uid, raceId, seconds)
     uid = tonumber(uid or 0) or 0
-    if uid <= 0 then return 0 end
-    local untilTime = os.time() + (tonumber(seconds or 0) or 0)
-    SetResourceKvp(cooldownKey(uid, raceId), tostring(untilTime))
-    return untilTime
-end
-
-local function clearCooldowns(uid)
-    uid = tonumber(uid or 0) or 0
     if uid <= 0 then return end
-    for raceId, _ in pairs(Config.Races or {}) do
-        DeleteResourceKvp(cooldownKey(uid, raceId))
-    end
+    local key = tostring(uid) .. ':' .. tostring(raceId)
+    Cooldowns[key] = os.time() + (tonumber(seconds or 0) or 0)
 end
 
 local function getCooldownPayload(uid)
     local data = {}
     for raceId, _ in pairs(Config.Races or {}) do
-        data[raceId] = {
-            left = getCooldownLeft(uid, raceId),
-            untilTime = getCooldownUntil(uid, raceId)
-        }
+        data[raceId] = getCooldownLeft(uid, raceId)
     end
     return data
-end
-
-local function getAdminLevel(src)
-    if src == 0 then return 999 end
-    local uid = getUid(src)
-    if not uid then return 0 end
-
-    local usersTable = tableName(Config.UsersTable or 'users')
-    local uidCol = col(Config.UsersIdColumn or 'uid')
-
-    for _, adminColRaw in ipairs(Config.AdminColumns or { 'admin' }) do
-        local adminCol = col(adminColRaw)
-        local ok, row = pcall(function()
-            return MySQL.single.await(('SELECT `%s` AS level FROM `%s` WHERE `%s` = ? LIMIT 1'):format(adminCol, usersTable, uidCol), { uid })
-        end)
-        if ok and row and tonumber(row.level) then
-            return tonumber(row.level) or 0
-        end
-    end
-
-    return 0
 end
 
 local function getVehicleRows(uid)
@@ -247,7 +133,6 @@ local function getVehicleRows(uid)
                 ov.`%s` AS model,
                 ov.`%s` AS plate,
                 ov.`%s` AS tuning,
-                COALESCE(ov.vip, 0) AS vip,
                 vn.vehicle_name,
                 vn.vehicle_image,
                 vn.image
@@ -278,8 +163,7 @@ local function getPlayerVehicles(uid)
                 model = model,
                 name = tostring(row.vehicle_name or model),
                 plate = tostring(row.plate or 'DRIFT'),
-                image = tostring(row.vehicle_image or row.image or ''),
-                vip = tonumber(row.vip or 0) == 1 or row.vip == true
+                image = tostring(row.vehicle_image or row.image or '')
             }
         end
     end
@@ -306,7 +190,6 @@ local function getVehicleData(uid, vehicleId)
                 ov.`%s` AS model,
                 ov.`%s` AS plate,
                 ov.`%s` AS tuning,
-                COALESCE(ov.vip, 0) AS vip,
                 vn.vehicle_name
             FROM `%s` ov
             LEFT JOIN vehiclenames vn ON vn.vehicle_model = ov.`%s`
@@ -328,8 +211,7 @@ local function getVehicleData(uid, vehicleId)
         model = tostring(row.model or ''):lower(),
         plate = tostring(row.plate or 'DRIFT'):upper():gsub('%s+', ''):sub(1, 8),
         tuning = normalizeTuning(row.tuning or '{}'),
-        name = tostring(row.vehicle_name or row.model or 'Vehicle'),
-        vip = tonumber(row.vip or 0) == 1 or row.vip == true
+        name = tostring(row.vehicle_name or row.model or 'Vehicle')
     }
 end
 
@@ -370,7 +252,8 @@ local function deleteExistingVehicleInstances(uid, vehicleId)
             local state = Entity(entity).state
             local dbId = tonumber(state.dz_garage_db_id or 0)
             local owner = tonumber(state.dz_garage_owner_uid or 0)
-            if dbId == vehicleId and (owner == 0 or owner == tonumber(uid)) then
+
+            if dbId == vehicleId or (dbId > 0 and owner == tonumber(uid) and dbId == vehicleId) then
                 deleteEntitySafe(entity)
             end
         end
@@ -380,17 +263,16 @@ end
 local function setRaceVehicleState(entity, src, uid, vehicleData)
     if not entityExists(entity) then return end
     local state = Entity(entity).state
+
     state:set('dz_race_vehicle', true, true)
     state:set('dz_race_owner_uid', tonumber(uid) or 0, true)
     state:set('dz_race_owner_src', tonumber(src) or 0, true)
     state:set('dz_garage_vehicle', true, true)
     state:set('dz_garage_owner_uid', tonumber(uid) or 0, true)
-    state:set('dz_garage_owner_name', getPlayerNameSafe(src), true)
     state:set('dz_garage_db_id', tonumber(vehicleData.id) or 0, true)
     state:set('dz_garage_model', vehicleData.model, true)
     state:set('dz_garage_name', vehicleData.name, true)
     state:set('dz_garage_plate', vehicleData.plate, true)
-    state:set('dz_garage_is_vip', vehicleData.vip == true, true)
     state:set('dz_garage_godmode', true, true)
     state:set('dz_garage_tuning', vehicleData.tuning, true)
     state:set('vehicleTunning', vehicleData.tuning, true)
@@ -410,19 +292,18 @@ local function cleanupRace(src, reason)
     end
 
     ActiveRaces[src] = nil
-    StartTokens[src] = nil
     SetPlayerRoutingBucket(src, Config.ReturnBucket or 0)
     debugPrint(('cleanup src=%s reason=%s'):format(src, tostring(reason)))
 end
 
 local function sendMenu(src)
     if not isLogged(src) then notify(src, 'warning', 'Trebuie sa fii logat.') return end
+
     local uid = getUid(src)
     if not uid then notify(src, 'warning', 'Nu ti-am gasit UID-ul.') return end
 
     local raceList = {}
     for _, race in pairs(Config.Races or {}) do
-        local untilTime = getCooldownUntil(uid, race.id)
         raceList[#raceList + 1] = {
             id = race.id,
             label = race.label,
@@ -430,8 +311,7 @@ local function sendMenu(src)
             rewardMin = race.reward.min,
             rewardMax = race.reward.max,
             cooldown = race.cooldown,
-            cooldownLeft = math.max(0, untilTime - os.time()),
-            cooldownUntil = untilTime,
+            cooldownLeft = getCooldownLeft(uid, race.id),
             timeLimit = race.timeLimit
         }
     end
@@ -444,8 +324,6 @@ local function sendMenu(src)
     TriggerClientEvent('driftzone_racejob:client:openMenu', src, {
         races = raceList,
         vehicles = getPlayerVehicles(uid),
-        cooldowns = getCooldownPayload(uid),
-        serverTime = os.time(),
         mainColor = Config.MainColor or '#04c7f7'
     })
 end
@@ -481,7 +359,11 @@ end)
 RegisterNetEvent('driftzone_racejob:server:start', function(raceId, vehicleId)
     local src = source
 
-    if ActiveRaces[src] then notify(src, 'warning', 'Ai deja o cursa activa.') return end
+    if ActiveRaces[src] then
+        notify(src, 'warning', 'Ai deja o cursa activa.')
+        return
+    end
+
     if not isLogged(src) then notify(src, 'warning', 'Trebuie sa fii logat.') return end
 
     local uid = getUid(src)
@@ -501,129 +383,118 @@ RegisterNetEvent('driftzone_racejob:server:start', function(raceId, vehicleId)
     if not vehicleData then notify(src, 'warning', 'Masina selectata nu iti apartine.') return end
     if vehicleData.model == '' then notify(src, 'warning', 'Model invalid.') return end
 
-    local token = ('%s:%s:%s:%s'):format(src, uid, race.id, math.random(100000, 999999))
-    local bucket = (Config.RaceBucketBase or 62000) + tonumber(src)
-
-    StartTokens[src] = {
-        token = token,
-        uid = uid,
-        race = race,
-        vehicleData = vehicleData,
-        bucket = bucket,
-        expiresAt = GetGameTimer() + ((Config.Vehicle and Config.Vehicle.clientSpawnTimeoutMs) or 12000)
-    }
-
-    if Config.Vehicle and Config.Vehicle.deleteExistingOwnedVehicle then
+    local ok, err = pcall(function()
         deleteExistingVehicleInstances(uid, vehicleData.id)
+
+        local bucket = (Config.RaceBucketBase or 62000) + tonumber(src)
+        SetPlayerRoutingBucket(src, bucket)
+
+        local start = race.start
+        local hash = joaat(vehicleData.model)
+        local entity = CreateVehicle(hash, start.x, start.y, start.z + ((Config.Vehicle and Config.Vehicle.spawnZOffset) or 0.45), start.w, true, true)
+
+        local timeout = GetGameTimer() + 7000
+        while not entityExists(entity) and GetGameTimer() < timeout do Wait(50) end
+
+        if not entityExists(entity) then
+            SetPlayerRoutingBucket(src, Config.ReturnBucket or 0)
+            notify(src, 'error', 'Nu am putut spawna masina. Verifica modelul.')
+            return
+        end
+
+        SetEntityRoutingBucket(entity, bucket)
+        SetVehicleNumberPlateText(entity, vehicleData.plate)
+        setRaceVehicleState(entity, src, uid, vehicleData)
+
+        local netId = NetworkGetNetworkIdFromEntity(entity)
+        timeout = GetGameTimer() + 7000
+        while (not netId or netId == 0) and GetGameTimer() < timeout do
+            Wait(50)
+            netId = NetworkGetNetworkIdFromEntity(entity)
+        end
+
+        if not netId or netId == 0 then
+            deleteEntitySafe(entity)
+            SetPlayerRoutingBucket(src, Config.ReturnBucket or 0)
+            notify(src, 'error', 'Masina nu a primit network id.')
+            return
+        end
+
+        ActiveRaces[src] = {
+            uid = uid,
+            raceId = race.id,
+            race = race,
+            vehicleId = vehicleData.id,
+            entity = entity,
+            netId = netId,
+            bucket = bucket,
+            startedAt = os.time(),
+            rewardMin = race.reward.min,
+            rewardMax = race.reward.max
+        }
+
+        RaceVehicles[vehicleData.id] = { entity = entity, src = src, uid = uid }
+        registerVehicleSystem(entity, vehicleData, uid, src)
+        setCooldown(uid, race.id, race.cooldown)
+
+        TriggerClientEvent('driftzone_racejob:client:prepareRace', src, {
+            race = {
+                id = race.id,
+                label = race.label,
+                timeLimit = race.timeLimit,
+                finish = { x = race.finish.x, y = race.finish.y, z = race.finish.z },
+                radius = Config.FinishRadius or 9.0
+            },
+            vehicle = {
+                netId = netId,
+                id = vehicleData.id,
+                model = vehicleData.model,
+                name = vehicleData.name,
+                plate = vehicleData.plate,
+                tuning = vehicleData.tuning
+            },
+            countdown = Config.CountdownSeconds or 3,
+            mainColor = Config.MainColor or '#04c7f7'
+        })
+    end)
+
+    if not ok then
+        print(('[DRIFTZONE_RACEJOB] start error src=%s: %s'):format(src, tostring(err)))
+        cleanupRace(src, 'start_error')
+        notify(src, 'error', 'A aparut o eroare la pornirea cursei.')
     end
-
-    SetPlayerRoutingBucket(src, bucket)
-
-    TriggerClientEvent('driftzone_racejob:client:spawnRaceVehicle', src, {
-        token = token,
-        bucket = bucket,
-        start = { x = race.start.x, y = race.start.y, z = race.start.z, h = race.start.w },
-        vehicle = {
-            id = vehicleData.id,
-            model = vehicleData.model,
-            name = vehicleData.name,
-            plate = vehicleData.plate,
-            tuning = vehicleData.tuning,
-            vip = vehicleData.vip == true
-        },
-        race = {
-            id = race.id,
-            label = race.label,
-            timeLimit = race.timeLimit,
-            finish = { x = race.finish.x, y = race.finish.y, z = race.finish.z },
-            radius = Config.FinishRadius or 9.0
-        },
-        countdown = Config.CountdownSeconds or 3,
-        mainColor = Config.MainColor or '#04c7f7'
-    })
-end)
-
-RegisterNetEvent('driftzone_racejob:server:vehicleCreated', function(token, netId)
-    local src = source
-    local pending = StartTokens[src]
-    if not pending or pending.token ~= tostring(token or '') then return end
-
-    netId = tonumber(netId or 0) or 0
-    if netId <= 0 then
-        cleanupRace(src, 'bad_netid')
-        notify(src, 'error', 'Masina cursei nu a fost gasita.')
-        return
-    end
-
-    local entity = NetworkGetEntityFromNetworkId(netId)
-    local timeout = GetGameTimer() + 6000
-    while (not entityExists(entity)) and GetGameTimer() < timeout do
-        Wait(50)
-        entity = NetworkGetEntityFromNetworkId(netId)
-    end
-
-    if not entityExists(entity) then
-        cleanupRace(src, 'missing_entity')
-        notify(src, 'error', 'Masina cursei nu a fost gasita.')
-        TriggerClientEvent('driftzone_racejob:client:forceEndLocal', src)
-        return
-    end
-
-    SetEntityRoutingBucket(entity, pending.bucket)
-    setRaceVehicleState(entity, src, pending.uid, pending.vehicleData)
-
-    ActiveRaces[src] = {
-        uid = pending.uid,
-        raceId = pending.race.id,
-        race = pending.race,
-        vehicleId = pending.vehicleData.id,
-        entity = entity,
-        netId = netId,
-        bucket = pending.bucket,
-        startedAt = os.time(),
-        rewardMin = pending.race.reward.min,
-        rewardMax = pending.race.reward.max
-    }
-
-    RaceVehicles[pending.vehicleData.id] = { entity = entity, src = src, uid = pending.uid }
-    registerVehicleSystem(entity, pending.vehicleData, pending.uid, src)
-
-    local cooldownUntil = setCooldown(pending.uid, pending.race.id, pending.race.cooldown)
-    StartTokens[src] = nil
-
-    TriggerClientEvent('driftzone_racejob:client:raceConfirmed', src, {
-        cooldowns = getCooldownPayload(pending.uid),
-        raceId = pending.race.id,
-        cooldownUntil = cooldownUntil,
-        serverTime = os.time()
-    })
-end)
-
-RegisterNetEvent('driftzone_racejob:server:spawnFailed', function(token, message)
-    local src = source
-    local pending = StartTokens[src]
-    if pending and pending.token == tostring(token or '') then
-        StartTokens[src] = nil
-        SetPlayerRoutingBucket(src, Config.ReturnBucket or 0)
-    end
-    notify(src, 'error', tostring(message or 'Masina cursei nu a putut fi spawnata.'))
 end)
 
 RegisterNetEvent('driftzone_racejob:server:finish', function(raceId)
     local src = source
     local active = ActiveRaces[src]
+
     if not active or active.raceId ~= tostring(raceId or '') then return end
 
     local reward = math.random(tonumber(active.rewardMin) or 2500, tonumber(active.rewardMax) or 5000)
     local uid = active.uid
 
-    local ok, added, info = addRewardAndRace(uid, reward)
+    local ok, err = pcall(function()
+        local usersTable = tableName(Config.UsersTable or 'users')
+        local uidCol = col(Config.UsersIdColumn or 'uid')
+        local cashCol = col(Config.CashColumn or 'cash')
+        local racesCol = col(Config.RacesColumn or 'races')
+
+        local safeMax = tonumber(Config.SafeCashMax or 2147483647) or 2147483647
+
+        MySQL.update.await(([[
+            UPDATE `%s`
+            SET `%s` = LEAST(?, COALESCE(`%s`, 0) + ?),
+                `%s` = COALESCE(`%s`, 0) + 1
+            WHERE `%s` = ?
+            LIMIT 1
+        ]]):format(usersTable, cashCol, cashCol, racesCol, racesCol, uidCol), { safeMax, reward, uid })
+    end)
+
     if not ok then
-        print('[DRIFTZONE_RACEJOB] reward update failed: ' .. tostring(info))
+        print('[DRIFTZONE_RACEJOB] reward query failed: ' .. tostring(err))
         notify(src, 'error', 'Cursa a fost finalizata, dar SQL cash/races a dat eroare. Ruleaza sql.sql.')
-        added = 0
-    elseif tonumber(added or 0) <= 0 then
-        notify(src, 'warning', 'Cash-ul tau este la limita coloanei din SQL. Ruleaza sql.sql ca sa primesti sume mai mari.', 7000)
+        reward = 0
     end
 
     cleanupRace(src, 'finish')
@@ -631,8 +502,8 @@ RegisterNetEvent('driftzone_racejob:server:finish', function(raceId)
     local ret = Config.ReturnPosition
     TriggerClientEvent('driftzone_racejob:client:endRace', src, {
         success = true,
-        reward = added,
-        message = added > 0 and ('Ai finalizat cursa si ai primit suma de: $' .. tostring(added) .. '!') or 'Ai finalizat cursa, dar cash-ul tau este la limita SQL.',
+        reward = reward,
+        message = reward > 0 and ('Ai finalizat cursa si ai primit suma de: $' .. tostring(reward) .. '!') or 'Ai finalizat cursa.',
         returnPos = { x = ret.x, y = ret.y, z = ret.z, h = ret.w },
         bucket = Config.ReturnBucket or 0
     })
@@ -641,11 +512,7 @@ end)
 RegisterNetEvent('driftzone_racejob:server:fail', function(reason)
     local src = source
     local active = ActiveRaces[src]
-    if not active then
-        StartTokens[src] = nil
-        SetPlayerRoutingBucket(src, Config.ReturnBucket or 0)
-        return
-    end
+    if not active then return end
 
     cleanupRace(src, reason or 'failed')
 
@@ -673,48 +540,8 @@ RegisterNetEvent('driftzone_racejob:server:cancel', function()
     })
 end)
 
-RegisterCommand(Config.ResetCooldownCommand or 'rracecd', function(src, args)
-    if src ~= 0 then
-        local level = getAdminLevel(src)
-        if level < (Config.ResetCooldownMinAdminLevel or 7) then
-            notify(src, 'error', 'Nu ai acces la aceasta comanda.')
-            return
-        end
-    end
-
-    local target = tonumber(args and args[1] or 0) or 0
-    if target <= 0 then
-        if src == 0 then print('Usage: rracecd <id>') else notify(src, 'warning', 'Foloseste: /rracecd <id>') end
-        return
-    end
-
-    local targetUid = nil
-    if GetPlayerName(target) then
-        targetUid = getUid(target)
-    end
-    targetUid = targetUid or target
-
-    clearCooldowns(targetUid)
-
-    if GetPlayerName(target) then
-        TriggerClientEvent('driftzone_racejob:client:cooldownsReset', target)
-        notify(target, 'success', 'Cooldown-ul la race a fost resetat.')
-    end
-
-    if src == 0 then
-        print(('[DRIFTZONE_RACEJOB] Cooldown reset pentru UID/ID %s'):format(targetUid))
-    else
-        notify(src, 'success', ('Ai resetat cooldown-ul race pentru ID/UID %s.'):format(targetUid))
-    end
-end, false)
-
-exports('ResetCooldowns', function(uid)
-    clearCooldowns(uid)
-end)
-
 AddEventHandler('playerDropped', function()
     cleanupRace(source, 'dropped')
-    StartTokens[source] = nil
 end)
 
 AddEventHandler('onResourceStop', function(resource)
@@ -723,21 +550,6 @@ AddEventHandler('onResourceStop', function(resource)
 end)
 
 CreateThread(function()
-    while true do
-        Wait(5000)
-        local now = GetGameTimer()
-        for src, data in pairs(StartTokens) do
-            if data.expiresAt and now > data.expiresAt then
-                StartTokens[src] = nil
-                SetPlayerRoutingBucket(src, Config.ReturnBucket or 0)
-                notify(src, 'error', 'Spawn-ul masinii a expirat. Incearca din nou.')
-                TriggerClientEvent('driftzone_racejob:client:forceEndLocal', src)
-            end
-        end
-    end
-end)
-
-CreateThread(function()
     Wait(1000)
-    print('[DRIFTZONE_RACEJOB] Server loaded. Client spawn + persistent cooldowns enabled.')
+    print('[DRIFTZONE_RACEJOB] Server loaded. Short/Medium/Long races ready.')
 end)

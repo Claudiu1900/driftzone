@@ -2,20 +2,50 @@
 
 Race Job pentru DriftZone.
 
-## Fixuri incluse
+## Ce include
 
-- reward-ul nu mai da crash daca `users.cash` este INT si atinge limita;
-- scriptul citeste limita coloanei `cash` si face update safe;
-- `sql.sql` modifica `cash` la BIGINT UNSIGNED si adauga `users.races`;
-- timer-ul din cursa este mai mic si apare langa minimap, jos;
-- countdown-ul 3 / 2 / 1 / START porneste imediat dupa teleport/spawn;
-- tuning-ul se aplica instant si apoi se reaplica in background;
-- masina cursei se sterge la finish/fail;
-- playerul revine in dimensiunea normala dupa finish/fail.
+- Short / Medium / Long Race din `config.lua`.
+- Cooldown persistent si reset cu `/rracecd <id>`.
+- Meniu NUI pentru selectie cursa + masina.
+- Masini luate din `ownedvehicles` dupa `owner_id = uid`.
+- Tuning aplicat din `ownedvehicles.vehicle_tunning`.
+- Dimensiune privata in timpul cursei.
+- Finish checkpoint + route pe harta.
+- Timer mic langa minimap.
+- Countdown 3 / 2 / 1 / START.
+- Daca jucatorul se da jos din masina in timpul cursei, pierde cursa.
+- La finish/fail masina este stearsa si jucatorul este teleportat inapoi.
+- La finish primeste cash si `users.races + 1`.
 
-## SQL obligatoriu recomandat
+## SQL
 
-Ruleaza `sql.sql` in baza de date ca sa nu mai ai limita mica la cash.
+Ruleaza `sql.sql`.
+
+```sql
+ALTER TABLE `users`
+  MODIFY COLUMN `cash` BIGINT UNSIGNED NOT NULL DEFAULT 0;
+
+ALTER TABLE `users`
+  ADD COLUMN IF NOT EXISTS `races` INT UNSIGNED NOT NULL DEFAULT 0;
+```
+
+## driftzone_interactions
+
+Adauga in `Config.DefaultInteractions`:
+
+```lua
+{
+    id = 'driftzone_racejob_main',
+    coords = vector3(-116.835160, -604.720886, 36.272584),
+    range = 2.8,
+    key = 'E',
+    text = 'Apasa E pentru Race Job',
+    subText = 'DriftZone Race Job',
+    marker = true,
+    event = 'driftzone_racejob:client:openFromInteraction',
+    blip = { sprite = 315, color = 3, scale = 0.85, name = 'DriftZone Race Job' }
+},
+```
 
 ## server.cfg
 
@@ -27,8 +57,8 @@ ensure driftzone_garage
 ensure driftzone_racejob
 ```
 
-## Reset cooldown
+Dupa update:
 
-```txt
-/rracecd <id>
+```cfg
+restart driftzone_racejob
 ```
