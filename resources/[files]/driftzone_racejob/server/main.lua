@@ -238,8 +238,15 @@ local function createRaceVehicle(src, uid, vehicle, raceConfig)
     SetEntityRoutingBucket(entity, GetPlayerRoutingBucket(src))
     SetVehicleNumberPlateText(entity, vehicle.plate or randomPlate())
     SetEntityHeading(entity, spawn.w)
-    SetVehicleDirtLevel(entity, 0.0)
-    SetVehicleEngineOn(entity, true, true, false)
+    -- Unele native-uri de vehicul nu exista server-side pe toate build-urile FiveM.
+    -- Motorul/reparatia/dirt se aplica sigur client-side dupa ce clientul primeste netId-ul.
+    if type(SetVehicleDirtLevel) == 'function' then
+        SetVehicleDirtLevel(entity, 0.0)
+    end
+
+    if type(SetVehicleEngineOn) == 'function' then
+        SetVehicleEngineOn(entity, true, true, false)
+    end
 
     local netId = NetworkGetNetworkIdFromEntity(entity)
     timeout = GetGameTimer() + 6500

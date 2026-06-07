@@ -48,3 +48,9 @@ Adauga in `Config.DefaultInteractions` din `driftzone_interactions/config.lua`:
 ```txt
 /racejob
 ```
+
+
+## Fix 1.0.1
+
+- Reparat eroarea `SetVehicleEngineOn` nil server-side.
+- Motorul, reparatia si dirt-ul masinii se aplica client-side dupa spawn, unde native-ul exista sigur.
