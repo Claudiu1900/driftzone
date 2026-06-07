@@ -15,8 +15,8 @@ Config.OwnedVehiclePlateColumn = 'vehicle_plate'
 Config.OwnedVehicleTuningColumn = 'vehicle_tunning'
 
 Config.ResetCooldownCommand = 'rracecd'
-Config.ResetCooldownMinAdminLevel = 7
-Config.AdminColumns = { 'admin', 'admin_level', 'adminLvl', 'adminLevel' }
+Config.ResetCooldownMinAdminLevel = 6
+Config.AdminColumns = {'admin_level'}
 
 Config.Interaction = {
     id = 'driftzone_racejob_main',
@@ -55,8 +55,8 @@ Config.Races = {
         reward = { min = 2500, max = 5000 },
         cooldown = 5 * 60,
         timeLimit = 180,
-        start = vector4(-490.958252, -751.094482, 32.144288, 170.08),
-        finish = vector3(-853.806580, -1257.784668, 4.999268)
+        start = vector4(-490.958252, -751.094482, 31.144288, 170.08),
+        finish = vector3(-853.806580, -1257.784668, 3.999268)
     },
     medium = {
         id = 'medium',
@@ -65,8 +65,8 @@ Config.Races = {
         reward = { min = 7500, max = 15000 },
         cooldown = 15 * 60,
         timeLimit = 360,
-        start = vector4(1364.373658, -2023.503296, 51.858642, 28.35),
-        finish = vector3(2539.938476, -279.837372, 92.989014)
+        start = vector4(1364.373658, -2023.503296, 50.858642, 28.35),
+        finish = vector3(2539.938476, -279.837372, 91.989014)
     },
     long = {
         id = 'long',
@@ -75,8 +75,8 @@ Config.Races = {
         reward = { min = 15000, max = 30000 },
         cooldown = 60 * 60,
         timeLimit = 700,
-        start = vector4(164.202194, -3290.650634, 5.909180, 269.29),
-        finish = vector3(162.764832, 6448.338378, 31.301880)
+        start = vector4(164.202194, -3290.650634, 4.909180, 269.29),
+        finish = vector3(162.764832, 6448.338378, 30.301880)
     }
 }
 
