@@ -190,17 +190,40 @@ local function cooldownPayload(uid)
 end
 
 local function normalizeModel(raw)
-    if type(raw) == 'table' then
-        return tostring(raw.model or raw.vehicle_model or raw.hash or raw.name or '')
+    local function pickFromTable(t)
+        if type(t) ~= 'table' then return nil end
+        local keys = { 'model', 'vehicle_model', 'spawn', 'spawnName', 'hash', 'name', 'vehicle', 'vehicleName' }
+        for _, key in ipairs(keys) do
+            local v = t[key]
+            if v ~= nil and tostring(v) ~= '' then return v end
+        end
+        for _, v in pairs(t) do
+            if type(v) == 'table' then
+                local found = pickFromTable(v)
+                if found then return found end
+            elseif type(v) == 'string' or type(v) == 'number' then
+                local text = tostring(v)
+                if text ~= '' and text ~= '0' and not text:find('[{}%[%]]') then return text end
+            end
+        end
+        return nil
     end
+
+    if type(raw) == 'table' then
+        raw = pickFromTable(raw)
+    end
+
     local text = tostring(raw or ''):gsub('^%s+', ''):gsub('%s+$', '')
-    if text:sub(1, 1) == '{' then
+    if text:sub(1, 1) == '{' or text:sub(1, 1) == '[' then
         local ok, decoded = pcall(json.decode, text)
         if ok and type(decoded) == 'table' then
-            return tostring(decoded.model or decoded.vehicle_model or decoded.hash or decoded.name or text)
+            local picked = pickFromTable(decoded)
+            if picked then text = tostring(picked) end
         end
     end
-    return text
+
+    text = text:gsub('^"', ''):gsub('"$', ''):gsub('^`', ''):gsub('`$', '')
+    return text:gsub('^%s+', ''):gsub('%s+$', '')
 end
 
 local function getVehicleRows(uid)

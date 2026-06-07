@@ -13,10 +13,12 @@
             <header class="header">
                 <span class="eyebrow">DriftZone Work System</span>
                 <h1>Race Job</h1>
-                <p>Alege o cursa, selecteaza masina personala si porneste job-ul.</p>
+                <p>Alege o cursa, selecteaza o singura masina personala si porneste job-ul.</p>
             </header>
+
             <section class="layout">
                 <div class="race-column">
+                    <div class="section-title">Curse disponibile</div>
                     <div id="raceList" class="race-list"></div>
                 </div>
                 <div class="vehicle-column">
@@ -25,6 +27,7 @@
                     <div id="vehicleList" class="vehicle-list"></div>
                 </div>
             </section>
+
             <footer class="bottom">
                 <div class="selected-box">
                     <b id="selectedTitle">Nimic selectat</b>
@@ -73,9 +76,17 @@
 
     <div id="rewardScreen" class="reward-screen hidden">
         <div class="reward-card">
-            <span class="gold-kicker">DUO DELIVERY COMPLETE</span>
-            <h2 id="rewardTotal">$0</h2>
-            <p>Total recompensa</p>
+            <span class="gold-kicker">DUO RACE COMPLETE</span>
+            <div class="reward-totals">
+                <div>
+                    <h2 id="rewardTotal">$0</h2>
+                    <p>Cash total ramas</p>
+                </div>
+                <div>
+                    <h3 id="rewardTotalXp">0 XP</h3>
+                    <p>XP total ramas</p>
+                </div>
+            </div>
             <div class="split-row">
                 <div class="player-reward left"><b id="rewardP1Name">Player 1</b><span id="rewardP1Cash">$0</span><small id="rewardP1Xp">0 XP</small></div>
                 <div class="split-line"></div>

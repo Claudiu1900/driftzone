@@ -102,15 +102,36 @@ local function endLocalRace()
 end
 
 local function normalizeModel(value)
-    if type(value) == 'table' then value = value.model or value.vehicle_model or value.hash or value.name end
+    local function pickFromTable(t)
+        if type(t) ~= 'table' then return nil end
+        local keys = { 'model', 'vehicle_model', 'spawn', 'spawnName', 'hash', 'name', 'vehicle', 'vehicleName' }
+        for _, key in ipairs(keys) do
+            local v = t[key]
+            if v ~= nil and tostring(v) ~= '' then return v end
+        end
+        for _, v in pairs(t) do
+            if type(v) == 'table' then
+                local found = pickFromTable(v)
+                if found then return found end
+            elseif type(v) == 'string' or type(v) == 'number' then
+                local text = tostring(v)
+                if text ~= '' and text ~= '0' and not text:find('[{}%[%]]') then return text end
+            end
+        end
+        return nil
+    end
+
+    if type(value) == 'table' then value = pickFromTable(value) or value.model or value[1] end
     local text = tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
-    if text:sub(1, 1) == '{' then
+    if text:sub(1, 1) == '{' or text:sub(1, 1) == '[' then
         local ok, decoded = pcall(json.decode, text)
         if ok and type(decoded) == 'table' then
-            text = tostring(decoded.model or decoded.vehicle_model or decoded.hash or decoded.name or text)
+            local picked = pickFromTable(decoded)
+            if picked then text = tostring(picked) end
         end
     end
-    text = text:gsub('^"', ''):gsub('"$', '')
+    text = text:gsub('^"', ''):gsub('"$', ''):gsub('^`', ''):gsub('`$', '')
+    text = text:gsub('^%s+', ''):gsub('%s+$', '')
     return text
 end
 
@@ -285,7 +306,6 @@ local function createFinish(finish)
     BeginTextCommandSetBlipName('STRING')
     AddTextComponentString('Race Finish')
     EndTextCommandSetBlipName(finishBlip)
-    SetNewWaypoint(x, y)
     finishCheckpoint = CreateCheckpoint(4, x, y, z + 0.8, x, y, z, 7.2, 4, 199, 247, 170, 0)
 end
 
@@ -361,6 +381,7 @@ local function beginLocalRace(raceType, data)
         endAt = GetGameTimer() + ((tonumber(race.timeLimit or 180) or 180) * 1000)
     }
     raceEnding = false
+    TriggerEvent('driftzone_hud:visible', true)
     createFinish(race.finish)
     sendNui({ action = 'raceHud', visible = true, race = activeRace.label, time = formatTime(race.timeLimit or 0) })
     startTimerLoop()
@@ -425,6 +446,7 @@ end)
 
 RegisterNetEvent('driftzone_racejob:client:startSolo', function(data)
     closeMenu(false)
+    TriggerEvent('driftzone_hud:visible', true)
     Wait(350)
     local veh, err = spawnVehicle(data.vehicle, data.race and data.race.start or {})
     if veh == 0 then
@@ -444,6 +466,7 @@ end)
 
 RegisterNetEvent('driftzone_racejob:client:prepareDuoRace', function(data)
     closeMenu(false)
+    TriggerEvent('driftzone_hud:visible', true)
     sendNui({ action = 'closeDuoGarage' })
     currentDuoSession = data.sessionId
     Wait(400)
