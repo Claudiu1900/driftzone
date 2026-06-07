@@ -381,6 +381,7 @@ RegisterNUICallback('start', function(data, cb)
     data = data or {}
     if tostring(data.raceId or '') == 'special' then
         sendNui({ action = 'openInvite' })
+        setFocus(true)
     else
         TriggerServerEvent('driftzone_racejob:server:startSolo', data.raceId, tonumber(data.vehicleId or 0) or 0)
         closeMenu(false)
@@ -389,8 +390,23 @@ RegisterNUICallback('start', function(data, cb)
 end)
 
 RegisterNUICallback('duoInvite', function(data, cb)
-    TriggerServerEvent('driftzone_racejob:server:duoInvite', tonumber(data and data.targetId or 0) or 0)
+    TriggerServerEvent('driftzone_racejob:server:duoInvite', tonumber(data and data.targetUid or data and data.targetId or 0) or 0)
     cb({ ok = true })
+end)
+
+RegisterNetEvent('driftzone_racejob:client:duoInviteResult', function(data)
+    data = data or {}
+    sendNui({
+        action = 'duoInviteResult',
+        ok = data.ok == true,
+        message = tostring(data.message or '')
+    })
+
+    if data.ok == true then
+        setFocus(false)
+    else
+        setFocus(true)
+    end
 end)
 
 RegisterNUICallback('duoReady', function(data, cb)

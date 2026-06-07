@@ -21,7 +21,51 @@ local function getPlayerNameSafe(src)
     return GetPlayerName(src) or ('Player ' .. tostring(src))
 end
 
-local function getUid(src)
+local getUid
+
+local function playerExists(src)
+    src = tonumber(src or 0) or 0
+    if src <= 0 then return false end
+
+    for _, id in ipairs(GetPlayers()) do
+        if tonumber(id) == src then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function resolvePlayerByUid(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return nil end
+
+    -- Duo Race foloseste DOAR UID-ul din users.uid, nu server ID.
+    -- Cautam printre jucatorii online si comparam cu UID-ul real din auth/state.
+    for _, id in ipairs(GetPlayers()) do
+        local src = tonumber(id)
+        local playerUid = src and getUid(src) or nil
+        if playerUid and tonumber(playerUid) == uid then
+            return src
+        end
+    end
+
+    return nil
+end
+
+local function inviteResult(src, ok, message)
+    TriggerClientEvent('driftzone_racejob:client:duoInviteResult', src, {
+        ok = ok == true,
+        message = tostring(message or '')
+    })
+end
+
+local function failInvite(src, message)
+    notify(src, 'warning', message, 4000)
+    inviteResult(src, false, message)
+end
+
+function getUid(src)
     src = tonumber(src or 0) or 0
     if src <= 0 then return nil end
 
@@ -440,38 +484,94 @@ local function tryStartDuo(sessionId)
     end)
 end
 
-RegisterNetEvent('driftzone_racejob:server:duoInvite', function(targetId)
+RegisterNetEvent('driftzone_racejob:server:duoInvite', function(targetUidInput)
     local src = source
-    targetId = tonumber(targetId or 0) or 0
-    if targetId <= 0 or targetId == src or GetPlayerPing(targetId) <= 0 then notify(src, 'warning', 'ID invalid.', 4000) return end
-    if ActiveSolo[src] or ActiveDuoByPlayer[src] then notify(src, 'warning', 'Ai deja o cursa activa.', 4000) return end
-    local uid = getUid(src)
-    local targetUid = getUid(targetId)
-    if not uid or not targetUid then notify(src, 'warning', 'Nu am gasit UID-ul unuia dintre jucatori.', 4000) return end
+    local targetUidInput = tonumber(targetUidInput or 0) or 0
+
+    if targetUidInput <= 0 then
+        failInvite(src, 'Pune un UID valid.')
+        return
+    end
+
+    local inviterUid = getUid(src)
+    if not inviterUid then
+        failInvite(src, 'Nu ti-am gasit UID-ul.')
+        return
+    end
+
+    if tonumber(inviterUid) == tonumber(targetUidInput) then
+        failInvite(src, 'Nu iti poti da invite singur.')
+        return
+    end
+
+    local targetSrc = resolvePlayerByUid(targetUidInput)
+
+    if not targetSrc then
+        failInvite(src, 'UID invalid sau jucatorul nu este online.')
+        return
+    end
+
+    if ActiveSolo[src] or ActiveDuoByPlayer[src] then
+        failInvite(src, 'Ai deja o cursa activa.')
+        return
+    end
+
+    if ActiveSolo[targetSrc] or ActiveDuoByPlayer[targetSrc] then
+        failInvite(src, 'Jucatorul are deja o cursa activa.')
+        return
+    end
+
+    local uid = inviterUid
+    local targetUid = getUid(targetSrc)
+
+    if not uid or not targetUid then
+        failInvite(src, 'Nu am gasit UID-ul unuia dintre jucatori.')
+        return
+    end
+
     local race = getRace('special')
-    if getCooldownLeft(uid, 'special') > 0 then notify(src, 'warning', 'Ai cooldown la Duo Race.', 4000) return end
-    if getCooldownLeft(targetUid, 'special') > 0 then notify(src, 'warning', 'Prietenul tau are cooldown la Duo Race.', 4000) return end
-    DuoInvites[src] = { from = src, target = targetId, created = os.time() }
+    if not race then
+        failInvite(src, 'Duo Race nu este configurat corect.')
+        return
+    end
+
+    if getCooldownLeft(uid, 'special') > 0 then
+        failInvite(src, 'Ai cooldown la Duo Race.')
+        return
+    end
+
+    if getCooldownLeft(targetUid, 'special') > 0 then
+        failInvite(src, 'Prietenul tau are cooldown la Duo Race.')
+        return
+    end
+
+    DuoInvites[uid] = { from = src, fromUid = uid, target = targetSrc, targetUid = targetUid, created = os.time() }
     notify(src, 'success', 'Invitatia a fost trimisa.', 4000)
-    notify(targetId, 'info', ('Ai fost invitat la o livrare de catre %s (%s), foloseste comanda /jobaccept %s!'):format(getPlayerNameSafe(src), src, src), 7000)
+    inviteResult(src, true, 'Invitatia a fost trimisa.')
+
+    notify(targetSrc, 'info', ('Ai fost invitat la o livrare de catre %s (UID %s), foloseste comanda /jobaccept %s!'):format(getPlayerNameSafe(src), uid, uid), 7000)
+
     SetTimeout(5000, function()
-        local invite = DuoInvites[src]
-        if invite and invite.target == targetId then
-            notify(targetId, 'info', ('Reminder: /jobaccept %s pentru Duo Race cu %s.'):format(src, getPlayerNameSafe(src)), 7000)
+        local invite = DuoInvites[uid]
+        if invite and invite.target == targetSrc and playerExists(targetSrc) then
+            notify(targetSrc, 'info', ('Reminder: /jobaccept %s pentru Duo Race cu %s.'):format(uid, getPlayerNameSafe(src)), 7000)
         end
     end)
 end)
 
 RegisterCommand('jobaccept', function(src, args)
-    local inviter = tonumber(args[1] or 0) or 0
-    if inviter <= 0 then notify(src, 'warning', 'Foloseste /jobaccept <id>.', 4000) return end
-    local invite = DuoInvites[inviter]
+    local inviterUid = tonumber(args[1] or 0) or 0
+    if inviterUid <= 0 then notify(src, 'warning', 'Foloseste /jobaccept <uid>.', 4000) return end
+
+    local invite = DuoInvites[inviterUid]
     if not invite or invite.target ~= src then notify(src, 'warning', 'Nu ai o invitatie valida de la acest jucator.', 4000) return end
-    DuoInvites[inviter] = nil
-    if GetPlayerPing(inviter) <= 0 then notify(src, 'warning', 'Jucatorul nu mai este online.', 4000) return end
+
+    local inviter = tonumber(invite.from or 0) or 0
+    DuoInvites[inviterUid] = nil
+    if inviter <= 0 or GetPlayerPing(inviter) <= 0 then notify(src, 'warning', 'Jucatorul nu mai este online.', 4000) return end
 
     local race = getRace('special')
-    local uid1, uid2 = getUid(inviter), getUid(src)
+    local uid1, uid2 = tonumber(invite.fromUid or inviterUid) or getUid(inviter), getUid(src)
     if not uid1 or not uid2 then notify(src, 'warning', 'UID invalid.', 4000) return end
     if getCooldownLeft(uid1, 'special') > 0 or getCooldownLeft(uid2, 'special') > 0 then
         notify(src, 'warning', 'Unul dintre voi are cooldown la Duo Race.', 4000)
@@ -619,8 +719,8 @@ AddEventHandler('playerDropped', function()
     if ActiveSolo[src] then ActiveSolo[src] = nil end
     local sessionId = ActiveDuoByPlayer[src]
     if sessionId then cleanupDuo(sessionId, 'Partenerul a iesit de pe server. Cursa a fost anulata.') end
-    for inviter, invite in pairs(DuoInvites) do
-        if inviter == src or invite.target == src then DuoInvites[inviter] = nil end
+    for inviteUid, invite in pairs(DuoInvites) do
+        if invite.from == src or invite.target == src then DuoInvites[inviteUid] = nil end
     end
 end)
 

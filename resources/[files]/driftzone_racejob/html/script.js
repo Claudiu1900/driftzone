@@ -9,6 +9,8 @@ const selectedTitle = document.getElementById('selectedTitle');
 const selectedSub = document.getElementById('selectedSub');
 const inviteMenu = document.getElementById('inviteMenu');
 const friendId = document.getElementById('friendId');
+const inviteError = document.getElementById('inviteError');
+const inviteBtn = document.getElementById('inviteBtn');
 const duoGarage = document.getElementById('duoGarage');
 const partnerName = document.getElementById('partnerName');
 const duoVehicleList = document.getElementById('duoVehicleList');
@@ -66,11 +68,13 @@ function renderRaces() {
         const selected = selectedRace && selectedRace.id === race.id;
         const locked = Number(race.cooldownLeft || 0) > 0;
         const special = race.special === true;
+        const title = escapeHtml(race.label || race.id);
         return `<button class="race-card ${selected ? 'selected' : ''} ${locked ? 'locked' : ''} ${special ? 'special' : ''}" onclick="selectRace('${escapeHtml(race.id)}')">
-            <div class="race-top"><b>${special ? 'SPECIAL' : escapeHtml(race.label)}</b><span>${locked ? timeFmt(race.cooldownLeft) : 'READY'}</span></div>
-            ${special ? `<div class="duo-label">${escapeHtml(race.subLabel || 'Duo Race')}</div>` : ''}
-            <p>${escapeHtml(race.description)}</p>
-            <div class="race-meta"><span>${money(race.rewardMin)} - ${money(race.rewardMax)}</span><span>${timeFmt(race.timeLimit)}</span></div>
+            <div class="race-top"><b>${title}</b><span>${locked ? timeFmt(race.cooldownLeft) : 'READY'}</span></div>
+            <p>${escapeHtml(special ? ((race.subLabel || 'Duo Race') + ' • ' + (race.description || '')) : race.description)}</p>
+            <div class="race-meta">
+                <span>${money(race.rewardMin)} - ${money(race.rewardMax)}</span><span>${timeFmt(race.timeLimit)}</span>
+            </div>
         </button>`;
     }).join('');
 }
@@ -104,8 +108,27 @@ function updateBottom() {
     startBtn.disabled = !ok;
 }
 function startRace() { if (!selectedRace) return; startBtn.disabled = true; nui('start', { raceId: selectedRace.id, vehicleId: selectedVehicle && selectedVehicle.id }); }
-function closeInvite() { inviteMenu.classList.add('hidden'); }
-function sendInvite() { nui('duoInvite', { targetId: Number(friendId.value || 0) }); inviteMenu.classList.add('hidden'); }
+function setInviteError(message) {
+    if (!inviteError) return;
+    inviteError.textContent = String(message || '');
+    inviteError.classList.toggle('hidden', !message);
+}
+function closeInvite() {
+    inviteMenu.classList.add('hidden');
+    setInviteError('');
+    if (inviteBtn) inviteBtn.disabled = false;
+    nui('close');
+}
+function sendInvite() {
+    const targetUid = Number(String(friendId.value || '').trim());
+    if (!Number.isFinite(targetUid) || targetUid <= 0) {
+        setInviteError('Pune un UID valid.');
+        return;
+    }
+    setInviteError('');
+    if (inviteBtn) inviteBtn.disabled = true;
+    nui('duoInvite', { targetUid });
+}
 function openDuoGarage(data) {
     duoSessionId = Number(data.sessionId || 0); duoVehicles = Array.isArray(data.vehicles) ? data.vehicles : []; duoSelectedVehicle = null;
     partnerName.textContent = String(data.partner || 'Player');
@@ -135,7 +158,12 @@ window.addEventListener('message', (event) => {
     const data = event.data || {};
     if (data.action === 'openMenu') openMenu(data);
     if (data.action === 'closeMenu') raceMenu.classList.add('hidden');
-    if (data.action === 'openInvite') { raceMenu.classList.add('hidden'); friendId.value = ''; inviteMenu.classList.remove('hidden'); setTimeout(() => friendId.focus(), 80); }
+    if (data.action === 'openInvite') { raceMenu.classList.add('hidden'); friendId.value = ''; setInviteError(''); if (inviteBtn) inviteBtn.disabled = false; inviteMenu.classList.remove('hidden'); setTimeout(() => friendId.focus(), 80); }
+    if (data.action === 'duoInviteResult') {
+        if (inviteBtn) inviteBtn.disabled = false;
+        if (data.ok === true) { inviteMenu.classList.add('hidden'); setInviteError(''); nui('close'); }
+        else { setInviteError(data.message || 'Nu s-a putut trimite invitatia.'); inviteMenu.classList.remove('hidden'); setTimeout(() => friendId.focus(), 50); }
+    }
     if (data.action === 'openDuoGarage') openDuoGarage(data);
     if (data.action === 'closeDuoGarage') duoGarage.classList.add('hidden');
     if (data.action === 'duoStatus') readyState.textContent = (data.p1Ready && data.p2Ready) ? 'STARTING' : 'WAITING';

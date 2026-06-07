@@ -1,31 +1,28 @@
 # driftzone_racejob
 
-Race job complet pentru DriftZone.
+Fix final pentru Race Job + Special Duo Race.
 
-## Functii
+## Fixuri
 
-- Short Race, Medium Race, Long Race.
-- SPECIAL Duo Race cu invite prin ID si accept prin `/jobaccept <id>`.
-- Fiecare cursa ruleaza in routing bucket separat.
-- La finish/fail masina este stearsa si playerul este teleportat inapoi.
-- Daca jucatorul coboara din masina in timpul cursei, pierde cursa.
-- Cooldown persistent prin KVP.
-- `/rracecd <id>` reseteaza cooldown-ul la curse pentru un jucator.
-- Duo Race imparte cash si XP 50/50.
+- Cardul SPECIAL are aceeasi marime ca restul cardurilor si nu se mai suprapune textul.
+- Invite-ul Duo Race nu mai inchide UI-ul daca ID-ul este invalid.
+- Daca invite-ul nu se poate trimite, ramane meniul deschis si apare eroarea in UI.
+- Campul de invite accepta atat server ID, cat si UID-ul jucatorului, daca UID-ul este cel afisat in HUD.
+- Dupa invite trimis corect, cursorul se inchide si jucatorul nu mai ramane blocat.
+- ESC inchide meniurile corect.
+- /racejob ramane scos.
+- /rracecd <id> reseteaza cooldown-ul fara sa deschida meniul.
 
-## SQL
+## Instalare
 
-Ruleaza `sql.sql`.
+Pune folderul ca:
 
-## Interactions
+```txt
+resources/[files]/driftzone_racejob
+```
 
-Copiaza continutul din `driftzone_interactions_config_add.lua` in `Config.DefaultInteractions` din `driftzone_interactions/config.lua`.
-
-## server.cfg
+Apoi:
 
 ```cfg
-ensure oxmysql
-ensure driftzone_auth
-ensure driftzone_interactions
-ensure driftzone_racejob
+restart driftzone_racejob
 ```
