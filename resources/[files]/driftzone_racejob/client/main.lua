@@ -70,7 +70,96 @@ local function getVehicleFromNetId(netId)
     return entity or 0
 end
 
-local function requestControl(entity, timeoutMs)
+local requestControl
+
+local function loadVehicleModel(model, timeoutMs)
+    local hash
+    local numeric = tonumber(model)
+    if numeric then
+        hash = numeric
+    else
+        hash = joaat(tostring(model or ''))
+    end
+
+    if not hash or hash == 0 then
+        return nil, 'invalid_model'
+    end
+
+    RequestModel(hash)
+    local timeout = GetGameTimer() + (timeoutMs or 12000)
+    while not HasModelLoaded(hash) and GetGameTimer() < timeout do
+        RequestModel(hash)
+        Wait(25)
+    end
+
+    if not HasModelLoaded(hash) then
+        return nil, 'model_timeout'
+    end
+
+    return hash, nil
+end
+
+local function spawnRaceVehicleClient(vehicleData, race)
+    vehicleData = vehicleData or {}
+    race = race or {}
+    local start = race.start or {}
+
+    if raceVehicle and raceVehicle ~= 0 and DoesEntityExist(raceVehicle) then
+        requestControl(raceVehicle, 1500)
+        DeleteEntity(raceVehicle)
+    end
+    raceVehicle = nil
+    raceVehicleNet = nil
+
+    local hash, err = loadVehicleModel(vehicleData.model, (Config.Vehicle and Config.Vehicle.clientSpawnTimeoutMs) or 12000)
+    if not hash then
+        return 0, err or 'invalid_model'
+    end
+
+    local x = tonumber(start.x or 0.0) or 0.0
+    local y = tonumber(start.y or 0.0) or 0.0
+    local z = tonumber(start.z or 0.0) or 0.0
+    local h = tonumber(start.h or start.w or 0.0) or 0.0
+    local zOffset = (Config.Vehicle and tonumber(Config.Vehicle.spawnZOffset)) or 0.45
+
+    local ped = PlayerPedId()
+    SetEntityCoords(ped, x, y, z + 0.15, false, false, false, false)
+    SetEntityHeading(ped, h)
+
+    RequestCollisionAtCoord(x, y, z)
+    local timeout = GetGameTimer() + 3500
+    while not HasCollisionLoadedAroundEntity(ped) and GetGameTimer() < timeout do
+        RequestCollisionAtCoord(x, y, z)
+        Wait(25)
+    end
+
+    local entity = CreateVehicle(hash, x, y, z + zOffset, h, true, true)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then
+        SetModelAsNoLongerNeeded(hash)
+        return 0, 'create_failed'
+    end
+
+    SetEntityAsMissionEntity(entity, true, true)
+    SetVehicleHasBeenOwnedByPlayer(entity, true)
+    SetVehicleNeedsToBeHotwired(entity, false)
+    SetVehicleOnGroundProperly(entity)
+    SetEntityHeading(entity, h)
+    SetModelAsNoLongerNeeded(hash)
+
+    local netId = 0
+    pcall(function()
+        NetworkRegisterEntityAsNetworked(entity)
+        netId = VehToNet(entity)
+        if netId and netId ~= 0 then
+            SetNetworkIdCanMigrate(netId, false)
+            SetNetworkIdExistsOnAllMachines(netId, false)
+        end
+    end)
+
+    return entity, nil, netId
+end
+
+function requestControl(entity, timeoutMs)
     if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
 
     local timeout = GetGameTimer() + (timeoutMs or 2000)
@@ -440,23 +529,29 @@ RegisterNetEvent('driftzone_racejob:client:prepareRace', function(payload)
 
     local vehicleData = payload.vehicle or {}
     local race = payload.race or {}
-    local entity = getVehicleFromNetId(vehicleData.netId)
 
-    if not entity or entity == 0 or not DoesEntityExist(entity) then
-        TriggerServerEvent('driftzone_racejob:server:fail', 'vehicle_missing')
-        notify('error', 'Masina cursei nu a fost gasita.')
-        return
-    end
-
-    raceVehicle = entity
-    raceVehicleNet = vehicleData.netId
     raceDrivingStarted = false
     raceEnding = false
     countdownActive = false
 
+    Wait(250)
+
+    local entity, spawnErr, netId = spawnRaceVehicleClient(vehicleData, race)
+
+    if not entity or entity == 0 or not DoesEntityExist(entity) then
+        TriggerServerEvent('driftzone_racejob:server:fail', 'vehicle_spawn_failed')
+        notify('error', 'Nu am putut spawna masina pentru cursa. Model: ' .. tostring(vehicleData.model or 'unknown'))
+        return
+    end
+
+    raceVehicle = entity
+    raceVehicleNet = netId or 0
+
+    TriggerServerEvent('driftzone_racejob:server:clientVehicleReady', netId or 0)
+
     prepareVehicle(entity, vehicleData)
     createFinishVisual(race.finish, race.label or 'Race Finish')
-    Wait(150)
+    Wait(120)
 
     runCountdown(payload.countdown or 3, function()
         startRaceLoop(race)

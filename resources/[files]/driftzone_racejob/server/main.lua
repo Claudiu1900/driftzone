@@ -92,21 +92,112 @@ local function formatTime(seconds)
     return ('%d:%02d'):format(math.floor(seconds / 60), seconds % 60)
 end
 
+local function getColumnIntegerMax(tableNameValue, columnNameValue)
+    local fallback = tonumber(Config.SafeCashMax or 2147483647) or 2147483647
+
+    local ok, row = pcall(function()
+        return MySQL.single.await([[
+            SELECT COLUMN_TYPE AS column_type
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = ?
+              AND COLUMN_NAME = ?
+            LIMIT 1
+        ]], { tableNameValue, columnNameValue })
+    end)
+
+    if not ok or not row or not row.column_type then return fallback end
+
+    local t = tostring(row.column_type):lower()
+    local unsigned = t:find('unsigned', 1, true) ~= nil
+
+    if t:find('tinyint', 1, true) then return unsigned and 255 or 127 end
+    if t:find('smallint', 1, true) then return unsigned and 65535 or 32767 end
+    if t:find('mediumint', 1, true) then return unsigned and 16777215 or 8388607 end
+    if t:find('bigint', 1, true) then return unsigned and 9007199254740991 or 9007199254740991 end
+    if t:find('int', 1, true) then return unsigned and 4294967295 or 2147483647 end
+
+    return fallback
+end
+
+local function addRewardSafe(uid, reward)
+    local usersTable = tableName(Config.UsersTable or 'users')
+    local uidCol = col(Config.UsersIdColumn or 'uid')
+    local cashCol = col(Config.CashColumn or 'cash')
+    local racesCol = col(Config.RacesColumn or 'races')
+    local maxCash = getColumnIntegerMax(usersTable, cashCol)
+
+    local row = MySQL.single.await(([[
+        SELECT `%s` AS cash_value, `%s` AS races_value
+        FROM `%s`
+        WHERE `%s` = ?
+        LIMIT 1
+    ]]):format(cashCol, racesCol, usersTable, uidCol), { uid })
+
+    if not row then return false, 'user_not_found', 0 end
+
+    local currentCash = tonumber(row.cash_value or 0) or 0
+    local newCash = currentCash + (tonumber(reward or 0) or 0)
+    if newCash > maxCash then newCash = maxCash end
+    if newCash < 0 then newCash = 0 end
+
+    MySQL.update.await(([[
+        UPDATE `%s`
+        SET `%s` = ?, `%s` = COALESCE(`%s`, 0) + 1
+        WHERE `%s` = ?
+        LIMIT 1
+    ]]):format(usersTable, cashCol, racesCol, racesCol, uidCol), { math.floor(newCash), uid })
+
+    return true, nil, math.max(0, math.floor(newCash - currentCash))
+end
+
+local function cooldownKey(uid, raceId)
+    return ('racecd:%s:%s'):format(tostring(uid), tostring(raceId))
+end
+
 local function getCooldownLeft(uid, raceId)
     uid = tonumber(uid or 0) or 0
     if uid <= 0 then return 0 end
+
     local key = tostring(uid) .. ':' .. tostring(raceId)
-    local untilTime = Cooldowns[key] or 0
+    local untilTime = tonumber(Cooldowns[key] or 0) or 0
+
+    if untilTime <= 0 then
+        local saved = GetResourceKvpString(cooldownKey(uid, raceId))
+        untilTime = tonumber(saved or 0) or 0
+        if untilTime > 0 then Cooldowns[key] = untilTime end
+    end
+
     local left = untilTime - os.time()
-    if left < 0 then left = 0 end
+    if left < 0 then
+        left = 0
+        Cooldowns[key] = 0
+        DeleteResourceKvp(cooldownKey(uid, raceId))
+    end
+
     return left
 end
 
 local function setCooldown(uid, raceId, seconds)
     uid = tonumber(uid or 0) or 0
     if uid <= 0 then return end
+
+    local untilTime = os.time() + (tonumber(seconds or 0) or 0)
     local key = tostring(uid) .. ':' .. tostring(raceId)
-    Cooldowns[key] = os.time() + (tonumber(seconds or 0) or 0)
+
+    Cooldowns[key] = untilTime
+    SetResourceKvp(cooldownKey(uid, raceId), tostring(untilTime))
+end
+
+local function resetCooldowns(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return end
+
+    for raceId, _ in pairs(Config.Races or {}) do
+        local key = tostring(uid) .. ':' .. tostring(raceId)
+        Cooldowns[key] = 0
+        DeleteResourceKvp(cooldownKey(uid, raceId))
+    end
 end
 
 local function getCooldownPayload(uid)
@@ -352,6 +443,65 @@ local function registerVehicleSystem(entity, vehicleData, uid, src)
     end)
 end
 
+
+local function getAdminLevel(src)
+    local uid = getUid(src)
+    if not uid then return 0 end
+
+    local usersTable = tableName(Config.UsersTable or 'users')
+    local uidCol = col(Config.UsersIdColumn or 'uid')
+    local columns = Config.AdminColumns or { 'admin_level' }
+
+    for i = 1, #columns do
+        local adminCol = col(columns[i])
+        local ok, row = pcall(function()
+            return MySQL.single.await(([[
+                SELECT `%s` AS admin_level
+                FROM `%s`
+                WHERE `%s` = ?
+                LIMIT 1
+            ]]):format(adminCol, usersTable, uidCol), { uid })
+        end)
+
+        if ok and row and tonumber(row.admin_level) then
+            return tonumber(row.admin_level) or 0
+        end
+    end
+
+    return 0
+end
+
+RegisterCommand(Config.ResetCooldownCommand or 'rracecd', function(src, args)
+    if src == 0 then
+        local target = tonumber(args and args[1])
+        if not target then print('[DRIFTZONE_RACEJOB] Folosire: /rracecd <id>') return end
+        local uid = getUid(target) or target
+        resetCooldowns(uid)
+        print('[DRIFTZONE_RACEJOB] Cooldown race reset pentru UID ' .. tostring(uid))
+        return
+    end
+
+    if getAdminLevel(src) < (Config.ResetCooldownMinAdminLevel or 6) then
+        notify(src, 'error', 'Nu ai acces la aceasta comanda.')
+        return
+    end
+
+    local target = tonumber(args and args[1])
+    if not target then
+        notify(src, 'warning', 'Folosire: /' .. tostring(Config.ResetCooldownCommand or 'rracecd') .. ' <id>')
+        return
+    end
+
+    local targetUid = getUid(target) or target
+    resetCooldowns(targetUid)
+    notify(src, 'success', 'Cooldown-ul de race a fost resetat pentru ID ' .. tostring(target) .. '.', 5000)
+
+    if GetPlayerName(target) then
+        notify(target, 'info', 'Cooldown-ul tau de race a fost resetat.', 5000)
+        sendMenu(target)
+    end
+end, false)
+
 RegisterNetEvent('driftzone_racejob:server:open', function()
     sendMenu(source)
 end)
@@ -389,52 +539,20 @@ RegisterNetEvent('driftzone_racejob:server:start', function(raceId, vehicleId)
         local bucket = (Config.RaceBucketBase or 62000) + tonumber(src)
         SetPlayerRoutingBucket(src, bucket)
 
-        local start = race.start
-        local hash = joaat(vehicleData.model)
-        local entity = CreateVehicle(hash, start.x, start.y, start.z + ((Config.Vehicle and Config.Vehicle.spawnZOffset) or 0.45), start.w, true, true)
-
-        local timeout = GetGameTimer() + 7000
-        while not entityExists(entity) and GetGameTimer() < timeout do Wait(50) end
-
-        if not entityExists(entity) then
-            SetPlayerRoutingBucket(src, Config.ReturnBucket or 0)
-            notify(src, 'error', 'Nu am putut spawna masina. Verifica modelul.')
-            return
-        end
-
-        SetEntityRoutingBucket(entity, bucket)
-        SetVehicleNumberPlateText(entity, vehicleData.plate)
-        setRaceVehicleState(entity, src, uid, vehicleData)
-
-        local netId = NetworkGetNetworkIdFromEntity(entity)
-        timeout = GetGameTimer() + 7000
-        while (not netId or netId == 0) and GetGameTimer() < timeout do
-            Wait(50)
-            netId = NetworkGetNetworkIdFromEntity(entity)
-        end
-
-        if not netId or netId == 0 then
-            deleteEntitySafe(entity)
-            SetPlayerRoutingBucket(src, Config.ReturnBucket or 0)
-            notify(src, 'error', 'Masina nu a primit network id.')
-            return
-        end
-
         ActiveRaces[src] = {
             uid = uid,
             raceId = race.id,
             race = race,
             vehicleId = vehicleData.id,
-            entity = entity,
-            netId = netId,
+            entity = nil,
+            netId = 0,
             bucket = bucket,
             startedAt = os.time(),
             rewardMin = race.reward.min,
             rewardMax = race.reward.max
         }
 
-        RaceVehicles[vehicleData.id] = { entity = entity, src = src, uid = uid }
-        registerVehicleSystem(entity, vehicleData, uid, src)
+        RaceVehicles[vehicleData.id] = { entity = nil, src = src, uid = uid }
         setCooldown(uid, race.id, race.cooldown)
 
         TriggerClientEvent('driftzone_racejob:client:prepareRace', src, {
@@ -442,11 +560,11 @@ RegisterNetEvent('driftzone_racejob:server:start', function(raceId, vehicleId)
                 id = race.id,
                 label = race.label,
                 timeLimit = race.timeLimit,
+                start = { x = race.start.x, y = race.start.y, z = race.start.z, h = race.start.w },
                 finish = { x = race.finish.x, y = race.finish.y, z = race.finish.z },
                 radius = Config.FinishRadius or 9.0
             },
             vehicle = {
-                netId = netId,
                 id = vehicleData.id,
                 model = vehicleData.model,
                 name = vehicleData.name,
@@ -465,6 +583,26 @@ RegisterNetEvent('driftzone_racejob:server:start', function(raceId, vehicleId)
     end
 end)
 
+RegisterNetEvent('driftzone_racejob:server:clientVehicleReady', function(netId)
+    local src = source
+    local active = ActiveRaces[src]
+    if not active then return end
+
+    netId = tonumber(netId or 0) or 0
+    if netId <= 0 then return end
+
+    local entity = NetworkGetEntityFromNetworkId(netId)
+    if entity and entity ~= 0 and DoesEntityExist(entity) then
+        active.netId = netId
+        active.entity = entity
+        SetEntityRoutingBucket(entity, active.bucket or ((Config.RaceBucketBase or 62000) + tonumber(src)))
+
+        if active.vehicleId then
+            RaceVehicles[active.vehicleId] = { entity = entity, src = src, uid = active.uid }
+        end
+    end
+end)
+
 RegisterNetEvent('driftzone_racejob:server:finish', function(raceId)
     local src = source
     local active = ActiveRaces[src]
@@ -474,24 +612,15 @@ RegisterNetEvent('driftzone_racejob:server:finish', function(raceId)
     local reward = math.random(tonumber(active.rewardMin) or 2500, tonumber(active.rewardMax) or 5000)
     local uid = active.uid
 
-    local ok, err = pcall(function()
-        local usersTable = tableName(Config.UsersTable or 'users')
-        local uidCol = col(Config.UsersIdColumn or 'uid')
-        local cashCol = col(Config.CashColumn or 'cash')
-        local racesCol = col(Config.RacesColumn or 'races')
-
-        local safeMax = tonumber(Config.SafeCashMax or 2147483647) or 2147483647
-
-        MySQL.update.await(([[
-            UPDATE `%s`
-            SET `%s` = LEAST(?, COALESCE(`%s`, 0) + ?),
-                `%s` = COALESCE(`%s`, 0) + 1
-            WHERE `%s` = ?
-            LIMIT 1
-        ]]):format(usersTable, cashCol, cashCol, racesCol, racesCol, uidCol), { safeMax, reward, uid })
+    local ok, err, paid = pcall(function()
+        local success, reason, actualPaid = addRewardSafe(uid, reward)
+        if not success then error(reason or 'reward_failed') end
+        return actualPaid
     end)
 
-    if not ok then
+    if ok then
+        reward = tonumber(err or reward) or reward
+    else
         print('[DRIFTZONE_RACEJOB] reward query failed: ' .. tostring(err))
         notify(src, 'error', 'Cursa a fost finalizata, dar SQL cash/races a dat eroare. Ruleaza sql.sql.')
         reward = 0
