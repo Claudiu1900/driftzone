@@ -164,17 +164,17 @@ function updateBottom() {
     const isSpecial = selectedRace && selectedRace.special === true;
     const ok = selectedRace && raceReady && (isSpecial || selectedVehicle);
     if (selectedRace && isSpecial) {
-        selectedTitle.textContent = 'SPECIAL - Duo Race';
-        selectedSub.textContent = raceReady ? 'Invita un prieten si porniti cursa impreuna.' : `Cooldown ramas: ${timeFmtHMS(selectedRace.cooldownLeft)}`;
+        selectedTitle.textContent = 'SPECIAL - Duo Delivery';
+        selectedSub.textContent = raceReady ? 'Invita un prieten si porniti livrarea impreuna.' : `Cooldown ramas: ${timeFmtHMS(selectedRace.cooldownLeft)}`;
     } else if (selectedRace && selectedVehicle) {
         selectedTitle.textContent = `${selectedRace.label} cu ${selectedVehicle.name || selectedVehicle.model}`;
         selectedSub.textContent = raceReady ? `${money(selectedRace.rewardMin)} - ${money(selectedRace.rewardMax)} • timp ${timeFmt(selectedRace.timeLimit)}` : `Cooldown ramas: ${timeFmt(selectedRace.cooldownLeft)}`;
     } else if (selectedRace) {
         selectedTitle.textContent = selectedRace.label;
-        selectedSub.textContent = raceReady ? 'Selecteaza o masina pentru cursa.' : `Cooldown ramas: ${selectedRace.special ? timeFmtHMS(selectedRace.cooldownLeft) : timeFmt(selectedRace.cooldownLeft)}`;
+        selectedSub.textContent = raceReady ? 'Selecteaza o masina pentru livrare.' : `Cooldown ramas: ${selectedRace.special ? timeFmtHMS(selectedRace.cooldownLeft) : timeFmt(selectedRace.cooldownLeft)}`;
     } else {
         selectedTitle.textContent = 'Nimic selectat';
-        selectedSub.textContent = 'Alege o cursa si o masina pentru start.';
+        selectedSub.textContent = 'Alege o livrare si o masina pentru start.';
     }
     startBtn.disabled = !ok;
 }
