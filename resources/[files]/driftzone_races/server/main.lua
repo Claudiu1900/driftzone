@@ -469,7 +469,8 @@ local function finishRace(room, winnerSrc)
                 prize = prize,
                 pot = pot,
                 tax = tax,
-                won = m.src == winner.src
+                won = m.src == winner.src,
+                returnPosition = vecToTable(Config.ReturnPosition)
             })
             setBucket(m.src, Config.ReturnBucket or 0)
             PlayerRoom[m.src] = nil
@@ -560,6 +561,7 @@ RegisterNetEvent('driftzone_races:server:createRoom', function(data)
     PlayerRoom[src] = room.id
     ensureStats(uid, room.ownerName)
     TriggerClientEvent('driftzone_races:client:roomUpdate', src, roomPayload(room, src))
+    TriggerClientEvent('driftzone_races:client:rooms', -1, roomsPayload())
 end)
 
 RegisterNetEvent('driftzone_races:server:joinRoom', function(data)
@@ -589,6 +591,7 @@ RegisterNetEvent('driftzone_races:server:joinRoom', function(data)
     PlayerRoom[src] = room.id
     ensureStats(uid, name)
     broadcastRoom(room)
+    TriggerClientEvent('driftzone_races:client:rooms', -1, roomsPayload())
     if canStartRoom(room) then startRoom(room) end
 end)
 

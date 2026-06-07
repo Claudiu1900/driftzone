@@ -42,6 +42,7 @@ let selectedJoinRoom = null;
 let joinVehicleId = null;
 let myReady = false;
 let roomRefreshTimer = null;
+let suppressLobbyUpdates = false;
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -62,10 +63,10 @@ function setView(v) {
     if (v === 'join') show(joinView);
     if (v === 'lobby') show(lobbyView);
 }
-function goHome(){ setView('home'); }
+function goHome(){ suppressLobbyUpdates = false; setView('home'); }
 function goCreate(){ createStep = 0; createData = { raceId: null, maxPlayers: 2, private: false, password: '', pin: '', entryFee: 50000, vehicleId: null }; setView('create'); renderCreate(); }
 function goJoin(){ setView('join'); selectedJoinRoom = null; joinVehicleId = null; refreshRooms(); startRoomRefresh(); renderJoin(); }
-function closeUi(){ app.classList.add('hidden'); stopRoomRefresh(); nui('close'); }
+function closeUi(){ if(mode === 'lobby') suppressLobbyUpdates = true; app.classList.add('hidden'); stopRoomRefresh(); nui('close'); }
 function startRoomRefresh(){ stopRoomRefresh(); roomRefreshTimer = setInterval(() => { if(mode === 'join') nui('refreshRooms'); }, 3500); }
 function stopRoomRefresh(){ if(roomRefreshTimer) clearInterval(roomRefreshTimer); roomRefreshTimer = null; }
 
@@ -198,7 +199,7 @@ window.addEventListener('message', (event)=>{
         races = Array.isArray(data.races)?data.races:[];
         rooms = Array.isArray(data.rooms)?data.rooms:[];
         vehiclesByRace = {};
-        show(app); setView('home'); renderJoin();
+        suppressLobbyUpdates = false; show(app); setView('home'); renderJoin();
     }
     if(data.action==='close'){ hide(app); }
     if(data.action==='vehicles'){
@@ -207,8 +208,17 @@ window.addEventListener('message', (event)=>{
         if(mode==='join') renderJoinForm();
     }
     if(data.action==='rooms'){ rooms = Array.isArray(data.rooms)?data.rooms:[]; if(mode==='join') renderJoin(); }
-    if(data.action==='room'){ stopRoomRefresh(); show(app); renderRoom(data.room); }
-    if(data.action==='leftRoom'){ currentRoom=null; goHome(); }
+    if(data.action==='room'){
+        stopRoomRefresh();
+        currentRoom = data.room || null;
+        if(suppressLobbyUpdates && mode === 'lobby') {
+            return;
+        }
+        suppressLobbyUpdates = false;
+        show(app);
+        renderRoom(data.room);
+    }
+    if(data.action==='leftRoom'){ currentRoom=null; suppressLobbyUpdates=false; goHome(); }
     if(data.action==='raceHud'){
         raceHud.classList.toggle('hidden', data.visible!==true);
         hudDir.textContent = dirIcon(data.direction);

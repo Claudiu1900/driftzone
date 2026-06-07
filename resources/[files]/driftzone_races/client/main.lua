@@ -8,6 +8,7 @@ local finishCheckpoint = nil
 local checkpointIndex = 1
 local raceEnded = false
 local raceGhostThread = false
+local lobbyUiHidden = false
 
 local MOD_KEY_TYPES = {
     spoiler = 0, frontBumper = 1, rearBumper = 2, sideSkirt = 3, exhaust = 4, frame = 5, grille = 6,
@@ -34,6 +35,7 @@ local function setFocus(state)
 end
 
 local function openMenu(payload)
+    lobbyUiHidden = false
     payload = payload or {}
     payload.action = 'open'
     payload.mainColor = Config.MainColor
@@ -42,6 +44,7 @@ local function openMenu(payload)
 end
 
 local function closeMenu(sendServer)
+    if currentRoom and not activeRace then lobbyUiHidden = true end
     sendNui({ action = 'close' })
     setFocus(false)
     if sendServer then TriggerServerEvent('driftzone_races:server:closeUi') end
@@ -276,6 +279,25 @@ local function clearCheckpoint()
     finishCheckpoint = nil
 end
 
+local function returnToRaceHub(pos)
+    pos = pos or Config.ReturnPosition
+    if not pos then return end
+    local ped = PlayerPedId()
+    local x = tonumber(pos.x or pos[1]) or 0.0
+    local y = tonumber(pos.y or pos[2]) or 0.0
+    local z = tonumber(pos.z or pos[3]) or 0.0
+    local h = tonumber(pos.h or pos.w or pos[4]) or 0.0
+    RequestCollisionAtCoord(x, y, z)
+    local timeout = GetGameTimer() + 2500
+    while not HasCollisionLoadedAroundEntity(ped) and GetGameTimer() < timeout do
+        RequestCollisionAtCoord(x, y, z)
+        Wait(25)
+    end
+    SetEntityCoords(ped, x, y, z + 0.15, false, false, false, false)
+    SetEntityHeading(ped, h)
+    ClearPedTasksImmediately(ped)
+end
+
 local function createCheckpointFor(index)
     clearCheckpoint()
     if not activeRace then return end
@@ -309,6 +331,8 @@ local function endLocalRace()
     SetLocalPlayerAsGhost(false)
     NetworkSetFriendlyFireOption(true)
     activeRace = nil
+    currentRoom = nil
+    lobbyUiHidden = false
     checkpointIndex = 1
     raceGhostThread = false
 end
@@ -367,15 +391,19 @@ end)
 RegisterNetEvent('driftzone_races:client:roomUpdate', function(room)
     currentRoom = room
     sendNui({ action = 'room', room = room })
-    setFocus(true)
+    if not lobbyUiHidden then
+        setFocus(true)
+    end
 end)
 
 RegisterNetEvent('driftzone_races:client:leftRoom', function()
     currentRoom = nil
+    lobbyUiHidden = false
     sendNui({ action = 'leftRoom' })
 end)
 
 RegisterNetEvent('driftzone_races:client:startRace', function(payload)
+    lobbyUiHidden = false
     closeMenu(false)
     raceEnded = false
     activeRace = payload
@@ -410,15 +438,18 @@ RegisterNetEvent('driftzone_races:client:startRace', function(payload)
 end)
 
 RegisterNetEvent('driftzone_races:client:raceFinished', function(result)
-    local won = result and result.won == true
+    result = result or {}
+    local won = result.won == true
     if won then
         notify('success', ('Ai castigat cursa si ai primit $%s.'):format(tostring(result.prize or 0)), 8000)
     else
         notify('warning', ('Cursa a fost castigata de %s.'):format(tostring(result.winnerName or 'alt jucator')), 8000)
     end
-    sendNui({ action = 'finishScreen', result = result or {} })
+    sendNui({ action = 'finishScreen', result = result })
     Wait(2500)
     endLocalRace()
+    Wait(150)
+    returnToRaceHub(result.returnPosition or Config.ReturnPosition)
 end)
 
 RegisterNUICallback('ready', function(_, cb)

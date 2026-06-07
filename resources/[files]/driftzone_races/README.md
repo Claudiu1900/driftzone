@@ -1,18 +1,19 @@
 # driftzone_races
 
-Multiplayer race lobby pentru DriftZone.
+Race lobby pentru DriftZone.
 
-## Comenzi
+## Update
 
-```txt
-/draces - test open menu
-```
+- Dupa terminarea cursei, toti jucatorii sunt trimisi la `-1338.316528, -3047.960450, 13.929688, 331.65` si revin in bucket-ul normal.
+- Dupa Create Race se inchide flow-ul de create si se deschide direct meniul de party.
+- Dupa Join Race se inchide flow-ul de join si se deschide direct meniul de party.
+- ESC in party inchide UI-ul si te pune READY automat, dar ramai in party.
+- UI refacut complet, glass/futuristic, fara backdrop-filter/filter.
+- Race-ul ramane in virtual world, cu ghost/no collision intre masini.
 
-Normal se deschide prin `driftzone_interactions`.
+## Interactions
 
-## driftzone_interactions config
-
-Adauga in `Config.DefaultInteractions`:
+Adauga in `Config.DefaultInteractions` din `driftzone_interactions/config.lua`:
 
 ```lua
 {
@@ -28,10 +29,6 @@ Adauga in `Config.DefaultInteractions`:
 },
 ```
 
-## SQL
-
-Ruleaza `sql.sql`.
-
 ## server.cfg
 
 ```cfg
@@ -41,10 +38,6 @@ ensure driftzone_interactions
 ensure driftzone_races
 ```
 
-## Note
+## SQL
 
-- Masinile apar dupa `ownedvehicles.owner_id = users.uid`.
-- Pentru Drift Race apar doar masinile din `vehiclenames.type = 'drift'`.
-- Race-ul ruleaza in routing bucket privat.
-- Playerii au ghost/no-collision intre vehicule in cursa.
-- Potul este entryFee x players minus 10%.
+Ruleaza `sql.sql`.

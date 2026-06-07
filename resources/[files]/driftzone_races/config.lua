@@ -30,6 +30,7 @@ Config.LobbyStartAfterNoJoinSeconds = 60
 Config.CountdownSeconds = 3
 Config.RaceBucketBase = 73000
 Config.ReturnBucket = 0
+Config.ReturnPosition = vector4(-1338.316528, -3047.960450, 13.929688, 331.65)
 Config.FinishRadius = 9.0
 Config.CheckpointRadius = 12.0
 Config.EntryFeeMin = 1
