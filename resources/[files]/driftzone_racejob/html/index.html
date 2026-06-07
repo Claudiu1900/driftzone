@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone RaceJob</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="root" class="root hidden">
+        <div class="grid"></div>
+        <div class="glow glow-a"></div>
+        <div class="glow glow-b"></div>
+
+        <div class="shell">
+            <button class="close" onclick="closeMenu()">×</button>
+
+            <header class="header">
+                <div>
+                    <div class="kicker">DriftZone Jobs</div>
+                    <h1>Race Job</h1>
+                    <p>Alege cursa, selecteaza masina ta si porneste job-ul.</p>
+                </div>
+                <div class="status">
+                    <span></span>
+                    ACTIVE
+                </div>
+            </header>
+
+            <section class="modes" id="raceModes"></section>
+
+            <div class="section-title">
+                <div>
+                    <span class="kicker">Owned Vehicles</span>
+                    <h2>Masinile tale</h2>
+                </div>
+                <input id="searchInput" placeholder="Cauta masina..." oninput="renderVehicles()">
+            </div>
+
+            <section id="vehiclesGrid" class="vehicles"></section>
+
+            <footer class="bottom">
+                <div class="selected">
+                    <b id="selectedTitle">Nicio masina selectata</b>
+                    <span id="selectedMeta">Selecteaza un mod si o masina pentru a incepe.</span>
+                </div>
+
+                <button id="startButton" class="start" onclick="startRace()">START RACE</button>
+            </footer>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

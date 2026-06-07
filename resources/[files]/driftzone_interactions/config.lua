@@ -28,6 +28,18 @@ Config.DefaultInteractions = {
         blip = { sprite = 225, color = 3, scale = 0.85, name = 'DriftZone Showroom' }
     },
 
+    {
+    id = 'driftzone_racejob_main',
+    coords = vector3(-116.835160, -604.720886, 36.272584),
+    range = 2.8,
+    key = 'E',
+    text = 'Apasa E pentru Race Job',
+    subText = 'DriftZone Race Job',
+    marker = true,
+    event = 'driftzone_racejob:client:openFromInteraction',
+    blip = { sprite = 315, color = 3, scale = 0.85, name = 'DriftZone Race Job' }
+},
+
     { id = 'tuning_lsc_city', coords = vector3(-337.23, -136.80, 39.01), range = 3.0, key = 'E', text = 'Apasa E pentru tuning', subText = 'Los Santos Customs', marker = true, event = 'driftzone_tunning:client:openFromInteraction', requireVehicle = true, blip = { sprite = 72, color = 3, scale = 0.8, name = 'DriftZone Tuning' } },
     { id = 'tuning_airport', coords = vector3(-1155.42, -2007.98, 13.18), range = 3.0, key = 'E', text = 'Apasa E pentru tuning', subText = 'Airport Tuning', marker = true, event = 'driftzone_tunning:client:openFromInteraction', requireVehicle = true, blip = { sprite = 72, color = 3, scale = 0.8, name = 'DriftZone Tuning' } },
     { id = 'tuning_route68', coords = vector3(1174.76, 2640.21, 37.75), range = 3.0, key = 'E', text = 'Apasa E pentru tuning', subText = 'Route 68 Customs', marker = true, event = 'driftzone_tunning:client:openFromInteraction', requireVehicle = true, blip = { sprite = 72, color = 3, scale = 0.8, name = 'DriftZone Tuning' } },
