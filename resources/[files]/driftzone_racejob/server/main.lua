@@ -94,6 +94,74 @@ local function formatTime(seconds)
     return ('%d:%02d'):format(math.floor(seconds / 60), seconds % 60)
 end
 
+
+local function getCashColumnMax(usersTable, cashCol)
+    local ok, row = pcall(function()
+        return MySQL.single.await([[
+            SELECT DATA_TYPE AS data_type, COLUMN_TYPE AS column_type
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = ?
+              AND COLUMN_NAME = ?
+            LIMIT 1
+        ]], { usersTable, cashCol })
+    end)
+
+    if not ok or not row then
+        return tonumber(Config.SafeCashMax or 2147483647) or 2147483647
+    end
+
+    local dataType = tostring(row.data_type or ''):lower()
+    local columnType = tostring(row.column_type or ''):lower()
+    local unsigned = columnType:find('unsigned', 1, true) ~= nil
+
+    if dataType == 'tinyint' then return unsigned and 255 or 127 end
+    if dataType == 'smallint' then return unsigned and 65535 or 32767 end
+    if dataType == 'mediumint' then return unsigned and 16777215 or 8388607 end
+    if dataType == 'int' or dataType == 'integer' then return unsigned and 4294967295 or 2147483647 end
+
+    -- Pentru BIGINT evitam valori peste limita sigura JS/Lua. Daca vrei mai mult, ruleaza SQL-ul inclus.
+    if dataType == 'bigint' then return 9007199254740991 end
+
+    return tonumber(Config.SafeCashMax or 2147483647) or 2147483647
+end
+
+local function addRewardAndRace(uid, reward)
+    uid = tonumber(uid or 0) or 0
+    reward = tonumber(reward or 0) or 0
+    if uid <= 0 or reward <= 0 then return false, 0, 'bad_args' end
+
+    local usersTable = tableName(Config.UsersTable or 'users')
+    local uidCol = col(Config.UsersIdColumn or 'uid')
+    local cashCol = col(Config.CashColumn or 'cash')
+    local racesCol = col(Config.RacesColumn or 'races')
+
+    local ok, result = pcall(function()
+        local maxCash = getCashColumnMax(usersTable, cashCol)
+        local row = MySQL.single.await(('SELECT `%s` AS cash FROM `%s` WHERE `%s` = ? LIMIT 1'):format(cashCol, usersTable, uidCol), { uid })
+        if not row then return { ok = false, added = 0, error = 'user_missing' } end
+
+        local current = tonumber(row.cash or 0) or 0
+        if current < 0 then current = 0 end
+
+        local newCash = current + reward
+        if newCash > maxCash then newCash = maxCash end
+        if newCash < current then newCash = current end
+
+        local added = math.floor(newCash - current)
+
+        MySQL.update.await(('UPDATE `%s` SET `%s` = ?, `%s` = COALESCE(`%s`, 0) + 1 WHERE `%s` = ? LIMIT 1'):format(
+            usersTable, cashCol, racesCol, racesCol, uidCol
+        ), { math.floor(newCash), uid })
+
+        return { ok = true, added = added, capped = added < reward, maxCash = maxCash }
+    end)
+
+    if not ok then return false, 0, result end
+    if type(result) ~= 'table' or result.ok ~= true then return false, 0, result and result.error or 'unknown' end
+    return true, tonumber(result.added or 0) or 0, result
+end
+
 local function cooldownKey(uid, raceId)
     return ('driftzone_racejob_cd_%s_%s'):format(tostring(uid), tostring(raceId))
 end
@@ -549,25 +617,13 @@ RegisterNetEvent('driftzone_racejob:server:finish', function(raceId)
     local reward = math.random(tonumber(active.rewardMin) or 2500, tonumber(active.rewardMax) or 5000)
     local uid = active.uid
 
-    local ok, err = pcall(function()
-        local usersTable = tableName(Config.UsersTable or 'users')
-        local uidCol = col(Config.UsersIdColumn or 'uid')
-        local cashCol = col(Config.CashColumn or 'cash')
-        local racesCol = col(Config.RacesColumn or 'races')
-
-        MySQL.update.await(([[
-            UPDATE `%s`
-            SET `%s` = LEAST(18446744073709551615, CAST(`%s` AS UNSIGNED) + ?),
-                `%s` = COALESCE(`%s`, 0) + 1
-            WHERE `%s` = ?
-            LIMIT 1
-        ]]):format(usersTable, cashCol, cashCol, racesCol, racesCol, uidCol), { reward, uid })
-    end)
-
+    local ok, added, info = addRewardAndRace(uid, reward)
     if not ok then
-        print('[DRIFTZONE_RACEJOB] reward query failed: ' .. tostring(err))
+        print('[DRIFTZONE_RACEJOB] reward update failed: ' .. tostring(info))
         notify(src, 'error', 'Cursa a fost finalizata, dar SQL cash/races a dat eroare. Ruleaza sql.sql.')
-        reward = 0
+        added = 0
+    elseif tonumber(added or 0) <= 0 then
+        notify(src, 'warning', 'Cash-ul tau este la limita coloanei din SQL. Ruleaza sql.sql ca sa primesti sume mai mari.', 7000)
     end
 
     cleanupRace(src, 'finish')
@@ -575,8 +631,8 @@ RegisterNetEvent('driftzone_racejob:server:finish', function(raceId)
     local ret = Config.ReturnPosition
     TriggerClientEvent('driftzone_racejob:client:endRace', src, {
         success = true,
-        reward = reward,
-        message = reward > 0 and ('Ai finalizat cursa si ai primit suma de: $' .. tostring(reward) .. '!') or 'Ai finalizat cursa.',
+        reward = added,
+        message = added > 0 and ('Ai finalizat cursa si ai primit suma de: $' .. tostring(added) .. '!') or 'Ai finalizat cursa, dar cash-ul tau este la limita SQL.',
         returnPos = { x = ret.x, y = ret.y, z = ret.z, h = ret.w },
         bucket = Config.ReturnBucket or 0
     })

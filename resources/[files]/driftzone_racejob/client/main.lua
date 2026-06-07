@@ -186,17 +186,21 @@ local function prepareVehicle(entity, data)
     protectVehicle(entity)
     applyTuning(entity, data.tuning or '{}', data.plate)
     SetPedIntoVehicle(PlayerPedId(), entity, -1)
+end
 
-    local delays = (Config.Vehicle and Config.Vehicle.tuningApplyDelays) or { 100, 350, 750, 1400, 2400 }
-    for i = 1, #delays do
-        Wait(delays[i])
-        if not DoesEntityExist(entity) then break end
-        requestControl(entity, 500)
-        SetVehicleEngineOn(entity, true, true, false)
-        SetVehicleFixed(entity)
-        protectVehicle(entity)
-        applyTuning(entity, data.tuning or '{}', data.plate)
-    end
+local function reapplyVehicleSetup(entity, data)
+    CreateThread(function()
+        local delays = (Config.Vehicle and Config.Vehicle.tuningApplyDelays) or { 100, 350, 750, 1400, 2400 }
+        for i = 1, #delays do
+            Wait(delays[i])
+            if not DoesEntityExist(entity) then break end
+            requestControl(entity, 500)
+            SetVehicleEngineOn(entity, true, true, false)
+            SetVehicleFixed(entity)
+            protectVehicle(entity)
+            applyTuning(entity, data.tuning or '{}', data.plate)
+        end
+    end)
 end
 
 local function clearRaceVisuals()
@@ -362,6 +366,7 @@ local function spawnRaceVehicle(payload)
 
         prepareVehicle(entity, vehicleData)
         TriggerServerEvent('driftzone_racejob:server:vehicleCreated', payload.token, netId)
+        reapplyVehicleSetup(entity, vehicleData)
     end)
 end
 

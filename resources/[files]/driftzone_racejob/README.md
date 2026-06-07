@@ -1,31 +1,21 @@
 # driftzone_racejob
 
-Race Job standalone pentru DriftZone.
+Race Job pentru DriftZone.
 
-## Fixuri in aceasta versiune
+## Fixuri incluse
 
-- Masina nu mai este spawnata server-side, ci client-side dupa ce playerul intra in bucket privat. Asta rezolva bug-ul `Masina cursei nu a fost gasita`.
-- Cooldown-ul este persistent prin KVP server-side si sincronizat in localStorage in UI.
-- Comanda `/rracecd <id>` reseteaza cooldown-ul la race pentru playerul respectiv.
-- Tuning-ul din `ownedvehicles.vehicle_tunning` se aplica de mai multe ori dupa spawn.
-- Doar checkpoint-ul de finish este creat.
-- Playerul ruleaza cursa in dimensiune privata.
+- reward-ul nu mai da crash daca `users.cash` este INT si atinge limita;
+- scriptul citeste limita coloanei `cash` si face update safe;
+- `sql.sql` modifica `cash` la BIGINT UNSIGNED si adauga `users.races`;
+- timer-ul din cursa este mai mic si apare langa minimap, jos;
+- countdown-ul 3 / 2 / 1 / START porneste imediat dupa teleport/spawn;
+- tuning-ul se aplica instant si apoi se reaplica in background;
+- masina cursei se sterge la finish/fail;
+- playerul revine in dimensiunea normala dupa finish/fail.
 
-## SQL
+## SQL obligatoriu recomandat
 
-Ruleaza `sql.sql`:
-
-```sql
-ALTER TABLE `users`
-  MODIFY COLUMN `cash` BIGINT UNSIGNED NOT NULL DEFAULT 0;
-
-ALTER TABLE `users`
-  ADD COLUMN IF NOT EXISTS `races` INT UNSIGNED NOT NULL DEFAULT 0;
-```
-
-## Interaction
-
-Adauga continutul din `driftzone_interactions_config_add.lua` in `Config.DefaultInteractions` din `driftzone_interactions/config.lua`.
+Ruleaza `sql.sql` in baza de date ca sa nu mai ai limita mica la cash.
 
 ## server.cfg
 
@@ -37,9 +27,8 @@ ensure driftzone_garage
 ensure driftzone_racejob
 ```
 
-## Comenzi
+## Reset cooldown
 
 ```txt
-/racejob
 /rracecd <id>
 ```

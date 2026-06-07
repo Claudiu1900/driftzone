@@ -85,3 +85,7 @@ Config.Notify = {
 }
 
 Config.Debug = false
+
+-- Fallback daca nu ai rulat sql.sql si cash este INT normal.
+-- Scriptul nu mai crapa la reward; daca atingi limita, ruleaza sql.sql.
+Config.SafeCashMax = 2147483647
