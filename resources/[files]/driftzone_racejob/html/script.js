@@ -63,6 +63,19 @@ function timeFmtHMS(seconds) {
 }
 function setMainColor(color) { if (color) document.documentElement.style.setProperty('--main', color); }
 
+function vehicleIdOf(vehicle) {
+    return String((vehicle && (vehicle.id ?? vehicle.vehicleId ?? vehicle.dbId)) ?? '');
+}
+
+function findVehicleById(list, id) {
+    const key = String(id ?? '');
+    return (Array.isArray(list) ? list : []).find(v => vehicleIdOf(v) === key) || null;
+}
+
+function renderVehicleList(target, list, duo = false) {
+    target.innerHTML = list.length ? list.map(v => vehicleCard(v, duo)).join('') : '<div class="empty">Nu ai masini disponibile.</div>';
+}
+
 function openMenu(data) {
     races = Array.isArray(data.races) ? data.races.map(r => ({ ...r })) : [];
     vehicles = Array.isArray(data.vehicles) ? data.vehicles.map(v => ({ ...v })) : [];
@@ -132,15 +145,19 @@ function renderRaces() {
 function renderVehicles() {
     const q = String(searchInput.value || '').trim().toLowerCase();
     const list = vehicles.filter((v) => !q || `${v.name || ''} ${v.model || ''} ${v.plate || ''}`.toLowerCase().includes(q));
-    vehicleList.innerHTML = list.length ? list.map(vehicleCard).join('') : '<div class="empty">Nu ai masini disponibile.</div>';
+    renderVehicleList(vehicleList, list, false);
 }
 function vehicleCard(veh, duo = false) {
-    const selected = duo ? (duoSelectedVehicle && Number(duoSelectedVehicle.id) === Number(veh.id)) : (selectedVehicle && Number(selectedVehicle.id) === Number(veh.id));
+    const id = vehicleIdOf(veh);
+    const selected = duo
+        ? (duoSelectedVehicle && vehicleIdOf(duoSelectedVehicle) === id)
+        : (selectedVehicle && vehicleIdOf(selectedVehicle) === id);
     const title = escapeHtml(veh.name || veh.model || 'Vehicle');
     const model = escapeHtml(veh.model || 'model');
     const plate = escapeHtml(veh.plate || 'DRIFT');
+    const safeId = escapeHtml(id);
 
-    return `<button class="vehicle-card ${selected ? 'selected' : ''}" onclick="${duo ? 'selectDuoVehicle' : 'selectVehicle'}(${Number(veh.id || 0)})">
+    return `<button type="button" class="vehicle-card ${selected ? 'selected' : ''}" data-vehicle-id="${safeId}" onclick="${duo ? 'selectDuoVehicle' : 'selectVehicle'}('${safeId}')">
         <div class="vehicle-mark"><svg viewBox="0 0 24 24"><path d="M5 13l1.7-4.5A3 3 0 0 1 9.5 6.6h5a3 3 0 0 1 2.8 1.9L19 13M4.5 13h15v5.2H17v-1.7H7v1.7H4.5V13Zm3.2 0h8.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div class="vehicle-info">
             <b>${title}</b>
@@ -155,7 +172,7 @@ function selectRace(id) {
     updateBottom();
 }
 function selectVehicle(id) {
-    selectedVehicle = vehicles.find(v => Number(v.id) === Number(id)) || null;
+    selectedVehicle = findVehicleById(vehicles, id);
     renderVehicles();
     updateBottom();
 }
@@ -181,7 +198,7 @@ function updateBottom() {
 function startRace() {
     if (!selectedRace) return;
     startBtn.disabled = true;
-    nui('start', { raceId: selectedRace.id, vehicleId: selectedVehicle && selectedVehicle.id });
+    nui('start', { raceId: selectedRace.id, vehicleId: selectedVehicle ? vehicleIdOf(selectedVehicle) : null });
 }
 function setInviteError(message) {
     if (!inviteError) return;
@@ -208,19 +225,19 @@ function openDuoGarage(data) {
     partnerName.textContent = String(data.partner || 'Player');
     readyState.textContent = 'WAITING';
     duoReadyBtn.disabled = true;
-    duoVehicleList.innerHTML = duoVehicles.length ? duoVehicles.map(v => vehicleCard(v, true)).join('') : '<div class="empty">Nu ai masini disponibile.</div>';
+    renderVehicleList(duoVehicleList, duoVehicles, true);
     duoGarage.classList.remove('hidden');
 }
 function selectDuoVehicle(id) {
-    duoSelectedVehicle = duoVehicles.find(v => Number(v.id) === Number(id)) || null;
+    duoSelectedVehicle = findVehicleById(duoVehicles, id);
     duoReadyBtn.disabled = !duoSelectedVehicle;
-    duoVehicleList.innerHTML = duoVehicles.map(v => vehicleCard(v, true)).join('');
+    renderVehicleList(duoVehicleList, duoVehicles, true);
 }
 function duoReady() {
     if (!duoSelectedVehicle) return;
     duoReadyBtn.disabled = true;
     readyState.textContent = 'READY';
-    nui('duoReady', { sessionId: duoSessionId, vehicleId: duoSelectedVehicle.id });
+    nui('duoReady', { sessionId: duoSessionId, vehicleId: vehicleIdOf(duoSelectedVehicle) });
 }
 function closeDuoGarage() { duoGarage.classList.add('hidden'); nui('close'); }
 function animateNumber(el, from, to, prefix, suffix, duration) {

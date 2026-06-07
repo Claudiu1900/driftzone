@@ -1006,3 +1006,30 @@ button {
         display: none;
     }
 }
+
+
+/* DriftZone fix: clear invite spacing and keep selection only by .selected class */
+.invite-panel .friend-input {
+    margin-bottom: 18px;
+}
+
+.invite-panel .invite-error:not(.hidden) {
+    margin-top: -4px;
+    margin-bottom: 16px;
+}
+
+.invite-panel .gold-btn {
+    margin-top: 8px;
+}
+
+.vehicle-card:focus,
+.vehicle-card:active {
+    outline: none;
+}
+
+.vehicle-card:not(.selected):focus,
+.vehicle-card:not(.selected):active {
+    border-color: rgba(255,255,255,.10);
+    background: linear-gradient(145deg, rgba(255,255,255,.070), rgba(255,255,255,.030));
+    box-shadow: none;
+}

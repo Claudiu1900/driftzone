@@ -32,3 +32,10 @@ restart driftzone_racejob
 - `/rracecd <uid>` reseteaza cooldown-ul dupa UID, nu dupa server ID.
 - Timer-ul cursei este pozitionat jos, in dreapta minimap-ului.
 - Cooldown separat pe castig/pierdere: `cooldown` pentru castig si `failCooldown` pentru pierdere, configurabile in `config.lua`.
+
+
+## Update selectie masini
+- La deschiderea meniului nu este selectata nicio masina.
+- Click pe o masina selecteaza strict masina respectiva.
+- Click pe alta masina deselecteaza automat selectia veche.
+- La Duo invite, input-ul si butonul au spatiu mai curat intre ele.
