@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DriftZone Race Job</title>
+    <title>DriftZone Delivery Job</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -21,13 +21,13 @@
             <header class="hero">
                 <div class="hero-copy">
                     <span class="eyebrow">DriftZone Jobs</span>
-                    <h1>Race Job</h1>
-                    <p>Alege cursa, selecteaza masina personala si porneste job-ul. Totul este privat, rapid si sincronizat.</p>
+                    <h1>Delivery Job</h1>
+                    <p>Alege livrarea, selecteaza masina personala si porneste job-ul. Totul este privat, rapid si sincronizat.</p>
                 </div>
                 <div class="hero-status">
                     <span class="live-dot"></span>
                     <b>ONLINE</b>
-                    <small>Race Core</small>
+                    <small>Delivery Job</small>
                 </div>
             </header>
 
@@ -36,7 +36,7 @@
                     <div class="section-head">
                         <div>
                             <span>01</span>
-                            <b>Curse disponibile</b>
+                            <b>Livrari disponibile</b>
                         </div>
                         <small>Selecteaza ruta</small>
                     </div>
@@ -65,10 +65,10 @@
                 <div class="selection-panel">
                     <span class="selection-kicker">Selectie curenta</span>
                     <b id="selectedTitle">Nimic selectat</b>
-                    <small id="selectedSub">Alege o cursa si o masina pentru start.</small>
+                    <small id="selectedSub">Alege o livrare si o masina pentru start.</small>
                 </div>
                 <button id="startBtn" class="primary-btn" onclick="startRace()" disabled>
-                    <span>START RACE</span>
+                    <span>START DELIVERY</span>
                     <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
             </footer>
@@ -80,10 +80,10 @@
         <div class="invite-panel glass-gold">
             <button class="close" onclick="closeInvite()" aria-label="Inchide">×</button>
             <span class="gold-kicker">SPECIAL DELIVERY</span>
-            <h2>Duo Race</h2>
-            <p>Invita un prieten cu UID-ul lui. Dupa accept, fiecare isi alege masina si porniti cursa sincronizat.</p>
+            <h2>Duo Delivery</h2>
+            <p>Invita un prieten cu ID-ul lui. Dupa accept, fiecare isi alege masina si porniti livrarea.</p>
 
-            <label class="input-label">UID prieten</label>
+            <label class="input-label">ID prieten</label>
             <input id="friendId" class="friend-input" placeholder="Ex: 24" inputmode="numeric">
             <div id="inviteError" class="invite-error hidden"></div>
 
@@ -124,7 +124,7 @@
 
     <div id="rewardScreen" class="reward-screen hidden">
         <div class="reward-card">
-            <span class="gold-kicker">DUO RACE COMPLETE</span>
+            <span class="gold-kicker">DUO DELIVERY COMPLETE</span>
             <h2>Reward Split</h2>
             <div class="reward-pool">
                 <div>

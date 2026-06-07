@@ -51,32 +51,32 @@ Config.Vehicle = {
 Config.Races = {
     short = {
         id = 'short',
-        label = 'Short Race',
-        description = 'Cursa scurta, rapida si buna pentru cash rapid.',
+        label = 'Short Delivery',
+        description = 'Livrare scurta, rapida si buna pentru cash rapid.',
         reward = { min = 2500, max = 5000 },
         xp = { min = 100, max = 300 },
-        cooldown = 5 * 60, -- cooldown dupa castig
-        failCooldown = 2 * 60, -- cooldown daca pierde
+        cooldown = 15 * 60, -- cooldown dupa castig
+        failCooldown = 5 * 60, -- cooldown daca pierde
         timeLimit = 180,
         start = vector4(-490.958252, -751.094482, 31.144288, 170.08),
         finish = vector3(-853.806580, -1257.784668, 3.999268)
     },
     medium = {
         id = 'medium',
-        label = 'Medium Race',
-        description = 'Cursa medie, distanta mai mare si recompensa mai buna.',
+        label = 'Medium Delivery',
+        description = 'Livrare medie, distanta mai mare si recompensa mai buna.',
         reward = { min = 7500, max = 15000 },
         xp = { min = 300, max = 700 },
-        cooldown = 15 * 60, -- cooldown dupa castig
-        failCooldown = 5 * 60, -- cooldown daca pierde
+        cooldown = 30 * 60, -- cooldown dupa castig
+        failCooldown = 10 * 60, -- cooldown daca pierde
         timeLimit = 360,
         start = vector4(1364.373658, -2023.503296, 50.858642, 28.35),
         finish = vector3(2539.938476, -279.837372, 91.989014)
     },
     long = {
         id = 'long',
-        label = 'Long Race',
-        description = 'Cursa lunga pe harta, risc mare si reward mare.',
+        label = 'Long Delivery',
+        description = 'Livrare lunga pe harta, risc mare si reward mare.',
         reward = { min = 15000, max = 30000 },
         xp = { min = 700, max = 1500 },
         cooldown = 60 * 60, -- cooldown dupa castig
@@ -88,14 +88,14 @@ Config.Races = {
     special = {
         id = 'special',
         label = 'SPECIAL',
-        subLabel = 'Duo Race',
-        description = 'Fa o cursa impreuna cu prietenul tau si impartiti recompensa finala.',
+        subLabel = 'Duo Delivery',
+        description = 'Fa o livrare impreuna cu prietenul tau si impartiti recompensa finala.',
         special = true,
         reward = { min = 25000, max = 50000 },
         xp = { min = 1000, max = 5000 },
         cooldown = 24 * 60 * 60, -- cooldown dupa castig
         failCooldown = 60 * 60, -- cooldown daca pierde
-        timeLimit = 15 * 60,
+        timeLimit = 3 * 60,
         start1 = vector4(52.391208, -600.843934, 31.621948, 161.57),
         start2 = vector4(48.857144, -599.723084, 31.638794, 161.57),
         finish = vector3(-1820.439576, -1245.956054, 13.002930)

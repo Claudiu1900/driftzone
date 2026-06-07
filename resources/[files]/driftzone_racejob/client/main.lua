@@ -571,9 +571,9 @@ local function startTimerLoop()
             sendNui({ action = 'timer', time = formatTime(left), danger = left <= 20 })
             if left <= 0 then
                 if activeRace.type == 'solo' then
-                    TriggerServerEvent('driftzone_racejob:server:soloFail', 'Timpul a expirat. Ai pierdut cursa.')
+                    TriggerServerEvent('driftzone_racejob:server:soloFail', 'Timpul a expirat. Ai pierdut livrarea.')
                 elseif activeRace.type == 'duo' then
-                    TriggerServerEvent('driftzone_racejob:server:duoFail', activeRace.sessionId, 'Timpul a expirat. Ati pierdut cursa.')
+                    TriggerServerEvent('driftzone_racejob:server:duoFail', activeRace.sessionId, 'Timpul a expirat. Ati pierdut livrarea.')
                 end
                 break
             end
@@ -589,13 +589,13 @@ local function startMonitorLoop()
             if countdownActive then goto continue end
             local ped = PlayerPedId()
             if raceVehicle == nil or raceVehicle == 0 or not DoesEntityExist(raceVehicle) then
-                if activeRace.type == 'solo' then TriggerServerEvent('driftzone_racejob:server:soloFail', 'Masina cursei nu mai exista.')
+                if activeRace.type == 'solo' then TriggerServerEvent('driftzone_racejob:server:soloFail', 'Masina livrarii nu mai exista.')
                 else TriggerServerEvent('driftzone_racejob:server:duoFail', activeRace.sessionId, 'O masina nu mai exista.') end
                 break
             end
             if not IsPedInVehicle(ped, raceVehicle, false) then
-                if activeRace.type == 'solo' then TriggerServerEvent('driftzone_racejob:server:soloFail', 'Ai coborat din masina. Ai pierdut cursa.')
-                else TriggerServerEvent('driftzone_racejob:server:duoFail', activeRace.sessionId, 'Un jucator a coborat din masina. Cursa a fost pierduta.') end
+                if activeRace.type == 'solo' then TriggerServerEvent('driftzone_racejob:server:soloFail', 'Ai coborat din masina. Ai pierdut livrarea.')
+                else TriggerServerEvent('driftzone_racejob:server:duoFail', activeRace.sessionId, 'Un jucator a coborat din masina. Livrarea a fost pierduta.') end
                 break
             end
             local coords = GetEntityCoords(ped)
@@ -753,7 +753,7 @@ end)
 
 RegisterNetEvent('driftzone_racejob:client:raceCompleted', function(data)
     data = data or {}
-    notify('success', data.message or 'Ai finalizat cursa.', 6500)
+    notify('success', data.message or 'Ai finalizat livrarea.', 6500)
     if data.xp and tonumber(data.xp) and tonumber(data.xp) > 0 then notify('info', 'Ai primit +' .. tostring(data.xp) .. ' XP.', 4500) end
     local pos = data.returnPosition or Config.ReturnPosition
     endLocalRace()
@@ -761,14 +761,14 @@ RegisterNetEvent('driftzone_racejob:client:raceCompleted', function(data)
 end)
 
 RegisterNetEvent('driftzone_racejob:client:raceFailed', function(reason)
-    notify('warning', tostring(reason or 'Ai pierdut cursa.'), 6500)
+    notify('warning', tostring(reason or 'Ai pierdut livrarea.'), 6500)
     local pos = Config.ReturnPosition
     endLocalRace()
     returnPlayer(pos)
 end)
 
 RegisterNetEvent('driftzone_racejob:client:duoFailed', function(reason)
-    notify('warning', tostring(reason or 'Ati pierdut cursa.'), 6500)
+    notify('warning', tostring(reason or 'Ati pierdut livrarea.'), 6500)
     local pos = Config.ReturnPosition
     endLocalRace()
     returnPlayer(pos)

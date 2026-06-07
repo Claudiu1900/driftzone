@@ -440,7 +440,7 @@ local function failSolo(src, reason)
         setCooldown(data.uid, data.raceId, getResultCooldown(race, false))
     end
     setPlayerBucket(src, Config.ReturnBucket or 0)
-    TriggerClientEvent('driftzone_racejob:client:raceFailed', src, reason or 'Ai pierdut cursa.')
+    TriggerClientEvent('driftzone_racejob:client:raceFailed', src, reason or 'Ai esuat livrarea.')
 end
 
 local function finishSolo(src)
@@ -457,7 +457,7 @@ local function finishSolo(src)
     TriggerClientEvent('driftzone_racejob:client:raceCompleted', src, {
         cash = cash,
         xp = xp,
-        message = ('Ai finalizat cursa si ai primit suma de: $%s!'):format(cash),
+        message = ('Ai finalizat livrarea si ai primit suma de: $%s!'):format(cash),
         returnPosition = vecToTable(Config.ReturnPosition)
     })
 end
@@ -470,13 +470,13 @@ RegisterNetEvent('driftzone_racejob:server:close', function() end)
 
 RegisterNetEvent('driftzone_racejob:server:startSolo', function(raceId, vehicleId)
     local src = source
-    if ActiveSolo[src] or ActiveDuoByPlayer[src] then notify(src, 'warning', 'Ai deja o cursa activa.', 4000) return end
+    if ActiveSolo[src] or ActiveDuoByPlayer[src] then notify(src, 'warning', 'Ai deja o livrare activa.', 4000) return end
     local uid = getUid(src)
     if not uid then notify(src, 'warning', 'Nu ti-am gasit UID-ul.', 4000) return end
     local race = getRace(raceId)
-    if not race or race.special == true then notify(src, 'warning', 'Cursa invalida.', 4000) return end
+    if not race or race.special == true then notify(src, 'warning', 'Livrarea invalida.', 4000) return end
     local cd = getCooldownLeft(uid, race.id)
-    if cd > 0 then notify(src, 'warning', 'Mai ai cooldown la aceasta cursa.', 4000) return end
+    if cd > 0 then notify(src, 'warning', 'Mai ai cooldown la aceasta livrare.', 4000) return end
     local vehicle = getVehicleData(uid, vehicleId)
     if not vehicle then notify(src, 'warning', 'Masina nu a fost gasita in garaj.', 5000) return end
 
@@ -491,7 +491,7 @@ RegisterNetEvent('driftzone_racejob:server:soloFinish', function()
 end)
 
 RegisterNetEvent('driftzone_racejob:server:soloFail', function(reason)
-    failSolo(source, tostring(reason or 'Ai pierdut cursa.'))
+    failSolo(source, tostring(reason or 'Ai esuat livrarea.'))
 end)
 
 local function cleanupDuo(sessionId, reason)
@@ -507,7 +507,7 @@ local function cleanupDuo(sessionId, reason)
             end
             ActiveDuoByPlayer[src] = nil
             setPlayerBucket(src, Config.ReturnBucket or 0)
-            TriggerClientEvent('driftzone_racejob:client:duoFailed', src, reason or 'Ati pierdut cursa.')
+            TriggerClientEvent('driftzone_racejob:client:duoFailed', src, reason or 'Ati esuat livrarea.')
         end
     end
 end
@@ -524,7 +524,7 @@ local function tryStartDuo(sessionId)
     TriggerClientEvent('driftzone_racejob:client:beginDuoRace', session.p2, { sessionId = sessionId, countdown = Config.CountdownSeconds or 3 })
     SetTimeout((tonumber(race.timeLimit or 900) + 20) * 1000, function()
         local s = DuoSessions[sessionId]
-        if s and not s.completed then cleanupDuo(sessionId, 'Timpul a expirat. Ati pierdut cursa.') end
+        if s and not s.completed then cleanupDuo(sessionId, 'Timpul a expirat. Ati esuat livrarea.') end
     end)
 end
 
@@ -556,12 +556,12 @@ RegisterNetEvent('driftzone_racejob:server:duoInvite', function(targetUidInput)
     end
 
     if ActiveSolo[src] or ActiveDuoByPlayer[src] then
-        failInvite(src, 'Ai deja o cursa activa.')
+        failInvite(src, 'Ai deja o livrare activa.')
         return
     end
 
     if ActiveSolo[targetSrc] or ActiveDuoByPlayer[targetSrc] then
-        failInvite(src, 'Jucatorul are deja o cursa activa.')
+        failInvite(src, 'Jucatorul are deja o livrare activa.')
         return
     end
 
@@ -694,7 +694,7 @@ RegisterNetEvent('driftzone_racejob:server:duoSpawned', function(sessionId, ok)
     sessionId = tonumber(sessionId or 0) or 0
     local session = DuoSessions[sessionId]
     if not session or ActiveDuoByPlayer[src] ~= sessionId then return end
-    if ok ~= true then cleanupDuo(sessionId, 'O masina nu a putut fi spawnata. Cursa a fost anulata.') return end
+    if ok ~= true then cleanupDuo(sessionId, 'O masina nu a putut fi spawnata. Livrarea a fost anulata.') return end
     session.players[src].spawned = true
     tryStartDuo(sessionId)
 end)
@@ -738,7 +738,7 @@ RegisterNetEvent('driftzone_racejob:server:duoFinish', function(sessionId)
 end)
 
 RegisterNetEvent('driftzone_racejob:server:duoFail', function(sessionId, reason)
-    cleanupDuo(tonumber(sessionId or 0) or 0, tostring(reason or 'Ati pierdut cursa.'))
+    cleanupDuo(tonumber(sessionId or 0) or 0, tostring(reason or 'Ati esuat livrarea.'))
 end)
 
 RegisterNetEvent('driftzone_racejob:server:requestRefresh', function()
@@ -762,7 +762,7 @@ AddEventHandler('playerDropped', function()
     local src = source
     if ActiveSolo[src] then ActiveSolo[src] = nil end
     local sessionId = ActiveDuoByPlayer[src]
-    if sessionId then cleanupDuo(sessionId, 'Partenerul a iesit de pe server. Cursa a fost anulata.') end
+    if sessionId then cleanupDuo(sessionId, 'Partenerul a iesit de pe server. Livrarea a fost anulata.') end
     for inviteUid, invite in pairs(DuoInvites) do
         if invite.from == src or invite.target == src then DuoInvites[inviteUid] = nil end
     end
