@@ -7,50 +7,80 @@
 </head>
 <body>
     <div id="raceMenu" class="race-menu hidden">
-        <div class="grid-bg"></div>
+        <div class="bg-grid"></div>
         <div class="panel">
             <button class="close" onclick="closeMenu()">×</button>
-
             <header class="header">
-                <div>
-                    <span class="eyebrow">DriftZone Work System</span>
-                    <h1>Race Job</h1>
-                    <p>Alege cursa, selecteaza masina personala si porneste job-ul.</p>
-                </div>
+                <span class="eyebrow">DriftZone Work System</span>
+                <h1>Race Job</h1>
+                <p>Alege o cursa, selecteaza masina personala si porneste job-ul.</p>
             </header>
-
             <section class="layout">
                 <div class="race-column">
-                    <div class="section-title">Race Mode</div>
                     <div id="raceList" class="race-list"></div>
                 </div>
-
                 <div class="vehicle-column">
                     <div class="section-title">Masina ta</div>
                     <input id="searchInput" class="search" placeholder="Cauta masina dupa nume, model sau numar..." oninput="renderVehicles()">
                     <div id="vehicleList" class="vehicle-list"></div>
                 </div>
             </section>
-
             <footer class="bottom">
                 <div class="selected-box">
                     <b id="selectedTitle">Nimic selectat</b>
                     <span id="selectedSub">Alege o cursa si o masina pentru start.</span>
                 </div>
-                <button id="startBtn" class="start-btn" onclick="startRace()" disabled>START RACE</button>
+                <button id="startBtn" class="start-btn" onclick="startRace()" disabled>START</button>
             </footer>
         </div>
     </div>
 
+    <div id="inviteMenu" class="invite-menu hidden">
+        <div class="invite-panel">
+            <button class="close" onclick="closeInvite()">×</button>
+            <span class="gold-kicker">SPECIAL</span>
+            <h2>Duo Race</h2>
+            <p>Invita un prieten, alegeti fiecare masina personala si impartiti recompensa finala.</p>
+            <input id="friendId" class="friend-input" placeholder="Pune ID-ul prietenului tau...">
+            <button class="invite-btn" onclick="sendInvite()">INVITE</button>
+        </div>
+    </div>
+
+    <div id="duoGarage" class="duo-garage hidden">
+        <div class="duo-panel">
+            <button class="close" onclick="closeDuoGarage()">×</button>
+            <div class="duo-head">
+                <div>
+                    <span class="gold-kicker">SPECIAL DUO</span>
+                    <h2>Alege masina</h2>
+                    <p>Partener: <b id="partnerName">Player</b>. Amandoi trebuie sa fiti READY.</p>
+                </div>
+                <div class="ready-box"><span id="readyState">WAITING</span></div>
+            </div>
+            <div id="duoVehicleList" class="vehicle-list duo-list"></div>
+            <button id="duoReadyBtn" class="start-btn duo-ready" onclick="duoReady()" disabled>READY</button>
+        </div>
+    </div>
+
     <div id="raceHud" class="race-hud hidden">
-        <div class="hud-corner"></div>
-        <div class="hud-label" id="hudRaceName">Race</div>
-        <div class="hud-time" id="hudTime">0:00</div>
-        <div class="hud-sub">Timp ramas</div>
+        <span id="hudTime">0:00</span>
     </div>
 
     <div id="countdown" class="countdown hidden">
         <div id="countdownText" class="countdown-text">3</div>
+    </div>
+
+    <div id="rewardScreen" class="reward-screen hidden">
+        <div class="reward-card">
+            <span class="gold-kicker">DUO DELIVERY COMPLETE</span>
+            <h2 id="rewardTotal">$0</h2>
+            <p>Total recompensa</p>
+            <div class="split-row">
+                <div class="player-reward left"><b id="rewardP1Name">Player 1</b><span id="rewardP1Cash">$0</span><small id="rewardP1Xp">0 XP</small></div>
+                <div class="split-line"></div>
+                <div class="player-reward right"><b id="rewardP2Name">Player 2</b><span id="rewardP2Cash">$0</span><small id="rewardP2Xp">0 XP</small></div>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>

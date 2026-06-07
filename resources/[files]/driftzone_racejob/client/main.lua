@@ -1,14 +1,12 @@
 local nuiReady = false
 local menuOpen = false
 local activeRace = nil
+local raceVehicle = nil
 local finishBlip = nil
 local finishCheckpoint = nil
-local finishReached = false
-local raceVehicle = nil
-local raceVehicleNet = nil
-local raceDrivingStarted = false
 local raceEnding = false
 local countdownActive = false
+local currentDuoSession = nil
 
 local MOD_KEY_TYPES = {
     spoiler = 0, frontBumper = 1, rearBumper = 2, sideSkirt = 3, exhaust = 4, frame = 5,
@@ -42,9 +40,7 @@ end
 local function closeMenu(sendServer)
     sendNui({ action = 'closeMenu' })
     setFocus(false)
-    if sendServer == true then
-        TriggerServerEvent('driftzone_racejob:server:close')
-    end
+    if sendServer == true then TriggerServerEvent('driftzone_racejob:server:close') end
 end
 
 local function formatTime(seconds)
@@ -52,123 +48,99 @@ local function formatTime(seconds)
     return ('%d:%02d'):format(math.floor(seconds / 60), seconds % 60)
 end
 
-local function getVehicleFromNetId(netId)
-    netId = tonumber(netId or 0) or 0
-    if netId <= 0 then return 0 end
-
-    local timeout = GetGameTimer() + 7000
-    while not NetworkDoesNetworkIdExist(netId) and GetGameTimer() < timeout do Wait(30) end
-    if not NetworkDoesNetworkIdExist(netId) then return 0 end
-
-    local entity = NetToVeh(netId)
-    timeout = GetGameTimer() + 7000
-    while (not entity or entity == 0 or not DoesEntityExist(entity)) and GetGameTimer() < timeout do
-        Wait(30)
-        entity = NetToVeh(netId)
-    end
-
-    return entity or 0
-end
-
-local requestControl
-
-local function loadVehicleModel(model, timeoutMs)
-    local hash
-    local numeric = tonumber(model)
-    if numeric then
-        hash = numeric
-    else
-        hash = joaat(tostring(model or ''))
-    end
-
-    if not hash or hash == 0 then
-        return nil, 'invalid_model'
-    end
-
-    RequestModel(hash)
-    local timeout = GetGameTimer() + (timeoutMs or 12000)
-    while not HasModelLoaded(hash) and GetGameTimer() < timeout do
-        RequestModel(hash)
-        Wait(25)
-    end
-
-    if not HasModelLoaded(hash) then
-        return nil, 'model_timeout'
-    end
-
-    return hash, nil
-end
-
-local function spawnRaceVehicleClient(vehicleData, race)
-    vehicleData = vehicleData or {}
-    race = race or {}
-    local start = race.start or {}
-
-    if raceVehicle and raceVehicle ~= 0 and DoesEntityExist(raceVehicle) then
-        requestControl(raceVehicle, 1500)
-        DeleteEntity(raceVehicle)
-    end
-    raceVehicle = nil
-    raceVehicleNet = nil
-
-    local hash, err = loadVehicleModel(vehicleData.model, (Config.Vehicle and Config.Vehicle.clientSpawnTimeoutMs) or 12000)
-    if not hash then
-        return 0, err or 'invalid_model'
-    end
-
-    local x = tonumber(start.x or 0.0) or 0.0
-    local y = tonumber(start.y or 0.0) or 0.0
-    local z = tonumber(start.z or 0.0) or 0.0
-    local h = tonumber(start.h or start.w or 0.0) or 0.0
-    local zOffset = (Config.Vehicle and tonumber(Config.Vehicle.spawnZOffset)) or 0.45
-
-    local ped = PlayerPedId()
-    SetEntityCoords(ped, x, y, z + 0.15, false, false, false, false)
-    SetEntityHeading(ped, h)
-
-    RequestCollisionAtCoord(x, y, z)
-    local timeout = GetGameTimer() + 3500
-    while not HasCollisionLoadedAroundEntity(ped) and GetGameTimer() < timeout do
-        RequestCollisionAtCoord(x, y, z)
-        Wait(25)
-    end
-
-    local entity = CreateVehicle(hash, x, y, z + zOffset, h, true, true)
-    if not entity or entity == 0 or not DoesEntityExist(entity) then
-        SetModelAsNoLongerNeeded(hash)
-        return 0, 'create_failed'
-    end
-
-    SetEntityAsMissionEntity(entity, true, true)
-    SetVehicleHasBeenOwnedByPlayer(entity, true)
-    SetVehicleNeedsToBeHotwired(entity, false)
-    SetVehicleOnGroundProperly(entity)
-    SetEntityHeading(entity, h)
-    SetModelAsNoLongerNeeded(hash)
-
-    local netId = 0
-    pcall(function()
-        NetworkRegisterEntityAsNetworked(entity)
-        netId = VehToNet(entity)
-        if netId and netId ~= 0 then
-            SetNetworkIdCanMigrate(netId, false)
-            SetNetworkIdExistsOnAllMachines(netId, false)
-        end
-    end)
-
-    return entity, nil, netId
-end
-
-function requestControl(entity, timeoutMs)
+local function requestControl(entity, timeoutMs)
     if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
-
-    local timeout = GetGameTimer() + (timeoutMs or 2000)
+    local timeout = GetGameTimer() + (timeoutMs or 1500)
     while not NetworkHasControlOfEntity(entity) and GetGameTimer() < timeout do
         NetworkRequestControlOfEntity(entity)
         Wait(25)
     end
-
     return NetworkHasControlOfEntity(entity)
+end
+
+local function clearRoute()
+    SetWaypointOff()
+    if finishBlip and DoesBlipExist(finishBlip) then RemoveBlip(finishBlip) end
+    finishBlip = nil
+    if finishCheckpoint then DeleteCheckpoint(finishCheckpoint) end
+    finishCheckpoint = nil
+end
+
+local function cleanupVehicle()
+    local veh = raceVehicle
+    raceVehicle = nil
+    if veh and veh ~= 0 and DoesEntityExist(veh) then
+        requestControl(veh, 2000)
+        SetEntityAsMissionEntity(veh, true, true)
+        DeleteVehicle(veh)
+        if DoesEntityExist(veh) then DeleteEntity(veh) end
+    end
+end
+
+local function returnPlayer(pos)
+    pos = pos or {}
+    local ped = PlayerPedId()
+    local x = tonumber(pos.x or 0.0) or 0.0
+    local y = tonumber(pos.y or 0.0) or 0.0
+    local z = tonumber(pos.z or 0.0) or 0.0
+    local h = tonumber(pos.h or pos.w or 0.0) or 0.0
+    RequestCollisionAtCoord(x, y, z)
+    SetEntityCoords(ped, x, y, z + 0.1, false, false, false, false)
+    SetEntityHeading(ped, h)
+end
+
+local function endLocalRace()
+    raceEnding = true
+    countdownActive = false
+    sendNui({ action = 'raceHud', visible = false })
+    sendNui({ action = 'countdown', visible = false })
+    clearRoute()
+    cleanupVehicle()
+    activeRace = nil
+    currentDuoSession = nil
+    raceEnding = false
+end
+
+local function normalizeModel(value)
+    if type(value) == 'table' then value = value.model or value.vehicle_model or value.hash or value.name end
+    local text = tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
+    if text:sub(1, 1) == '{' then
+        local ok, decoded = pcall(json.decode, text)
+        if ok and type(decoded) == 'table' then
+            text = tostring(decoded.model or decoded.vehicle_model or decoded.hash or decoded.name or text)
+        end
+    end
+    text = text:gsub('^"', ''):gsub('"$', '')
+    return text
+end
+
+local function loadVehicleModel(model, timeoutMs)
+    model = normalizeModel(model)
+    local candidates = {}
+    local function add(v)
+        v = tostring(v or ''):gsub('^%s+', ''):gsub('%s+$', '')
+        if v ~= '' then candidates[#candidates + 1] = v end
+    end
+    add(model)
+    add(model:lower())
+    add(model:upper())
+    add(model:gsub('%s+', ''))
+    add(model:gsub('vehicle_', ''))
+
+    for _, candidate in ipairs(candidates) do
+        local hash = tonumber(candidate) or joaat(candidate)
+        if hash and hash ~= 0 and IsModelInCdimage(hash) and IsModelAVehicle(hash) then
+            RequestModel(hash)
+            local timeout = GetGameTimer() + (timeoutMs or 15000)
+            while not HasModelLoaded(hash) and GetGameTimer() < timeout do
+                RequestModel(hash)
+                Wait(25)
+            end
+            if HasModelLoaded(hash) then return hash, nil end
+        end
+    end
+
+    return nil, 'model_not_loaded'
 end
 
 local function decodeTuning(raw)
@@ -198,377 +170,202 @@ local function colorFrom(value)
     return nil
 end
 
-local function applyColorData(vehicle, tuning)
-    if tuning.primaryColor ~= nil or tuning.secondaryColor ~= nil then
-        local p = tonumber(tuning.primaryColor or 0) or 0
-        local s = tonumber(tuning.secondaryColor or 0) or 0
-        SetVehicleColours(vehicle, p, s)
-    end
+local function applyTuning(vehicle, raw)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
+    local tuning = decodeTuning(raw)
+    SetVehicleModKit(vehicle, 0)
 
+    if tuning.primaryColor ~= nil or tuning.secondaryColor ~= nil then
+        SetVehicleColours(vehicle, tonumber(tuning.primaryColor or 0) or 0, tonumber(tuning.secondaryColor or 0) or 0)
+    end
     if tuning.pearlColor ~= nil or tuning.wheelColor ~= nil then
         local pearl, wheel = GetVehicleExtraColours(vehicle)
         SetVehicleExtraColours(vehicle, tonumber(tuning.pearlColor or pearl) or pearl, tonumber(tuning.wheelColor or wheel) or wheel)
     end
+    local pc = colorFrom(tuning.customPrimaryColor or tuning.primaryCustomColor or tuning.color1)
+    if pc then SetVehicleCustomPrimaryColour(vehicle, pc.r, pc.g, pc.b) end
+    local sc = colorFrom(tuning.customSecondaryColor or tuning.secondaryCustomColor or tuning.color2)
+    if sc then SetVehicleCustomSecondaryColour(vehicle, sc.r, sc.g, sc.b) end
+    if tuning.windowTint ~= nil then SetVehicleWindowTint(vehicle, tonumber(tuning.windowTint) or 0) end
+    if tuning.plateIndex ~= nil then SetVehicleNumberPlateTextIndex(vehicle, tonumber(tuning.plateIndex) or 0) end
+    if tuning.wheelType ~= nil then SetVehicleWheelType(vehicle, tonumber(tuning.wheelType) or 0) end
 
-    local primaryCustom = colorFrom(tuning.customPrimaryColor or tuning.primaryCustomColor or tuning.color1)
-    if primaryCustom then SetVehicleCustomPrimaryColour(vehicle, primaryCustom.r, primaryCustom.g, primaryCustom.b) end
-
-    local secondaryCustom = colorFrom(tuning.customSecondaryColor or tuning.secondaryCustomColor or tuning.color2)
-    if secondaryCustom then SetVehicleCustomSecondaryColour(vehicle, secondaryCustom.r, secondaryCustom.g, secondaryCustom.b) end
+    for key, modType in pairs(MOD_KEY_TYPES) do
+        if tuning[key] ~= nil then SetVehicleMod(vehicle, modType, tonumber(tuning[key]) or -1, false) end
+    end
+    for key, value in pairs(tuning) do
+        local modType = tonumber(key)
+        if modType and modType >= 0 and modType <= 60 then SetVehicleMod(vehicle, modType, tonumber(value) or -1, false) end
+    end
+    if tuning.turbo ~= nil then ToggleVehicleMod(vehicle, 18, boolValue(tuning.turbo)) end
+    if tuning.xenon ~= nil then ToggleVehicleMod(vehicle, 22, boolValue(tuning.xenon)) end
+    if tuning.livery ~= nil then SetVehicleLivery(vehicle, tonumber(tuning.livery) or 0) end
 
     local smoke = colorFrom(tuning.tyreSmokeColor or tuning.tireSmokeColor or tuning.smokeColor)
     if smoke then
         ToggleVehicleMod(vehicle, 20, true)
         SetVehicleTyreSmokeColor(vehicle, smoke.r, smoke.g, smoke.b)
     end
-
-    if tuning.windowTint ~= nil then SetVehicleWindowTint(vehicle, tonumber(tuning.windowTint) or 0) end
 end
 
-local function applyNumberMods(vehicle, tuning)
-    for key, modType in pairs(MOD_KEY_TYPES) do
-        if tuning[key] ~= nil then
-            local value = tonumber(tuning[key])
-            if value ~= nil then SetVehicleMod(vehicle, modType, value, false) end
-        end
+local function protectVehicle(vehicle)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
+    SetEntityInvincible(vehicle, true)
+    SetEntityCanBeDamaged(vehicle, false)
+    SetVehicleCanBreak(vehicle, false)
+    SetVehicleEngineCanDegrade(vehicle, false)
+    SetVehicleTyresCanBurst(vehicle, false)
+    SetVehicleWheelsCanBreak(vehicle, false)
+    SetVehicleHasBeenOwnedByPlayer(vehicle, true)
+end
+
+local function spawnVehicle(vehicleData, start)
+    vehicleData = vehicleData or {}
+    start = start or {}
+    cleanupVehicle()
+
+    local hash, err = loadVehicleModel(vehicleData.model, (Config.Vehicle and Config.Vehicle.clientSpawnTimeoutMs) or 15000)
+    if not hash then return 0, err end
+
+    local x = tonumber(start.x or 0.0) or 0.0
+    local y = tonumber(start.y or 0.0) or 0.0
+    local z = tonumber(start.z or 0.0) or 0.0
+    local h = tonumber(start.h or start.w or 0.0) or 0.0
+    local ped = PlayerPedId()
+    local offset = (Config.Vehicle and tonumber(Config.Vehicle.spawnZOffset)) or 0.45
+
+    RequestCollisionAtCoord(x, y, z)
+    SetEntityCoords(ped, x, y, z + 0.2, false, false, false, false)
+    SetEntityHeading(ped, h)
+    local timeout = GetGameTimer() + 3500
+    while not HasCollisionLoadedAroundEntity(ped) and GetGameTimer() < timeout do
+        RequestCollisionAtCoord(x, y, z)
+        Wait(25)
     end
 
-    for key, value in pairs(tuning) do
-        local modType = tonumber(key)
-        if modType and modType >= 0 and modType <= 60 then
-            SetVehicleMod(vehicle, modType, tonumber(value) or -1, false)
-        end
-    end
-end
-
-local function applyToggleMods(vehicle, tuning)
-    if tuning.turbo ~= nil then ToggleVehicleMod(vehicle, 18, boolValue(tuning.turbo)) end
-    if tuning.xenon ~= nil then ToggleVehicleMod(vehicle, 22, boolValue(tuning.xenon)) end
-    if tuning.tireSmoke ~= nil or tuning.tyreSmoke ~= nil then ToggleVehicleMod(vehicle, 20, boolValue(tuning.tireSmoke or tuning.tyreSmoke)) end
-end
-
-local function applyTuning(vehicle, tuningRaw, plate)
-    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return false end
-
-    requestControl(vehicle, 4000)
-    SetVehicleModKit(vehicle, 0)
-
-    local tuning = decodeTuning(tuningRaw)
-    applyColorData(vehicle, tuning)
-    applyNumberMods(vehicle, tuning)
-    applyToggleMods(vehicle, tuning)
-
-    if plate then SetVehicleNumberPlateText(vehicle, tostring(plate):sub(1, 8)) end
-    if tuning.plate ~= nil then SetVehicleNumberPlateText(vehicle, tostring(tuning.plate):sub(1, 8)) end
-
-    pcall(function() TriggerEvent('client:tunning:applyVehicle', VehToNet(vehicle), tostring(tuningRaw or '{}')) end)
-    pcall(function() TriggerEvent('driftzone_tunning:client:applyVehicle', VehToNet(vehicle), tostring(tuningRaw or '{}')) end)
-
-    return true
-end
-
-local function clearVehicleStartLocks(entity)
-    if not entity or entity == 0 or not DoesEntityExist(entity) then return end
-
-    requestControl(entity, 1200)
-    FreezeEntityPosition(entity, false)
-    SetVehicleHandbrake(entity, false)
-    SetVehicleEngineOn(entity, true, true, false)
-    SetVehicleUndriveable(entity, false)
-end
-
-local function prepareVehicle(entity, data)
-    if not entity or entity == 0 or not DoesEntityExist(entity) then return end
-
-    requestControl(entity, 5000)
-    SetVehicleModKit(entity, 0)
-    SetVehicleNumberPlateText(entity, tostring(data.plate or 'DRIFT'):sub(1, 8))
-    SetVehicleDirtLevel(entity, 0.0)
-    SetVehicleEngineHealth(entity, 1000.0)
-    SetVehicleBodyHealth(entity, 1000.0)
-    SetVehiclePetrolTankHealth(entity, 1000.0)
-    SetVehicleEngineOn(entity, true, true, false)
-    SetVehicleUndriveable(entity, false)
-    SetVehicleHandbrake(entity, false)
-    SetVehicleOnGroundProperly(entity)
-
-    if Config.Vehicle and Config.Vehicle.protectVehicle == true then
-        SetEntityInvincible(entity, true)
-        SetEntityCanBeDamaged(entity, false)
-        SetVehicleCanBreak(entity, false)
-        SetVehicleTyresCanBurst(entity, false)
-        SetVehicleWheelsCanBreak(entity, false)
+    local veh = CreateVehicle(hash, x, y, z + offset, h, true, true)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then
+        SetModelAsNoLongerNeeded(hash)
+        return 0, 'create_failed'
     end
 
-    applyTuning(entity, data.tuning or '{}', data.plate)
-    SetPedIntoVehicle(PlayerPedId(), entity, -1)
+    SetEntityAsMissionEntity(veh, true, true)
+    SetVehicleNumberPlateText(veh, tostring(vehicleData.plate or 'DRIFT'))
+    SetVehicleOnGroundProperly(veh)
+    SetVehicleFixed(veh)
+    SetVehicleDirtLevel(veh, 0.0)
+    SetVehicleEngineOn(veh, true, true, false)
+    SetVehicleNeedsToBeHotwired(veh, false)
+    if Config.Vehicle and Config.Vehicle.protectVehicle then protectVehicle(veh) end
+    SetPedIntoVehicle(ped, veh, -1)
+    raceVehicle = veh
+    SetModelAsNoLongerNeeded(hash)
 
-    -- Tuning-ul se reaplica asincron, dar NU mai folosim SetVehicleFixed/OnGround dupa START.
-    -- Asta elimina frana brusca de dupa countdown.
+    applyTuning(veh, vehicleData.tuning)
     CreateThread(function()
-        local delays = (Config.Vehicle and Config.Vehicle.tuningApplyDelays) or { 100, 350, 750, 1400, 2400, 3600 }
-
-        for i = 1, #delays do
-            Wait(tonumber(delays[i]) or 0)
-            if not raceVehicle or raceVehicle ~= entity or not DoesEntityExist(entity) then break end
-            requestControl(entity, 600)
-            applyTuning(entity, data.tuning or '{}', data.plate)
-
-            if not raceDrivingStarted then
-                SetVehicleEngineOn(entity, true, true, false)
-                SetVehicleUndriveable(entity, false)
-                SetVehicleHandbrake(entity, false)
-            end
+        for _, delay in ipairs((Config.Vehicle and Config.Vehicle.tuningApplyDelays) or {}) do
+            Wait(tonumber(delay) or 0)
+            if raceVehicle == veh and DoesEntityExist(veh) then applyTuning(veh, vehicleData.tuning) end
         end
     end)
+
+    return veh, nil
 end
 
-local function clearRaceVisuals()
-    if finishCheckpoint and finishCheckpoint ~= 0 then
-        DeleteCheckpoint(finishCheckpoint)
-    end
-    finishCheckpoint = nil
-
-    if finishBlip and DoesBlipExist(finishBlip) then
-        SetBlipRoute(finishBlip, false)
-        RemoveBlip(finishBlip)
-    end
-    finishBlip = nil
-
-    sendNui({ action = 'raceHud', visible = false })
-end
-
-local function createFinishVisual(finish, label)
-    clearRaceVisuals()
-
-    finishBlip = AddBlipForCoord(finish.x, finish.y, finish.z)
+local function createFinish(finish)
+    clearRoute()
+    finish = finish or {}
+    local x, y, z = tonumber(finish.x or 0.0) or 0.0, tonumber(finish.y or 0.0) or 0.0, tonumber(finish.z or 0.0) or 0.0
+    finishBlip = AddBlipForCoord(x, y, z)
     SetBlipSprite(finishBlip, 38)
     SetBlipColour(finishBlip, 3)
-    SetBlipScale(finishBlip, 0.95)
-    SetBlipAsShortRange(finishBlip, false)
-    BeginTextCommandSetBlipName('STRING')
-    AddTextComponentString(label or 'Race Finish')
-    EndTextCommandSetBlipName(finishBlip)
+    SetBlipScale(finishBlip, 0.9)
     SetBlipRoute(finishBlip, true)
     SetBlipRouteColour(finishBlip, 3)
-
-    finishCheckpoint = CreateCheckpoint(4, finish.x, finish.y, finish.z + 0.25, finish.x, finish.y, finish.z + 1.5, 8.5, 4, 199, 247, 170, 0)
-    SetCheckpointCylinderHeight(finishCheckpoint, 4.0, 4.0, 8.5)
+    BeginTextCommandSetBlipName('STRING')
+    AddTextComponentString('Race Finish')
+    EndTextCommandSetBlipName(finishBlip)
+    SetNewWaypoint(x, y)
+    finishCheckpoint = CreateCheckpoint(4, x, y, z + 0.8, x, y, z, 7.2, 4, 199, 247, 170, 0)
 end
 
-local function setRaceControlsLocked(state)
-    state = state == true
-
-    if raceVehicle and DoesEntityExist(raceVehicle) then
-        requestControl(raceVehicle, 1000)
-        FreezeEntityPosition(raceVehicle, state)
-        SetVehicleHandbrake(raceVehicle, false)
-        SetVehicleEngineOn(raceVehicle, true, true, false)
-        SetVehicleUndriveable(raceVehicle, false)
+local function showCountdown(seconds)
+    countdownActive = true
+    seconds = tonumber(seconds or Config.CountdownSeconds or 3) or 3
+    for i = seconds, 1, -1 do
+        sendNui({ action = 'countdown', visible = true, text = tostring(i) })
+        Wait(850)
     end
-end
-
-local function deleteLocalRaceVehicle()
-    if raceVehicle and raceVehicle ~= 0 and DoesEntityExist(raceVehicle) then
-        requestControl(raceVehicle, 2000)
-        DeleteEntity(raceVehicle)
-    end
-    raceVehicle = nil
-    raceVehicleNet = nil
-end
-
-local function finishLocalCleanup(payload)
-    payload = payload or {}
-
-    clearRaceVisuals()
-    activeRace = nil
-    finishReached = false
-    raceDrivingStarted = false
-    raceEnding = false
-    countdownActive = false
+    sendNui({ action = 'countdown', visible = true, text = 'START' })
+    Wait(700)
     sendNui({ action = 'countdown', visible = false })
-    sendNui({ action = 'raceHud', visible = false })
-
-    deleteLocalRaceVehicle()
-
-    local ret = payload.returnPos or {}
-    if ret.x and ret.y and ret.z then
-        local ped = PlayerPedId()
-        SetEntityCoords(ped, ret.x + 0.0, ret.y + 0.0, ret.z + 0.0, false, false, false, false)
-        SetEntityHeading(ped, tonumber(ret.h or 0.0) or 0.0)
-    end
-
-    TriggerEvent('driftzone_hud:visible', true)
-
-    if payload.message then
-        notify(payload.success and 'success' or 'warning', payload.message, 6000)
-    end
-end
-
-local function startRaceLoop(race)
-    CreateThread(function()
-        local finish = race.finish
-        local radius = tonumber(race.radius or 9.0) or 9.0
-        local finishVec = vector3(finish.x, finish.y, finish.z)
-        local endAt = GetGameTimer() + ((tonumber(race.timeLimit) or 180) * 1000)
-        local lastShown = -1
-
-        activeRace = race
-        finishReached = false
-
-        sendNui({ action = 'raceHud', visible = true, race = race.label or 'Race', time = formatTime(race.timeLimit) })
-
-        while activeRace and activeRace.id == race.id do
-            local leftMs = endAt - GetGameTimer()
-            local left = math.ceil(leftMs / 1000)
-            if left < 0 then left = 0 end
-
-            if left ~= lastShown then
-                lastShown = left
-                sendNui({ action = 'timer', time = formatTime(left), danger = left <= 20 })
-            end
-
-            if left <= 0 then
-                if not raceEnding then
-                    raceEnding = true
-                    TriggerServerEvent('driftzone_racejob:server:fail', 'timeout')
-                end
-                break
-            end
-
-            local ped = PlayerPedId()
-
-            if raceDrivingStarted and (not raceVehicle or raceVehicle == 0 or not DoesEntityExist(raceVehicle)) then
-                if not raceEnding then
-                    raceEnding = true
-                    TriggerServerEvent('driftzone_racejob:server:fail', 'vehicle_missing')
-                end
-                break
-            end
-
-            if raceDrivingStarted and raceVehicle and DoesEntityExist(raceVehicle) and not IsPedInVehicle(ped, raceVehicle, false) then
-                if not raceEnding then
-                    raceEnding = true
-                    TriggerServerEvent('driftzone_racejob:server:fail', 'left_vehicle')
-                end
-                break
-            end
-
-            local coords = GetEntityCoords(ped)
-            local dist = #(coords - finishVec)
-
-            if dist <= radius and not finishReached then
-                finishReached = true
-                raceEnding = true
-                TriggerServerEvent('driftzone_racejob:server:finish', race.id)
-                break
-            end
-
-            Wait(150)
-        end
-    end)
-end
-
-local function runCountdown(seconds, cb)
-    seconds = tonumber(seconds or 3) or 3
-
-    CreateThread(function()
-        countdownActive = true
-        raceDrivingStarted = false
-        setRaceControlsLocked(true)
-
-        for i = seconds, 1, -1 do
-            if raceVehicle and DoesEntityExist(raceVehicle) and not IsPedInVehicle(PlayerPedId(), raceVehicle, false) then
-                raceEnding = true
-                setRaceControlsLocked(false)
-                sendNui({ action = 'countdown', visible = false })
-                TriggerServerEvent('driftzone_racejob:server:fail', 'left_vehicle')
-                return
-            end
-
-            sendNui({ action = 'countdown', visible = true, text = tostring(i) })
-            Wait(1000)
-        end
-
-        if raceVehicle and DoesEntityExist(raceVehicle) and not IsPedInVehicle(PlayerPedId(), raceVehicle, false) then
-            raceEnding = true
-            setRaceControlsLocked(false)
-            sendNui({ action = 'countdown', visible = false })
-            TriggerServerEvent('driftzone_racejob:server:fail', 'left_vehicle')
-            return
-        end
-
-        sendNui({ action = 'countdown', visible = true, text = 'START' })
-        setRaceControlsLocked(false)
-
-        if raceVehicle and DoesEntityExist(raceVehicle) then
-            clearVehicleStartLocks(raceVehicle)
-        end
-
-        raceDrivingStarted = true
-        countdownActive = false
-
-        if cb then cb() end
-
-        Wait(650)
-        sendNui({ action = 'countdown', visible = false })
-    end)
-end
-
-RegisterNetEvent('driftzone_racejob:client:openMenu', function(payload)
-    payload = payload or {}
-    payload.action = 'openMenu'
-    sendNui(payload)
-    setFocus(true)
-end)
-
-RegisterNetEvent('driftzone_racejob:client:prepareRace', function(payload)
-    payload = payload or {}
-    closeMenu(false)
-    TriggerEvent('driftzone_hud:visible', false)
-
-    local vehicleData = payload.vehicle or {}
-    local race = payload.race or {}
-
-    raceDrivingStarted = false
-    raceEnding = false
     countdownActive = false
+end
 
-    Wait(250)
-
-    local entity, spawnErr, netId = spawnRaceVehicleClient(vehicleData, race)
-
-    if not entity or entity == 0 or not DoesEntityExist(entity) then
-        TriggerServerEvent('driftzone_racejob:server:fail', 'vehicle_spawn_failed')
-        notify('error', 'Nu am putut spawna masina pentru cursa. Model: ' .. tostring(vehicleData.model or 'unknown'))
-        return
-    end
-
-    raceVehicle = entity
-    raceVehicleNet = netId or 0
-
-    TriggerServerEvent('driftzone_racejob:server:clientVehicleReady', netId or 0)
-
-    prepareVehicle(entity, vehicleData)
-    createFinishVisual(race.finish, race.label or 'Race Finish')
-    Wait(120)
-
-    runCountdown(payload.countdown or 3, function()
-        startRaceLoop(race)
+local function startTimerLoop()
+    CreateThread(function()
+        while activeRace and not raceEnding do
+            local left = math.max(0, math.floor((activeRace.endAt or GetGameTimer()) - GetGameTimer()) / 1000)
+            sendNui({ action = 'timer', time = formatTime(left), danger = left <= 20 })
+            if left <= 0 then
+                if activeRace.type == 'solo' then
+                    TriggerServerEvent('driftzone_racejob:server:soloFail', 'Timpul a expirat. Ai pierdut cursa.')
+                elseif activeRace.type == 'duo' then
+                    TriggerServerEvent('driftzone_racejob:server:duoFail', activeRace.sessionId, 'Timpul a expirat. Ati pierdut cursa.')
+                end
+                break
+            end
+            Wait(250)
+        end
     end)
-end)
+end
 
-RegisterNetEvent('driftzone_racejob:client:endRace', function(payload)
-    finishLocalCleanup(payload or {})
-end)
+local function startMonitorLoop()
+    CreateThread(function()
+        while activeRace and not raceEnding do
+            Wait(150)
+            if countdownActive then goto continue end
+            local ped = PlayerPedId()
+            if raceVehicle == nil or raceVehicle == 0 or not DoesEntityExist(raceVehicle) then
+                if activeRace.type == 'solo' then TriggerServerEvent('driftzone_racejob:server:soloFail', 'Masina cursei nu mai exista.')
+                else TriggerServerEvent('driftzone_racejob:server:duoFail', activeRace.sessionId, 'O masina nu mai exista.') end
+                break
+            end
+            if not IsPedInVehicle(ped, raceVehicle, false) then
+                if activeRace.type == 'solo' then TriggerServerEvent('driftzone_racejob:server:soloFail', 'Ai coborat din masina. Ai pierdut cursa.')
+                else TriggerServerEvent('driftzone_racejob:server:duoFail', activeRace.sessionId, 'Un jucator a coborat din masina. Cursa a fost pierduta.') end
+                break
+            end
+            local coords = GetEntityCoords(ped)
+            local f = activeRace.finish
+            local dist = #(coords - vector3(f.x, f.y, f.z))
+            if dist <= (activeRace.finishRadius or 9.0) then
+                if activeRace.type == 'solo' then TriggerServerEvent('driftzone_racejob:server:soloFinish')
+                else TriggerServerEvent('driftzone_racejob:server:duoFinish', activeRace.sessionId) end
+                break
+            end
+            ::continue::
+        end
+    end)
+end
 
-RegisterNetEvent('driftzone_racejob:client:openFromInteraction', function()
-    TriggerServerEvent('driftzone_racejob:server:open')
-end)
-
-RegisterCommand('racejob', function()
-    TriggerServerEvent('driftzone_racejob:server:open')
-end, false)
+local function beginLocalRace(raceType, data)
+    data = data or {}
+    local race = data.race or {}
+    activeRace = {
+        type = raceType,
+        sessionId = data.sessionId,
+        label = race.label or 'Race',
+        finish = race.finish,
+        finishRadius = tonumber(data.finishRadius or Config.FinishRadius or 9.0) or 9.0,
+        endAt = GetGameTimer() + ((tonumber(race.timeLimit or 180) or 180) * 1000)
+    }
+    raceEnding = false
+    createFinish(race.finish)
+    sendNui({ action = 'raceHud', visible = true, race = activeRace.label, time = formatTime(race.timeLimit or 0) })
+    startTimerLoop()
+    startMonitorLoop()
+end
 
 RegisterNUICallback('ready', function(_, cb)
     nuiReady = true
@@ -576,21 +373,143 @@ RegisterNUICallback('ready', function(_, cb)
 end)
 
 RegisterNUICallback('close', function(_, cb)
-    closeMenu(false)
+    closeMenu(true)
     cb({ ok = true })
 end)
 
 RegisterNUICallback('start', function(data, cb)
     data = data or {}
-    TriggerServerEvent('driftzone_racejob:server:start', tostring(data.raceId or ''), tonumber(data.vehicleId or 0) or 0)
+    if tostring(data.raceId or '') == 'special' then
+        sendNui({ action = 'openInvite' })
+    else
+        TriggerServerEvent('driftzone_racejob:server:startSolo', data.raceId, tonumber(data.vehicleId or 0) or 0)
+        closeMenu(false)
+    end
     cb({ ok = true })
 end)
 
-CreateThread(function()
-    Wait(1500)
-    pcall(function()
-        exports.driftzone_interactions:AddInteraction(Config.Interaction)
-    end)
+RegisterNUICallback('duoInvite', function(data, cb)
+    TriggerServerEvent('driftzone_racejob:server:duoInvite', tonumber(data and data.targetId or 0) or 0)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('duoReady', function(data, cb)
+    TriggerServerEvent('driftzone_racejob:server:duoReady', tonumber(data and data.sessionId or 0) or 0, tonumber(data and data.vehicleId or 0) or 0)
+    cb({ ok = true })
+end)
+
+RegisterNetEvent('driftzone_racejob:client:openFromInteraction', function()
+    TriggerServerEvent('driftzone_racejob:server:open')
+end)
+
+RegisterNetEvent('driftzone_racejob:client:openMenu', function(data)
+    sendNui({ action = 'openMenu', races = data.races or {}, vehicles = data.vehicles or {}, mainColor = data.mainColor or Config.MainColor })
+    setFocus(true)
+end)
+
+RegisterNetEvent('driftzone_racejob:client:startSolo', function(data)
+    closeMenu(false)
+    Wait(350)
+    local veh, err = spawnVehicle(data.vehicle, data.race and data.race.start or {})
+    if veh == 0 then
+        notify('warning', 'Masina nu a putut fi spawnata: ' .. tostring(err), 6000)
+        TriggerServerEvent('driftzone_racejob:server:soloFail', 'Masina nu a putut fi spawnata.')
+        return
+    end
+    if Config.Vehicle and Config.Vehicle.freezeDuringCountdown then FreezeEntityPosition(veh, true) end
+    beginLocalRace('solo', data)
+    showCountdown(data.countdown or Config.CountdownSeconds or 3)
+    if DoesEntityExist(veh) then
+        FreezeEntityPosition(veh, false)
+        SetVehicleHandbrake(veh, false)
+        SetVehicleEngineOn(veh, true, true, false)
+    end
+end)
+
+RegisterNetEvent('driftzone_racejob:client:prepareDuoRace', function(data)
+    closeMenu(false)
+    sendNui({ action = 'closeDuoGarage' })
+    currentDuoSession = data.sessionId
+    Wait(400)
+    local veh, err = spawnVehicle(data.vehicle, data.start or {})
+    if veh == 0 then
+        notify('warning', 'Masina nu a putut fi spawnata: ' .. tostring(err), 6000)
+        TriggerServerEvent('driftzone_racejob:server:duoSpawned', data.sessionId, false)
+        return
+    end
+    if Config.Vehicle and Config.Vehicle.freezeDuringCountdown then FreezeEntityPosition(veh, true) end
+    activeRace = {
+        type = 'duo', sessionId = data.sessionId, pendingData = data,
+        finish = data.race and data.race.finish or {}, finishRadius = data.finishRadius or Config.FinishRadius or 9.0,
+        label = 'Duo Race'
+    }
+    createFinish(data.race.finish)
+    TriggerServerEvent('driftzone_racejob:server:duoSpawned', data.sessionId, true)
+end)
+
+RegisterNetEvent('driftzone_racejob:client:beginDuoRace', function(data)
+    if not activeRace or activeRace.type ~= 'duo' or tonumber(activeRace.sessionId) ~= tonumber(data.sessionId) then return end
+    local pending = activeRace.pendingData or {}
+    if raceVehicle and DoesEntityExist(raceVehicle) then FreezeEntityPosition(raceVehicle, true) end
+    beginLocalRace('duo', pending)
+    showCountdown(data.countdown or Config.CountdownSeconds or 3)
+    if raceVehicle and DoesEntityExist(raceVehicle) then
+        FreezeEntityPosition(raceVehicle, false)
+        SetVehicleHandbrake(raceVehicle, false)
+        SetVehicleEngineOn(raceVehicle, true, true, false)
+    end
+end)
+
+RegisterNetEvent('driftzone_racejob:client:openDuoGarage', function(data)
+    data = data or {}
+    sendNui({ action = 'openDuoGarage', sessionId = data.sessionId, vehicles = data.vehicles or {}, partner = data.partner or 'Player', selfName = data.selfName or 'Tu', mainColor = data.mainColor or Config.MainColor })
+    setFocus(true)
+end)
+
+RegisterNetEvent('driftzone_racejob:client:duoStatus', function(data)
+    sendNui({ action = 'duoStatus', p1Ready = data.p1Ready == true, p2Ready = data.p2Ready == true })
+end)
+
+RegisterNetEvent('driftzone_racejob:client:raceCompleted', function(data)
+    data = data or {}
+    notify('success', data.message or 'Ai finalizat cursa.', 6500)
+    if data.xp and tonumber(data.xp) and tonumber(data.xp) > 0 then notify('info', 'Ai primit +' .. tostring(data.xp) .. ' XP.', 4500) end
+    local pos = data.returnPosition or Config.ReturnPosition
+    endLocalRace()
+    returnPlayer(pos)
+end)
+
+RegisterNetEvent('driftzone_racejob:client:raceFailed', function(reason)
+    notify('warning', tostring(reason or 'Ai pierdut cursa.'), 6500)
+    local pos = Config.ReturnPosition
+    endLocalRace()
+    returnPlayer(pos)
+end)
+
+RegisterNetEvent('driftzone_racejob:client:duoFailed', function(reason)
+    notify('warning', tostring(reason or 'Ati pierdut cursa.'), 6500)
+    local pos = Config.ReturnPosition
+    endLocalRace()
+    returnPlayer(pos)
+end)
+
+RegisterNetEvent('driftzone_racejob:client:duoCompleted', function(data)
+    data = data or {}
+    local pos = data.returnPosition or Config.ReturnPosition
+    clearRoute()
+    cleanupVehicle()
+    activeRace = nil
+    sendNui({ action = 'raceHud', visible = false })
+    sendNui({ action = 'duoReward', data = data })
+    notify('success', 'Ati finalizat Duo Race.', 5500)
+    Wait(9200)
+    sendNui({ action = 'duoRewardHide' })
+    returnPlayer(pos)
+end)
+
+RegisterNetEvent('driftzone_racejob:client:cooldownsReset', function()
+    localStorage = nil
+    notify('success', 'Cooldown-ul tau la race a fost resetat.', 4000)
 end)
 
 CreateThread(function()
@@ -598,21 +517,17 @@ CreateThread(function()
         if menuOpen then
             DisableControlAction(0, 200, true)
             DisableControlAction(0, 322, true)
-
-            if IsControlJustPressed(0, 200) or IsControlJustPressed(0, 322) then
-                closeMenu(false)
-            end
-
+            if IsDisabledControlJustPressed(0, 200) or IsDisabledControlJustPressed(0, 322) then closeMenu(true) end
             Wait(0)
         else
-            Wait(500)
+            Wait(450)
         end
     end
 end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    clearRaceVisuals()
-    deleteLocalRaceVehicle()
+    clearRoute()
+    cleanupVehicle()
     SetNuiFocus(false, false)
 end)

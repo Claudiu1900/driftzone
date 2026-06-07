@@ -1,6 +1,9 @@
-local ActiveRaces = {}
+local ActiveSolo = {}
+local ActiveDuoByPlayer = {}
+local DuoInvites = {}
+local DuoSessions = {}
 local Cooldowns = {}
-local RaceVehicles = {}
+local SessionCounter = 1000
 
 local function debugPrint(...)
     if Config.Debug then print('[DRIFTZONE_RACEJOB]', ...) end
@@ -10,12 +13,8 @@ local function notify(src, notifyType, message, duration)
     TriggerClientEvent((Config.Notify and Config.Notify.event) or 'client:notify', src, notifyType or 'info', duration or 5000, tostring(message or ''))
 end
 
-local function tableName(name)
-    return tostring(name or ''):gsub('`', '')
-end
-
-local function col(name)
-    return tostring(name or ''):gsub('`', '')
+local function cleanName(value)
+    return tostring(value or ''):gsub('`', '')
 end
 
 local function getPlayerNameSafe(src)
@@ -56,99 +55,41 @@ end
 local function isLogged(src)
     local state = Player(src).state
     if state and (state.dz_logged == true or state.logged == true or state.isLoggedIn == true) then return true end
-
     local attempts = {
         function() return exports.driftzone_auth:IsLoggedIn(src) end,
         function() return exports.driftzone_auth:isLoggedIn(src) end,
         function() return exports.driftzone_auth:IsLogged(src) end
     }
-
     for i = 1, #attempts do
-        local ok, result = pcall(attempts[i])
-        if ok and result == true then return true end
+        local ok, res = pcall(attempts[i])
+        if ok and res == true then return true end
     end
-
     return getUid(src) ~= nil
 end
 
-local function normalizeTuning(raw)
-    if type(raw) == 'table' then
-        local ok, encoded = pcall(json.encode, raw)
-        return ok and encoded or '{}'
+local function getAdminLevel(src)
+    local uid = getUid(src)
+    if not uid then return 0 end
+    local usersTable = cleanName(Config.UsersTable or 'users')
+    local uidCol = cleanName(Config.UsersIdColumn or 'uid')
+    for _, adminColRaw in ipairs(Config.AdminColumns or { 'admin_level' }) do
+        local adminCol = cleanName(adminColRaw)
+        local ok, row = pcall(function()
+            return MySQL.single.await(('SELECT `%s` AS admin_level FROM `%s` WHERE `%s` = ? LIMIT 1'):format(adminCol, usersTable, uidCol), { uid })
+        end)
+        if ok and row and tonumber(row.admin_level) then return tonumber(row.admin_level) or 0 end
     end
+    return 0
+end
 
-    raw = tostring(raw or '{}')
-    if raw == '' or raw == 'null' or raw == 'nil' then return '{}' end
-    return raw
+local function vecToTable(v)
+    if type(v) ~= 'vector3' and type(v) ~= 'vector4' then return v end
+    return { x = v.x, y = v.y, z = v.z, h = v.w }
 end
 
 local function getRace(raceId)
-    raceId = tostring(raceId or ''):lower()
-    return Config.Races and Config.Races[raceId] or nil
-end
-
-local function formatTime(seconds)
-    seconds = math.max(0, tonumber(seconds or 0) or 0)
-    return ('%d:%02d'):format(math.floor(seconds / 60), seconds % 60)
-end
-
-local function getColumnIntegerMax(tableNameValue, columnNameValue)
-    local fallback = tonumber(Config.SafeCashMax or 2147483647) or 2147483647
-
-    local ok, row = pcall(function()
-        return MySQL.single.await([[
-            SELECT COLUMN_TYPE AS column_type
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = ?
-              AND COLUMN_NAME = ?
-            LIMIT 1
-        ]], { tableNameValue, columnNameValue })
-    end)
-
-    if not ok or not row or not row.column_type then return fallback end
-
-    local t = tostring(row.column_type):lower()
-    local unsigned = t:find('unsigned', 1, true) ~= nil
-
-    if t:find('tinyint', 1, true) then return unsigned and 255 or 127 end
-    if t:find('smallint', 1, true) then return unsigned and 65535 or 32767 end
-    if t:find('mediumint', 1, true) then return unsigned and 16777215 or 8388607 end
-    if t:find('bigint', 1, true) then return unsigned and 9007199254740991 or 9007199254740991 end
-    if t:find('int', 1, true) then return unsigned and 4294967295 or 2147483647 end
-
-    return fallback
-end
-
-local function addRewardSafe(uid, reward)
-    local usersTable = tableName(Config.UsersTable or 'users')
-    local uidCol = col(Config.UsersIdColumn or 'uid')
-    local cashCol = col(Config.CashColumn or 'cash')
-    local racesCol = col(Config.RacesColumn or 'races')
-    local maxCash = getColumnIntegerMax(usersTable, cashCol)
-
-    local row = MySQL.single.await(([[
-        SELECT `%s` AS cash_value, `%s` AS races_value
-        FROM `%s`
-        WHERE `%s` = ?
-        LIMIT 1
-    ]]):format(cashCol, racesCol, usersTable, uidCol), { uid })
-
-    if not row then return false, 'user_not_found', 0 end
-
-    local currentCash = tonumber(row.cash_value or 0) or 0
-    local newCash = currentCash + (tonumber(reward or 0) or 0)
-    if newCash > maxCash then newCash = maxCash end
-    if newCash < 0 then newCash = 0 end
-
-    MySQL.update.await(([[
-        UPDATE `%s`
-        SET `%s` = ?, `%s` = COALESCE(`%s`, 0) + 1
-        WHERE `%s` = ?
-        LIMIT 1
-    ]]):format(usersTable, cashCol, racesCol, racesCol, uidCol), { math.floor(newCash), uid })
-
-    return true, nil, math.max(0, math.floor(newCash - currentCash))
+    raceId = tostring(raceId or '')
+    return (Config.Races or {})[raceId]
 end
 
 local function cooldownKey(uid, raceId)
@@ -158,96 +99,94 @@ end
 local function getCooldownLeft(uid, raceId)
     uid = tonumber(uid or 0) or 0
     if uid <= 0 then return 0 end
-
     local key = tostring(uid) .. ':' .. tostring(raceId)
     local untilTime = tonumber(Cooldowns[key] or 0) or 0
-
     if untilTime <= 0 then
-        local saved = GetResourceKvpString(cooldownKey(uid, raceId))
-        untilTime = tonumber(saved or 0) or 0
+        untilTime = tonumber(GetResourceKvpString(cooldownKey(uid, raceId)) or 0) or 0
         if untilTime > 0 then Cooldowns[key] = untilTime end
     end
-
     local left = untilTime - os.time()
-    if left < 0 then
-        left = 0
+    if left <= 0 then
         Cooldowns[key] = 0
         DeleteResourceKvp(cooldownKey(uid, raceId))
+        return 0
     end
-
     return left
 end
 
 local function setCooldown(uid, raceId, seconds)
     uid = tonumber(uid or 0) or 0
-    if uid <= 0 then return end
-
-    local untilTime = os.time() + (tonumber(seconds or 0) or 0)
+    seconds = tonumber(seconds or 0) or 0
+    if uid <= 0 or seconds <= 0 then return end
+    local untilTime = os.time() + seconds
     local key = tostring(uid) .. ':' .. tostring(raceId)
-
     Cooldowns[key] = untilTime
     SetResourceKvp(cooldownKey(uid, raceId), tostring(untilTime))
 end
 
-local function resetCooldowns(uid)
-    uid = tonumber(uid or 0) or 0
-    if uid <= 0 then return end
-
-    for raceId, _ in pairs(Config.Races or {}) do
-        local key = tostring(uid) .. ':' .. tostring(raceId)
+local function resetCooldownsFor(src, target)
+    target = tonumber(target or 0) or 0
+    local targetUid = getUid(target)
+    if not targetUid then return false, 'Jucatorul nu este online sau nu are UID.' end
+    for raceId in pairs(Config.Races or {}) do
+        local key = tostring(targetUid) .. ':' .. tostring(raceId)
         Cooldowns[key] = 0
-        DeleteResourceKvp(cooldownKey(uid, raceId))
+        DeleteResourceKvp(cooldownKey(targetUid, raceId))
     end
+    TriggerClientEvent('driftzone_racejob:client:cooldownsReset', target)
+    return true
 end
 
-local function getCooldownPayload(uid)
+local function cooldownPayload(uid)
     local data = {}
-    for raceId, _ in pairs(Config.Races or {}) do
+    for raceId in pairs(Config.Races or {}) do
         data[raceId] = getCooldownLeft(uid, raceId)
     end
     return data
 end
 
-local function getVehicleRows(uid)
-    local t = tableName(Config.OwnedVehiclesTable or 'ownedvehicles')
-    local idCol = col(Config.OwnedVehicleIdColumn or 'id')
-    local ownerCol = col(Config.OwnedVehicleOwnerColumn or 'owner_id')
-    local modelCol = col(Config.OwnedVehicleModelColumn or 'vehicle_model')
-    local plateCol = col(Config.OwnedVehiclePlateColumn or 'vehicle_plate')
-    local tuningCol = col(Config.OwnedVehicleTuningColumn or 'vehicle_tunning')
+local function normalizeModel(raw)
+    if type(raw) == 'table' then
+        return tostring(raw.model or raw.vehicle_model or raw.hash or raw.name or '')
+    end
+    local text = tostring(raw or ''):gsub('^%s+', ''):gsub('%s+$', '')
+    if text:sub(1, 1) == '{' then
+        local ok, decoded = pcall(json.decode, text)
+        if ok and type(decoded) == 'table' then
+            return tostring(decoded.model or decoded.vehicle_model or decoded.hash or decoded.name or text)
+        end
+    end
+    return text
+end
 
+local function getVehicleRows(uid)
+    local t = cleanName(Config.OwnedVehiclesTable or 'ownedvehicles')
+    local idCol = cleanName(Config.OwnedVehicleIdColumn or 'id')
+    local ownerCol = cleanName(Config.OwnedVehicleOwnerColumn or 'owner_id')
+    local modelCol = cleanName(Config.OwnedVehicleModelColumn or 'vehicle_model')
+    local plateCol = cleanName(Config.OwnedVehiclePlateColumn or 'vehicle_plate')
+    local tuningCol = cleanName(Config.OwnedVehicleTuningColumn or 'vehicle_tunning')
     local ok, rows = pcall(function()
         return MySQL.query.await(([[
-            SELECT
-                ov.`%s` AS id,
-                ov.`%s` AS owner_id,
-                ov.`%s` AS model,
-                ov.`%s` AS plate,
-                ov.`%s` AS tuning,
-                vn.vehicle_name,
-                vn.vehicle_image,
-                vn.image
+            SELECT ov.`%s` AS id, ov.`%s` AS owner_id, ov.`%s` AS model, ov.`%s` AS plate, ov.`%s` AS tuning,
+                   vn.vehicle_name, vn.vehicle_image, vn.image
             FROM `%s` ov
             LEFT JOIN vehiclenames vn ON vn.vehicle_model = ov.`%s`
             WHERE ov.`%s` = ?
             ORDER BY ov.`%s` DESC
         ]]):format(idCol, ownerCol, modelCol, plateCol, tuningCol, t, modelCol, ownerCol, idCol), { uid })
     end)
-
     if not ok then
-        print('[DRIFTZONE_RACEJOB] getVehicleRows query failed: ' .. tostring(rows))
+        print('[DRIFTZONE_RACEJOB] vehicle query failed: ' .. tostring(rows))
         return {}
     end
-
     return rows or {}
 end
 
 local function getPlayerVehicles(uid)
-    local rows = getVehicleRows(uid)
     local list = {}
-
-    for _, row in ipairs(rows) do
-        local model = tostring(row.model or ''):lower()
+    for _, row in ipairs(getVehicleRows(uid)) do
+        local model = normalizeModel(row.model)
         if model ~= '' then
             list[#list + 1] = {
                 id = tonumber(row.id) or 0,
@@ -258,427 +197,440 @@ local function getPlayerVehicles(uid)
             }
         end
     end
-
     return list
 end
 
 local function getVehicleData(uid, vehicleId)
     vehicleId = tonumber(vehicleId or 0) or 0
     if vehicleId <= 0 then return nil end
-
-    local t = tableName(Config.OwnedVehiclesTable or 'ownedvehicles')
-    local idCol = col(Config.OwnedVehicleIdColumn or 'id')
-    local ownerCol = col(Config.OwnedVehicleOwnerColumn or 'owner_id')
-    local modelCol = col(Config.OwnedVehicleModelColumn or 'vehicle_model')
-    local plateCol = col(Config.OwnedVehiclePlateColumn or 'vehicle_plate')
-    local tuningCol = col(Config.OwnedVehicleTuningColumn or 'vehicle_tunning')
-
+    local t = cleanName(Config.OwnedVehiclesTable or 'ownedvehicles')
+    local idCol = cleanName(Config.OwnedVehicleIdColumn or 'id')
+    local ownerCol = cleanName(Config.OwnedVehicleOwnerColumn or 'owner_id')
+    local modelCol = cleanName(Config.OwnedVehicleModelColumn or 'vehicle_model')
+    local plateCol = cleanName(Config.OwnedVehiclePlateColumn or 'vehicle_plate')
+    local tuningCol = cleanName(Config.OwnedVehicleTuningColumn or 'vehicle_tunning')
     local ok, row = pcall(function()
         return MySQL.single.await(([[
-            SELECT
-                ov.`%s` AS id,
-                ov.`%s` AS owner_id,
-                ov.`%s` AS model,
-                ov.`%s` AS plate,
-                ov.`%s` AS tuning,
-                vn.vehicle_name
+            SELECT ov.`%s` AS id, ov.`%s` AS owner_id, ov.`%s` AS model, ov.`%s` AS plate, ov.`%s` AS tuning,
+                   vn.vehicle_name, vn.vehicle_image, vn.image
             FROM `%s` ov
             LEFT JOIN vehiclenames vn ON vn.vehicle_model = ov.`%s`
             WHERE ov.`%s` = ? AND ov.`%s` = ?
             LIMIT 1
         ]]):format(idCol, ownerCol, modelCol, plateCol, tuningCol, t, modelCol, idCol, ownerCol), { vehicleId, uid })
     end)
-
     if not ok then
-        print('[DRIFTZONE_RACEJOB] getVehicleData query failed: ' .. tostring(row))
+        print('[DRIFTZONE_RACEJOB] getVehicleData failed: ' .. tostring(row))
         return nil
     end
-
     if not row then return nil end
-
+    local model = normalizeModel(row.model)
+    if model == '' then return nil end
     return {
-        id = tonumber(row.id) or vehicleId,
-        ownerId = tonumber(row.owner_id) or uid,
-        model = tostring(row.model or ''):lower(),
-        plate = tostring(row.plate or 'DRIFT'):upper():gsub('%s+', ''):sub(1, 8),
-        tuning = normalizeTuning(row.tuning or '{}'),
-        name = tostring(row.vehicle_name or row.model or 'Vehicle')
+        id = tonumber(row.id) or 0,
+        model = model,
+        name = tostring(row.vehicle_name or model),
+        plate = tostring(row.plate or 'DRIFT'),
+        tuning = tostring(row.tuning or '{}'),
+        image = tostring(row.vehicle_image or row.image or '')
     }
 end
 
-local function entityExists(entity)
-    return entity and entity ~= 0 and DoesEntityExist(entity)
-end
-
-local function unregisterVehicle(entity)
-    pcall(function() exports.driftzone_vs:UnregisterVehicle(entity) end)
-    pcall(function() TriggerEvent('vs:unregisterVehicle', entity) end)
-end
-
-local function deleteEntitySafe(entity)
-    if not entityExists(entity) then return end
-    unregisterVehicle(entity)
-    DeleteEntity(entity)
-end
-
-local function deleteExistingVehicleInstances(uid, vehicleId)
-    vehicleId = tonumber(vehicleId or 0) or 0
-
-    if RaceVehicles[vehicleId] and entityExists(RaceVehicles[vehicleId].entity) then
-        deleteEntitySafe(RaceVehicles[vehicleId].entity)
-    end
-    RaceVehicles[vehicleId] = nil
-
-    local ok, active = pcall(function()
-        return exports.driftzone_garage:GetActiveVehicle(vehicleId)
-    end)
-
-    if ok and active and active.entity and entityExists(active.entity) then
-        deleteEntitySafe(active.entity)
-    end
-
-    local all = GetAllVehicles and GetAllVehicles() or {}
-    for _, entity in ipairs(all) do
-        if entityExists(entity) then
-            local state = Entity(entity).state
-            local dbId = tonumber(state.dz_garage_db_id or 0)
-            local owner = tonumber(state.dz_garage_owner_uid or 0)
-
-            if dbId == vehicleId or (dbId > 0 and owner == tonumber(uid) and dbId == vehicleId) then
-                deleteEntitySafe(entity)
-            end
+local function getRaceList(uid)
+    local list = {}
+    local order = { 'short', 'medium', 'long', 'special' }
+    for _, id in ipairs(order) do
+        local race = getRace(id)
+        if race then
+            list[#list + 1] = {
+                id = race.id or id,
+                label = race.label or id,
+                subLabel = race.subLabel or '',
+                description = race.description or '',
+                special = race.special == true,
+                rewardMin = race.reward and race.reward.min or 0,
+                rewardMax = race.reward and race.reward.max or 0,
+                xpMin = race.xp and race.xp.min or 0,
+                xpMax = race.xp and race.xp.max or 0,
+                timeLimit = race.timeLimit or 0,
+                cooldownLeft = getCooldownLeft(uid, id)
+            }
         end
     end
+    return list
 end
 
-local function setRaceVehicleState(entity, src, uid, vehicleData)
-    if not entityExists(entity) then return end
-    local state = Entity(entity).state
+local function addStats(uid, cash, xp, addRace)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return false end
+    cash = math.max(0, math.floor(tonumber(cash or 0) or 0))
+    xp = math.max(0, math.floor(tonumber(xp or 0) or 0))
 
-    state:set('dz_race_vehicle', true, true)
-    state:set('dz_race_owner_uid', tonumber(uid) or 0, true)
-    state:set('dz_race_owner_src', tonumber(src) or 0, true)
-    state:set('dz_garage_vehicle', true, true)
-    state:set('dz_garage_owner_uid', tonumber(uid) or 0, true)
-    state:set('dz_garage_db_id', tonumber(vehicleData.id) or 0, true)
-    state:set('dz_garage_model', vehicleData.model, true)
-    state:set('dz_garage_name', vehicleData.name, true)
-    state:set('dz_garage_plate', vehicleData.plate, true)
-    state:set('dz_garage_godmode', true, true)
-    state:set('dz_garage_tuning', vehicleData.tuning, true)
-    state:set('vehicleTunning', vehicleData.tuning, true)
-    state:set('dz_vehicle_tunning', vehicleData.tuning, true)
-end
+    local usersTable = cleanName(Config.UsersTable or 'users')
+    local uidCol = cleanName(Config.UsersIdColumn or 'uid')
+    local cashCol = cleanName(Config.CashColumn or 'cash')
+    local racesCol = cleanName(Config.RacesColumn or 'races')
+    local xpCol = cleanName(Config.XpColumn or 'xp')
 
-local function cleanupRace(src, reason)
-    local race = ActiveRaces[src]
-    if not race then return end
-
-    if race.entity and entityExists(race.entity) then
-        deleteEntitySafe(race.entity)
+    local function readCash()
+        return MySQL.single.await(('SELECT `%s` AS cash_value FROM `%s` WHERE `%s` = ? LIMIT 1'):format(cashCol, usersTable, uidCol), { uid })
     end
 
-    if race.vehicleId then
-        RaceVehicles[race.vehicleId] = nil
-    end
+    local row = readCash()
+    if not row then return false end
 
-    ActiveRaces[src] = nil
-    SetPlayerRoutingBucket(src, Config.ReturnBucket or 0)
-    debugPrint(('cleanup src=%s reason=%s'):format(src, tostring(reason)))
-end
-
-local function sendMenu(src)
-    if not isLogged(src) then notify(src, 'warning', 'Trebuie sa fii logat.') return end
-
-    local uid = getUid(src)
-    if not uid then notify(src, 'warning', 'Nu ti-am gasit UID-ul.') return end
-
-    local raceList = {}
-    for _, race in pairs(Config.Races or {}) do
-        raceList[#raceList + 1] = {
-            id = race.id,
-            label = race.label,
-            description = race.description,
-            rewardMin = race.reward.min,
-            rewardMax = race.reward.max,
-            cooldown = race.cooldown,
-            cooldownLeft = getCooldownLeft(uid, race.id),
-            timeLimit = race.timeLimit
-        }
-    end
-
-    table.sort(raceList, function(a, b)
-        local order = { short = 1, medium = 2, long = 3 }
-        return (order[a.id] or 99) < (order[b.id] or 99)
-    end)
-
-    TriggerClientEvent('driftzone_racejob:client:openMenu', src, {
-        races = raceList,
-        vehicles = getPlayerVehicles(uid),
-        mainColor = Config.MainColor or '#04c7f7'
-    })
-end
-
-local function registerVehicleSystem(entity, vehicleData, uid, src)
-    pcall(function()
-        exports.driftzone_vs:RegisterVehicle(entity, {
-            source = 'racejob',
-            sqlVehicleId = vehicleData.id,
-            ownerId = uid,
-            ownerName = getPlayerNameSafe(src),
-            model = vehicleData.model,
-            plate = vehicleData.plate
-        })
-    end)
-
-    pcall(function()
-        TriggerEvent('vs:registerVehicle', entity, {
-            source = 'racejob',
-            sqlVehicleId = vehicleData.id,
-            ownerId = uid,
-            ownerName = getPlayerNameSafe(src),
-            model = vehicleData.model,
-            plate = vehicleData.plate
-        })
-    end)
-end
-
-
-local function getAdminLevel(src)
-    local uid = getUid(src)
-    if not uid then return 0 end
-
-    local usersTable = tableName(Config.UsersTable or 'users')
-    local uidCol = col(Config.UsersIdColumn or 'uid')
-    local columns = Config.AdminColumns or { 'admin_level' }
-
-    for i = 1, #columns do
-        local adminCol = col(columns[i])
-        local ok, row = pcall(function()
-            return MySQL.single.await(([[
-                SELECT `%s` AS admin_level
-                FROM `%s`
-                WHERE `%s` = ?
-                LIMIT 1
-            ]]):format(adminCol, usersTable, uidCol), { uid })
-        end)
-
-        if ok and row and tonumber(row.admin_level) then
-            return tonumber(row.admin_level) or 0
-        end
-    end
-
-    return 0
-end
-
-RegisterCommand(Config.ResetCooldownCommand or 'rracecd', function(src, args)
-    if src == 0 then
-        local target = tonumber(args and args[1])
-        if not target then print('[DRIFTZONE_RACEJOB] Folosire: /rracecd <id>') return end
-        local uid = getUid(target) or target
-        resetCooldowns(uid)
-        print('[DRIFTZONE_RACEJOB] Cooldown race reset pentru UID ' .. tostring(uid))
-        return
-    end
-
-    if getAdminLevel(src) < (Config.ResetCooldownMinAdminLevel or 6) then
-        notify(src, 'error', 'Nu ai acces la aceasta comanda.')
-        return
-    end
-
-    local target = tonumber(args and args[1])
-    if not target then
-        notify(src, 'warning', 'Folosire: /' .. tostring(Config.ResetCooldownCommand or 'rracecd') .. ' <id>')
-        return
-    end
-
-    local targetUid = getUid(target) or target
-    resetCooldowns(targetUid)
-    notify(src, 'success', 'Cooldown-ul de race a fost resetat pentru ID ' .. tostring(target) .. '.', 5000)
-
-    if GetPlayerName(target) then
-        notify(target, 'info', 'Cooldown-ul tau de race a fost resetat.', 5000)
-        sendMenu(target)
-    end
-end, false)
-
-RegisterNetEvent('driftzone_racejob:server:open', function()
-    sendMenu(source)
-end)
-
-RegisterNetEvent('driftzone_racejob:server:start', function(raceId, vehicleId)
-    local src = source
-
-    if ActiveRaces[src] then
-        notify(src, 'warning', 'Ai deja o cursa activa.')
-        return
-    end
-
-    if not isLogged(src) then notify(src, 'warning', 'Trebuie sa fii logat.') return end
-
-    local uid = getUid(src)
-    if not uid then notify(src, 'warning', 'Nu ti-am gasit UID-ul.') return end
-
-    local race = getRace(raceId)
-    if not race then notify(src, 'warning', 'Cursa invalida.') return end
-
-    local cooldownLeft = getCooldownLeft(uid, race.id)
-    if cooldownLeft > 0 then
-        notify(src, 'warning', ('Mai ai cooldown %s pentru %s.'):format(formatTime(cooldownLeft), race.label), 5000)
-        sendMenu(src)
-        return
-    end
-
-    local vehicleData = getVehicleData(uid, vehicleId)
-    if not vehicleData then notify(src, 'warning', 'Masina selectata nu iti apartine.') return end
-    if vehicleData.model == '' then notify(src, 'warning', 'Model invalid.') return end
+    local currentCash = tonumber(row.cash_value or 0) or 0
+    local maxCash = tonumber(Config.SafeCashMax or 2147483647) or 2147483647
+    local newCash = currentCash + cash
+    if newCash > maxCash then newCash = maxCash end
+    if newCash < 0 then newCash = 0 end
 
     local ok, err = pcall(function()
-        deleteExistingVehicleInstances(uid, vehicleData.id)
-
-        local bucket = (Config.RaceBucketBase or 62000) + tonumber(src)
-        SetPlayerRoutingBucket(src, bucket)
-
-        ActiveRaces[src] = {
-            uid = uid,
-            raceId = race.id,
-            race = race,
-            vehicleId = vehicleData.id,
-            entity = nil,
-            netId = 0,
-            bucket = bucket,
-            startedAt = os.time(),
-            rewardMin = race.reward.min,
-            rewardMax = race.reward.max
-        }
-
-        RaceVehicles[vehicleData.id] = { entity = nil, src = src, uid = uid }
-        setCooldown(uid, race.id, race.cooldown)
-
-        TriggerClientEvent('driftzone_racejob:client:prepareRace', src, {
-            race = {
-                id = race.id,
-                label = race.label,
-                timeLimit = race.timeLimit,
-                start = { x = race.start.x, y = race.start.y, z = race.start.z, h = race.start.w },
-                finish = { x = race.finish.x, y = race.finish.y, z = race.finish.z },
-                radius = Config.FinishRadius or 9.0
-            },
-            vehicle = {
-                id = vehicleData.id,
-                model = vehicleData.model,
-                name = vehicleData.name,
-                plate = vehicleData.plate,
-                tuning = vehicleData.tuning
-            },
-            countdown = Config.CountdownSeconds or 3,
-            mainColor = Config.MainColor or '#04c7f7'
+        MySQL.update.await(('UPDATE `%s` SET `%s` = ?, `%s` = COALESCE(`%s`, 0) + ?, `%s` = COALESCE(`%s`, 0) + ? WHERE `%s` = ? LIMIT 1'):format(usersTable, cashCol, racesCol, racesCol, xpCol, xpCol, uidCol), {
+            math.floor(newCash), addRace and 1 or 0, xp, uid
         })
     end)
 
     if not ok then
-        print(('[DRIFTZONE_RACEJOB] start error src=%s: %s'):format(src, tostring(err)))
-        cleanupRace(src, 'start_error')
-        notify(src, 'error', 'A aparut o eroare la pornirea cursei.')
-    end
-end)
-
-RegisterNetEvent('driftzone_racejob:server:clientVehicleReady', function(netId)
-    local src = source
-    local active = ActiveRaces[src]
-    if not active then return end
-
-    netId = tonumber(netId or 0) or 0
-    if netId <= 0 then return end
-
-    local entity = NetworkGetEntityFromNetworkId(netId)
-    if entity and entity ~= 0 and DoesEntityExist(entity) then
-        active.netId = netId
-        active.entity = entity
-        SetEntityRoutingBucket(entity, active.bucket or ((Config.RaceBucketBase or 62000) + tonumber(src)))
-
-        if active.vehicleId then
-            RaceVehicles[active.vehicleId] = { entity = entity, src = src, uid = active.uid }
+        print('[DRIFTZONE_RACEJOB] addStats with xp failed; trying without xp. Run sql.sql. Error: ' .. tostring(err))
+        local ok2, err2 = pcall(function()
+            MySQL.update.await(('UPDATE `%s` SET `%s` = ?, `%s` = COALESCE(`%s`, 0) + ? WHERE `%s` = ? LIMIT 1'):format(usersTable, cashCol, racesCol, racesCol, uidCol), {
+                math.floor(newCash), addRace and 1 or 0, uid
+            })
+        end)
+        if not ok2 then
+            print('[DRIFTZONE_RACEJOB] addStats fallback failed: ' .. tostring(err2))
+            return false
         end
     end
+
+    return true
+end
+
+local function randomBetween(range)
+    range = type(range) == 'table' and range or {}
+    local min = tonumber(range.min or 0) or 0
+    local max = tonumber(range.max or min) or min
+    if max < min then max = min end
+    return math.random(min, max)
+end
+
+local function setPlayerBucket(src, bucket)
+    src = tonumber(src or 0) or 0
+    if src > 0 and GetPlayerPing(src) > 0 then
+        SetPlayerRoutingBucket(src, tonumber(bucket or 0) or 0)
+    end
+end
+
+local function buildSoloPayload(src, race, vehicle)
+    return {
+        race = {
+            id = race.id,
+            label = race.label,
+            timeLimit = race.timeLimit,
+            start = vecToTable(race.start),
+            finish = vecToTable(race.finish)
+        },
+        vehicle = vehicle,
+        returnPosition = vecToTable(Config.ReturnPosition),
+        finishRadius = Config.FinishRadius or 9.0,
+        countdown = Config.CountdownSeconds or 3,
+        mainColor = Config.MainColor
+    }
+end
+
+local function openMenu(src)
+    if not isLogged(src) then notify(src, 'warning', 'Nu esti logat.', 4000) return end
+    local uid = getUid(src)
+    if not uid then notify(src, 'warning', 'Nu ti-am gasit UID-ul.', 4000) return end
+    TriggerClientEvent('driftzone_racejob:client:openMenu', src, {
+        races = getRaceList(uid),
+        vehicles = getPlayerVehicles(uid),
+        mainColor = Config.MainColor,
+        cooldowns = cooldownPayload(uid)
+    })
+end
+
+local function failSolo(src, reason)
+    local data = ActiveSolo[src]
+    if not data then return end
+    ActiveSolo[src] = nil
+    setPlayerBucket(src, Config.ReturnBucket or 0)
+    TriggerClientEvent('driftzone_racejob:client:raceFailed', src, reason or 'Ai pierdut cursa.')
+end
+
+local function finishSolo(src)
+    local data = ActiveSolo[src]
+    if not data then return end
+    ActiveSolo[src] = nil
+    local race = getRace(data.raceId)
+    if not race then return end
+    local cash = randomBetween(race.reward)
+    local xp = randomBetween(race.xp)
+    addStats(data.uid, cash, xp, true)
+    setCooldown(data.uid, data.raceId, race.cooldown or 0)
+    setPlayerBucket(src, Config.ReturnBucket or 0)
+    TriggerClientEvent('driftzone_racejob:client:raceCompleted', src, {
+        cash = cash,
+        xp = xp,
+        message = ('Ai finalizat cursa si ai primit suma de: $%s!'):format(cash),
+        returnPosition = vecToTable(Config.ReturnPosition)
+    })
+end
+
+RegisterNetEvent('driftzone_racejob:server:open', function()
+    openMenu(source)
 end)
 
-RegisterNetEvent('driftzone_racejob:server:finish', function(raceId)
+RegisterNetEvent('driftzone_racejob:server:close', function() end)
+
+RegisterNetEvent('driftzone_racejob:server:startSolo', function(raceId, vehicleId)
     local src = source
-    local active = ActiveRaces[src]
+    if ActiveSolo[src] or ActiveDuoByPlayer[src] then notify(src, 'warning', 'Ai deja o cursa activa.', 4000) return end
+    local uid = getUid(src)
+    if not uid then notify(src, 'warning', 'Nu ti-am gasit UID-ul.', 4000) return end
+    local race = getRace(raceId)
+    if not race or race.special == true then notify(src, 'warning', 'Cursa invalida.', 4000) return end
+    local cd = getCooldownLeft(uid, race.id)
+    if cd > 0 then notify(src, 'warning', 'Mai ai cooldown la aceasta cursa.', 4000) return end
+    local vehicle = getVehicleData(uid, vehicleId)
+    if not vehicle then notify(src, 'warning', 'Masina nu a fost gasita in garaj.', 5000) return end
 
-    if not active or active.raceId ~= tostring(raceId or '') then return end
+    local bucket = (Config.RaceBucketBase or 62000) + src
+    ActiveSolo[src] = { uid = uid, raceId = race.id, bucket = bucket, startedAt = os.time() }
+    setCooldown(uid, race.id, race.cooldown or 0)
+    setPlayerBucket(src, bucket)
+    TriggerClientEvent('driftzone_racejob:client:startSolo', src, buildSoloPayload(src, race, vehicle))
+end)
 
-    local reward = math.random(tonumber(active.rewardMin) or 2500, tonumber(active.rewardMax) or 5000)
-    local uid = active.uid
+RegisterNetEvent('driftzone_racejob:server:soloFinish', function()
+    finishSolo(source)
+end)
 
-    local ok, err, paid = pcall(function()
-        local success, reason, actualPaid = addRewardSafe(uid, reward)
-        if not success then error(reason or 'reward_failed') end
-        return actualPaid
+RegisterNetEvent('driftzone_racejob:server:soloFail', function(reason)
+    failSolo(source, tostring(reason or 'Ai pierdut cursa.'))
+end)
+
+local function cleanupDuo(sessionId, reason)
+    local session = DuoSessions[sessionId]
+    if not session then return end
+    DuoSessions[sessionId] = nil
+    for _, src in ipairs({ session.p1, session.p2 }) do
+        if src and GetPlayerPing(src) > 0 then
+            ActiveDuoByPlayer[src] = nil
+            setPlayerBucket(src, Config.ReturnBucket or 0)
+            TriggerClientEvent('driftzone_racejob:client:duoFailed', src, reason or 'Ati pierdut cursa.')
+        end
+    end
+end
+
+local function tryStartDuo(sessionId)
+    local session = DuoSessions[sessionId]
+    if not session or session.started then return end
+    local p1 = session.players[session.p1]
+    local p2 = session.players[session.p2]
+    if not (p1 and p2 and p1.vehicle and p2.vehicle and p1.spawned and p2.spawned) then return end
+    session.started = true
+    local race = getRace('special')
+    TriggerClientEvent('driftzone_racejob:client:beginDuoRace', session.p1, { sessionId = sessionId, countdown = Config.CountdownSeconds or 3 })
+    TriggerClientEvent('driftzone_racejob:client:beginDuoRace', session.p2, { sessionId = sessionId, countdown = Config.CountdownSeconds or 3 })
+    SetTimeout((tonumber(race.timeLimit or 900) + 20) * 1000, function()
+        local s = DuoSessions[sessionId]
+        if s and not s.completed then cleanupDuo(sessionId, 'Timpul a expirat. Ati pierdut cursa.') end
     end)
+end
 
-    if ok then
-        reward = tonumber(err or reward) or reward
-    else
-        print('[DRIFTZONE_RACEJOB] reward query failed: ' .. tostring(err))
-        notify(src, 'error', 'Cursa a fost finalizata, dar SQL cash/races a dat eroare. Ruleaza sql.sql.')
-        reward = 0
+RegisterNetEvent('driftzone_racejob:server:duoInvite', function(targetId)
+    local src = source
+    targetId = tonumber(targetId or 0) or 0
+    if targetId <= 0 or targetId == src or GetPlayerPing(targetId) <= 0 then notify(src, 'warning', 'ID invalid.', 4000) return end
+    if ActiveSolo[src] or ActiveDuoByPlayer[src] then notify(src, 'warning', 'Ai deja o cursa activa.', 4000) return end
+    local uid = getUid(src)
+    local targetUid = getUid(targetId)
+    if not uid or not targetUid then notify(src, 'warning', 'Nu am gasit UID-ul unuia dintre jucatori.', 4000) return end
+    local race = getRace('special')
+    if getCooldownLeft(uid, 'special') > 0 then notify(src, 'warning', 'Ai cooldown la Duo Race.', 4000) return end
+    if getCooldownLeft(targetUid, 'special') > 0 then notify(src, 'warning', 'Prietenul tau are cooldown la Duo Race.', 4000) return end
+    DuoInvites[src] = { from = src, target = targetId, created = os.time() }
+    notify(src, 'success', 'Invitatia a fost trimisa.', 4000)
+    notify(targetId, 'info', ('Ai fost invitat la o livrare de catre %s (%s), foloseste comanda /jobaccept %s!'):format(getPlayerNameSafe(src), src, src), 7000)
+    SetTimeout(5000, function()
+        local invite = DuoInvites[src]
+        if invite and invite.target == targetId then
+            notify(targetId, 'info', ('Reminder: /jobaccept %s pentru Duo Race cu %s.'):format(src, getPlayerNameSafe(src)), 7000)
+        end
+    end)
+end)
+
+RegisterCommand('jobaccept', function(src, args)
+    local inviter = tonumber(args[1] or 0) or 0
+    if inviter <= 0 then notify(src, 'warning', 'Foloseste /jobaccept <id>.', 4000) return end
+    local invite = DuoInvites[inviter]
+    if not invite or invite.target ~= src then notify(src, 'warning', 'Nu ai o invitatie valida de la acest jucator.', 4000) return end
+    DuoInvites[inviter] = nil
+    if GetPlayerPing(inviter) <= 0 then notify(src, 'warning', 'Jucatorul nu mai este online.', 4000) return end
+
+    local race = getRace('special')
+    local uid1, uid2 = getUid(inviter), getUid(src)
+    if not uid1 or not uid2 then notify(src, 'warning', 'UID invalid.', 4000) return end
+    if getCooldownLeft(uid1, 'special') > 0 or getCooldownLeft(uid2, 'special') > 0 then
+        notify(src, 'warning', 'Unul dintre voi are cooldown la Duo Race.', 4000)
+        notify(inviter, 'warning', 'Unul dintre voi are cooldown la Duo Race.', 4000)
+        return
     end
 
-    cleanupRace(src, 'finish')
-
-    local ret = Config.ReturnPosition
-    TriggerClientEvent('driftzone_racejob:client:endRace', src, {
-        success = true,
-        reward = reward,
-        message = reward > 0 and ('Ai finalizat cursa si ai primit suma de: $' .. tostring(reward) .. '!') or 'Ai finalizat cursa.',
-        returnPos = { x = ret.x, y = ret.y, z = ret.z, h = ret.w },
-        bucket = Config.ReturnBucket or 0
+    SessionCounter = SessionCounter + 1
+    local sessionId = SessionCounter
+    local bucket = (Config.RaceBucketBase or 62000) + 1000 + sessionId
+    DuoSessions[sessionId] = {
+        id = sessionId, p1 = inviter, p2 = src, bucket = bucket, raceId = 'special', started = false, completed = false,
+        players = {
+            [inviter] = { uid = uid1, name = getPlayerNameSafe(inviter), slot = 1, ready = false, spawned = false },
+            [src] = { uid = uid2, name = getPlayerNameSafe(src), slot = 2, ready = false, spawned = false }
+        },
+        finished = {}
+    }
+    ActiveDuoByPlayer[inviter] = sessionId
+    ActiveDuoByPlayer[src] = sessionId
+    TriggerClientEvent('driftzone_racejob:client:openDuoGarage', inviter, {
+        sessionId = sessionId, vehicles = getPlayerVehicles(uid1), partner = getPlayerNameSafe(src), selfName = getPlayerNameSafe(inviter), mainColor = Config.MainColor
     })
-end)
+    TriggerClientEvent('driftzone_racejob:client:openDuoGarage', src, {
+        sessionId = sessionId, vehicles = getPlayerVehicles(uid2), partner = getPlayerNameSafe(inviter), selfName = getPlayerNameSafe(src), mainColor = Config.MainColor
+    })
+end, false)
 
-RegisterNetEvent('driftzone_racejob:server:fail', function(reason)
+RegisterNetEvent('driftzone_racejob:server:duoReady', function(sessionId, vehicleId)
     local src = source
-    local active = ActiveRaces[src]
-    if not active then return end
-
-    cleanupRace(src, reason or 'failed')
-
-    local ret = Config.ReturnPosition
-    TriggerClientEvent('driftzone_racejob:client:endRace', src, {
-        success = false,
-        reward = 0,
-        message = 'Ai pierdut cursa.',
-        returnPos = { x = ret.x, y = ret.y, z = ret.z, h = ret.w },
-        bucket = Config.ReturnBucket or 0
-    })
+    sessionId = tonumber(sessionId or 0) or 0
+    local session = DuoSessions[sessionId]
+    if not session or ActiveDuoByPlayer[src] ~= sessionId then return end
+    local player = session.players[src]
+    if not player then return end
+    local vehicle = getVehicleData(player.uid, vehicleId)
+    if not vehicle then notify(src, 'warning', 'Masina nu a fost gasita in garaj.', 5000) return end
+    player.vehicle = vehicle
+    player.ready = true
+    TriggerClientEvent('driftzone_racejob:client:duoStatus', session.p1, { p1Ready = session.players[session.p1].ready, p2Ready = session.players[session.p2].ready })
+    TriggerClientEvent('driftzone_racejob:client:duoStatus', session.p2, { p1Ready = session.players[session.p1].ready, p2Ready = session.players[session.p2].ready })
+    if session.players[session.p1].ready and session.players[session.p2].ready then
+        local race = getRace('special')
+        setCooldown(session.players[session.p1].uid, 'special', race.cooldown or 0)
+        setCooldown(session.players[session.p2].uid, 'special', race.cooldown or 0)
+        setPlayerBucket(session.p1, session.bucket)
+        setPlayerBucket(session.p2, session.bucket)
+        local payloadBase = {
+            sessionId = sessionId,
+            race = { id = 'special', label = 'Duo Race', timeLimit = race.timeLimit, finish = vecToTable(race.finish) },
+            finishRadius = Config.FinishRadius or 9.0,
+            returnPosition = vecToTable(Config.ReturnPosition),
+            mainColor = Config.MainColor
+        }
+        local p1Payload = payloadBase
+        p1Payload.vehicle = session.players[session.p1].vehicle
+        p1Payload.start = vecToTable(race.start1)
+        p1Payload.slot = 1
+        p1Payload.partnerName = session.players[session.p2].name
+        TriggerClientEvent('driftzone_racejob:client:prepareDuoRace', session.p1, p1Payload)
+        local p2Payload = {
+            sessionId = sessionId,
+            race = payloadBase.race,
+            finishRadius = payloadBase.finishRadius,
+            returnPosition = payloadBase.returnPosition,
+            mainColor = Config.MainColor,
+            vehicle = session.players[session.p2].vehicle,
+            start = vecToTable(race.start2),
+            slot = 2,
+            partnerName = session.players[session.p1].name
+        }
+        TriggerClientEvent('driftzone_racejob:client:prepareDuoRace', session.p2, p2Payload)
+    end
 end)
 
-RegisterNetEvent('driftzone_racejob:server:cancel', function()
+RegisterNetEvent('driftzone_racejob:server:duoSpawned', function(sessionId, ok)
     local src = source
-    if not ActiveRaces[src] then return end
-    cleanupRace(src, 'cancel')
-    local ret = Config.ReturnPosition
-    TriggerClientEvent('driftzone_racejob:client:endRace', src, {
-        success = false,
-        reward = 0,
-        message = 'Cursa a fost anulata.',
-        returnPos = { x = ret.x, y = ret.y, z = ret.z, h = ret.w },
-        bucket = Config.ReturnBucket or 0
-    })
+    sessionId = tonumber(sessionId or 0) or 0
+    local session = DuoSessions[sessionId]
+    if not session or ActiveDuoByPlayer[src] ~= sessionId then return end
+    if ok ~= true then cleanupDuo(sessionId, 'O masina nu a putut fi spawnata. Cursa a fost anulata.') return end
+    session.players[src].spawned = true
+    tryStartDuo(sessionId)
 end)
+
+RegisterNetEvent('driftzone_racejob:server:duoFinish', function(sessionId)
+    local src = source
+    sessionId = tonumber(sessionId or 0) or 0
+    local session = DuoSessions[sessionId]
+    if not session or session.completed or ActiveDuoByPlayer[src] ~= sessionId then return end
+    session.finished[src] = true
+    notify(src, 'success', 'Ai ajuns la finish. Asteapta partenerul.', 3500)
+    local other = src == session.p1 and session.p2 or session.p1
+    if GetPlayerPing(other) > 0 then notify(other, 'info', 'Partenerul tau a ajuns la finish.', 3500) end
+    if session.finished[session.p1] and session.finished[session.p2] then
+        session.completed = true
+        local race = getRace('special')
+        local totalCash = randomBetween(race.reward)
+        local totalXp = randomBetween(race.xp)
+        local cash1 = math.floor(totalCash / 2)
+        local cash2 = totalCash - cash1
+        local xp1 = math.floor(totalXp / 2)
+        local xp2 = totalXp - xp1
+        addStats(session.players[session.p1].uid, cash1, xp1, true)
+        addStats(session.players[session.p2].uid, cash2, xp2, true)
+        setPlayerBucket(session.p1, Config.ReturnBucket or 0)
+        setPlayerBucket(session.p2, Config.ReturnBucket or 0)
+        local summary = {
+            totalCash = totalCash, totalXp = totalXp,
+            p1 = { name = session.players[session.p1].name, cash = cash1, xp = xp1 },
+            p2 = { name = session.players[session.p2].name, cash = cash2, xp = xp2 },
+            returnPosition = vecToTable(Config.ReturnPosition)
+        }
+        TriggerClientEvent('driftzone_racejob:client:duoCompleted', session.p1, summary)
+        TriggerClientEvent('driftzone_racejob:client:duoCompleted', session.p2, summary)
+        ActiveDuoByPlayer[session.p1] = nil
+        ActiveDuoByPlayer[session.p2] = nil
+        DuoSessions[sessionId] = nil
+    end
+end)
+
+RegisterNetEvent('driftzone_racejob:server:duoFail', function(sessionId, reason)
+    cleanupDuo(tonumber(sessionId or 0) or 0, tostring(reason or 'Ati pierdut cursa.'))
+end)
+
+RegisterNetEvent('driftzone_racejob:server:requestRefresh', function()
+    openMenu(source)
+end)
+
+RegisterCommand(Config.ResetCooldownCommand or 'rracecd', function(src, args)
+    if src == 0 then
+        local target = tonumber(args[1] or 0) or 0
+        local ok, msg = resetCooldownsFor(src, target)
+        print(ok and '[DRIFTZONE_RACEJOB] cooldown reset.' or ('[DRIFTZONE_RACEJOB] ' .. tostring(msg)))
+        return
+    end
+    if getAdminLevel(src) < (Config.ResetCooldownMinAdminLevel or 6) then notify(src, 'warning', 'Nu ai acces la aceasta comanda.', 4000) return end
+    local target = tonumber(args[1] or 0) or 0
+    local ok, msg = resetCooldownsFor(src, target)
+    if ok then notify(src, 'success', 'Cooldown-ul a fost resetat.', 4000) else notify(src, 'warning', msg, 4000) end
+end, false)
 
 AddEventHandler('playerDropped', function()
-    cleanupRace(source, 'dropped')
+    local src = source
+    if ActiveSolo[src] then ActiveSolo[src] = nil end
+    local sessionId = ActiveDuoByPlayer[src]
+    if sessionId then cleanupDuo(sessionId, 'Partenerul a iesit de pe server. Cursa a fost anulata.') end
+    for inviter, invite in pairs(DuoInvites) do
+        if inviter == src or invite.target == src then DuoInvites[inviter] = nil end
+    end
 end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    for src, _ in pairs(ActiveRaces) do cleanupRace(src, 'resource_stop') end
+    for _, id in ipairs(GetPlayers()) do SetPlayerRoutingBucket(tonumber(id), Config.ReturnBucket or 0) end
 end)
 
 CreateThread(function()
+    math.randomseed(os.time() + GetGameTimer())
     Wait(1000)
-    print('[DRIFTZONE_RACEJOB] Server loaded. Short/Medium/Long races ready.')
+    print('[DRIFTZONE_RACEJOB] loaded. Solo + Duo ready.')
 end)
