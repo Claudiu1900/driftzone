@@ -14,6 +14,10 @@ Config.OwnedVehicleModelColumn = 'vehicle_model'
 Config.OwnedVehiclePlateColumn = 'vehicle_plate'
 Config.OwnedVehicleTuningColumn = 'vehicle_tunning'
 
+Config.ResetCooldownCommand = 'rracecd'
+Config.ResetCooldownMinAdminLevel = 7
+Config.AdminColumns = { 'admin', 'admin_level', 'adminLvl', 'adminLevel' }
+
 Config.Interaction = {
     id = 'driftzone_racejob_main',
     coords = vector3(-116.835160, -604.720886, 36.272584),
@@ -28,10 +32,9 @@ Config.Interaction = {
 
 Config.ReturnPosition = vector4(-100.826370, -612.079102, 36.255738, 65.20)
 Config.ReturnBucket = 0
-
+Config.RaceBucketBase = 62000
 Config.FinishRadius = 9.0
 Config.CountdownSeconds = 3
-Config.RaceBucketBase = 62000
 
 Config.Vehicle = {
     deleteExistingOwnedVehicle = true,
@@ -39,14 +42,16 @@ Config.Vehicle = {
     protectVehicle = true,
     cleanupOnFinish = true,
     cleanupOnFail = true,
-    spawnZOffset = 0.45
+    spawnZOffset = 0.45,
+    clientSpawnTimeoutMs = 12000,
+    tuningApplyDelays = { 100, 350, 750, 1400, 2400, 3600 }
 }
 
 Config.Races = {
     short = {
         id = 'short',
         label = 'Short Race',
-        description = 'Cursa rapida prin oras, risc mic si cash rapid.',
+        description = 'Cursa scurta, rapida si buna pentru cash rapid.',
         reward = { min = 2500, max = 5000 },
         cooldown = 5 * 60,
         timeLimit = 180,
@@ -56,7 +61,7 @@ Config.Races = {
     medium = {
         id = 'medium',
         label = 'Medium Race',
-        description = 'Distanta medie, recompensa mai buna si timp limitat.',
+        description = 'Cursa medie, distanta mai mare si recompensa mai buna.',
         reward = { min = 7500, max = 15000 },
         cooldown = 15 * 60,
         timeLimit = 360,
@@ -66,7 +71,7 @@ Config.Races = {
     long = {
         id = 'long',
         label = 'Long Race',
-        description = 'Cursa lunga pe toata harta, recompensa mare.',
+        description = 'Cursa lunga pe harta, risc mare si reward mare.',
         reward = { min = 15000, max = 30000 },
         cooldown = 60 * 60,
         timeLimit = 700,

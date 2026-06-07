@@ -2,19 +2,14 @@
 
 Race Job standalone pentru DriftZone.
 
-## Include
+## Fixuri in aceasta versiune
 
-- Short Race, Medium Race, Long Race.
-- Doar checkpoint-ul de finish.
-- Route/blip doar catre finish.
-- Dimensiune privata/routing bucket pentru fiecare jucator in cursa.
-- Cooldown per cursa configurabil in `config.lua`.
-- Timer pe UI in format `m:ss`.
-- Countdown mare pe ecran: `3`, `2`, `1`, `START`.
-- Masini luate din `ownedvehicles` dupa `owner_id = uid`.
-- Spawn cu tuning din `ownedvehicles.vehicle_tunning`.
-- La final/fail: DV la masina, teleport inapoi si bucket 0.
-- La success: cash + `users.races = users.races + 1`.
+- Masina nu mai este spawnata server-side, ci client-side dupa ce playerul intra in bucket privat. Asta rezolva bug-ul `Masina cursei nu a fost gasita`.
+- Cooldown-ul este persistent prin KVP server-side si sincronizat in localStorage in UI.
+- Comanda `/rracecd <id>` reseteaza cooldown-ul la race pentru playerul respectiv.
+- Tuning-ul din `ownedvehicles.vehicle_tunning` se aplica de mai multe ori dupa spawn.
+- Doar checkpoint-ul de finish este creat.
+- Playerul ruleaza cursa in dimensiune privata.
 
 ## SQL
 
@@ -42,8 +37,9 @@ ensure driftzone_garage
 ensure driftzone_racejob
 ```
 
-## Test
+## Comenzi
 
 ```txt
 /racejob
+/rracecd <id>
 ```

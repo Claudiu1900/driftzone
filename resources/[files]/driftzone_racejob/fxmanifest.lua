@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Race Job - private bucket races, cooldowns, tuning, rewards'
-version '2.0.0'
+description 'DriftZone Race Job - private races, persistent cooldowns, client vehicle spawn, tuning'
+version '2.2.0'
 
 ui_page 'html/index.html'
 
