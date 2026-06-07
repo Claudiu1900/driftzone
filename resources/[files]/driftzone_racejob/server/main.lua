@@ -168,16 +168,29 @@ local function setCooldown(uid, raceId, seconds)
     SetResourceKvp(cooldownKey(uid, raceId), tostring(untilTime))
 end
 
-local function resetCooldownsFor(src, target)
-    target = tonumber(target or 0) or 0
-    local targetUid = getUid(target)
-    if not targetUid then return false, 'Jucatorul nu este online sau nu are UID.' end
+local function getResultCooldown(race, won)
+    race = type(race) == 'table' and race or {}
+    if won == true then
+        return tonumber(race.winCooldown or race.finishCooldown or race.cooldown or 0) or 0
+    end
+    return tonumber(race.failCooldown or 0) or 0
+end
+
+local function resetCooldownsFor(src, targetUid)
+    targetUid = tonumber(targetUid or 0) or 0
+    if targetUid <= 0 then return false, 'Foloseste /rracecd <uid>.' end
+
     for raceId in pairs(Config.Races or {}) do
         local key = tostring(targetUid) .. ':' .. tostring(raceId)
         Cooldowns[key] = 0
         DeleteResourceKvp(cooldownKey(targetUid, raceId))
     end
-    TriggerClientEvent('driftzone_racejob:client:cooldownsReset', target)
+
+    local targetSrc = resolvePlayerByUid(targetUid)
+    if targetSrc then
+        TriggerClientEvent('driftzone_racejob:client:cooldownsReset', targetSrc)
+    end
+
     return true
 end
 
@@ -422,6 +435,10 @@ local function failSolo(src, reason)
     local data = ActiveSolo[src]
     if not data then return end
     ActiveSolo[src] = nil
+    local race = getRace(data.raceId)
+    if race and data.uid then
+        setCooldown(data.uid, data.raceId, getResultCooldown(race, false))
+    end
     setPlayerBucket(src, Config.ReturnBucket or 0)
     TriggerClientEvent('driftzone_racejob:client:raceFailed', src, reason or 'Ai pierdut cursa.')
 end
@@ -435,7 +452,7 @@ local function finishSolo(src)
     local cash = randomBetween(race.reward)
     local xp = randomBetween(race.xp)
     addStats(data.uid, cash, xp, true)
-    setCooldown(data.uid, data.raceId, race.cooldown or 0)
+    setCooldown(data.uid, data.raceId, getResultCooldown(race, true))
     setPlayerBucket(src, Config.ReturnBucket or 0)
     TriggerClientEvent('driftzone_racejob:client:raceCompleted', src, {
         cash = cash,
@@ -465,7 +482,6 @@ RegisterNetEvent('driftzone_racejob:server:startSolo', function(raceId, vehicleI
 
     local bucket = (Config.RaceBucketBase or 62000) + src
     ActiveSolo[src] = { uid = uid, raceId = race.id, bucket = bucket, startedAt = os.time() }
-    setCooldown(uid, race.id, race.cooldown or 0)
     setPlayerBucket(src, bucket)
     TriggerClientEvent('driftzone_racejob:client:startSolo', src, buildSoloPayload(src, race, vehicle))
 end)
@@ -484,6 +500,11 @@ local function cleanupDuo(sessionId, reason)
     DuoSessions[sessionId] = nil
     for _, src in ipairs({ session.p1, session.p2 }) do
         if src and GetPlayerPing(src) > 0 then
+            local playerData = session.players and session.players[src]
+            local race = getRace(session.raceId or 'special')
+            if playerData and playerData.uid and race then
+                setCooldown(playerData.uid, session.raceId or 'special', getResultCooldown(race, false))
+            end
             ActiveDuoByPlayer[src] = nil
             setPlayerBucket(src, Config.ReturnBucket or 0)
             TriggerClientEvent('driftzone_racejob:client:duoFailed', src, reason or 'Ati pierdut cursa.')
@@ -638,8 +659,6 @@ RegisterNetEvent('driftzone_racejob:server:duoReady', function(sessionId, vehicl
     TriggerClientEvent('driftzone_racejob:client:duoStatus', session.p2, { p1Ready = session.players[session.p1].ready, p2Ready = session.players[session.p2].ready })
     if session.players[session.p1].ready and session.players[session.p2].ready then
         local race = getRace('special')
-        setCooldown(session.players[session.p1].uid, 'special', race.cooldown or 0)
-        setCooldown(session.players[session.p2].uid, 'special', race.cooldown or 0)
         setPlayerBucket(session.p1, session.bucket)
         setPlayerBucket(session.p2, session.bucket)
         local payloadBase = {
@@ -700,6 +719,8 @@ RegisterNetEvent('driftzone_racejob:server:duoFinish', function(sessionId)
         local xp2 = totalXp - xp1
         addStats(session.players[session.p1].uid, cash1, xp1, true)
         addStats(session.players[session.p2].uid, cash2, xp2, true)
+        setCooldown(session.players[session.p1].uid, 'special', getResultCooldown(race, true))
+        setCooldown(session.players[session.p2].uid, 'special', getResultCooldown(race, true))
         setPlayerBucket(session.p1, Config.ReturnBucket or 0)
         setPlayerBucket(session.p2, Config.ReturnBucket or 0)
         local summary = {
@@ -728,13 +749,13 @@ RegisterCommand(Config.ResetCooldownCommand or 'rracecd', function(src, args)
     if src == 0 then
         local target = tonumber(args[1] or 0) or 0
         local ok, msg = resetCooldownsFor(src, target)
-        print(ok and '[DRIFTZONE_RACEJOB] cooldown reset.' or ('[DRIFTZONE_RACEJOB] ' .. tostring(msg)))
+        print(ok and ('[DRIFTZONE_RACEJOB] cooldown reset for UID ' .. tostring(target) .. '.') or ('[DRIFTZONE_RACEJOB] ' .. tostring(msg)))
         return
     end
     if getAdminLevel(src) < (Config.ResetCooldownMinAdminLevel or 6) then notify(src, 'warning', 'Nu ai acces la aceasta comanda.', 4000) return end
     local target = tonumber(args[1] or 0) or 0
     local ok, msg = resetCooldownsFor(src, target)
-    if ok then notify(src, 'success', 'Cooldown-ul a fost resetat.', 4000) else notify(src, 'warning', msg, 4000) end
+    if ok then notify(src, 'success', 'Cooldown-ul a fost resetat pentru UID ' .. tostring(target) .. '.', 4000) else notify(src, 'warning', msg, 4000) end
 end, false)
 
 AddEventHandler('playerDropped', function()

@@ -26,3 +26,9 @@ Apoi:
 ```cfg
 restart driftzone_racejob
 ```
+
+
+## Update
+- `/rracecd <uid>` reseteaza cooldown-ul dupa UID, nu dupa server ID.
+- Timer-ul cursei este pozitionat jos, in dreapta minimap-ului.
+- Cooldown separat pe castig/pierdere: `cooldown` pentru castig si `failCooldown` pentru pierdere, configurabile in `config.lua`.
