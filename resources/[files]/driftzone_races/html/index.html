@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Races</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app" class="app hidden">
+        <div class="bg"><div class="orb a"></div><div class="orb b"></div><div class="grid"></div></div>
+        <main class="shell">
+            <button class="close" onclick="closeUi()">×</button>
+            <header class="top">
+                <div>
+                    <span class="kicker">DriftZone Competitive</span>
+                    <h1>Races</h1>
+                    <p id="subtitle">Creeaza sau intra intr-un race privat/public cu bani reali din joc.</p>
+                </div>
+                <div class="status"><span></span><b>LIVE</b><small>Race Hub</small></div>
+            </header>
+
+            <section id="home" class="view home-view">
+                <button class="big-card" onclick="goCreate()">
+                    <span>01</span><b>Create Race</b><p>Creeaza un lobby, seteaza suma, parola/PIN si masina.</p>
+                </button>
+                <button class="big-card" onclick="goJoin()">
+                    <span>02</span><b>Join Race</b><p>Intra intr-un lobby public sau privat si concureaza pentru pot.</p>
+                </button>
+            </section>
+
+            <section id="create" class="view hidden">
+                <div class="steps" id="createSteps"></div>
+                <div class="content two-cols">
+                    <div class="panel">
+                        <div class="panel-head"><span id="createStepNumber">01</span><b id="createTitle">Select Race</b></div>
+                        <div id="createBody" class="body-area"></div>
+                    </div>
+                    <aside class="summary">
+                        <span>Race Setup</span>
+                        <b id="sumRace">Neselectat</b>
+                        <p id="sumInfo">Configureaza cursa pas cu pas.</p>
+                        <div class="sum-grid">
+                            <div><small>Max</small><b id="sumMax">-</b></div>
+                            <div><small>Fee</small><b id="sumFee">$0</b></div>
+                            <div><small>Type</small><b id="sumType">-</b></div>
+                            <div><small>Privacy</small><b id="sumPrivacy">-</b></div>
+                        </div>
+                    </aside>
+                </div>
+                <footer class="actions"><button class="ghost" onclick="prevCreate()">Back</button><button id="createNext" class="primary" onclick="nextCreate()">Next</button></footer>
+            </section>
+
+            <section id="join" class="view hidden">
+                <div class="content two-cols">
+                    <div class="panel">
+                        <div class="panel-head"><span>JOIN</span><b>Available Races</b><button class="mini" onclick="refreshRooms()">Refresh</button></div>
+                        <div id="roomsList" class="body-area cards-list"></div>
+                    </div>
+                    <aside class="summary">
+                        <span>Join Setup</span>
+                        <b id="joinTitle">Alege un lobby</b>
+                        <p id="joinDesc">Dupa ce alegi un lobby, selectezi masina si parola/PIN daca este privat.</p>
+                        <div id="joinForm" class="join-form hidden"></div>
+                    </aside>
+                </div>
+                <footer class="actions"><button class="ghost" onclick="goHome()">Back</button><button id="joinBtn" class="primary" onclick="joinSelectedRoom()" disabled>Join Race</button></footer>
+            </section>
+
+            <section id="lobby" class="view hidden">
+                <div class="lobby-wrap">
+                    <div class="panel lobby-panel">
+                        <div class="panel-head"><span>PARTY</span><b id="lobbyTitle">Race Lobby</b></div>
+                        <div id="members" class="members"></div>
+                    </div>
+                    <aside class="summary lobby-summary">
+                        <span>Lobby Status</span>
+                        <b id="lobbyPlayers">0/0</b>
+                        <p id="lobbyMeta">Waiting for players...</p>
+                        <div class="lobby-money"><small>Entry Fee</small><b id="lobbyFee">$0</b></div>
+                        <button id="readyBtn" class="primary wide" onclick="toggleReady()">READY</button>
+                        <button class="danger wide" onclick="leaveRoom()">Leave Party</button>
+                    </aside>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="raceHud" class="race-hud hidden"><span id="hudDir">↟</span><b id="hudCp">1/16</b></div>
+    <div id="countdown" class="countdown hidden"><b id="countText">3</b></div>
+    <div id="finishScreen" class="finish hidden"><div><span id="finishState">WINNER</span><b id="finishWinner">Player</b><p id="finishMoney">$0</p></div></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
