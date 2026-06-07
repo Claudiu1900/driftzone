@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Emotes</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="root" class="root hidden">
+        <div class="backdrop"></div>
+        <div class="shell">
+            <button id="closeBtn" class="close-btn">×</button>
+
+            <header class="hero">
+                <div>
+                    <div class="kicker">DriftZone</div>
+                    <h1 id="title">Emotes</h1>
+                    <p id="subtitle">Alege o animatie sau foloseste /e nume</p>
+                </div>
+                <div class="quick-help">
+                    <b>/e salute</b>
+                    <span>X pentru cancel</span>
+                </div>
+            </header>
+
+            <div id="categoryBar" class="category-bar"></div>
+
+            <div class="search-wrap">
+                <input id="searchInput" type="text" placeholder="Cauta emote...">
+                <span id="countText">0 emotes</span>
+            </div>
+
+            <main id="emoteGrid" class="emote-grid"></main>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
