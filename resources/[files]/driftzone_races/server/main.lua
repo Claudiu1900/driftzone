@@ -574,6 +574,8 @@ RegisterNetEvent('driftzone_races:server:createRoom', function(data)
     Rooms[room.id] = room
     PlayerRoom[src] = room.id
     ensureStats(uid, room.ownerName)
+    notify(src, 'success', 'Party-ul a fost creat cu succes.', 5000)
+    TriggerClientEvent('driftzone_races:client:createdRoom', src, roomPayload(room, src))
     TriggerClientEvent('driftzone_races:client:roomUpdate', src, roomPayload(room, src), true)
     TriggerClientEvent('driftzone_races:client:rooms', -1, roomsPayload())
 end)
@@ -604,6 +606,8 @@ RegisterNetEvent('driftzone_races:server:joinRoom', function(data)
     room.lastJoinAt = os.time()
     PlayerRoom[src] = room.id
     ensureStats(uid, name)
+    notify(src, 'success', 'Ai intrat in party.', 5000)
+    TriggerClientEvent('driftzone_races:client:joinedRoom', src, roomPayload(room, src))
     broadcastRoom(room, src)
     TriggerClientEvent('driftzone_races:client:rooms', -1, roomsPayload())
     if canStartRoom(room) then startRoom(room) end

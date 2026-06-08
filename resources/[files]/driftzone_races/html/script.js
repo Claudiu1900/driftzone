@@ -1,26 +1,30 @@
 'use strict';
 
 const app = document.getElementById('app');
-const home = document.getElementById('home');
-const createView = document.getElementById('create');
-const joinView = document.getElementById('join');
-const lobbyView = document.getElementById('lobby');
-const createBody = document.getElementById('createBody');
-const createTitle = document.getElementById('createTitle');
-const createStepNumber = document.getElementById('createStepNumber');
-const createSteps = document.getElementById('createSteps');
-const createNext = document.getElementById('createNext');
+const homeView = document.getElementById('homeView');
+const createView = document.getElementById('createView');
+const joinView = document.getElementById('joinView');
+const partyView = document.getElementById('partyView');
+const pageTitle = document.getElementById('pageTitle');
+const pageSubtitle = document.getElementById('pageSubtitle');
+const stepList = document.getElementById('stepList');
+const stepIndex = document.getElementById('stepIndex');
+const stepTitle = document.getElementById('stepTitle');
+const stepHelp = document.getElementById('stepHelp');
+const stepBody = document.getElementById('stepBody');
+const nextBtn = document.getElementById('nextBtn');
 const roomsList = document.getElementById('roomsList');
-const joinForm = document.getElementById('joinForm');
-const joinBtn = document.getElementById('joinBtn');
 const joinTitle = document.getElementById('joinTitle');
 const joinDesc = document.getElementById('joinDesc');
-const members = document.getElementById('members');
-const lobbyTitle = document.getElementById('lobbyTitle');
-const lobbyPlayers = document.getElementById('lobbyPlayers');
-const lobbyMeta = document.getElementById('lobbyMeta');
-const lobbyFee = document.getElementById('lobbyFee');
+const joinForm = document.getElementById('joinForm');
+const joinBtn = document.getElementById('joinBtn');
+const partyTitle = document.getElementById('partyTitle');
+const partyMeta = document.getElementById('partyMeta');
+const partyPlayers = document.getElementById('partyPlayers');
+const partyFee = document.getElementById('partyFee');
+const membersList = document.getElementById('membersList');
 const readyBtn = document.getElementById('readyBtn');
+const toast = document.getElementById('toast');
 const raceHud = document.getElementById('raceHud');
 const hudDir = document.getElementById('hudDir');
 const hudCp = document.getElementById('hudCp');
@@ -31,18 +35,27 @@ const finishState = document.getElementById('finishState');
 const finishWinner = document.getElementById('finishWinner');
 const finishMoney = document.getElementById('finishMoney');
 
-const steps = ['Select Race', 'Max Players', 'Privacy', 'Entry Fee', 'Vehicle'];
+const steps = [
+    { title: 'Select Race', help: 'Alege tipul de cursa.' },
+    { title: 'Max Players', help: 'Alege cati playeri pot intra.' },
+    { title: 'Privacy', help: 'Public sau privat cu parola/PIN.' },
+    { title: 'Entry Fee', help: 'Suma platita de fiecare player.' },
+    { title: 'Vehicle', help: 'Alege masina compatibila.' }
+];
+
+let view = 'home';
 let races = [];
 let rooms = [];
 let vehiclesByRace = {};
-let mode = 'home';
 let createStep = 0;
-let createData = { raceId: null, maxPlayers: 2, private: false, password: '', pin: '', entryFee: 50000, vehicleId: null };
-let selectedJoinRoom = null;
+let createData = cleanCreateData();
+let selectedRoom = null;
 let joinVehicleId = null;
+let currentRoom = null;
 let myReady = false;
-let roomRefreshTimer = null;
-let suppressLobbyUpdates = false;
+let roomsTimer = null;
+let partyHiddenByEsc = false;
+let busyCreate = false;
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -51,201 +64,281 @@ function nui(name, data = {}) {
         body: JSON.stringify(data)
     }).catch(() => {});
 }
-function money(v) { return '$' + Number(v || 0).toLocaleString('en-US'); }
+
+function cleanCreateData() {
+    return { raceId: null, maxPlayers: 2, private: false, password: '', pin: '', entryFee: 50000, vehicleId: null };
+}
 function esc(v) { return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+function money(v) { return '$' + Number(v || 0).toLocaleString('en-US'); }
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
-function setView(v) {
-    mode = v;
-    [home, createView, joinView, lobbyView].forEach(hide);
-    if (v === 'home') show(home);
-    if (v === 'create') show(createView);
-    if (v === 'join') show(joinView);
-    if (v === 'lobby') show(lobbyView);
-}
-function goHome(){ suppressLobbyUpdates = false; setView('home'); }
-function goCreate(){ createStep = 0; createData = { raceId: null, maxPlayers: 2, private: false, password: '', pin: '', entryFee: 50000, vehicleId: null }; setView('create'); renderCreate(); }
-function goJoin(){ setView('join'); selectedJoinRoom = null; joinVehicleId = null; refreshRooms(); startRoomRefresh(); renderJoin(); }
-function closeUi(){ if(mode === 'lobby') suppressLobbyUpdates = true; app.classList.add('hidden'); stopRoomRefresh(); nui('close'); }
-function startRoomRefresh(){ stopRoomRefresh(); roomRefreshTimer = setInterval(() => { if(mode === 'join') nui('refreshRooms'); }, 3500); }
-function stopRoomRefresh(){ if(roomRefreshTimer) clearInterval(roomRefreshTimer); roomRefreshTimer = null; }
+function setMainColor(color) { if (color) document.documentElement.style.setProperty('--main', color); }
+function getRace(id) { return races.find(r => String(r.id) === String(id)) || null; }
+function currentRace() { return getRace(createData.raceId); }
+function selectedRoomRace() { return selectedRoom ? getRace(selectedRoom.raceId) : null; }
+function ensureVehicles(raceId) { if (raceId && !vehiclesByRace[raceId]) nui('getVehicles', { raceId }); }
 
-function currentRace(){ return races.find(r => String(r.id) === String(createData.raceId)); }
-function selectedRoomRace(){ return selectedJoinRoom ? races.find(r => String(r.id) === String(selectedJoinRoom.raceId)) : null; }
-function ensureVehicles(raceId){ if(!vehiclesByRace[raceId]) nui('getVehicles', { raceId }); }
-
-function renderSteps(){
-    createSteps.innerHTML = steps.map((s,i)=>`<button class="step ${i===createStep?'active':''} ${i<createStep?'done':''}" onclick="jumpStep(${i})"><span>${String(i+1).padStart(2,'0')}</span>${esc(s)}</button>`).join('');
+function notifyUi(message, type = 'success') {
+    toast.textContent = message;
+    toast.className = `toast ${type}`;
+    setTimeout(() => toast.classList.add('hidden'), 2600);
 }
-function jumpStep(i){ if(i <= createStep) { createStep = i; renderCreate(); } }
-function updateSummary(){
+
+function setView(next) {
+    view = next;
+    [homeView, createView, joinView, partyView].forEach(hide);
+    if (next === 'home') { show(homeView); pageTitle.textContent = 'Street Races'; pageSubtitle.textContent = 'Creeaza sau intra intr-un race public/privat cu buy-in.'; }
+    if (next === 'create') { show(createView); pageTitle.textContent = 'Create Race'; pageSubtitle.textContent = 'Configureaza lobby-ul pas cu pas.'; }
+    if (next === 'join') { show(joinView); pageTitle.textContent = 'Join Race'; pageSubtitle.textContent = 'Alege un lobby activ si masina compatibila.'; }
+    if (next === 'party') { show(partyView); pageTitle.textContent = 'Race Party'; pageSubtitle.textContent = 'Asteapta playerii si pregateste startul.'; }
+}
+
+function openApp(payload) {
+    races = Array.isArray(payload.races) ? payload.races : [];
+    rooms = Array.isArray(payload.rooms) ? payload.rooms : [];
+    vehiclesByRace = {};
+    currentRoom = null;
+    partyHiddenByEsc = false;
+    busyCreate = false;
+    setMainColor(payload.mainColor);
+    show(app);
+    setView('home');
+    renderJoinRooms();
+}
+
+function closeUi() {
+    if (view === 'party' && currentRoom) partyHiddenByEsc = true;
+    hide(app);
+    stopRoomRefresh();
+    nui('close');
+}
+
+function goHome() { partyHiddenByEsc = false; stopRoomRefresh(); setView('home'); }
+function goCreate() { busyCreate = false; createStep = 0; createData = cleanCreateData(); setView('create'); renderCreate(); }
+function goJoin() { selectedRoom = null; joinVehicleId = null; setView('join'); refreshRooms(); startRoomRefresh(); renderJoinRooms(); renderJoinForm(); }
+
+function renderSteps() {
+    stepList.innerHTML = steps.map((s, i) => `
+        <button class="step ${i === createStep ? 'active' : ''} ${i < createStep ? 'done' : ''}" onclick="jumpStep(${i})">
+            <span>${String(i + 1).padStart(2, '0')}</span>
+            <b>${esc(s.title)}</b>
+        </button>
+    `).join('');
+}
+function jumpStep(i) { if (i <= createStep && !busyCreate) { createStep = i; renderCreate(); } }
+
+function updateSummary() {
     const r = currentRace();
     document.getElementById('sumRace').textContent = r ? r.label : 'Neselectat';
-    document.getElementById('sumInfo').textContent = r ? r.description : 'Configureaza cursa pas cu pas.';
+    document.getElementById('sumDesc').textContent = r ? r.description : 'Configureaza cursa pas cu pas.';
     document.getElementById('sumMax').textContent = createData.maxPlayers || '-';
     document.getElementById('sumFee').textContent = money(createData.entryFee || 0);
-    document.getElementById('sumType').textContent = r ? String(r.type).toUpperCase() : '-';
+    document.getElementById('sumType').textContent = r ? String(r.type || '-').toUpperCase() : '-';
     document.getElementById('sumPrivacy').textContent = createData.private ? 'PRIVATE' : 'PUBLIC';
 }
-function renderCreate(){
+
+function renderCreate() {
     renderSteps(); updateSummary();
-    createTitle.textContent = steps[createStep];
-    createStepNumber.textContent = String(createStep + 1).padStart(2,'0');
-    createNext.textContent = createStep === steps.length - 1 ? 'Create Race' : 'Next';
-    if(createStep === 0) renderRaceStep();
-    if(createStep === 1) renderMaxStep();
-    if(createStep === 2) renderPrivacyStep();
-    if(createStep === 3) renderFeeStep();
-    if(createStep === 4) renderVehicleStep();
+    const step = steps[createStep];
+    stepIndex.textContent = String(createStep + 1).padStart(2, '0');
+    stepTitle.textContent = step.title;
+    stepHelp.textContent = step.help;
+    nextBtn.textContent = createStep === steps.length - 1 ? (busyCreate ? 'Creating...' : 'Create Party') : 'Next';
+    nextBtn.disabled = busyCreate;
+
+    if (createStep === 0) renderRaceStep();
+    if (createStep === 1) renderMaxStep();
+    if (createStep === 2) renderPrivacyStep();
+    if (createStep === 3) renderFeeStep();
+    if (createStep === 4) renderVehicleStep();
 }
-function renderRaceStep(){
-    createBody.innerHTML = `<div class="cards-list">${races.map(r=>`<button class="select-card ${createData.raceId===r.id?'selected':''}" onclick="selectCreateRace('${esc(r.id)}')"><span>${esc(String(r.type).toUpperCase())}</span><b>${esc(r.label)}</b><p>${esc(r.description)}</p><div><small>Max ${r.maxPlayers} players</small><small>${r.checkpoints} CP</small></div></button>`).join('')}</div>`;
+function renderRaceStep() {
+    stepBody.innerHTML = `<div class="card-grid race-grid">${races.map(r => `
+        <button class="setup-card ${createData.raceId === r.id ? 'selected' : ''}" onclick="selectCreateRace('${esc(r.id)}')">
+            <span>${esc(String(r.type || 'race').toUpperCase())}</span>
+            <b>${esc(r.label)}</b>
+            <p>${esc(r.description)}</p>
+            <div class="meta"><small>Max ${r.maxPlayers}</small><small>${r.checkpoints} CP</small></div>
+        </button>
+    `).join('')}</div>`;
 }
-function selectCreateRace(id){
+function selectCreateRace(id) {
     createData.raceId = id;
     createData.vehicleId = null;
     const r = currentRace();
-    createData.maxPlayers = Math.max(2, Number(r?.minPlayers || 2));
+    createData.maxPlayers = Math.max(Number(r?.minPlayers || 2), 2);
     ensureVehicles(id);
     renderCreate();
 }
-function renderMaxStep(){
+function renderMaxStep() {
     const r = currentRace();
     const max = Number(r?.maxPlayers || 4);
     let buttons = '';
-    for(let i=2;i<=max;i++) buttons += `<button class="pill ${createData.maxPlayers===i?'selected':''}" onclick="createData.maxPlayers=${i};renderCreate();">${i}</button>`;
-    createBody.innerHTML = `<div class="center-box"><h2>Cati jucatori maxim?</h2><p>Race-ul porneste cu minim 2 jucatori si maxim ${max}.</p><div class="pill-row">${buttons}</div></div>`;
+    for (let i = 2; i <= max; i++) buttons += `<button class="number-pill ${createData.maxPlayers === i ? 'selected' : ''}" onclick="createData.maxPlayers=${i};renderCreate();">${i}</button>`;
+    stepBody.innerHTML = `<div class="center-box"><h2>Cati jucatori maxim?</h2><p>Lobby-ul porneste cu minim 2 playeri.</p><div class="pill-row">${buttons}</div></div>`;
 }
-function renderPrivacyStep(){
-    createBody.innerHTML = `<div class="center-box"><h2>Public sau privat?</h2><p>Privat necesita parola sau PIN de 4 cifre.</p><div class="split"><button class="select-card ${!createData.private?'selected':''}" onclick="createData.private=false;renderCreate();"><span>OPEN</span><b>Public</b><p>Oricine poate intra.</p></button><button class="select-card ${createData.private?'selected':''}" onclick="createData.private=true;renderCreate();"><span>LOCK</span><b>Privat</b><p>Necesita parola/PIN.</p></button></div>${createData.private?`<div class="private-box"><input id="passInput" placeholder="Parola privata" value="${esc(createData.password)}" oninput="createData.password=this.value"><div class="pin-row">${[0,1,2,3].map(i=>`<input class="pin" maxlength="1" inputmode="numeric" value="${esc((createData.pin||'')[i]||'')}" oninput="pinInput(${i},this)">`).join('')}</div></div>`:''}</div>`;
+function renderPrivacyStep() {
+    stepBody.innerHTML = `<div class="center-box"><h2>Privacy</h2><p>Alege public sau privat. Pentru privat poti pune parola sau PIN.</p>
+        <div class="split-cards">
+            <button class="setup-card ${!createData.private ? 'selected' : ''}" onclick="createData.private=false;renderCreate();"><span>OPEN</span><b>Public</b><p>Visible pentru toti playerii.</p></button>
+            <button class="setup-card ${createData.private ? 'selected' : ''}" onclick="createData.private=true;renderCreate();"><span>LOCKED</span><b>Privat</b><p>Necesita parola sau PIN.</p></button>
+        </div>
+        ${createData.private ? `<div class="private-form"><input placeholder="Parola privata" value="${esc(createData.password)}" oninput="createData.password=this.value"><div class="pin-row">${[0,1,2,3].map(i => `<input maxlength="1" inputmode="numeric" value="${esc((createData.pin || '')[i] || '')}" oninput="pinInput(${i}, this)">`).join('')}</div></div>` : ''}
+    </div>`;
 }
-function pinInput(i, el){
+function pinInput(i, el) {
     const chars = (createData.pin || '').padEnd(4, ' ').split('');
-    chars[i] = String(el.value || '').replace(/\D/g,'').slice(0,1);
-    createData.pin = chars.join('').replace(/\s/g,'');
-    if(el.value && el.nextElementSibling) el.nextElementSibling.focus();
+    chars[i] = String(el.value || '').replace(/\D/g, '').slice(0, 1);
+    createData.pin = chars.join('').replace(/\s/g, '');
+    if (el.value && el.nextElementSibling) el.nextElementSibling.focus();
 }
-function renderFeeStep(){
-    createBody.innerHTML = `<div class="center-box"><h2>Suma de intrare</h2><p>Fiecare jucator plateste suma. Winner primeste potul total minus 10%.</p><input class="fee-input" type="number" value="${Number(createData.entryFee||0)}" oninput="createData.entryFee=Number(this.value||0);updateSummary();" placeholder="Ex: 50000"><div class="quick-row">${[10000,25000,50000,100000].map(v=>`<button onclick="createData.entryFee=${v};renderCreate();">${money(v)}</button>`).join('')}</div></div>`;
+function renderFeeStep() {
+    stepBody.innerHTML = `<div class="center-box"><h2>Suma de intrare</h2><p>Fiecare player plateste suma. Castigatorul ia potul minus taxa.</p><input class="fee-input" type="number" value="${Number(createData.entryFee || 0)}" oninput="createData.entryFee=Number(this.value||0);updateSummary();"><div class="quick-row">${[10000,25000,50000,100000].map(v => `<button onclick="createData.entryFee=${v};renderCreate();">${money(v)}</button>`).join('')}</div></div>`;
 }
-function renderVehicleStep(){
-    const r = currentRace(); if(!r){ createBody.innerHTML='<div class="empty">Alege prima data o cursa.</div>'; return; }
+function renderVehicleStep() {
+    const r = currentRace();
+    if (!r) { stepBody.innerHTML = '<div class="empty">Alege prima data o cursa.</div>'; return; }
     ensureVehicles(r.id);
     const list = vehiclesByRace[r.id] || [];
-    createBody.innerHTML = `<div class="vehicle-grid">${list.length?list.map(v=>vehicleCard(v, createData.vehicleId, 'selectCreateVehicle')).join(''):'<div class="empty">Nu ai masini compatibile pentru acest tip de race.</div>'}</div>`;
+    stepBody.innerHTML = `<div class="vehicle-grid">${list.length ? list.map(v => vehicleCard(v, createData.vehicleId, 'selectCreateVehicle')).join('') : '<div class="empty">Nu ai masini compatibile pentru acest race.</div>'}</div>`;
 }
-function vehicleCard(v, selectedId, fn){
-    return `<button class="vehicle ${Number(selectedId)===Number(v.id)?'selected':''}" onclick="${fn}(${Number(v.id)})"><b>${esc(v.name||v.model)}</b><span>${esc(v.model||'model')}</span><small>${esc(v.plate||'DRIFT')}</small></button>`;
+function vehicleCard(v, selectedId, fn) {
+    return `<button class="vehicle-card ${Number(selectedId) === Number(v.id) ? 'selected' : ''}" onclick="${fn}(${Number(v.id)})"><b>${esc(v.name || v.model)}</b><span>${esc(v.model || 'model')}</span><small>${esc(v.plate || 'DRIFT')}</small></button>`;
 }
-function selectCreateVehicle(id){ createData.vehicleId = id; renderCreate(); }
-function prevCreate(){ if(createStep>0){createStep--; renderCreate();} else goHome(); }
-function nextCreate(){
-    if(createStep===0 && !createData.raceId) return alertBox('Alege o cursa.');
-    if(createStep===2 && createData.private && !createData.password && String(createData.pin||'').length!==4) return alertBox('Pune parola sau PIN de 4 cifre.');
-    if(createStep===3 && (!createData.entryFee || createData.entryFee < 1)) return alertBox('Pune o suma valida.');
-    if(createStep===4){ if(!createData.vehicleId) return alertBox('Alege o masina.'); nui('createRoom', createData); return; }
-    createStep++; renderCreate();
+function selectCreateVehicle(id) { createData.vehicleId = id; renderCreate(); }
+function prevCreate() { if (busyCreate) return; if (createStep > 0) { createStep--; renderCreate(); } else goHome(); }
+function nextCreate() {
+    if (busyCreate) return;
+    if (createStep === 0 && !createData.raceId) return notifyUi('Alege o cursa.', 'error');
+    if (createStep === 2 && createData.private && !createData.password && String(createData.pin || '').length !== 4) return notifyUi('Pune parola sau PIN de 4 cifre.', 'error');
+    if (createStep === 3 && (!createData.entryFee || createData.entryFee < 1)) return notifyUi('Pune o suma valida.', 'error');
+    if (createStep === 4) {
+        if (!createData.vehicleId) return notifyUi('Alege o masina.', 'error');
+        busyCreate = true;
+        nextBtn.disabled = true;
+        nextBtn.textContent = 'Creating...';
+        notifyUi('Se creeaza party-ul...', 'success');
+        nui('createRoom', createData);
+        setTimeout(() => { busyCreate = false; if (view === 'create') renderCreate(); }, 4500);
+        return;
+    }
+    createStep++;
+    renderCreate();
 }
-function alertBox(msg){ createBody.insertAdjacentHTML('afterbegin', `<div class="notice">${esc(msg)}</div>`); setTimeout(()=>document.querySelector('.notice')?.remove(),2200); }
 
-function refreshRooms(){ nui('refreshRooms'); }
-function renderJoin(){
-    roomsList.innerHTML = rooms.length ? rooms.map(room=>`<button class="select-card ${selectedJoinRoom&&selectedJoinRoom.id===room.id?'selected':''}" onclick="selectRoom(${room.id})"><span>${room.private?'PRIVATE':'PUBLIC'} • ${esc(String(room.raceType).toUpperCase())}</span><b>#${room.id} ${esc(room.raceLabel)}</b><p>Host: ${esc(room.ownerName)} • ${room.players}/${room.maxPlayers} players</p><div><small>${money(room.entryFee)} entry</small><small>${room.checkpoints} CP</small></div></button>`).join('') : '<div class="empty">Nu exista race-uri active momentan.</div>';
+function refreshRooms() { nui('refreshRooms'); }
+function startRoomRefresh() { stopRoomRefresh(); roomsTimer = setInterval(() => { if (view === 'join') refreshRooms(); }, 3500); }
+function stopRoomRefresh() { if (roomsTimer) clearInterval(roomsTimer); roomsTimer = null; }
+function renderJoinRooms() {
+    if (!rooms.length) {
+        roomsList.innerHTML = '<div class="empty">Nu exista race-uri active momentan.</div>';
+        return;
+    }
+    roomsList.innerHTML = rooms.map(room => `<button class="room-card ${selectedRoom && selectedRoom.id === room.id ? 'selected' : ''}" onclick="selectRoom(${Number(room.id)})"><span>${room.private ? 'PRIVATE' : 'PUBLIC'} • ${esc(String(room.raceType || '').toUpperCase())}</span><b>#${room.id} ${esc(room.raceLabel)}</b><p>Host: ${esc(room.ownerName)} • ${room.players}/${room.maxPlayers} players</p><div class="meta"><small>${money(room.entryFee)} entry</small><small>${room.checkpoints} CP</small></div></button>`).join('');
 }
-function selectRoom(id){
-    selectedJoinRoom = rooms.find(r=>Number(r.id)===Number(id));
+function selectRoom(id) {
+    selectedRoom = rooms.find(r => Number(r.id) === Number(id)) || null;
     joinVehicleId = null;
-    if(!selectedJoinRoom) return;
-    ensureVehicles(selectedJoinRoom.raceId);
-    joinTitle.textContent = `#${selectedJoinRoom.id} ${selectedJoinRoom.raceLabel}`;
-    joinDesc.textContent = `${selectedJoinRoom.players}/${selectedJoinRoom.maxPlayers} players • ${money(selectedJoinRoom.entryFee)} entry`;
-    renderJoinForm(); renderJoin();
+    if (!selectedRoom) return;
+    ensureVehicles(selectedRoom.raceId);
+    joinTitle.textContent = `#${selectedRoom.id} ${selectedRoom.raceLabel}`;
+    joinDesc.textContent = `${selectedRoom.players}/${selectedRoom.maxPlayers} players • ${money(selectedRoom.entryFee)} entry`;
+    renderJoinRooms();
+    renderJoinForm();
 }
-function renderJoinForm(){
-    if(!selectedJoinRoom){ hide(joinForm); joinBtn.disabled=true; return; }
+function renderJoinForm() {
+    if (!selectedRoom) { hide(joinForm); joinBtn.disabled = true; return; }
     show(joinForm);
-    const list = vehiclesByRace[selectedJoinRoom.raceId] || [];
-    joinForm.innerHTML = `${selectedJoinRoom.private?`<input id="joinPass" placeholder="Parola"><div class="pin-row join-pin">${[0,1,2,3].map(i=>`<input class="pin" maxlength="1" inputmode="numeric">`).join('')}</div>`:''}<div class="mini-title">Alege masina</div><div class="join-vehicles">${list.length?list.map(v=>vehicleCard(v, joinVehicleId, 'selectJoinVehicle')).join(''):'<div class="empty">Nu ai masini compatibile.</div>'}</div>`;
+    const list = vehiclesByRace[selectedRoom.raceId] || [];
+    joinForm.innerHTML = `${selectedRoom.private ? `<input id="joinPass" class="join-input" placeholder="Parola"><div class="pin-row join-pin">${[0,1,2,3].map(() => '<input maxlength="1" inputmode="numeric">').join('')}</div>` : ''}<div class="mini-title">Masina compatibila</div><div class="join-vehicles">${list.length ? list.map(v => vehicleCard(v, joinVehicleId, 'selectJoinVehicle')).join('') : '<div class="empty">Nu ai masini compatibile.</div>'}</div>`;
     joinBtn.disabled = !joinVehicleId;
 }
-function selectJoinVehicle(id){ joinVehicleId=id; renderJoinForm(); }
-function joinSelectedRoom(){
-    if(!selectedJoinRoom || !joinVehicleId) return;
+function selectJoinVehicle(id) { joinVehicleId = id; renderJoinForm(); }
+function joinSelectedRoom() {
+    if (!selectedRoom || !joinVehicleId) return;
     const pass = document.getElementById('joinPass')?.value || '';
-    const pin = [...document.querySelectorAll('.join-pin .pin')].map(i=>i.value||'').join('');
-    nui('joinRoom', { roomId: selectedJoinRoom.id, vehicleId: joinVehicleId, password: pass, pin });
+    const pin = [...document.querySelectorAll('.join-pin input')].map(i => i.value || '').join('');
+    notifyUi('Se verifica party-ul...', 'success');
+    nui('joinRoom', { roomId: selectedRoom.id, vehicleId: joinVehicleId, password: pass, pin });
 }
 
-function renderRoom(room){
-    currentRoom = room; setView('lobby');
-    lobbyTitle.textContent = `#${room.id} ${room.raceLabel}`;
-    lobbyPlayers.textContent = `${room.members.length}/${room.maxPlayers}`;
-    lobbyFee.textContent = money(room.entryFee);
-    lobbyMeta.textContent = `${room.private?'Private':'Public'} • start automat cand toti sunt ready / lobby plin / timer expira`;
+function renderRoom(room, message = '') {
+    if (!room) return;
+    currentRoom = room;
+    partyHiddenByEsc = false;
+    busyCreate = false;
+    show(app);
+    setView('party');
+    partyTitle.textContent = `#${room.id} ${room.raceLabel}`;
+    partyPlayers.textContent = `${room.members.length}/${room.maxPlayers}`;
+    partyFee.textContent = money(room.entryFee);
+    partyMeta.textContent = `${room.private ? 'Private' : 'Public'} • start cand toti sunt READY / lobby plin / timer expira`;
     myReady = room.meReady === true;
     readyBtn.textContent = myReady ? 'READY ✓' : 'READY';
     readyBtn.classList.toggle('ready', myReady);
-    members.innerHTML = room.members.map(m=>`<div class="member ${m.ready?'ready':''}"><div><b>${esc(m.name)}</b><span>UID ${m.uid}${m.owner?' • Host':''}</span></div><em>${m.ready?'READY':'WAITING'}</em></div>`).join('');
+    membersList.innerHTML = room.members.map(m => `<div class="member ${m.ready ? 'ready' : ''}"><div><b>${esc(m.name)}</b><span>UID ${m.uid}${m.owner ? ' • Host' : ''}</span></div><em>${m.ready ? 'READY' : 'WAITING'}</em></div>`).join('');
+    if (message) notifyUi(message, 'success');
 }
-function toggleReady(){ myReady = !myReady; nui('readyRoom', { ready: myReady }); }
-function leaveRoom(){ nui('leaveRoom'); }
+function updateRoom(room) {
+    currentRoom = room;
+    if (partyHiddenByEsc && view === 'party') return;
+    renderRoom(room, '');
+}
+function toggleReady() { myReady = !myReady; nui('readyRoom', { ready: myReady }); }
+function leaveRoom() { nui('leaveRoom'); }
+function dirIcon(direction) { if (direction === 'left') return '↰'; if (direction === 'right') return '↱'; if (direction === 'finish') return '🏁'; return '↑'; }
 
-function dirIcon(d){ if(d==='left')return '↰'; if(d==='right')return '↱'; if(d==='finish')return '🏁'; return '↑'; }
-
-window.addEventListener('message', (event)=>{
+window.addEventListener('message', (event) => {
     const data = event.data || {};
-    if(data.mainColor) document.documentElement.style.setProperty('--main', data.mainColor);
-    if(data.action==='open'){
-        races = Array.isArray(data.races)?data.races:[];
-        rooms = Array.isArray(data.rooms)?data.rooms:[];
-        vehiclesByRace = {};
-        suppressLobbyUpdates = false; show(app); setView('home'); renderJoin();
+    if (data.mainColor) setMainColor(data.mainColor);
+
+    if (data.action === 'open') openApp(data);
+    if (data.action === 'close') hide(app);
+    if (data.action === 'vehicles') {
+        vehiclesByRace[data.raceId] = Array.isArray(data.vehicles) ? data.vehicles : [];
+        if (view === 'create') renderCreate();
+        if (view === 'join') renderJoinForm();
     }
-    if(data.action==='close'){ hide(app); }
-    if(data.action==='vehicles'){
-        vehiclesByRace[data.raceId] = Array.isArray(data.vehicles)?data.vehicles:[];
-        if(mode==='create') renderCreate();
-        if(mode==='join') renderJoinForm();
+    if (data.action === 'rooms') {
+        rooms = Array.isArray(data.rooms) ? data.rooms : [];
+        if (view === 'join') renderJoinRooms();
     }
-    if(data.action==='rooms'){ rooms = Array.isArray(data.rooms)?data.rooms:[]; if(mode==='join') renderJoin(); }
-    if(data.action==='room'){
+    if (data.action === 'room') {
         stopRoomRefresh();
-        currentRoom = data.room || null;
-
-        // Update-urile normale nu redeschid party-ul dupa ESC, dar create/join/E interaction
-        // trimit forceOpen=true si trebuie sa deschida lobby-ul imediat.
-        if(suppressLobbyUpdates && mode === 'lobby' && data.forceOpen !== true) {
-            return;
-        }
-
-        suppressLobbyUpdates = false;
-        show(app);
-        renderRoom(data.room);
+        if (data.forceOpen === true) renderRoom(data.room, data.message || '');
+        else updateRoom(data.room);
     }
-    if(data.action==='leftRoom'){ currentRoom=null; suppressLobbyUpdates=false; goHome(); }
-    if(data.action==='raceHud'){
-        raceHud.classList.toggle('hidden', data.visible!==true);
+    if (data.action === 'forceRoom') {
+        stopRoomRefresh();
+        renderRoom(data.room, data.message || 'Party-ul a fost creat cu succes.');
+    }
+    if (data.action === 'leftRoom') {
+        currentRoom = null;
+        partyHiddenByEsc = false;
+        notifyUi('Ai iesit din party.', 'success');
+        goHome();
+    }
+    if (data.action === 'raceHud') {
+        raceHud.classList.toggle('hidden', data.visible !== true);
         hudDir.textContent = dirIcon(data.direction);
-        hudCp.textContent = `${data.index||1}/${data.total||1}`;
+        hudCp.textContent = `${data.index || 1}/${data.total || 1}`;
     }
-    if(data.action==='countdown'){
-        countdown.classList.toggle('hidden', data.visible!==true);
+    if (data.action === 'countdown') {
+        countdown.classList.toggle('hidden', data.visible !== true);
         countText.textContent = data.text || '';
     }
-    if(data.action==='finishScreen'){
-        const r = data.result || {};
-        finishState.textContent = r.won ? 'VICTORY' : 'RACE FINISHED';
-        finishWinner.textContent = r.winnerName || 'Winner';
-        finishMoney.textContent = r.won ? `+${money(r.prize)}` : `Winner prize: ${money(r.prize)}`;
+    if (data.action === 'finishScreen') {
+        const result = data.result || {};
+        finishState.textContent = result.won ? 'VICTORY' : 'RACE FINISHED';
+        finishWinner.textContent = result.winnerName || 'Winner';
+        finishMoney.textContent = result.won ? `+${money(result.prize)}` : `Winner prize: ${money(result.prize)}`;
         show(finishScreen);
-        setTimeout(()=>hide(finishScreen), 2300);
+        setTimeout(() => hide(finishScreen), 2400);
     }
 });
 
-document.addEventListener('keydown', (e)=>{
-    if(e.key === 'Escape') {
-        if(!app.classList.contains('hidden')) closeUi();
-    }
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !app.classList.contains('hidden')) closeUi();
 });
 
-setTimeout(()=>nui('ready'), 80);
+setTimeout(() => nui('ready'), 80);

@@ -372,6 +372,14 @@ local function countdown(seconds)
     sendNui({ action = 'countdown', visible = false })
 end
 
+
+local function forceOpenRoom(room, message)
+    currentRoom = room
+    lobbyUiHidden = false
+    sendNui({ action = 'forceRoom', room = room, message = message or '' })
+    setFocus(true)
+end
+
 RegisterNetEvent('driftzone_races:client:openFromInteraction', function()
     TriggerServerEvent('driftzone_races:server:open')
 end)
@@ -390,18 +398,24 @@ end)
 
 RegisterNetEvent('driftzone_races:client:roomUpdate', function(room, forceOpen)
     currentRoom = room
-
     if forceOpen == true then
-        lobbyUiHidden = false
+        forceOpenRoom(room, '')
+        return
     end
 
-    sendNui({ action = 'room', room = room, forceOpen = forceOpen == true })
+    sendNui({ action = 'room', room = room, forceOpen = false })
 
-    -- Create/Join/Interaction trebuie sa deschida fortat party-ul.
-    -- Update-urile normale nu redeschid UI-ul daca playerul a dat ESC in party.
-    if forceOpen == true or not lobbyUiHidden then
+    if not lobbyUiHidden then
         setFocus(true)
     end
+end)
+
+RegisterNetEvent('driftzone_races:client:createdRoom', function(room)
+    forceOpenRoom(room, 'Party-ul a fost creat cu succes.')
+end)
+
+RegisterNetEvent('driftzone_races:client:joinedRoom', function(room)
+    forceOpenRoom(room, 'Ai intrat in party.')
 end)
 
 RegisterNetEvent('driftzone_races:client:leftRoom', function()
