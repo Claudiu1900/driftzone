@@ -148,6 +148,48 @@ local function getVehicleById(vehicleId, ownerUid)
     return nil
 end
 
+
+local function normalizeVehicleIds(value)
+    local result = {}
+    local seen = {}
+    if type(value) == 'table' then
+        for _, v in ipairs(value) do
+            local id = tonumber(v or 0) or 0
+            if id > 0 and not seen[id] then
+                seen[id] = true
+                result[#result + 1] = id
+            end
+        end
+    else
+        local id = tonumber(value or 0) or 0
+        if id > 0 then result[#result + 1] = id end
+    end
+    return result
+end
+
+local function getVehiclesByIds(vehicleIds, ownerUid)
+    local vehicles = {}
+    local validIds = {}
+    for _, id in ipairs(normalizeVehicleIds(vehicleIds)) do
+        local v = getVehicleById(id, ownerUid)
+        if not v then return nil end
+        vehicles[#vehicles + 1] = v
+        validIds[#validIds + 1] = id
+    end
+    return vehicles, validIds
+end
+
+local function offerSignature(offer)
+    offer = offer or {}
+    local ids = normalizeVehicleIds(offer.vehicleIds or offer.vehicleId)
+    table.sort(ids)
+    return table.concat(ids, ',') .. '|' .. tostring(tonumber(offer.money or 0) or 0)
+end
+
+local function sameOffer(a, b)
+    return offerSignature(a) == offerSignature(b)
+end
+
 local function getVehicles(uid)
     uid = tonumber(uid or 0) or 0
     if uid <= 0 then return {} end
@@ -212,8 +254,8 @@ local function logTrade(trade, accepted, reason)
             trade.fromName,
             trade.toUid,
             trade.toName,
-            trade.fromOffer and trade.fromOffer.vehicleId or 0,
-            trade.toOffer and trade.toOffer.vehicleId or 0,
+            trade.fromOffer and (trade.fromOffer.vehicleId or (trade.fromOffer.vehicleIds and trade.fromOffer.vehicleIds[1]) or 0) or 0,
+            trade.toOffer and (trade.toOffer.vehicleId or (trade.toOffer.vehicleIds and trade.toOffer.vehicleIds[1]) or 0) or 0,
             trade.fromOffer and trade.fromOffer.money or 0,
             trade.toOffer and trade.toOffer.money or 0,
             accepted and 1 or 0,
@@ -364,8 +406,8 @@ end
 local function tradePayload(trade, src)
     local other = trade.a == src and trade.b or trade.a
     local myUid = trade.a == src and trade.aUid or trade.bUid
-    local myOffer = trade.offers[src] or { vehicleId = 0, money = 0 }
-    local otherOffer = trade.offers[other] or { vehicleId = 0, money = 0 }
+    local myOffer = trade.offers[src] or { vehicleIds = {}, vehicles = {}, money = 0 }
+    local otherOffer = trade.offers[other] or { vehicleIds = {}, vehicles = {}, money = 0 }
     return {
         sessionId = trade.id,
         target = { serverId = other, uid = (trade.a == src and trade.bUid or trade.aUid), name = getPlayerNameSafe(other) },
@@ -420,8 +462,8 @@ local function startTradeSession(a, b)
         createdAt = os.time(),
         processing = false
     }
-    trade.offers[a] = { vehicleId = 0, vehicle = nil, money = 0 }
-    trade.offers[b] = { vehicleId = 0, vehicle = nil, money = 0 }
+    trade.offers[a] = { vehicleIds = {}, vehicles = {}, money = 0 }
+    trade.offers[b] = { vehicleIds = {}, vehicles = {}, money = 0 }
     TradesById[id] = trade
     ActiveTradeByPlayer[a] = id
     ActiveTradeByPlayer[b] = id
@@ -470,40 +512,58 @@ RegisterNetEvent('driftzone_playerinteract:server:requestTrade', function(target
     end)
 end)
 
+local function applyOfferUpdate(trade, src, data, silent)
+    if not trade or (trade.a ~= src and trade.b ~= src) then return false end
+    if trade.processing then return false end
+    data = type(data) == 'table' and data or {}
+
+    local vehicleIds = normalizeVehicleIds(data.vehicleIds or data.vehicleId)
+    local moneyAmount = math.floor(tonumber(data.money or 0) or 0)
+    local maxMoney = tonumber(Config.Trade and Config.Trade.maxMoney or 500000000) or 500000000
+    if moneyAmount < 0 or moneyAmount > maxMoney then
+        if not silent then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Suma cash invalida.' }) end
+        return false
+    end
+
+    local ownerUid = getOfferUid(trade, src)
+    local vehicles, validIds = getVehiclesByIds(vehicleIds, ownerUid)
+    if not vehicles then
+        if not silent then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Una dintre masinile alese nu iti apartine.' }) end
+        return false
+    end
+    if moneyAmount > 0 and getCash(ownerUid) < moneyAmount then
+        if not silent then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Nu ai destui bani.' }) end
+        return false
+    end
+
+    local newOffer = { vehicleIds = validIds, vehicles = vehicles, money = moneyAmount }
+    local oldOffer = trade.offers[src] or { vehicleIds = {}, vehicles = {}, money = 0 }
+    local changed = not sameOffer(oldOffer, newOffer)
+    trade.offers[src] = newOffer
+    if changed then
+        trade.confirmed[trade.a] = false
+        trade.confirmed[trade.b] = false
+    end
+    return true, changed
+end
+
 RegisterNetEvent('driftzone_playerinteract:server:updateTradeOffer', function(data)
     local src = source
     data = type(data) == 'table' and data or {}
     local sessionId = tostring(data.sessionId or ActiveTradeByPlayer[src] or '')
     local trade = TradesById[sessionId]
     if not trade or (trade.a ~= src and trade.b ~= src) then return end
-    if trade.processing then return end
-
-    local vehicleId = tonumber(data.vehicleId or 0) or 0
-    local moneyAmount = math.floor(tonumber(data.money or 0) or 0)
-    local maxMoney = tonumber(Config.Trade and Config.Trade.maxMoney or 500000000) or 500000000
-    if moneyAmount < 0 or moneyAmount > maxMoney then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Suma cash invalida.' }); return end
-
-    local ownerUid = getOfferUid(trade, src)
-    local vehicle = nil
-    if vehicleId > 0 then
-        vehicle = getVehicleById(vehicleId, ownerUid)
-        if not vehicle then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Masina aleasa nu iti apartine.' }); return end
-    end
-    if moneyAmount > 0 and getCash(ownerUid) < moneyAmount then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Nu ai destui bani.' }); return end
-
-    trade.offers[src] = { vehicleId = vehicleId, vehicle = vehicle, money = moneyAmount }
-    trade.confirmed[trade.a] = false
-    trade.confirmed[trade.b] = false
-    broadcastTrade(trade)
+    local ok = applyOfferUpdate(trade, src, data, false)
+    if ok then broadcastTrade(trade) end
 end)
 
 local function finalizeTrade(trade)
     if not trade or trade.processing then return end
     trade.processing = true
-    local aOffer = trade.offers[trade.a] or { vehicleId = 0, money = 0 }
-    local bOffer = trade.offers[trade.b] or { vehicleId = 0, money = 0 }
-    local aVehicleId = tonumber(aOffer.vehicleId or 0) or 0
-    local bVehicleId = tonumber(bOffer.vehicleId or 0) or 0
+    local aOffer = trade.offers[trade.a] or { vehicleIds = {}, vehicles = {}, money = 0 }
+    local bOffer = trade.offers[trade.b] or { vehicleIds = {}, vehicles = {}, money = 0 }
+    local aVehicleIds = normalizeVehicleIds(aOffer.vehicleIds or aOffer.vehicleId)
+    local bVehicleIds = normalizeVehicleIds(bOffer.vehicleIds or bOffer.vehicleId)
     local aMoney = tonumber(aOffer.money or 0) or 0
     local bMoney = tonumber(bOffer.money or 0) or 0
 
@@ -514,24 +574,60 @@ local function finalizeTrade(trade)
     trade.fromName = getPlayerNameSafe(trade.a)
     trade.toName = getPlayerNameSafe(trade.b)
 
-    if aVehicleId <= 0 and bVehicleId <= 0 and aMoney <= 0 and bMoney <= 0 then
+    if #aVehicleIds <= 0 and #bVehicleIds <= 0 and aMoney <= 0 and bMoney <= 0 then
         trade.processing = false
-        TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', trade.a, { ok = false, message = 'Macar o persoana trebuie sa ofere masina sau bani.' })
-        TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', trade.b, { ok = false, message = 'Macar o persoana trebuie sa ofere masina sau bani.' })
+        trade.confirmed[trade.a] = false
+        trade.confirmed[trade.b] = false
+        TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', trade.a, { ok = false, myConfirmed = false, otherConfirmed = false, message = 'Macar o persoana trebuie sa ofere ceva.' })
+        TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', trade.b, { ok = false, myConfirmed = false, otherConfirmed = false, message = 'Macar o persoana trebuie sa ofere ceva.' })
+        broadcastTrade(trade)
         return
     end
     if not playerOnline(trade.a) or not playerOnline(trade.b) then logTrade(trade, false, 'player_offline'); clearActiveTrade(trade, 'Trade anulat: player offline.'); return end
     if not validDistance(trade.a, trade.b, 4.0) then logTrade(trade, false, 'distance'); clearActiveTrade(trade, 'Trade anulat: sunteti prea departe.'); return end
-    if aVehicleId > 0 and not getVehicleById(aVehicleId, trade.aUid) then logTrade(trade, false, 'a_vehicle_missing'); clearActiveTrade(trade, 'Trade anulat: masina ta nu mai exista.'); return end
-    if bVehicleId > 0 and not getVehicleById(bVehicleId, trade.bUid) then logTrade(trade, false, 'b_vehicle_missing'); clearActiveTrade(trade, 'Trade anulat: masina celuilalt nu mai exista.'); return end
+
+    for _, id in ipairs(aVehicleIds) do
+        if not getVehicleById(id, trade.aUid) then logTrade(trade, false, 'a_vehicle_missing'); clearActiveTrade(trade, 'Trade anulat: o masina de la tine nu mai exista.'); return end
+    end
+    for _, id in ipairs(bVehicleIds) do
+        if not getVehicleById(id, trade.bUid) then logTrade(trade, false, 'b_vehicle_missing'); clearActiveTrade(trade, 'Trade anulat: o masina de la celalalt nu mai exista.'); return end
+    end
     if aMoney > 0 and getCash(trade.aUid) < aMoney then logTrade(trade, false, 'a_no_cash'); clearActiveTrade(trade, 'Trade anulat: unul dintre playeri nu mai are banii.'); return end
     if bMoney > 0 and getCash(trade.bUid) < bMoney then logTrade(trade, false, 'b_no_cash'); clearActiveTrade(trade, 'Trade anulat: unul dintre playeri nu mai are banii.'); return end
 
+    local movedA, movedB = {}, {}
     local moved = {}
-    if aMoney > 0 then if not addCash(trade.aUid, -aMoney) then logTrade(trade, false, 'take_a_cash'); clearActiveTrade(trade, 'Trade esuat: cash.'); return end; moved.aCash = true end
-    if bMoney > 0 then if not addCash(trade.bUid, -bMoney) then if moved.aCash then addCash(trade.aUid, aMoney) end; logTrade(trade, false, 'take_b_cash'); clearActiveTrade(trade, 'Trade esuat: cash.'); return end; moved.bCash = true end
-    if aVehicleId > 0 then if not transferVehicle(aVehicleId, trade.aUid, trade.bUid) then if moved.aCash then addCash(trade.aUid, aMoney) end; if moved.bCash then addCash(trade.bUid, bMoney) end; logTrade(trade, false, 'move_a_vehicle'); clearActiveTrade(trade, 'Trade esuat: masina nu a putut fi transferata.'); return end; moved.aVeh = true end
-    if bVehicleId > 0 then if not transferVehicle(bVehicleId, trade.bUid, trade.aUid) then if moved.aVeh then transferVehicle(aVehicleId, trade.bUid, trade.aUid) end; if moved.aCash then addCash(trade.aUid, aMoney) end; if moved.bCash then addCash(trade.bUid, bMoney) end; logTrade(trade, false, 'move_b_vehicle'); clearActiveTrade(trade, 'Trade esuat: masina nu a putut fi transferata.'); return end; moved.bVeh = true end
+    if aMoney > 0 then
+        if not addCash(trade.aUid, -aMoney) then logTrade(trade, false, 'take_a_cash'); clearActiveTrade(trade, 'Trade esuat: cash.'); return end
+        moved.aCash = true
+    end
+    if bMoney > 0 then
+        if not addCash(trade.bUid, -bMoney) then if moved.aCash then addCash(trade.aUid, aMoney) end; logTrade(trade, false, 'take_b_cash'); clearActiveTrade(trade, 'Trade esuat: cash.'); return end
+        moved.bCash = true
+    end
+
+    for _, id in ipairs(aVehicleIds) do
+        if transferVehicle(id, trade.aUid, trade.bUid) then movedA[#movedA + 1] = id else
+            for _, mid in ipairs(movedA) do transferVehicle(mid, trade.bUid, trade.aUid) end
+            if moved.aCash then addCash(trade.aUid, aMoney) end
+            if moved.bCash then addCash(trade.bUid, bMoney) end
+            logTrade(trade, false, 'move_a_vehicle')
+            clearActiveTrade(trade, 'Trade esuat: masina nu a putut fi transferata.')
+            return
+        end
+    end
+    for _, id in ipairs(bVehicleIds) do
+        if transferVehicle(id, trade.bUid, trade.aUid) then movedB[#movedB + 1] = id else
+            for _, mid in ipairs(movedB) do transferVehicle(mid, trade.aUid, trade.bUid) end
+            for _, mid in ipairs(movedA) do transferVehicle(mid, trade.bUid, trade.aUid) end
+            if moved.aCash then addCash(trade.aUid, aMoney) end
+            if moved.bCash then addCash(trade.bUid, bMoney) end
+            logTrade(trade, false, 'move_b_vehicle')
+            clearActiveTrade(trade, 'Trade esuat: masina nu a putut fi transferata.')
+            return
+        end
+    end
+
     if aMoney > 0 then addCash(trade.bUid, aMoney) end
     if bMoney > 0 then addCash(trade.aUid, bMoney) end
 
@@ -548,6 +644,10 @@ RegisterNetEvent('driftzone_playerinteract:server:confirmTrade', function(data)
     local trade = TradesById[sessionId]
     if not trade or (trade.a ~= src and trade.b ~= src) then return end
     if trade.processing then return end
+
+    local ok = applyOfferUpdate(trade, src, data, false)
+    if not ok then return end
+
     trade.confirmed[src] = true
     broadcastTrade(trade)
     if trade.confirmed[trade.a] == true and trade.confirmed[trade.b] == true then

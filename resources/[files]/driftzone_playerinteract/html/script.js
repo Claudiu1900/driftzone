@@ -31,7 +31,7 @@ let availableActions = [];
 let payLocked = false;
 let selectorMoveTimer = 0;
 let tradeState = null;
-let selectedTradeVehicle = null;
+let selectedTradeVehicles = new Set();
 let tradeMoneyTimer = null;
 let tradeConfirmed = false;
 
@@ -52,7 +52,7 @@ function money(n) { return '$' + Number(n || 0).toLocaleString('en-US'); }
 function defaultActions() {
     return [
         { id: 'pay', label: 'PAY', title: 'Trimite bani', description: 'Transfer cash catre player' },
-        { id: 'trade', label: 'TRADE', title: 'Schimba masini', description: 'Trade masini si cash' }
+        { id: 'trade', label: 'TRADE', title: 'Schimba masini', description: 'Trade masini si bani' }
     ];
 }
 function setError(message) {
@@ -69,7 +69,8 @@ function openSelector(data = {}) {
 }
 function buildActionButton(action, index) {
     const special = action.id === 'trade' ? 'trade-action-card' : (action.id === 'pay' ? 'pay-action-card' : '');
-    return `<button class="action-card right ${special}" style="--x:0px;--y:0px;--delay:${index * 70}ms" onclick="runAction('${escapeHtml(action.id)}')">
+    const posClass = action.id === 'trade' ? 'left' : 'right';
+    return `<button class="action-card ${posClass} ${special}" style="--x:0px;--y:0px;--delay:${index * 70}ms" onclick="runAction('${escapeHtml(action.id)}')">
         <i>${String(index + 1).padStart(2, '0')}</i>
         <div><span>${escapeHtml(action.title || action.label || action.id)}</span><b>${escapeHtml(action.label || action.id)}</b><small>${escapeHtml(action.description || '')}</small></div>
     </button>`;
@@ -90,11 +91,11 @@ function openPayView(data = {}) {
 }
 function closeUi() {
     app.classList.remove('selecting'); hide(app); hide(selectorView); hide(radialView); hide(payView); hide(tradeView);
-    setError(''); setTradeError(''); selectedPlayer = null; availableActions = []; payLocked = false; tradeState = null; selectedTradeVehicle = null; tradeConfirmed = false; nui('close');
+    setError(''); setTradeError(''); selectedPlayer = null; availableActions = []; payLocked = false; tradeState = null; selectedTradeVehicles = new Set(); tradeConfirmed = false; nui('close');
 }
 function closeUiLocal() {
     app.classList.remove('selecting'); hide(app); hide(selectorView); hide(radialView); hide(payView); hide(tradeView);
-    setError(''); setTradeError(''); tradeState = null; selectedTradeVehicle = null; tradeConfirmed = false;
+    setError(''); setTradeError(''); tradeState = null; selectedTradeVehicles = new Set(); tradeConfirmed = false;
 }
 function runAction(id) { if (id === 'pay') nui('openPay'); if (id === 'trade') nui('openTrade'); }
 function backToMenu() { nui('backToMenu'); }
@@ -105,19 +106,38 @@ function confirmPay() {
     payLocked = true; confirmPayBtn.disabled = true; confirmPayBtn.querySelector('span').textContent = 'SE TRIMITE...'; nui('pay', { amount });
 }
 function vehicleLabel(v) { return { name: v?.name || v?.vehicle_name || v?.model || 'Vehicul', plate: v?.plate || v?.vehicle_plate || 'NO PLATE' }; }
+function normalizeVehicleIds(value) {
+    if (Array.isArray(value)) return value.map(v => String(v)).filter(v => v && v !== '0');
+    if (value === undefined || value === null || value === 0 || value === '0') return [];
+    return [String(value)];
+}
 function renderVehicleList(container, vehicles) {
     const list = Array.isArray(vehicles) ? vehicles : [];
     if (!list.length) { container.innerHTML = '<div class="trade-empty">Nu ai masini personale.</div>'; return; }
     container.innerHTML = list.map(v => {
-        const id = String(v.id ?? ''); const lbl = vehicleLabel(v); const cls = String(selectedTradeVehicle || '') === id ? 'selected' : '';
-        return `<button class="trade-vehicle ${cls}" onclick="selectTradeVehicle('${escapeHtml(id)}')"><b>${escapeHtml(lbl.name)}</b><small>${escapeHtml(lbl.plate)}</small></button>`;
+        const id = String(v.id ?? ''); const lbl = vehicleLabel(v); const cls = selectedTradeVehicles.has(id) ? 'selected' : '';
+        return `<button class="trade-vehicle ${cls}" onclick="selectTradeVehicle('${escapeHtml(id)}')"><div><b>${escapeHtml(lbl.name)}</b><small>${escapeHtml(lbl.plate)}</small></div></button>`;
     }).join('');
 }
 function renderOtherOffer(offer) {
-    const vehicle = offer?.vehicle;
+    const vehicles = Array.isArray(offer?.vehicles) ? offer.vehicles : (offer?.vehicle ? [offer.vehicle] : []);
     const cash = Number(offer?.money || 0);
-    const vehHtml = vehicle ? `<b>${escapeHtml(vehicleLabel(vehicle).name)}</b><small>${escapeHtml(vehicleLabel(vehicle).plate)}</small>` : `<b>Fara masina</b><small>Nu a selectat vehicul</small>`;
-    targetTradeVehicles.innerHTML = `<div class="trade-offer-line"><span>MASINA</span>${vehHtml}</div><div class="trade-offer-line"><span>CASH</span><b>${money(cash)}</b><small>Bani oferiti</small></div>`;
+    const parts = [];
+    if (vehicles.length) {
+        parts.push(`<div class="trade-offer-line"><span>MASINI SELECTATE</span>${vehicles.map(v => `<div class="offer-vehicle"><b>${escapeHtml(vehicleLabel(v).name)}</b><small>${escapeHtml(vehicleLabel(v).plate)}</small></div>`).join('')}</div>`);
+    }
+    if (cash > 0) {
+        parts.push(`<div class="trade-offer-line"><span>BANI</span><b>${money(cash)}</b></div>`);
+    }
+    targetTradeVehicles.innerHTML = parts.join('');
+}
+function currentTradeOffer() {
+    const moneyValue = Number(tradeMoneyInput.value || 0);
+    return {
+        sessionId: tradeState?.sessionId,
+        vehicleIds: Array.from(selectedTradeVehicles).map(v => Number(v)).filter(v => Number.isFinite(v) && v > 0),
+        money: Number.isFinite(moneyValue) && moneyValue > 0 ? Math.floor(moneyValue) : 0
+    };
 }
 function updateConfirmStatus(state = {}) {
     const my = state.myConfirmed === true; const other = state.otherConfirmed === true;
@@ -128,32 +148,42 @@ function updateConfirmStatus(state = {}) {
     tradeSubmitBtn.querySelector('span').textContent = my ? 'CONFIRMAT' : 'CONFIRM TRADE';
 }
 function openTradeSession(payload = {}) {
-    tradeState = payload; selectedTradeVehicle = payload.myOffer?.vehicleId ? String(payload.myOffer.vehicleId) : null; tradeConfirmed = false;
-    setMainColor(payload.mainColor); const target = payload.target || {};
-    tradeTargetName.textContent = target.name || 'Player'; tradeModeText.textContent = 'DRIFTZONE TRADE'; tradeTitle.textContent = 'Vehicle Trade';
-    tradeSubtitle.textContent = `Trade activ cu ${target.name || 'Player'}. Selecteaza oferta ta, apoi CONFIRM TRADE.`;
-    tradeMoneyInput.value = String(payload.myOffer?.money || 0);
+    tradeState = payload;
+    selectedTradeVehicles = new Set(normalizeVehicleIds(payload.myOffer?.vehicleIds || payload.myOffer?.vehicleId));
+    tradeConfirmed = payload.myConfirmed === true;
+    setMainColor(payload.mainColor);
+    const target = payload.target || {};
+    tradeTargetName.textContent = target.name || 'Player';
+    tradeModeText.textContent = 'DRIFTZONE TRADE';
+    tradeTitle.textContent = 'Vehicle Trade';
+    tradeSubtitle.textContent = `Trade activ cu ${target.name || 'Player'}. Selecteaza masini si bani, apoi CONFIRM TRADE.`;
+    const currentMoney = Number(payload.myOffer?.money || 0);
+    tradeMoneyInput.value = currentMoney > 0 ? String(currentMoney) : '';
     setTradeError(''); hide(selectorView); hide(radialView); hide(payView); show(app); show(tradeView);
-    renderVehicleList(myTradeVehicles, payload.myVehicles || []); renderOtherOffer(payload.otherOffer || {}); updateConfirmStatus(payload);
+    renderVehicleList(myTradeVehicles, payload.myVehicles || []);
+    renderOtherOffer(payload.otherOffer || {});
+    updateConfirmStatus(payload);
 }
 function sendOfferUpdate() {
     if (!tradeState?.sessionId) return;
-    const moneyValue = Number(tradeMoneyInput.value || 0);
-    if (!Number.isFinite(moneyValue) || moneyValue < 0) { setTradeError('Suma trebuie sa fie 0 sau mai mare.'); return; }
+    const offer = currentTradeOffer();
+    if (!Number.isFinite(offer.money) || offer.money < 0) { setTradeError('Suma invalida.'); return; }
     setTradeError('');
-    nui('updateTradeOffer', { sessionId: tradeState.sessionId, vehicleId: selectedTradeVehicle ? Number(selectedTradeVehicle) : 0, money: Math.floor(moneyValue) });
+    nui('updateTradeOffer', offer);
 }
 function selectTradeVehicle(id) {
-    selectedTradeVehicle = selectedTradeVehicle === id ? null : id;
+    if (selectedTradeVehicles.has(id)) selectedTradeVehicles.delete(id);
+    else selectedTradeVehicles.add(id);
     renderVehicleList(myTradeVehicles, tradeState?.myVehicles || []);
     sendOfferUpdate();
 }
 function submitTrade() {
     if (!tradeState?.sessionId) return;
-    sendOfferUpdate();
+    const offer = currentTradeOffer();
+    if (!Number.isFinite(offer.money) || offer.money < 0) { setTradeError('Suma invalida.'); return; }
     tradeSubmitBtn.disabled = true;
     tradeSubmitBtn.querySelector('span').textContent = 'SE CONFIRMA...';
-    nui('confirmTrade', { sessionId: tradeState.sessionId });
+    nui('confirmTrade', offer);
 }
 function cancelTradeUi() { nui('cancelTrade', { requestId: tradeState?.sessionId }); closeUi(); }
 
@@ -177,7 +207,7 @@ window.addEventListener('message', (event) => {
             setTradeError(p.message || 'OK');
             if (p.close === true) setTimeout(closeUiLocal, 500);
         } else setTradeError(p.message || 'Trade esuat.');
-        if (tradeState?.sessionId && !p.close) updateConfirmStatus(p);
+        if (tradeState?.sessionId && !p.close && (p.myConfirmed !== undefined || p.otherConfirmed !== undefined)) updateConfirmStatus(p);
     }
     if (data.action === 'tradeClose') { setTradeError(data.message || 'Trade finalizat.'); setTimeout(closeUiLocal, 700); }
     if (data.action === 'payResult') {
