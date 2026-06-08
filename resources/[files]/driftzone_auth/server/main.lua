@@ -205,6 +205,96 @@ local function getUserByEmail(email)
 end
 
 
+local function cleanIdentifier(value)
+    value = trim(value)
+
+    if value == '' or value == '0' or value == 'nil' or value == 'null' then
+        return ''
+    end
+
+    return value
+end
+
+local function findDuplicateAccountByIdentity(username, ids, ip)
+    username = trim(username)
+    ids = ids or {}
+
+    if username == '' then return nil end
+
+    local payload = {
+        ['@username'] = username:lower(),
+        ['@license'] = cleanIdentifier(ids.license),
+        ['@discord'] = cleanIdentifier(ids.discord),
+        ['@steam'] = cleanIdentifier(ids.steam),
+        ['@fivem'] = cleanIdentifier(ids.fivem),
+        ['@ip'] = cleanIdentifier(ip)
+    }
+
+    local ok, row = pcall(function()
+        return MySQL.single.await(
+            [[
+                SELECT
+                    uid,
+                    username,
+                    CASE
+                        WHEN @license <> '' AND license = @license THEN 'license'
+                        WHEN @discord <> '' AND discord = @discord THEN 'discord'
+                        WHEN @steam <> '' AND steam = @steam THEN 'steam'
+                        WHEN @fivem <> '' AND fivem = @fivem THEN 'fivem'
+                        WHEN @ip <> '' AND ip = @ip THEN 'ip'
+                        ELSE 'unknown'
+                    END AS match_field
+                FROM users
+                WHERE LOWER(username) <> @username
+                  AND (
+                        (@license <> '' AND license = @license)
+                     OR (@discord <> '' AND discord = @discord)
+                     OR (@steam <> '' AND steam = @steam)
+                     OR (@fivem <> '' AND fivem = @fivem)
+                     OR (@ip <> '' AND ip = @ip)
+                  )
+                ORDER BY uid ASC
+                LIMIT 1
+            ]],
+            payload
+        )
+    end)
+
+    if ok and row then
+        return row
+    end
+
+    return nil
+end
+
+local function buildDuplicateAccountMessage(row)
+    local field = tostring(row and row.match_field or 'cont'):lower()
+    local niceField = ({
+        license = 'licenta FiveM',
+        discord = 'Discord',
+        steam = 'Steam',
+        fivem = 'FiveM ID',
+        ip = 'IP'
+    })[field] or 'identificator'
+
+    return ('Ai deja un cont creat pe DriftZone.\nAm detectat acelasi %s pe un alt nume.\nContul tau este pe numele: %s\nSchimba-ti numele din FiveM pe numele contului tau si reconecteaza-te.'):format(
+        niceField,
+        trim(row and row.username) ~= '' and trim(row.username) or 'contul vechi'
+    )
+end
+
+local function checkDuplicateAccountForSource(src, username)
+    local ids = getPlayerIdentifiersData(src)
+    local duplicate = findDuplicateAccountByIdentity(username, ids, getPlayerIP(src))
+
+    if duplicate then
+        return false, buildDuplicateAccountMessage(duplicate)
+    end
+
+    return true, ''
+end
+
+
 local function getTableColumns(tableName)
     local columns = {}
     tableName = tostring(tableName or ''):gsub('`', '')
@@ -521,6 +611,12 @@ local function handleRegister(src, data)
         return notifyAuth(src, nameError)
     end
 
+    local okDuplicate, duplicateMessage = checkDuplicateAccountForSource(src, name)
+
+    if not okDuplicate then
+        return notifyAuth(src, duplicateMessage)
+    end
+
     if not validEmail(email) then
         return notifyAuth(src, 'Email invalid.')
     end
@@ -629,6 +725,12 @@ local function handleLogin(src, data)
         return notifyAuth(src, nameError)
     end
 
+    local okDuplicate, duplicateMessage = checkDuplicateAccountForSource(src, name)
+
+    if not okDuplicate then
+        return notifyAuth(src, duplicateMessage)
+    end
+
     if password == '' then
         return notifyAuth(src, 'Parola obligatorie.')
     end
@@ -659,23 +761,45 @@ AddEventHandler('playerConnecting', function(playerName, setKickReason, deferral
     deferrals.defer()
     Wait(0)
 
-    deferrals.update('DriftZone verifica ban-ul...')
+    deferrals.update('DriftZone verifica identitatea...')
 
     local name = trim(playerName or GetPlayerName(src) or '')
+    local validName, nameError = isValidDriftZoneName(name)
 
-    if name ~= '' then
-        local ok, user = pcall(function()
-            return getUserByUsername(name)
-        end)
+    if not validName then
+        deferrals.done(nameError)
+        return
+    end
 
-        if ok and user then
-            local banned, message = buildBanMessage(user)
+    local okUser, user = pcall(function()
+        return getUserByUsername(name)
+    end)
 
-            if banned then
-                deferrals.done(message)
-                return
-            end
+    if okUser and user then
+        local banned, message = buildBanMessage(user)
+
+        if banned then
+            deferrals.done(message)
+            return
         end
+    end
+
+    deferrals.update('DriftZone verifica daca ai deja cont...')
+
+    local okDuplicate, duplicateMessage = pcall(function()
+        local ids = getPlayerIdentifiersData(src)
+        local duplicate = findDuplicateAccountByIdentity(name, ids, getPlayerIP(src))
+
+        if duplicate then
+            return buildDuplicateAccountMessage(duplicate)
+        end
+
+        return nil
+    end)
+
+    if okDuplicate and duplicateMessage then
+        deferrals.done(duplicateMessage)
+        return
     end
 
     deferrals.done()
