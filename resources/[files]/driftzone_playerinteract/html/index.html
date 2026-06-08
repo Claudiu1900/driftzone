@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Player Interact</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app" class="app hidden">
+        <div class="backdrop"></div>
+
+        <section id="radialView" class="radial-view hidden">
+            <button class="close-btn" onclick="closeUi()" aria-label="close">×</button>
+            <div class="radial-wrap">
+                <button id="payAction" class="action action-left" onclick="openPay()">
+                    <span>FUNCTIE 1</span>
+                    <b>PAY</b>
+                </button>
+
+                <div class="center-orb">
+                    <div class="orb-ring"></div>
+                    <div class="orb-content">
+                        <span>PLAYER</span>
+                        <b id="playerName">Nume Player</b>
+                        <small>ID <em id="playerId">0</em></small>
+                    </div>
+                </div>
+
+                <div class="ghost-action ghost-left"><span>FUNCTIE 2</span></div>
+                <div class="ghost-action ghost-right"><span>FUNCTIE 3</span></div>
+                <div class="ghost-action ghost-bottom"><span>FUNCTIE 4</span></div>
+            </div>
+        </section>
+
+        <section id="payView" class="pay-view hidden">
+            <button class="close-btn" onclick="closeUi()" aria-label="close">×</button>
+            <div class="pay-card">
+                <button class="back-btn" onclick="backToMenu()">← Back</button>
+                <span class="kicker">DRIFTZONE PAY</span>
+                <h1>Trimite bani</h1>
+                <p>Trimiti bani catre <b id="payTargetName">Player</b> <small>ID <em id="payTargetId">0</em></small></p>
+
+                <label>Suma cash</label>
+                <input id="amountInput" type="number" min="1" placeholder="Ex: 50000" autocomplete="off">
+                <div id="payError" class="pay-error hidden"></div>
+
+                <button id="confirmPay" class="confirm" onclick="confirmPay()">CONFIRM</button>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

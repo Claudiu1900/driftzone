@@ -1,0 +1,38 @@
+Config = {}
+
+Config.MainColor = '#04c7f7'
+Config.Command = 'playerinteract'
+Config.CancelKey = 177 -- BACKSPACE / ESC-like close
+Config.MaxSelectDistance = 6.0
+Config.RayDistance = 18.0
+Config.TargetCircleDistance = 7.5
+
+Config.UsersTable = 'users'
+Config.UsersIdColumn = 'uid'
+Config.UsersNameColumn = 'username'
+Config.UsersCashColumn = 'cash'
+
+Config.PayLogsTable = 'pay_logs'
+Config.NotifyEvent = 'client:notify'
+Config.SafeCashMax = 2147483647
+
+Config.Pay = {
+    enabled = true,
+    min = 1,
+    max = 500000000,
+    cooldownMs = 1500
+}
+
+Config.Marker = {
+    enabled = true,
+    type = 25,
+    radius = 1.05,
+    height = 0.035,
+    zOffset = 0.035,
+    r = 4,
+    g = 199,
+    b = 247,
+    a = 190
+}
+
+Config.Debug = false

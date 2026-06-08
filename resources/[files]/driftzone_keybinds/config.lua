@@ -79,6 +79,15 @@ Config.Keybinds = {
         eventName = 'outfits',
         enabled = true
     },
+        {
+        id = 'playerinteract',
+        name = 'Player Interactions',
+        description = 'Deschide meniul de interactiunii cu jucatorii din apropiere',
+        key = 'ALT',
+        eventType = 'command',
+        eventName = 'playerinteract',
+        enabled = true
+    },
     {
         id = 'stats',
         name = 'Stats',
