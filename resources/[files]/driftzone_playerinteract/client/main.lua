@@ -362,17 +362,17 @@ RegisterNUICallback('openTrade', function(_, cb)
         return
     end
     tradeOpen = true
-    TriggerServerEvent('driftzone_playerinteract:server:openTrade', selectedPlayer.serverId)
+    TriggerServerEvent('driftzone_playerinteract:server:requestTrade', selectedPlayer.serverId)
     cb({ ok = true })
 end)
 
-RegisterNUICallback('sendTradeOffer', function(data, cb)
-    TriggerServerEvent('driftzone_playerinteract:server:sendTradeOffer', data or {})
+RegisterNUICallback('updateTradeOffer', function(data, cb)
+    TriggerServerEvent('driftzone_playerinteract:server:updateTradeOffer', data or {})
     cb({ ok = true })
 end)
 
-RegisterNUICallback('answerTrade', function(data, cb)
-    TriggerServerEvent('driftzone_playerinteract:server:answerTrade', data or {})
+RegisterNUICallback('confirmTrade', function(data, cb)
+    TriggerServerEvent('driftzone_playerinteract:server:confirmTrade', data or {})
     cb({ ok = true })
 end)
 
@@ -384,14 +384,14 @@ end)
 RegisterNetEvent('driftzone_playerinteract:client:tradeOpen', function(payload)
     tradeOpen = true
     interactMode = false
-    sendNui({ action = 'openTrade', payload = payload or {}, mainColor = Config.MainColor })
+    sendNui({ action = 'tradeOpen', payload = payload or {}, mainColor = Config.MainColor })
     setFocus(true)
 end)
 
-RegisterNetEvent('driftzone_playerinteract:client:tradeIncoming', function(payload)
+RegisterNetEvent('driftzone_playerinteract:client:tradeUpdate', function(payload)
     tradeOpen = true
     interactMode = false
-    sendNui({ action = 'tradeIncoming', payload = payload or {}, mainColor = Config.MainColor })
+    sendNui({ action = 'tradeUpdate', payload = payload or {}, mainColor = Config.MainColor })
     setFocus(true)
 end)
 

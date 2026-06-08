@@ -989,3 +989,59 @@ input[type=number] {
     .trade-card { min-height: auto; }
     .trade-preview { grid-template-columns: 1fr; }
 }
+
+
+/* DriftZone final positions: only positions changed */
+.action-card.pay-action-card {
+    left: 60% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+}
+.action-card.trade-action-card {
+    left: 38% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+}
+.trade-timer { display: none !important; }
+.trade-preview.visible { display: block !important; }
+.trade-status-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+}
+.trade-status-pill {
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(255,255,255,.055);
+    padding: 10px 12px;
+    color: rgba(255,255,255,.78);
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+}
+.trade-status-pill.done {
+    border-color: rgba(85,255,189,.35);
+    background: rgba(85,255,189,.10);
+    color: white;
+}
+.trade-offer-box {
+    display: grid;
+    gap: 10px;
+}
+.trade-offer-line {
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(255,255,255,.045);
+    padding: 13px;
+}
+.trade-offer-line b { display:block; color:#fff; font-size:14px; }
+.trade-offer-line small { display:block; margin-top:4px; color:rgba(255,255,255,.55); font-weight:800; }
+.trade-vehicle.selected::after {
+    content: 'SELECTAT';
+    display: block;
+    margin-top: 8px;
+    color: var(--main);
+    font-size: 10px;
+    font-weight: 1000;
+    letter-spacing: 1.6px;
+}

@@ -35,9 +35,9 @@
                     <div>
                         <span id="tradeModeText">DRIFTZONE TRADE</span>
                         <h1 id="tradeTitle">Vehicle Trade</h1>
-                        <p id="tradeSubtitle">Alege ce oferi in trade.</p>
+                        <p id="tradeSubtitle">Selecteaza masina sau cash. Dupa ce amandoi apasati confirm, trade-ul se finalizeaza.</p>
                     </div>
-                    <div class="trade-timer"><b id="tradeTimer">30</b><small>sec</small></div>
+                    <div class="trade-timer"><b id="tradeTimer">0</b><small>sec</small></div>
                 </div>
 
                 <div id="tradeOfferPreview" class="trade-preview hidden"></div>
@@ -50,11 +50,15 @@
                     <div class="trade-card money-card">
                         <div class="trade-card-head"><span>CASH</span><b>Bani optional</b></div>
                         <input id="tradeMoneyInput" type="number" inputmode="numeric" min="0" value="0" placeholder="0" autocomplete="off">
-                        <small>Poti lasa 0 daca dai doar masina sau daca celalalt ofera ceva.</small>
+                        <small>Poti lasa 0. Este necesar ca macar unul dintre voi sa ofere masina sau bani.</small>
+                        <div class="trade-status-row">
+                            <div id="myConfirmStatus" class="trade-status-pill">Tu: neconfirmat</div>
+                            <div id="theirConfirmStatus" class="trade-status-pill">Celalalt: neconfirmat</div>
+                        </div>
                     </div>
                     <div class="trade-card target-preview-card">
-                        <div class="trade-card-head"><span>PLAYER</span><b id="tradeTargetName">Target</b></div>
-                        <div id="targetTradeVehicles" class="trade-vehicles compact"></div>
+                        <div class="trade-card-head"><span>OFERTA CELUILALT</span><b id="tradeTargetName">Target</b></div>
+                        <div id="targetTradeVehicles" class="trade-offer-box"></div>
                     </div>
                 </div>
 
@@ -63,7 +67,7 @@
                 <div class="trade-actions">
                     <button class="back-btn" onclick="cancelTradeUi()">Cancel</button>
                     <button id="tradeSubmitBtn" class="confirm trade-confirm" onclick="submitTrade()">
-                        <span>TRIMITE TRADE</span>
+                        <span>CONFIRM TRADE</span>
                         <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </button>
                 </div>

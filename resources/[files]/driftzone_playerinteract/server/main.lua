@@ -343,211 +343,240 @@ RegisterNetEvent('driftzone_playerinteract:server:pay', function(targetServerId,
     TriggerClientEvent('driftzone_playerinteract:client:payResult', src, true, ('Ai trimis $%s.'):format(amount))
 end)
 
-RegisterNetEvent('driftzone_playerinteract:server:openTrade', function(targetServerId)
+
+local PendingRequests = {}
+local PendingByPlayer = {}
+
+local function removePending(id)
+    local p = PendingRequests[id]
+    if not p then return end
+    if PendingByPlayer[p.from] == id then PendingByPlayer[p.from] = nil end
+    PendingRequests[id] = nil
+end
+
+local function findPending(fromSrc, toSrc)
+    local id = PendingByPlayer[fromSrc]
+    local p = id and PendingRequests[id]
+    if p and p.to == toSrc and p.expiresAt >= os.time() then return id, p end
+    return nil, nil
+end
+
+local function tradePayload(trade, src)
+    local other = trade.a == src and trade.b or trade.a
+    local myUid = trade.a == src and trade.aUid or trade.bUid
+    local myOffer = trade.offers[src] or { vehicleId = 0, money = 0 }
+    local otherOffer = trade.offers[other] or { vehicleId = 0, money = 0 }
+    return {
+        sessionId = trade.id,
+        target = { serverId = other, uid = (trade.a == src and trade.bUid or trade.aUid), name = getPlayerNameSafe(other) },
+        myVehicles = getVehicles(myUid),
+        myOffer = myOffer,
+        otherOffer = otherOffer,
+        myConfirmed = trade.confirmed[src] == true,
+        otherConfirmed = trade.confirmed[other] == true
+    }
+end
+
+local function broadcastTrade(trade)
+    if not trade then return end
+    if playerOnline(trade.a) then TriggerClientEvent('driftzone_playerinteract:client:tradeUpdate', trade.a, tradePayload(trade, trade.a)) end
+    if playerOnline(trade.b) then TriggerClientEvent('driftzone_playerinteract:client:tradeUpdate', trade.b, tradePayload(trade, trade.b)) end
+end
+
+local function clearActiveTrade(trade, message)
+    if not trade then return end
+    TradesById[trade.id] = nil
+    if ActiveTradeByPlayer[trade.a] == trade.id then ActiveTradeByPlayer[trade.a] = nil end
+    if ActiveTradeByPlayer[trade.b] == trade.id then ActiveTradeByPlayer[trade.b] = nil end
+    if message and playerOnline(trade.a) then TriggerClientEvent('driftzone_playerinteract:client:tradeClose', trade.a, message) end
+    if message and playerOnline(trade.b) then TriggerClientEvent('driftzone_playerinteract:client:tradeClose', trade.b, message) end
+end
+
+local function getOfferUid(trade, src)
+    if trade.a == src then return trade.aUid end
+    if trade.b == src then return trade.bUid end
+    return nil
+end
+
+local function startTradeSession(a, b)
+    local aUid = getUid(a)
+    local bUid = getUid(b)
+    if not aUid or not bUid then notify(a, 'warning', 'Nu am gasit UID-ul.'); notify(b, 'warning', 'Nu am gasit UID-ul.'); return end
+    local id = newTradeId()
+    local trade = {
+        id = id,
+        a = a,
+        b = b,
+        aUid = aUid,
+        bUid = bUid,
+        from = a,
+        to = b,
+        fromUid = aUid,
+        toUid = bUid,
+        fromName = getPlayerNameSafe(a),
+        toName = getPlayerNameSafe(b),
+        offers = {},
+        confirmed = {},
+        createdAt = os.time(),
+        processing = false
+    }
+    trade.offers[a] = { vehicleId = 0, vehicle = nil, money = 0 }
+    trade.offers[b] = { vehicleId = 0, vehicle = nil, money = 0 }
+    TradesById[id] = trade
+    ActiveTradeByPlayer[a] = id
+    ActiveTradeByPlayer[b] = id
+    notify(a, 'success', 'Trade acceptat.', 4500)
+    notify(b, 'success', 'Trade acceptat.', 4500)
+    TriggerClientEvent('driftzone_playerinteract:client:tradeOpen', a, tradePayload(trade, a))
+    TriggerClientEvent('driftzone_playerinteract:client:tradeOpen', b, tradePayload(trade, b))
+end
+
+RegisterNetEvent('driftzone_playerinteract:server:requestTrade', function(targetServerId)
     local src = source
     targetServerId = tonumber(targetServerId or 0) or 0
-
-    if not Config.Trade or Config.Trade.enabled ~= true then
-        notify(src, 'warning', 'Trade este dezactivat.')
-        return
-    end
-
-    if not isLogged(src) then notify(src, 'warning', 'Trebuie sa fii logat.'); return end
     if not playerOnline(targetServerId) or targetServerId == src then notify(src, 'warning', 'Jucator invalid.'); return end
+    if not isLogged(src) then notify(src, 'warning', 'Trebuie sa fii logat.'); return end
     if ActiveTradeByPlayer[src] then notify(src, 'warning', 'Ai deja un trade activ.'); return end
     if ActiveTradeByPlayer[targetServerId] then notify(src, 'warning', 'Playerul are deja un trade activ.'); return end
-    if not validDistance(src, targetServerId, 2.0) then notify(src, 'warning', 'Jucatorul este prea departe.'); return end
+    if PendingByPlayer[src] then notify(src, 'warning', 'Ai deja o cerere de trade activa.'); return end
+    if not validDistance(src, targetServerId, 3.0) then notify(src, 'warning', 'Jucatorul este prea departe.'); return end
+
+    local reverseId, reverse = findPending(targetServerId, src)
+    if reverse then
+        removePending(reverseId)
+        startTradeSession(targetServerId, src)
+        return
+    end
 
     local fromUid = getUid(src)
     local toUid = getUid(targetServerId)
     if not fromUid or not toUid then notify(src, 'warning', 'Nu am gasit UID-ul.'); return end
 
-    TriggerClientEvent('driftzone_playerinteract:client:tradeOpen', src, {
-        target = { serverId = targetServerId, uid = toUid, name = getPlayerNameSafe(targetServerId) },
-        myVehicles = getVehicles(fromUid),
-        targetVehicles = getVehicles(toUid),
-        timeout = tonumber(Config.Trade.timeoutSeconds or 30) or 30
-    })
-end)
-
-RegisterNetEvent('driftzone_playerinteract:server:sendTradeOffer', function(data)
-    local src = source
-    data = type(data) == 'table' and data or {}
-    local targetServerId = tonumber(data.target or 0) or 0
-    local vehicleId = tonumber(data.vehicleId or 0) or 0
-    local moneyAmount = math.floor(tonumber(data.money or 0) or 0)
-    local maxMoney = tonumber(Config.Trade and Config.Trade.maxMoney or 500000000) or 500000000
-
-    if ActiveTradeByPlayer[src] then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Ai deja un trade activ.' }); return end
-    if ActiveTradeByPlayer[targetServerId] then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Playerul are deja un trade activ.' }); return end
-    if not playerOnline(targetServerId) or targetServerId == src then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Jucator invalid.' }); return end
-    if moneyAmount < 0 or moneyAmount > maxMoney then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Suma cash invalida.' }); return end
-    if not validDistance(src, targetServerId, 3.0) then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Jucatorul este prea departe.' }); return end
-
-    local fromUid = getUid(src)
-    local toUid = getUid(targetServerId)
-    if not fromUid or not toUid then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Nu am gasit UID-ul.' }); return end
-
-    local vehicle = nil
-    if vehicleId > 0 then
-        vehicle = getVehicleById(vehicleId, fromUid)
-        if not vehicle then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Masina aleasa nu iti apartine.' }); return end
-    end
-
-    if moneyAmount > 0 and getCash(fromUid) < moneyAmount then
-        TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Nu ai destui bani pentru oferta.' })
-        return
-    end
-
-    NextTradeId = NextTradeId + 1
     local id = newTradeId()
-    local trade = {
-        id = id,
-        from = src,
-        to = targetServerId,
-        fromUid = fromUid,
-        toUid = toUid,
-        fromName = getPlayerNameSafe(src),
-        toName = getPlayerNameSafe(targetServerId),
-        fromOffer = { vehicleId = vehicleId, vehicle = vehicle, money = moneyAmount },
-        createdAt = os.time(),
-        expiresAt = os.time() + (tonumber(Config.Trade.timeoutSeconds or 30) or 30),
-        processing = false
-    }
+    local timeout = tonumber(Config.Trade and Config.Trade.timeoutSeconds or 30) or 30
+    PendingRequests[id] = { id = id, from = src, to = targetServerId, fromUid = fromUid, toUid = toUid, createdAt = os.time(), expiresAt = os.time() + timeout }
+    PendingByPlayer[src] = id
 
-    TradesById[id] = trade
-    ActiveTradeByPlayer[src] = id
-    ActiveTradeByPlayer[targetServerId] = id
+    notify(src, 'success', 'Cerere trimisa cu succes.', 4500)
+    notify(targetServerId, 'info', 'Ai primit o cerere de trade!', 6500)
+    TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = true, close = true, message = 'Cerere trimisa cu succes.' })
 
-    TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = true, message = 'Trade trimis. Asteapta raspuns.' })
-    notify(src, 'info', 'Trade trimis. Asteapta raspuns.', 4500)
-    notify(targetServerId, 'info', ('Ai primit trade de la %s.'):format(trade.fromName), 6500)
-    TriggerClientEvent('driftzone_playerinteract:client:tradeIncoming', targetServerId, {
-        requestId = id,
-        from = { serverId = src, uid = fromUid, name = trade.fromName },
-        offer = trade.fromOffer,
-        myVehicles = getVehicles(toUid),
-        fromVehicles = getVehicles(fromUid),
-        timeout = tonumber(Config.Trade.timeoutSeconds or 30) or 30
-    })
-
-    SetTimeout((tonumber(Config.Trade.timeoutSeconds or 30) or 30) * 1000, function()
-        local current = TradesById[id]
-        if current and current.expiresAt <= os.time() then
-            logTrade(current, false, 'timeout')
-            clearTrade(current, 'Trade expirat.')
+    SetTimeout(timeout * 1000, function()
+        local p = PendingRequests[id]
+        if p and p.expiresAt <= os.time() then
+            removePending(id)
+            if playerOnline(p.from) then notify(p.from, 'warning', 'Cererea de trade a expirat!', 6000) end
         end
     end)
 end)
 
-RegisterNetEvent('driftzone_playerinteract:server:answerTrade', function(data)
+RegisterNetEvent('driftzone_playerinteract:server:updateTradeOffer', function(data)
     local src = source
     data = type(data) == 'table' and data or {}
-    local requestId = tostring(data.requestId or '')
-    local trade = TradesById[requestId]
-    if not trade or trade.to ~= src then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Trade invalid sau expirat.' }); return end
+    local sessionId = tostring(data.sessionId or ActiveTradeByPlayer[src] or '')
+    local trade = TradesById[sessionId]
+    if not trade or (trade.a ~= src and trade.b ~= src) then return end
     if trade.processing then return end
-    trade.processing = true
 
-    local toVehicleId = tonumber(data.vehicleId or 0) or 0
-    local toMoney = math.floor(tonumber(data.money or 0) or 0)
+    local vehicleId = tonumber(data.vehicleId or 0) or 0
+    local moneyAmount = math.floor(tonumber(data.money or 0) or 0)
     local maxMoney = tonumber(Config.Trade and Config.Trade.maxMoney or 500000000) or 500000000
+    if moneyAmount < 0 or moneyAmount > maxMoney then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Suma cash invalida.' }); return end
 
-    local function fail(msg)
+    local ownerUid = getOfferUid(trade, src)
+    local vehicle = nil
+    if vehicleId > 0 then
+        vehicle = getVehicleById(vehicleId, ownerUid)
+        if not vehicle then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Masina aleasa nu iti apartine.' }); return end
+    end
+    if moneyAmount > 0 and getCash(ownerUid) < moneyAmount then TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Nu ai destui bani.' }); return end
+
+    trade.offers[src] = { vehicleId = vehicleId, vehicle = vehicle, money = moneyAmount }
+    trade.confirmed[trade.a] = false
+    trade.confirmed[trade.b] = false
+    broadcastTrade(trade)
+end)
+
+local function finalizeTrade(trade)
+    if not trade or trade.processing then return end
+    trade.processing = true
+    local aOffer = trade.offers[trade.a] or { vehicleId = 0, money = 0 }
+    local bOffer = trade.offers[trade.b] or { vehicleId = 0, money = 0 }
+    local aVehicleId = tonumber(aOffer.vehicleId or 0) or 0
+    local bVehicleId = tonumber(bOffer.vehicleId or 0) or 0
+    local aMoney = tonumber(aOffer.money or 0) or 0
+    local bMoney = tonumber(bOffer.money or 0) or 0
+
+    trade.fromOffer = aOffer
+    trade.toOffer = bOffer
+    trade.fromUid = trade.aUid
+    trade.toUid = trade.bUid
+    trade.fromName = getPlayerNameSafe(trade.a)
+    trade.toName = getPlayerNameSafe(trade.b)
+
+    if aVehicleId <= 0 and bVehicleId <= 0 and aMoney <= 0 and bMoney <= 0 then
         trade.processing = false
-        TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = msg })
-    end
-
-    if os.time() > trade.expiresAt then logTrade(trade, false, 'expired_accept'); clearTrade(trade, 'Trade expirat.'); return end
-    if not playerOnline(trade.from) or not playerOnline(trade.to) then logTrade(trade, false, 'player_offline'); clearTrade(trade, 'Trade anulat: player offline.'); return end
-    if toMoney < 0 or toMoney > maxMoney then fail('Suma cash invalida.'); return end
-    if not validDistance(trade.from, trade.to, 4.0) then logTrade(trade, false, 'distance'); clearTrade(trade, 'Trade anulat: sunteti prea departe.'); return end
-
-    local toVehicle = nil
-    if toVehicleId > 0 then
-        toVehicle = getVehicleById(toVehicleId, trade.toUid)
-        if not toVehicle then fail('Masina aleasa nu iti apartine.'); return end
-    end
-
-    trade.toOffer = { vehicleId = toVehicleId, vehicle = toVehicle, money = toMoney }
-
-    local fromVehicleId = tonumber(trade.fromOffer.vehicleId or 0) or 0
-    local fromMoney = tonumber(trade.fromOffer.money or 0) or 0
-    if fromVehicleId <= 0 and fromMoney <= 0 and toVehicleId <= 0 and toMoney <= 0 then
-        fail('Cel putin o persoana trebuie sa ofere masina sau bani.')
+        TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', trade.a, { ok = false, message = 'Macar o persoana trebuie sa ofere masina sau bani.' })
+        TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', trade.b, { ok = false, message = 'Macar o persoana trebuie sa ofere masina sau bani.' })
         return
     end
-
-    if fromVehicleId > 0 and not getVehicleById(fromVehicleId, trade.fromUid) then logTrade(trade, false, 'from_vehicle_missing'); clearTrade(trade, 'Trade anulat: masina ofertata nu mai exista.'); return end
-    if toVehicleId > 0 and not getVehicleById(toVehicleId, trade.toUid) then logTrade(trade, false, 'to_vehicle_missing'); clearTrade(trade, 'Trade anulat: masina ofertata nu mai exista.'); return end
-    if fromMoney > 0 and getCash(trade.fromUid) < fromMoney then logTrade(trade, false, 'from_no_cash'); clearTrade(trade, 'Trade anulat: primul player nu mai are banii.'); return end
-    if toMoney > 0 and getCash(trade.toUid) < toMoney then fail('Nu ai destui bani pentru oferta.'); return end
+    if not playerOnline(trade.a) or not playerOnline(trade.b) then logTrade(trade, false, 'player_offline'); clearActiveTrade(trade, 'Trade anulat: player offline.'); return end
+    if not validDistance(trade.a, trade.b, 4.0) then logTrade(trade, false, 'distance'); clearActiveTrade(trade, 'Trade anulat: sunteti prea departe.'); return end
+    if aVehicleId > 0 and not getVehicleById(aVehicleId, trade.aUid) then logTrade(trade, false, 'a_vehicle_missing'); clearActiveTrade(trade, 'Trade anulat: masina ta nu mai exista.'); return end
+    if bVehicleId > 0 and not getVehicleById(bVehicleId, trade.bUid) then logTrade(trade, false, 'b_vehicle_missing'); clearActiveTrade(trade, 'Trade anulat: masina celuilalt nu mai exista.'); return end
+    if aMoney > 0 and getCash(trade.aUid) < aMoney then logTrade(trade, false, 'a_no_cash'); clearActiveTrade(trade, 'Trade anulat: unul dintre playeri nu mai are banii.'); return end
+    if bMoney > 0 and getCash(trade.bUid) < bMoney then logTrade(trade, false, 'b_no_cash'); clearActiveTrade(trade, 'Trade anulat: unul dintre playeri nu mai are banii.'); return end
 
     local moved = {}
-    if fromMoney > 0 then
-        if not addCash(trade.fromUid, -fromMoney) then logTrade(trade, false, 'take_from_cash'); clearTrade(trade, 'Trade esuat: cash.'); return end
-        moved.fromCashTaken = true
-    end
-    if toMoney > 0 then
-        if not addCash(trade.toUid, -toMoney) then
-            if moved.fromCashTaken then addCash(trade.fromUid, fromMoney) end
-            logTrade(trade, false, 'take_to_cash')
-            clearTrade(trade, 'Trade esuat: cash.')
-            return
-        end
-        moved.toCashTaken = true
-    end
+    if aMoney > 0 then if not addCash(trade.aUid, -aMoney) then logTrade(trade, false, 'take_a_cash'); clearActiveTrade(trade, 'Trade esuat: cash.'); return end; moved.aCash = true end
+    if bMoney > 0 then if not addCash(trade.bUid, -bMoney) then if moved.aCash then addCash(trade.aUid, aMoney) end; logTrade(trade, false, 'take_b_cash'); clearActiveTrade(trade, 'Trade esuat: cash.'); return end; moved.bCash = true end
+    if aVehicleId > 0 then if not transferVehicle(aVehicleId, trade.aUid, trade.bUid) then if moved.aCash then addCash(trade.aUid, aMoney) end; if moved.bCash then addCash(trade.bUid, bMoney) end; logTrade(trade, false, 'move_a_vehicle'); clearActiveTrade(trade, 'Trade esuat: masina nu a putut fi transferata.'); return end; moved.aVeh = true end
+    if bVehicleId > 0 then if not transferVehicle(bVehicleId, trade.bUid, trade.aUid) then if moved.aVeh then transferVehicle(aVehicleId, trade.bUid, trade.aUid) end; if moved.aCash then addCash(trade.aUid, aMoney) end; if moved.bCash then addCash(trade.bUid, bMoney) end; logTrade(trade, false, 'move_b_vehicle'); clearActiveTrade(trade, 'Trade esuat: masina nu a putut fi transferata.'); return end; moved.bVeh = true end
+    if aMoney > 0 then addCash(trade.bUid, aMoney) end
+    if bMoney > 0 then addCash(trade.aUid, bMoney) end
 
-    if fromVehicleId > 0 then
-        if not transferVehicle(fromVehicleId, trade.fromUid, trade.toUid) then
-            if moved.fromCashTaken then addCash(trade.fromUid, fromMoney) end
-            if moved.toCashTaken then addCash(trade.toUid, toMoney) end
-            logTrade(trade, false, 'transfer_from_vehicle')
-            clearTrade(trade, 'Trade esuat: masina nu a putut fi transferata.')
-            return
-        end
-        moved.fromVehicleMoved = true
+    logTrade(trade, true, 'confirmed')
+    notify(trade.a, 'success', 'Trade finalizat cu succes.', 6000)
+    notify(trade.b, 'success', 'Trade finalizat cu succes.', 6000)
+    clearActiveTrade(trade, 'Trade finalizat cu succes.')
+end
+
+RegisterNetEvent('driftzone_playerinteract:server:confirmTrade', function(data)
+    local src = source
+    data = type(data) == 'table' and data or {}
+    local sessionId = tostring(data.sessionId or ActiveTradeByPlayer[src] or '')
+    local trade = TradesById[sessionId]
+    if not trade or (trade.a ~= src and trade.b ~= src) then return end
+    if trade.processing then return end
+    trade.confirmed[src] = true
+    broadcastTrade(trade)
+    if trade.confirmed[trade.a] == true and trade.confirmed[trade.b] == true then
+        finalizeTrade(trade)
     end
-
-    if toVehicleId > 0 then
-        if not transferVehicle(toVehicleId, trade.toUid, trade.fromUid) then
-            if moved.fromVehicleMoved then transferVehicle(fromVehicleId, trade.toUid, trade.fromUid) end
-            if moved.fromCashTaken then addCash(trade.fromUid, fromMoney) end
-            if moved.toCashTaken then addCash(trade.toUid, toMoney) end
-            logTrade(trade, false, 'transfer_to_vehicle')
-            clearTrade(trade, 'Trade esuat: masina nu a putut fi transferata.')
-            return
-        end
-        moved.toVehicleMoved = true
-    end
-
-    if fromMoney > 0 then addCash(trade.toUid, fromMoney) end
-    if toMoney > 0 then addCash(trade.fromUid, toMoney) end
-
-    logTrade(trade, true, 'accepted')
-    notify(trade.from, 'success', 'Trade finalizat cu succes.', 6000)
-    notify(trade.to, 'success', 'Trade finalizat cu succes.', 6000)
-    clearTrade(trade, 'Trade finalizat cu succes.')
 end)
 
 RegisterNetEvent('driftzone_playerinteract:server:cancelTrade', function(data)
     local src = source
     data = type(data) == 'table' and data or {}
-    local requestId = tostring(data.requestId or ActiveTradeByPlayer[src] or '')
-    local trade = TradesById[requestId]
-    if not trade then return end
-    if trade.from ~= src and trade.to ~= src then return end
-    logTrade(trade, false, 'cancelled')
-    clearTrade(trade, 'Trade anulat.')
+    local id = tostring(data.requestId or ActiveTradeByPlayer[src] or PendingByPlayer[src] or '')
+    local active = TradesById[id]
+    if active and (active.a == src or active.b == src) then logTrade(active, false, 'cancelled'); clearActiveTrade(active, 'Trade anulat.'); return end
+    local p = PendingRequests[id]
+    if p and p.from == src then removePending(id); notify(src, 'warning', 'Cerere trade anulata.', 3500) end
 end)
 
 AddEventHandler('playerDropped', function()
     local src = source
     PayCooldowns[src] = nil
-    local requestId = ActiveTradeByPlayer[src]
-    if requestId and TradesById[requestId] then
-        local trade = TradesById[requestId]
+    local pendingId = PendingByPlayer[src]
+    if pendingId then removePending(pendingId) end
+    for id, p in pairs(PendingRequests) do
+        if p.to == src then removePending(id) end
+    end
+    local activeId = ActiveTradeByPlayer[src]
+    if activeId and TradesById[activeId] then
+        local trade = TradesById[activeId]
         logTrade(trade, false, 'player_dropped')
-        clearTrade(trade, 'Trade anulat: player deconectat.')
+        clearActiveTrade(trade, 'Trade anulat: player deconectat.')
     end
 end)

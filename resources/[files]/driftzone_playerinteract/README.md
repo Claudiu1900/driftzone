@@ -1,43 +1,19 @@
 # driftzone_playerinteract
 
-Interact FiveM pentru playeri cu PAY + TRADE.
+PAY + TRADE pentru DriftZone.
 
-## Comanda
+## Trade
+- click TRADE trimite cerere si notificare;
+- celalalt trebuie sa dea si el TRADE inapoi in 30 secunde;
+- dupa acceptare se deschide UI-ul de trade la amandoi, fara timer;
+- fiecare vede doar masinile lui personale;
+- cand selectezi masina sau schimbi cash-ul, oferta apare live la celalalt;
+- butonul final este CONFIRM TRADE;
+- dupa confirmarea ambilor se schimba `ownedvehicles.owner_id` si cash-ul;
+- loguri in `trade_logs`.
 
-```cfg
-/playerinteract
-```
-
-## Functii
-
-- selectezi playerul cu cursorul normal;
-- UI-ul ramane transparent si curat;
-- PAY card premium;
-- TRADE cu masini + cash;
-- cererea de trade expira in 30 secunde;
-- playerul care trimite trade nu poate trimite alt trade pana se termina cererea;
-- masina se transfera prin `ownedvehicles.owner_id`;
-- loguri PAY in `pay_logs`;
-- loguri TRADE in `trade_logs`.
-
-## SQL
-
-Ruleaza `sql.sql`.
-
-## Config important
-
-Daca tabela ta de masini are alte coloane, schimba in `config.lua`:
-
-```lua
-Config.OwnedVehiclesTable = 'ownedvehicles'
-Config.OwnedVehiclesIdColumn = 'id'
-Config.OwnedVehiclesOwnerColumn = 'owner_id'
-Config.OwnedVehiclesModelColumn = 'vehicle_model'
-Config.OwnedVehiclesPlateColumn = 'vehicle_plate'
-```
-
-## server.cfg
-
+## Instalare
+Ruleaza `sql.sql`, apoi:
 ```cfg
 ensure oxmysql
 ensure driftzone_auth
