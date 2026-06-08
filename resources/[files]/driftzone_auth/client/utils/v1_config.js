@@ -1,0 +1,1 @@
+// DriftZone Auth helper placeholder

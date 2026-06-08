@@ -25,3 +25,24 @@ Config.StartCash = 0
 Config.StartBank = 0
 
 Config.DiscordInvite = 'discord.gg/driftzone'
+
+Config.StarterVehicle = {
+    enabled = true,
+    model = 'caddy',
+    platePrefix = 'DZ',
+    tuning = {
+        secondaryColor = '#006eff',
+        windowTint = 1,
+        engine = 3,
+        wheelColor = 64,
+        xenonColor = 1,
+        wheels = -1,
+        brakes = 2,
+        pearlescentColor = 64,
+        armor = -1,
+        suspension = 3,
+        transmission = 2,
+        turbo = true,
+        primaryColor = '#006eff'
+    }
+}

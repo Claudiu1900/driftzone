@@ -204,6 +204,140 @@ local function getUserByEmail(email)
     )
 end
 
+
+local function getTableColumns(tableName)
+    local columns = {}
+    tableName = tostring(tableName or ''):gsub('`', '')
+
+    if tableName == '' then return columns end
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await(('SHOW COLUMNS FROM `%s`'):format(tableName), {}) or {}
+    end)
+
+    if not ok or type(rows) ~= 'table' then
+        return columns
+    end
+
+    for _, row in ipairs(rows) do
+        if row.Field then
+            columns[tostring(row.Field)] = true
+        end
+    end
+
+    return columns
+end
+
+local function randomVehiclePlate(prefix)
+    local chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    local plate = tostring(prefix or 'DZ'):upper():gsub('[^A-Z0-9]', ''):sub(1, 3)
+
+    if plate == '' then plate = 'DZ' end
+
+    while #plate < 8 do
+        local index = math.random(1, #chars)
+        plate = plate .. chars:sub(index, index)
+    end
+
+    return plate:sub(1, 8)
+end
+
+local function plateExists(plate, plateColumn)
+    plate = tostring(plate or '')
+    plateColumn = tostring(plateColumn or 'vehicle_plate'):gsub('`', '')
+
+    local ok, row = pcall(function()
+        return MySQL.single.await(('SELECT id FROM `ownedvehicles` WHERE `%s` = @plate LIMIT 1'):format(plateColumn), {
+            ['@plate'] = plate
+        })
+    end)
+
+    return ok and row ~= nil
+end
+
+local function generateUniquePlate(plateColumn)
+    local prefix = Config.StarterVehicle and Config.StarterVehicle.platePrefix or 'DZ'
+
+    for _ = 1, 60 do
+        local plate = randomVehiclePlate(prefix)
+        if not plateExists(plate, plateColumn) then
+            return plate
+        end
+    end
+
+    return randomVehiclePlate(prefix)
+end
+
+local function jsonEncodeSafe(value)
+    local ok, encoded = pcall(json.encode, value or {})
+    if ok and encoded then return encoded end
+    return '{}'
+end
+
+local function giveStarterVehicle(uid)
+    uid = tonumber(uid)
+
+    if not uid or uid <= 0 then return false end
+    if not Config.StarterVehicle or Config.StarterVehicle.enabled ~= true then return true end
+
+    local cols = getTableColumns('ownedvehicles')
+    local insertColumns = {}
+    local placeholders = {}
+    local params = {}
+
+    local function addColumn(column, value)
+        if not cols[column] then return end
+        insertColumns[#insertColumns + 1] = ('`%s`'):format(column)
+        placeholders[#placeholders + 1] = '?'
+        params[#params + 1] = value
+    end
+
+    local ownerColumn = cols.owner_id and 'owner_id' or (cols.user_id and 'user_id' or (cols.uid and 'uid' or nil))
+    local modelColumn = cols.vehicle_model and 'vehicle_model' or (cols.model and 'model' or nil)
+    local plateColumn = cols.vehicle_plate and 'vehicle_plate' or (cols.plate and 'plate' or nil)
+    local tuningColumn = cols.vehicle_tunning and 'vehicle_tunning' or (cols.vehicle_tuning and 'vehicle_tuning' or (cols.tuning and 'tuning' or nil))
+
+    if not ownerColumn or not modelColumn then
+        print('[DRIFTZONE_AUTH] Nu pot da starter car: lipseste owner/model column in ownedvehicles.')
+        return false
+    end
+
+    local model = tostring(Config.StarterVehicle.model or 'caddy'):lower():gsub('%s+', '')
+    local plate = plateColumn and generateUniquePlate(plateColumn) or ''
+    local tuning = jsonEncodeSafe(Config.StarterVehicle.tuning or {})
+
+    addColumn(ownerColumn, uid)
+    addColumn(modelColumn, model)
+    if plateColumn then addColumn(plateColumn, plate) end
+    if tuningColumn then addColumn(tuningColumn, tuning) end
+
+    -- Compatibilitate cu tabele care au coloane extra uzuale.
+    addColumn('vehicle_name', Config.StarterVehicle.name or 'Caddy')
+    addColumn('stored', 1)
+    addColumn('state', 1)
+    addColumn('garage', 'A')
+
+    if #insertColumns <= 0 then return false end
+
+    local sql = ('INSERT INTO `ownedvehicles` (%s) VALUES (%s)'):format(
+        table.concat(insertColumns, ', '),
+        table.concat(placeholders, ', ')
+    )
+
+    local ok, err = pcall(function()
+        MySQL.insert.await(sql, params)
+    end)
+
+    if not ok then
+        print('[DRIFTZONE_AUTH] Starter vehicle insert failed: ' .. tostring(err))
+        return false
+    end
+
+    print(('[DRIFTZONE_AUTH] Starter vehicle %s dat pentru UID %s.'):format(model, uid))
+    return true
+end
+
+
 local function isTempBanActive(uid)
     local active = MySQL.scalar.await(
         'SELECT IF(tempban IS NOT NULL AND tempban > NOW(), 1, 0) FROM users WHERE uid = @uid LIMIT 1',
@@ -224,34 +358,37 @@ local function clearExpiredTempBan(uid)
     )
 end
 
-local function checkBan(src, user)
+local function buildBanMessage(user)
+    if not user then return false, '' end
+
     local ban = trim(user.ban):lower()
 
     if ban == 'yes' or ban == 'true' or ban == '1' then
-        notifyAuth(
-            src,
-            ('Ai BAN PERMANENT pe DriftZone!\nMotiv: %s\nDaca vrei unban, intra pe %s'):format(
-                trim(user.banreason) ~= '' and trim(user.banreason) or 'Nespecificat',
-                Config.DiscordInvite
-            )
+        return true, ('Ai BAN PERMANENT pe DriftZone!\nMotiv: %s\nDaca vrei unban, intra pe %s'):format(
+            trim(user.banreason) ~= '' and trim(user.banreason) or 'Nespecificat',
+            Config.DiscordInvite
         )
-
-        return false
     end
 
     if isTempBanActive(user.uid) then
-        notifyAuth(
-            src,
-            ('Ai BAN TEMPORAR pe DriftZone!\nMotiv: %s\nDaca vrei unban mai rapid, intra pe %s'):format(
-                trim(user.tempbanreason) ~= '' and trim(user.tempbanreason) or 'Nespecificat',
-                Config.DiscordInvite
-            )
+        return true, ('Ai BAN TEMPORAR pe DriftZone!\nExpira la: %s\nMotiv: %s\nDaca vrei unban mai rapid, intra pe %s'):format(
+            tostring(user.tempban or 'Necunoscut'),
+            trim(user.tempbanreason) ~= '' and trim(user.tempbanreason) or 'Nespecificat',
+            Config.DiscordInvite
         )
-
-        return false
     end
 
     clearExpiredTempBan(user.uid)
+    return false, ''
+end
+
+local function checkBan(src, user)
+    local banned, message = buildBanMessage(user)
+
+    if banned then
+        notifyAuth(src, message)
+        return false
+    end
 
     return true
 end
@@ -471,6 +608,8 @@ local function handleRegister(src, data)
         return notifyAuth(src, 'Nu am putut crea contul.')
     end
 
+    giveStarterVehicle(insertId)
+
     local user = getUserByUid(insertId)
 
     if not user then
@@ -512,6 +651,35 @@ local function handleLogin(src, data)
 
     completeLogin(src, user)
 end
+
+
+AddEventHandler('playerConnecting', function(playerName, setKickReason, deferrals)
+    local src = source
+
+    deferrals.defer()
+    Wait(0)
+
+    deferrals.update('DriftZone verifica ban-ul...')
+
+    local name = trim(playerName or GetPlayerName(src) or '')
+
+    if name ~= '' then
+        local ok, user = pcall(function()
+            return getUserByUsername(name)
+        end)
+
+        if ok and user then
+            local banned, message = buildBanMessage(user)
+
+            if banned then
+                deferrals.done(message)
+                return
+            end
+        end
+    end
+
+    deferrals.done()
+end)
 
 RegisterNetEvent('driftzone_auth:server:requestInit', function()
     local src = source
