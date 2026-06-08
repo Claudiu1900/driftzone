@@ -34,7 +34,7 @@ Config.ReturnBucket = 0
 Config.ReturnPosition = vector4(-1338.316528, -3047.960450, 13.929688, 331.65)
 Config.FinishRadius = 9.0
 Config.CheckpointRadius = 12.0
-Config.EntryFeeMin = 1
+Config.EntryFeeMin = 10000
 Config.EntryFeeMax = 500000000
 Config.HouseTaxPercent = 10
 
