@@ -1,32 +1,27 @@
 # driftzone_playerinteract
 
-Sistem FiveM pentru interactiune directa cu playerii.
+Varianta curata si optimizata.
 
-## Comenzi
+## Ce s-a schimbat
 
-```txt
-/playerinteract
-```
+- scos tot UI-ul de selectie in afara cursorului;
+- scos notificarea cand dai `/playerinteract`;
+- cand selectezi playerul apare doar patratul cu nume/ID si butonul PAY;
+- butonul PAY este mutat mai departe de patratul principal, ca sa nu se suprapuna;
+- scos X, text ESC, texte de tutorial si background-uri mari;
+- input-ul de suma nu mai are sageti de plus/minus;
+- dupa confirmare PAY, UI-ul dispare imediat;
+- click gol nu da notificari;
+- selectia pe corpul playerului ramane optimizata.
 
-## Ce face
+## Instalare
 
-- deschide cursorul si modul de selectie;
-- selectia merge pe tot corpul playerului, nu doar pe cap;
-- cand cursorul este pe player, apare cerc albastru rotativ la picioare;
-- click pe player deschide UI radial modern;
-- afiseaza doar functiile valide;
-- momentan exista functia PAY;
-- click in gol nu mai trimite notificare;
-- PAY verifica `users.cash`, muta banii si salveaza log in `pay_logs`.
-
-## SQL
-
-Ruleaza `sql.sql`.
-
-## server.cfg
+Pune folderul `driftzone_playerinteract` in `resources`, apoi in `server.cfg`:
 
 ```cfg
 ensure oxmysql
 ensure driftzone_auth
 ensure driftzone_playerinteract
 ```
+
+Ruleaza `sql.sql` daca nu ai deja tabela `pay_logs`.

@@ -2,9 +2,8 @@
 
 const app = document.getElementById('app');
 const selectorView = document.getElementById('selectorView');
-const radialView = document.getElementById('radialView');
+const menuView = document.getElementById('menuView');
 const payView = document.getElementById('payView');
-const actionsLayer = document.getElementById('actionsLayer');
 const playerName = document.getElementById('playerName');
 const playerId = document.getElementById('playerId');
 const payTargetName = document.getElementById('payTargetName');
@@ -14,7 +13,6 @@ const payError = document.getElementById('payError');
 const confirmPayBtn = document.getElementById('confirmPay');
 
 let selectedPlayer = null;
-let availableActions = [];
 let payLocked = false;
 let selectorMoveTimer = 0;
 
@@ -32,17 +30,9 @@ function setMainColor(color) {
 
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
 
-function defaultActions() {
-    return [{ id: 'pay', label: 'PAY', title: 'Trimite bani', description: 'Transfer cash catre player' }];
+function onlyNumbers(value) {
+    return String(value || '').replace(/[^0-9]/g, '');
 }
 
 function setError(message) {
@@ -57,52 +47,24 @@ function setError(message) {
 
 function openSelector(data = {}) {
     setMainColor(data.mainColor);
-    show(app);
-    app.classList.add('selecting');
-    show(selectorView);
-    hide(radialView);
-    hide(payView);
+    selectedPlayer = null;
     setError('');
-}
-
-function buildActionButton(action, index, total) {
-    const spread = total <= 1 ? 0 : 210;
-    const start = total <= 1 ? 0 : -spread / 2;
-    const angle = total <= 1 ? 0 : start + (spread / Math.max(1, total - 1)) * index;
-    const radius = total <= 1 ? 285 : 330;
-    const rad = (angle - 90) * Math.PI / 180;
-    const x = Math.cos(rad) * radius;
-    const y = Math.sin(rad) * radius;
-    const side = x < -60 ? 'left' : (x > 60 ? 'right' : 'center');
-
-    return `
-        <button class="action-card ${side}" style="--x:${x.toFixed(2)}px;--y:${y.toFixed(2)}px;--delay:${index * 70}ms" onclick="runAction('${escapeHtml(action.id)}')">
-            <i>${String(index + 1).padStart(2, '0')}</i>
-            <div>
-                <span>${escapeHtml(action.title || action.label || action.id)}</span>
-                <b>${escapeHtml(action.label || action.id)}</b>
-                <small>${escapeHtml(action.description || '')}</small>
-            </div>
-        </button>`;
-}
-
-function renderActions(actions) {
-    availableActions = Array.isArray(actions) && actions.length ? actions.filter(a => a && a.id) : defaultActions();
-    actionsLayer.innerHTML = availableActions.map(buildActionButton).join('');
+    show(app);
+    show(selectorView);
+    hide(menuView);
+    hide(payView);
 }
 
 function openMenu(data = {}) {
-    app.classList.remove('selecting');
-    hide(selectorView);
     selectedPlayer = data.player || data || {};
     setMainColor(data.mainColor);
     playerName.textContent = selectedPlayer.name || 'Player';
     playerId.textContent = selectedPlayer.uid || selectedPlayer.serverId || 0;
-    renderActions(data.actions);
-    show(app);
-    show(radialView);
-    hide(payView);
     setError('');
+    show(app);
+    hide(selectorView);
+    show(menuView);
+    hide(payView);
 }
 
 function openPayView(data = {}) {
@@ -115,45 +77,29 @@ function openPayView(data = {}) {
     confirmPayBtn.querySelector('span').textContent = 'CONFIRM TRANSFER';
     setError('');
     show(app);
-    hide(radialView);
+    hide(selectorView);
+    hide(menuView);
     show(payView);
-    setTimeout(() => amountInput.focus(), 80);
+    setTimeout(() => amountInput.focus(), 50);
 }
 
 function closeUi() {
-    app.classList.remove('selecting');
-    hide(app);
-    hide(selectorView);
-    hide(radialView);
-    hide(payView);
-    setError('');
-    selectedPlayer = null;
-    availableActions = [];
-    payLocked = false;
+    closeUiLocal();
     nui('close');
 }
 
 function closeUiLocal() {
-    app.classList.remove('selecting');
     hide(app);
     hide(selectorView);
-    hide(radialView);
+    hide(menuView);
     hide(payView);
     setError('');
-}
-
-function runAction(id) {
-    if (id === 'pay') {
-        nui('openPay');
-    }
+    selectedPlayer = null;
+    payLocked = false;
 }
 
 function openPay() {
     nui('openPay');
-}
-
-function backToMenu() {
-    nui('backToMenu');
 }
 
 function quickAmount(value) {
@@ -163,7 +109,7 @@ function quickAmount(value) {
 
 function confirmPay() {
     if (payLocked) return;
-    const amount = Number(amountInput.value || 0);
+    const amount = Number(onlyNumbers(amountInput.value));
     if (!Number.isFinite(amount) || amount <= 0) {
         setError('Pune o suma valida.');
         return;
@@ -172,7 +118,14 @@ function confirmPay() {
     confirmPayBtn.disabled = true;
     confirmPayBtn.querySelector('span').textContent = 'SE TRIMITE...';
     nui('pay', { amount });
+    closeUiLocal();
 }
+
+amountInput.addEventListener('input', () => {
+    const clean = onlyNumbers(amountInput.value);
+    if (amountInput.value !== clean) amountInput.value = clean;
+    setError('');
+});
 
 window.addEventListener('message', (event) => {
     const data = event.data || {};
@@ -181,13 +134,12 @@ window.addEventListener('message', (event) => {
     if (data.action === 'openPay') openPayView(data);
     if (data.action === 'closeAll') closeUiLocal();
     if (data.action === 'payResult') {
-        payLocked = false;
-        confirmPayBtn.disabled = false;
-        confirmPayBtn.querySelector('span').textContent = 'CONFIRM TRANSFER';
         if (data.ok) {
-            setError('');
-            confirmPayBtn.querySelector('span').textContent = 'TRIMIS CU SUCCES';
-        } else {
+            closeUiLocal();
+        } else if (!payView.classList.contains('hidden')) {
+            payLocked = false;
+            confirmPayBtn.disabled = false;
+            confirmPayBtn.querySelector('span').textContent = 'CONFIRM TRANSFER';
             setError(data.message || 'Plata a esuat.');
         }
     }
