@@ -8,53 +8,79 @@
 </head>
 <body>
     <div id="app" class="app hidden">
-        <div class="backdrop"></div>
+        <div class="bg">
+            <div class="mesh mesh-a"></div>
+            <div class="mesh mesh-b"></div>
+            <div class="grid"></div>
+        </div>
 
         <section id="selectorView" class="selector-view hidden">
-            <div class="selector-hint">
-                <span>PLAYER INTERACT</span>
+            <div class="selector-panel">
+                <span>DRIFTZONE INTERACT</span>
                 <b>Selecteaza un jucator</b>
-                <small>Muta mouse-ul pe player si apasa click. ESC pentru anulare.</small>
+                <small>Pune cursorul pe corpul playerului si apasa click</small>
             </div>
-            <div class="cursor-dot"></div>
+            <div class="crosshair"><i></i></div>
         </section>
 
         <section id="radialView" class="radial-view hidden">
-            <button class="close-btn" onclick="closeUi()" aria-label="close">×</button>
-            <div class="radial-wrap">
-                <button id="payAction" class="action action-left" onclick="openPay()">
-                    <span>FUNCTIE 1</span>
-                    <b>PAY</b>
-                </button>
+            <button class="x-btn" onclick="closeUi()" aria-label="Inchide">
+                <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+            </button>
 
-                <div class="center-orb">
-                    <div class="orb-ring"></div>
-                    <div class="orb-content">
-                        <span>PLAYER</span>
+            <div class="radial-stage">
+                <div class="player-core">
+                    <div class="core-pulse"></div>
+                    <div class="core-ring ring-one"></div>
+                    <div class="core-ring ring-two"></div>
+                    <div class="core-box">
+                        <span>SELECTED PLAYER</span>
                         <b id="playerName">Nume Player</b>
-                        <small>ID <em id="playerId">0</em></small>
+                        <small>UID / ID <em id="playerId">0</em></small>
                     </div>
                 </div>
 
-                <div class="ghost-action ghost-left"><span>FUNCTIE 2</span></div>
-                <div class="ghost-action ghost-right"><span>FUNCTIE 3</span></div>
-                <div class="ghost-action ghost-bottom"><span>FUNCTIE 4</span></div>
+                <div id="actionsLayer" class="actions-layer"></div>
+            </div>
+
+            <div class="footer-hint">
+                <span>ESC</span>
+                <small>inchide interactiunea</small>
             </div>
         </section>
 
         <section id="payView" class="pay-view hidden">
-            <button class="close-btn" onclick="closeUi()" aria-label="close">×</button>
-            <div class="pay-card">
-                <button class="back-btn" onclick="backToMenu()">← Back</button>
-                <span class="kicker">DRIFTZONE PAY</span>
-                <h1>Trimite bani</h1>
-                <p>Trimiti bani catre <b id="payTargetName">Player</b> <small>ID <em id="payTargetId">0</em></small></p>
+            <button class="x-btn" onclick="closeUi()" aria-label="Inchide">
+                <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+            </button>
 
-                <label>Suma cash</label>
-                <input id="amountInput" type="number" min="1" placeholder="Ex: 50000" autocomplete="off">
-                <div id="payError" class="pay-error hidden"></div>
+            <div class="pay-shell">
+                <button class="back-btn" onclick="backToMenu()">
+                    <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Back
+                </button>
 
-                <button id="confirmPay" class="confirm" onclick="confirmPay()">CONFIRM</button>
+                <div class="pay-head">
+                    <span>DRIFTZONE PAY</span>
+                    <h1>Transfer cash</h1>
+                    <p>Catre <b id="payTargetName">Player</b> <small>ID <em id="payTargetId">0</em></small></p>
+                </div>
+
+                <div class="amount-card">
+                    <label for="amountInput">Suma cash</label>
+                    <input id="amountInput" type="number" min="1" placeholder="50000" autocomplete="off">
+                    <div class="quick-values">
+                        <button onclick="quickAmount(10000)">$10,000</button>
+                        <button onclick="quickAmount(50000)">$50,000</button>
+                        <button onclick="quickAmount(100000)">$100,000</button>
+                    </div>
+                    <div id="payError" class="pay-error hidden"></div>
+                </div>
+
+                <button id="confirmPay" class="confirm" onclick="confirmPay()">
+                    <span>CONFIRM TRANSFER</span>
+                    <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
             </div>
         </section>
     </div>

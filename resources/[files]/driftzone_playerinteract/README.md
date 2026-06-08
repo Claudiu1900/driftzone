@@ -1,6 +1,6 @@
 # driftzone_playerinteract
 
-Sistem de interactiune cu playeri pentru FiveM.
+Sistem FiveM pentru interactiune directa cu playerii.
 
 ## Comenzi
 
@@ -8,37 +8,25 @@ Sistem de interactiune cu playeri pentru FiveM.
 /playerinteract
 ```
 
-Dupa comanda:
-- apare mouse/camera select mode;
-- cand pui cursorul pe un player apropiat apare cerc albastru la picioare;
-- click pe player deschide meniul;
-- momentan exista functia PAY.
+## Ce face
+
+- deschide cursorul si modul de selectie;
+- selectia merge pe tot corpul playerului, nu doar pe cap;
+- cand cursorul este pe player, apare cerc albastru rotativ la picioare;
+- click pe player deschide UI radial modern;
+- afiseaza doar functiile valide;
+- momentan exista functia PAY;
+- click in gol nu mai trimite notificare;
+- PAY verifica `users.cash`, muta banii si salveaza log in `pay_logs`.
 
 ## SQL
 
 Ruleaza `sql.sql`.
 
-## Server cfg
+## server.cfg
 
 ```cfg
 ensure oxmysql
 ensure driftzone_auth
 ensure driftzone_playerinteract
 ```
-
-## Tabele folosite
-
-- `users.uid`
-- `users.cash`
-- `pay_logs`
-
-## Config
-
-Schimbi tabele, coloane, limite pay si distanta in `config.lua`.
-
-## Fix selector mouse
-- `/playerinteract` deschide acum un overlay NUI transparent ca sa apara cursorul.
-- Selectia playerului se face dupa pozitia mouse-ului pe ecran, nu doar raycast din camera.
-- Cercul albastru apare la picioarele playerului selectabil.
-- Click stanga deschide meniul radial.
-- ESC inchide selectorul fara sa ramana blocat mouse-ul.

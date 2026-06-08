@@ -4,6 +4,7 @@ const app = document.getElementById('app');
 const selectorView = document.getElementById('selectorView');
 const radialView = document.getElementById('radialView');
 const payView = document.getElementById('payView');
+const actionsLayer = document.getElementById('actionsLayer');
 const playerName = document.getElementById('playerName');
 const playerId = document.getElementById('playerId');
 const payTargetName = document.getElementById('payTargetName');
@@ -13,6 +14,7 @@ const payError = document.getElementById('payError');
 const confirmPayBtn = document.getElementById('confirmPay');
 
 let selectedPlayer = null;
+let availableActions = [];
 let payLocked = false;
 let selectorMoveTimer = 0;
 
@@ -30,6 +32,18 @@ function setMainColor(color) {
 
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function defaultActions() {
+    return [{ id: 'pay', label: 'PAY', title: 'Trimite bani', description: 'Transfer cash catre player' }];
+}
 
 function setError(message) {
     if (!message) {
@@ -51,13 +65,40 @@ function openSelector(data = {}) {
     setError('');
 }
 
-function openMenu(data) {
+function buildActionButton(action, index, total) {
+    const spread = total <= 1 ? 0 : 210;
+    const start = total <= 1 ? 0 : -spread / 2;
+    const angle = total <= 1 ? 0 : start + (spread / Math.max(1, total - 1)) * index;
+    const radius = total <= 1 ? 285 : 330;
+    const rad = (angle - 90) * Math.PI / 180;
+    const x = Math.cos(rad) * radius;
+    const y = Math.sin(rad) * radius;
+    const side = x < -60 ? 'left' : (x > 60 ? 'right' : 'center');
+
+    return `
+        <button class="action-card ${side}" style="--x:${x.toFixed(2)}px;--y:${y.toFixed(2)}px;--delay:${index * 70}ms" onclick="runAction('${escapeHtml(action.id)}')">
+            <i>${String(index + 1).padStart(2, '0')}</i>
+            <div>
+                <span>${escapeHtml(action.title || action.label || action.id)}</span>
+                <b>${escapeHtml(action.label || action.id)}</b>
+                <small>${escapeHtml(action.description || '')}</small>
+            </div>
+        </button>`;
+}
+
+function renderActions(actions) {
+    availableActions = Array.isArray(actions) && actions.length ? actions.filter(a => a && a.id) : defaultActions();
+    actionsLayer.innerHTML = availableActions.map(buildActionButton).join('');
+}
+
+function openMenu(data = {}) {
     app.classList.remove('selecting');
     hide(selectorView);
     selectedPlayer = data.player || data || {};
     setMainColor(data.mainColor);
     playerName.textContent = selectedPlayer.name || 'Player';
     playerId.textContent = selectedPlayer.uid || selectedPlayer.serverId || 0;
+    renderActions(data.actions);
     show(app);
     show(radialView);
     hide(payView);
@@ -71,7 +112,7 @@ function openPayView(data = {}) {
     amountInput.value = '';
     payLocked = false;
     confirmPayBtn.disabled = false;
-    confirmPayBtn.textContent = 'CONFIRM';
+    confirmPayBtn.querySelector('span').textContent = 'CONFIRM TRANSFER';
     setError('');
     show(app);
     hide(radialView);
@@ -87,8 +128,24 @@ function closeUi() {
     hide(payView);
     setError('');
     selectedPlayer = null;
+    availableActions = [];
     payLocked = false;
     nui('close');
+}
+
+function closeUiLocal() {
+    app.classList.remove('selecting');
+    hide(app);
+    hide(selectorView);
+    hide(radialView);
+    hide(payView);
+    setError('');
+}
+
+function runAction(id) {
+    if (id === 'pay') {
+        nui('openPay');
+    }
 }
 
 function openPay() {
@@ -97,6 +154,11 @@ function openPay() {
 
 function backToMenu() {
     nui('backToMenu');
+}
+
+function quickAmount(value) {
+    amountInput.value = String(value);
+    setError('');
 }
 
 function confirmPay() {
@@ -108,7 +170,7 @@ function confirmPay() {
     }
     payLocked = true;
     confirmPayBtn.disabled = true;
-    confirmPayBtn.textContent = 'SE TRIMITE...';
+    confirmPayBtn.querySelector('span').textContent = 'SE TRIMITE...';
     nui('pay', { amount });
 }
 
@@ -121,35 +183,25 @@ window.addEventListener('message', (event) => {
     if (data.action === 'payResult') {
         payLocked = false;
         confirmPayBtn.disabled = false;
-        confirmPayBtn.textContent = 'CONFIRM';
+        confirmPayBtn.querySelector('span').textContent = 'CONFIRM TRANSFER';
         if (data.ok) {
             setError('');
-            confirmPayBtn.textContent = 'TRIMIS';
+            confirmPayBtn.querySelector('span').textContent = 'TRIMIS CU SUCCES';
         } else {
             setError(data.message || 'Plata a esuat.');
         }
     }
 });
 
-function closeUiLocal() {
-    app.classList.remove('selecting');
-    hide(app);
-    hide(selectorView);
-    hide(radialView);
-    hide(payView);
-    setError('');
-}
-
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeUi();
     if (e.key === 'Enter' && !payView.classList.contains('hidden')) confirmPay();
 });
 
-
 window.addEventListener('mousemove', (e) => {
     if (selectorView.classList.contains('hidden')) return;
     const now = Date.now();
-    if (now - selectorMoveTimer < 22) return;
+    if (now - selectorMoveTimer < 16) return;
     selectorMoveTimer = now;
     nui('mouseMove', {
         x: e.clientX / Math.max(1, window.innerWidth),

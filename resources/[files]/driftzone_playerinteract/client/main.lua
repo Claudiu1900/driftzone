@@ -95,12 +95,83 @@ local function getPlayerFromEntity(entity)
 end
 
 
+local function projectWorldPoint(coords)
+    local onScreen, sx, sy = World3dToScreen2d(coords.x, coords.y, coords.z)
+    if onScreen then
+        return sx, sy
+    end
+    return nil, nil
+end
+
+local function getPedScreenBox(ped)
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return nil end
+
+    local coords = GetEntityCoords(ped)
+    local points = {}
+
+    -- Puncte pe tot corpul. Asa selectia merge pe cap, trunchi, picioare, nu doar pe cap.
+    local offsets = Config.BodySelectionOffsets or {
+        { x = 0.00, y = 0.00, z = 0.95 },
+        { x = 0.00, y = 0.00, z = 0.72 },
+        { x = 0.00, y = 0.00, z = 0.48 },
+        { x = 0.00, y = 0.00, z = 0.22 },
+        { x = 0.00, y = 0.00, z = -0.10 }
+    }
+
+    for _, off in ipairs(offsets) do
+        local point = vector3(coords.x + (off.x or 0.0), coords.y + (off.y or 0.0), coords.z + (off.z or 0.0))
+        local sx, sy = projectWorldPoint(point)
+        if sx and sy then
+            points[#points + 1] = { x = sx, y = sy }
+        end
+    end
+
+    -- Bone fallback pentru ped-uri unde offseturile nu acopera bine animatia.
+    local bones = Config.BodySelectionBones or { 31086, 24818, 11816, 58271, 63931 }
+    for _, bone in ipairs(bones) do
+        local bc = GetPedBoneCoords(ped, bone, 0.0, 0.0, 0.0)
+        local sx, sy = projectWorldPoint(bc)
+        if sx and sy then
+            points[#points + 1] = { x = sx, y = sy }
+        end
+    end
+
+    if #points <= 0 then return nil end
+
+    local minX, maxX = 1.0, 0.0
+    local minY, maxY = 1.0, 0.0
+    for _, p in ipairs(points) do
+        if p.x < minX then minX = p.x end
+        if p.x > maxX then maxX = p.x end
+        if p.y < minY then minY = p.y end
+        if p.y > maxY then maxY = p.y end
+    end
+
+    local padX = tonumber(Config.BodySelectionPaddingX or 0.030) or 0.030
+    local padY = tonumber(Config.BodySelectionPaddingY or 0.040) or 0.040
+
+    -- Daca ped-ul e foarte departe pe ecran, box-ul poate iesi prea subtire. Ii dam minim util.
+    local width = math.max(maxX - minX, tonumber(Config.BodySelectionMinWidth or 0.040) or 0.040)
+    local centerX = (minX + maxX) / 2.0
+    minX = centerX - (width / 2.0)
+    maxX = centerX + (width / 2.0)
+
+    return {
+        minX = minX - padX,
+        maxX = maxX + padX,
+        minY = minY - padY,
+        maxY = maxY + padY,
+        centerX = centerX,
+        centerY = (minY + maxY) / 2.0
+    }
+end
+
 local function findPlayerFromCursor()
     local myPed = PlayerPedId()
     local myCoords = GetEntityCoords(myPed)
     local bestTarget = nil
     local bestScore = 999999.0
-    local radius = tonumber(Config.SelectionScreenRadius or 0.055) or 0.055
+    local radius = tonumber(Config.SelectionScreenRadius or 0.065) or 0.065
 
     for _, playerIndex in ipairs(GetActivePlayers()) do
         if playerIndex ~= PlayerId() then
@@ -108,14 +179,16 @@ local function findPlayerFromCursor()
             if ped and ped ~= 0 and DoesEntityExist(ped) and not IsEntityDead(ped) then
                 local coords = GetEntityCoords(ped)
                 local dist = #(myCoords - coords)
+
                 if dist <= (Config.MaxSelectDistance or 6.0) then
-                    local onScreen, sx, sy = World3dToScreen2d(coords.x, coords.y, coords.z + 0.72)
-                    if onScreen then
-                        local dx = sx - cursorX
-                        local dy = sy - cursorY
+                    local box = getPedScreenBox(ped)
+                    if box then
+                        local insideBox = cursorX >= box.minX and cursorX <= box.maxX and cursorY >= box.minY and cursorY <= box.maxY
+                        local dx = cursorX - box.centerX
+                        local dy = cursorY - box.centerY
                         local screenDist = math.sqrt((dx * dx) + (dy * dy))
-                        if screenDist <= radius then
-                            -- Prioritize cursor accuracy, then physical distance.
+
+                        if insideBox or screenDist <= radius then
                             local score = screenDist + (dist * 0.002)
                             if score < bestScore then
                                 bestScore = score
@@ -164,7 +237,10 @@ local function openTargetMenu(info)
     sendNui({
         action = 'openMenu',
         player = info,
-        mainColor = Config.MainColor
+        mainColor = Config.MainColor,
+        actions = {
+            { id = 'pay', label = 'PAY', title = 'Trimite bani', description = 'Transfer cash catre jucatorul selectat' }
+        }
     })
     setFocus(true)
 end
@@ -236,7 +312,7 @@ RegisterNUICallback('selectClick', function(_, cb)
     end
 
     if not currentTarget or not currentTarget.serverId then
-        notify('warning', 'Pune mouse-ul pe un jucator apropiat.', 1800)
+        -- Click gol: nu afisam notificari. Ramane in modul de selectie.
         cb({ ok = false })
         return
     end
