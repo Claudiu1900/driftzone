@@ -42,6 +42,7 @@ local AdminDataCache = {}
 local PlayerLookupCache = {}
 local CleanupState = nil
 local CleanupSerial = 0
+local CleanupReports = {}
 local VehicleNameColumns = nil
 
 local function trim(value)
@@ -120,18 +121,33 @@ local function parseCleanupTime(args)
     return nil, 'Unitate invalida. Foloseste s sau m.'
 end
 
+local function isVehicleUnoccupiedServer(veh)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then return false end
+    local driver = GetPedInVehicleSeat(veh, -1)
+    return not driver or driver == 0 or not DoesEntityExist(driver)
+end
+
+local function deleteVehicleServer(veh)
+    if not isVehicleUnoccupiedServer(veh) then return false end
+
+    SetEntityAsMissionEntity(veh, true, true)
+
+    for _ = 1, 8 do
+        if not DoesEntityExist(veh) then return true end
+        DeleteEntity(veh)
+        Wait(0)
+    end
+
+    return not DoesEntityExist(veh)
+end
+
 local function countAndDeleteUnoccupiedVehicles()
     local deleted = 0
     local vehicles = GetAllVehicles()
 
     for _, veh in ipairs(vehicles) do
-        if veh and veh ~= 0 and DoesEntityExist(veh) then
-            local driver = GetPedInVehicleSeat(veh, -1)
-            if not driver or driver == 0 then
-                SetEntityAsMissionEntity(veh, true, true)
-                DeleteEntity(veh)
-                deleted = deleted + 1
-            end
+        if deleteVehicleServer(veh) then
+            deleted = deleted + 1
         end
     end
 
@@ -1467,6 +1483,17 @@ Commands.changeplate = function(src, args)
 end
 
 
+
+RegisterNetEvent('driftzone_admin:server:cleanupClientReport', function(serial, deleted)
+    serial = tonumber(serial or 0) or 0
+    deleted = tonumber(deleted or 0) or 0
+
+    if serial <= 0 or deleted <= 0 then return end
+    if not CleanupState or CleanupState.serial ~= serial then return end
+
+    CleanupReports[serial] = (CleanupReports[serial] or 0) + deleted
+end)
+
 Commands.cleanup = function(src, args)
     local data = requireAdmin(src, Config.Commands.cleanup or 3, true)
     if not data then return end
@@ -1496,10 +1523,27 @@ Commands.cleanup = function(src, args)
             return
         end
 
-        local deleted = countAndDeleteUnoccupiedVehicles()
-        notifyAll('info', ('Cleanup finalizat. Au fost sterse %s masini fara sofer.'):format(deleted), 8000)
+        CleanupReports[serial] = 0
+        CleanupState.running = true
 
-        CleanupState = nil
+        -- Stergere robusta: server + toti clientii. Unele vehicule sunt controlate de client si nu dispar doar cu DeleteEntity server-side.
+        TriggerClientEvent('driftzone_admin:client:cleanupVehicles', -1, serial)
+
+        SetTimeout(2500, function()
+            if not CleanupState or CleanupState.serial ~= serial then
+                CleanupReports[serial] = nil
+                return
+            end
+
+            local serverDeleted = countAndDeleteUnoccupiedVehicles()
+            local clientDeleted = tonumber(CleanupReports[serial] or 0) or 0
+            local totalDeleted = serverDeleted + clientDeleted
+
+            notifyAll('info', ('Cleanup finalizat. Au fost sterse %s masini fara sofer.'):format(totalDeleted), 8000)
+
+            CleanupReports[serial] = nil
+            CleanupState = nil
+        end)
     end)
 end
 

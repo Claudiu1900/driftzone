@@ -104,6 +104,65 @@ RegisterNUICallback('submitAddCar', function(data, cb)
     cb({ ok = true })
 end)
 
+
+
+local function requestControl(entity, timeoutMs)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
+    if not NetworkGetEntityIsNetworked(entity) then return true end
+
+    local timeout = GetGameTimer() + (timeoutMs or 900)
+    NetworkRequestControlOfEntity(entity)
+
+    while not NetworkHasControlOfEntity(entity) and GetGameTimer() < timeout do
+        NetworkRequestControlOfEntity(entity)
+        Wait(0)
+    end
+
+    return NetworkHasControlOfEntity(entity)
+end
+
+local function isVehicleUnoccupied(vehicle)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return false end
+    if not IsEntityAVehicle(vehicle) then return false end
+
+    local driver = GetPedInVehicleSeat(vehicle, -1)
+    return not driver or driver == 0 or not DoesEntityExist(driver)
+end
+
+local function deleteVehicleLocal(vehicle)
+    if not isVehicleUnoccupied(vehicle) then return false end
+
+    requestControl(vehicle, 950)
+
+    if not isVehicleUnoccupied(vehicle) then return false end
+
+    SetEntityAsMissionEntity(vehicle, true, true)
+    SetVehicleHasBeenOwnedByPlayer(vehicle, false)
+    SetVehicleAsNoLongerNeeded(vehicle)
+
+    for _ = 1, 8 do
+        if not DoesEntityExist(vehicle) then return true end
+        DeleteVehicle(vehicle)
+        DeleteEntity(vehicle)
+        Wait(0)
+    end
+
+    return not DoesEntityExist(vehicle)
+end
+
+RegisterNetEvent('driftzone_admin:client:cleanupVehicles', function(serial)
+    local deleted = 0
+    local vehicles = GetGamePool('CVehicle') or {}
+
+    for _, vehicle in ipairs(vehicles) do
+        if deleteVehicleLocal(vehicle) then
+            deleted = deleted + 1
+        end
+    end
+
+    TriggerServerEvent('driftzone_admin:server:cleanupClientReport', serial or 0, deleted)
+end)
+
 CreateThread(function()
     while true do
         if coordsPanelOpen or addCarPanelOpen then
