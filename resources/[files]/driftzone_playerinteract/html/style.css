@@ -958,7 +958,6 @@ body {
 }
 
 .trade-action-card i {
-    left: -50%;
     border-color: rgba(85, 255, 189, .32);
     background: rgba(85, 255, 189, .10);
     color: var(--success);
@@ -996,7 +995,7 @@ input[type=number] {
 .action-card.pay-action-card {
     left: 80% !important;
     top: 50% !important;
-    transform: translate(-50%, -50%) !important;
+    transform: translate(-80%, -80%) !important;
 }
 .action-card.trade-action-card {
     left: 38% !important;
