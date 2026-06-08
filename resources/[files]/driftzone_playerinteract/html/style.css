@@ -312,7 +312,7 @@ button {
 
 .action-card {
     position: absolute;
-    left: 60%;
+    left: 50%;
     top: 50%;
     width: 250px;
     min-height: 104px;
@@ -958,6 +958,7 @@ body {
 }
 
 .trade-action-card i {
+    left: -50%;
     border-color: rgba(85, 255, 189, .32);
     background: rgba(85, 255, 189, .10);
     color: var(--success);
@@ -993,7 +994,7 @@ input[type=number] {
 
 /* DriftZone final positions: only positions changed */
 .action-card.pay-action-card {
-    left: 60% !important;
+    left: 80% !important;
     top: 50% !important;
     transform: translate(-50%, -50%) !important;
 }
