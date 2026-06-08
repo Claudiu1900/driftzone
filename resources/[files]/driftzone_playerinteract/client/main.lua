@@ -4,6 +4,7 @@ local selectedPlayer = nil
 local currentTarget = nil
 local menuOpen = false
 local payOpen = false
+local tradeOpen = false
 local markerRotation = 0.0
 local lastRequest = 0
 local cursorX = 0.5
@@ -30,6 +31,7 @@ local function closeAll()
     selectedPlayer = nil
     currentTarget = nil
     payOpen = false
+    tradeOpen = false
     sendNui({ action = 'closeAll' })
     setFocus(false)
 end
@@ -238,7 +240,8 @@ local function openTargetMenu(info)
         player = info,
         mainColor = Config.MainColor,
         actions = {
-            { id = 'pay', label = 'PAY', title = 'Trimite bani', description = 'Transfer cash catre jucatorul selectat' }
+            { id = 'pay', label = 'PAY', title = 'Trimite bani', description = 'Transfer cash catre jucatorul selectat' },
+            { id = 'trade', label = 'TRADE', title = 'Schimba masini', description = 'Trade masini si cash cu playerul selectat' }
         }
     })
     setFocus(true)
@@ -351,6 +354,56 @@ RegisterNUICallback('pay', function(data, cb)
     local amount = tonumber(data and data.amount or 0) or 0
     TriggerServerEvent('driftzone_playerinteract:server:pay', selectedPlayer.serverId, amount)
     cb({ ok = true })
+end)
+
+RegisterNUICallback('openTrade', function(_, cb)
+    if not selectedPlayer then
+        cb({ ok = false })
+        return
+    end
+    tradeOpen = true
+    TriggerServerEvent('driftzone_playerinteract:server:openTrade', selectedPlayer.serverId)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('sendTradeOffer', function(data, cb)
+    TriggerServerEvent('driftzone_playerinteract:server:sendTradeOffer', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('answerTrade', function(data, cb)
+    TriggerServerEvent('driftzone_playerinteract:server:answerTrade', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('cancelTrade', function(data, cb)
+    TriggerServerEvent('driftzone_playerinteract:server:cancelTrade', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNetEvent('driftzone_playerinteract:client:tradeOpen', function(payload)
+    tradeOpen = true
+    interactMode = false
+    sendNui({ action = 'openTrade', payload = payload or {}, mainColor = Config.MainColor })
+    setFocus(true)
+end)
+
+RegisterNetEvent('driftzone_playerinteract:client:tradeIncoming', function(payload)
+    tradeOpen = true
+    interactMode = false
+    sendNui({ action = 'tradeIncoming', payload = payload or {}, mainColor = Config.MainColor })
+    setFocus(true)
+end)
+
+RegisterNetEvent('driftzone_playerinteract:client:tradeStatus', function(payload)
+    sendNui({ action = 'tradeStatus', payload = payload or {} })
+end)
+
+RegisterNetEvent('driftzone_playerinteract:client:tradeClose', function(message)
+    sendNui({ action = 'tradeClose', message = tostring(message or '') })
+    SetTimeout(900, function()
+        closeAll()
+    end)
 end)
 
 AddEventHandler('onResourceStop', function(resource)

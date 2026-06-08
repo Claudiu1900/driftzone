@@ -40,3 +40,23 @@ Config.Marker = {
 }
 
 Config.Debug = false
+
+
+Config.OwnedVehiclesTable = 'ownedvehicles'
+Config.OwnedVehiclesIdColumn = 'id'
+Config.OwnedVehiclesOwnerColumn = 'owner_id'
+Config.OwnedVehiclesModelColumn = 'vehicle_model'
+Config.OwnedVehiclesPlateColumn = 'vehicle_plate'
+
+Config.VehicleNamesTable = 'vehiclenames'
+Config.VehicleNamesModelColumn = 'vehicle_model'
+Config.VehicleNamesNameColumn = 'vehicle_name'
+
+Config.TradeLogsTable = 'trade_logs'
+
+Config.Trade = {
+    enabled = true,
+    timeoutSeconds = 30,
+    maxMoney = 500000000,
+    maxVehicles = 80
+}

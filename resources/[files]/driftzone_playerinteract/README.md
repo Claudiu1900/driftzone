@@ -1,28 +1,45 @@
 # driftzone_playerinteract
 
-Varianta curata cu UI-ul original premium pentru player selectat si PAY, dar fara background, fara selector text, fara crosshair, fara X si fara hint ESC.
+Interact FiveM pentru playeri cu PAY + TRADE.
 
-## Instalare
+## Comanda
 
-Pune folderul `driftzone_playerinteract` in `resources` si ruleaza:
+```cfg
+/playerinteract
+```
+
+## Functii
+
+- selectezi playerul cu cursorul normal;
+- UI-ul ramane transparent si curat;
+- PAY card premium;
+- TRADE cu masini + cash;
+- cererea de trade expira in 30 secunde;
+- playerul care trimite trade nu poate trimite alt trade pana se termina cererea;
+- masina se transfera prin `ownedvehicles.owner_id`;
+- loguri PAY in `pay_logs`;
+- loguri TRADE in `trade_logs`.
+
+## SQL
+
+Ruleaza `sql.sql`.
+
+## Config important
+
+Daca tabela ta de masini are alte coloane, schimba in `config.lua`:
+
+```lua
+Config.OwnedVehiclesTable = 'ownedvehicles'
+Config.OwnedVehiclesIdColumn = 'id'
+Config.OwnedVehiclesOwnerColumn = 'owner_id'
+Config.OwnedVehiclesModelColumn = 'vehicle_model'
+Config.OwnedVehiclesPlateColumn = 'vehicle_plate'
+```
+
+## server.cfg
 
 ```cfg
 ensure oxmysql
 ensure driftzone_auth
 ensure driftzone_playerinteract
 ```
-
-Dupa update:
-
-```cfg
-restart driftzone_playerinteract
-```
-
-## SQL
-
-Ruleaza `sql.sql` daca nu ai tabela pentru `pay_logs`.
-
-
-## Update pozitie
-
-Doar pozitiile functiilor au fost modificate: PAY/functiile sunt mutate mult mai departe de cardul principal. UI-ul nu a fost schimbat.

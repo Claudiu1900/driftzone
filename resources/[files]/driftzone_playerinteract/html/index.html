@@ -27,6 +27,49 @@
             </div>
         </section>
 
+
+
+        <section id="tradeView" class="trade-view hidden">
+            <div class="trade-shell">
+                <div class="trade-head">
+                    <div>
+                        <span id="tradeModeText">DRIFTZONE TRADE</span>
+                        <h1 id="tradeTitle">Vehicle Trade</h1>
+                        <p id="tradeSubtitle">Alege ce oferi in trade.</p>
+                    </div>
+                    <div class="trade-timer"><b id="tradeTimer">30</b><small>sec</small></div>
+                </div>
+
+                <div id="tradeOfferPreview" class="trade-preview hidden"></div>
+
+                <div class="trade-columns">
+                    <div class="trade-card">
+                        <div class="trade-card-head"><span>MASINILE TALE</span><b>Alege masina</b></div>
+                        <div id="myTradeVehicles" class="trade-vehicles"></div>
+                    </div>
+                    <div class="trade-card money-card">
+                        <div class="trade-card-head"><span>CASH</span><b>Bani optional</b></div>
+                        <input id="tradeMoneyInput" type="number" inputmode="numeric" min="0" value="0" placeholder="0" autocomplete="off">
+                        <small>Poti lasa 0 daca dai doar masina sau daca celalalt ofera ceva.</small>
+                    </div>
+                    <div class="trade-card target-preview-card">
+                        <div class="trade-card-head"><span>PLAYER</span><b id="tradeTargetName">Target</b></div>
+                        <div id="targetTradeVehicles" class="trade-vehicles compact"></div>
+                    </div>
+                </div>
+
+                <div id="tradeError" class="pay-error hidden"></div>
+
+                <div class="trade-actions">
+                    <button class="back-btn" onclick="cancelTradeUi()">Cancel</button>
+                    <button id="tradeSubmitBtn" class="confirm trade-confirm" onclick="submitTrade()">
+                        <span>TRIMITE TRADE</span>
+                        <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+
         <section id="payView" class="pay-view hidden">
             <div class="pay-shell">
                 <button class="back-btn" onclick="backToMenu()">
