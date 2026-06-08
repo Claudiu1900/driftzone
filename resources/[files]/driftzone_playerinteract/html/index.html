@@ -4,32 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DriftZone Player Interact</title>
-    <link rel="stylesheet" href="style.css?v=final-good-1">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="app" class="app hidden">
-        <!-- Selectorul ramane gol: doar cursorul nativ, fara crosshair/text/panel -->
         <section id="selectorView" class="selector-view hidden"></section>
 
-        <section id="menuView" class="menu-view hidden">
-            <div class="select-wrap">
-                <div class="player-card">
-                    <div class="card-glow"></div>
-                    <span class="kicker">SELECTED PLAYER</span>
-                    <b id="playerName">Player</b>
-                    <small>UID / ID <em id="playerId">0</em></small>
+        <section id="radialView" class="radial-view hidden">
+            <div class="radial-stage">
+                <div class="player-core">
+                    <div class="core-pulse"></div>
+                    <div class="core-ring ring-one"></div>
+                    <div class="core-ring ring-two"></div>
+                    <div class="core-box">
+                        <span>SELECTED PLAYER</span>
+                        <b id="playerName">Nume Player</b>
+                        <small>UID / ID <em id="playerId">0</em></small>
+                    </div>
                 </div>
 
-                <button id="payAction" class="pay-action" onclick="openPay()" type="button">
-                    <i>PAY</i>
-                    <span>Trimite cash</span>
-                </button>
+                <div id="actionsLayer" class="actions-layer"></div>
             </div>
         </section>
 
         <section id="payView" class="pay-view hidden">
             <div class="pay-shell">
-                <div class="pay-topline"></div>
+                <button class="back-btn" onclick="backToMenu()">
+                    <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Back
+                </button>
 
                 <div class="pay-head">
                     <span>DRIFTZONE PAY</span>
@@ -39,23 +42,23 @@
 
                 <div class="amount-card">
                     <label for="amountInput">Suma cash</label>
-                    <input id="amountInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="50000" autocomplete="off">
+                    <input id="amountInput" type="number" inputmode="numeric" min="1" placeholder="50000" autocomplete="off">
                     <div class="quick-values">
-                        <button type="button" onclick="quickAmount(10000)">$10,000</button>
-                        <button type="button" onclick="quickAmount(50000)">$50,000</button>
-                        <button type="button" onclick="quickAmount(100000)">$100,000</button>
+                        <button onclick="quickAmount(10000)">$10,000</button>
+                        <button onclick="quickAmount(50000)">$50,000</button>
+                        <button onclick="quickAmount(100000)">$100,000</button>
                     </div>
                     <div id="payError" class="pay-error hidden"></div>
                 </div>
 
-                <button id="confirmPay" class="confirm" onclick="confirmPay()" type="button">
+                <button id="confirmPay" class="confirm" onclick="confirmPay()">
                     <span>CONFIRM TRANSFER</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
             </div>
         </section>
     </div>
 
-    <script src="script.js?v=final-good-1"></script>
+    <script src="script.js"></script>
 </body>
 </html>

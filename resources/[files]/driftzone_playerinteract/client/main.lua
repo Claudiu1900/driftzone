@@ -57,6 +57,7 @@ local function startInteractMode()
     sendNui({ action = 'openSelector', mainColor = Config.MainColor })
     SetNuiFocus(true, true)
     SetNuiFocusKeepInput(false)
+
 end
 
 RegisterCommand(Config.Command or 'playerinteract', function()
@@ -235,7 +236,10 @@ local function openTargetMenu(info)
     sendNui({
         action = 'openMenu',
         player = info,
-        mainColor = Config.MainColor
+        mainColor = Config.MainColor,
+        actions = {
+            { id = 'pay', label = 'PAY', title = 'Trimite bani', description = 'Transfer cash catre jucatorul selectat' }
+        }
     })
     setFocus(true)
 end
@@ -251,7 +255,7 @@ end)
 RegisterNetEvent('driftzone_playerinteract:client:payResult', function(ok, message)
     sendNui({ action = 'payResult', ok = ok == true, message = tostring(message or '') })
     if ok == true then
-        SetTimeout(900, function()
+        SetTimeout(120, function()
             closeAll()
         end)
     end
@@ -331,21 +335,21 @@ RegisterNUICallback('openPay', function(_, cb)
     cb({ ok = true })
 end)
 
+RegisterNUICallback('backToMenu', function(_, cb)
+    if selectedPlayer then
+        payOpen = false
+        sendNui({ action = 'openMenu', player = selectedPlayer, mainColor = Config.MainColor })
+    end
+    cb({ ok = true })
+end)
+
 RegisterNUICallback('pay', function(data, cb)
     if not selectedPlayer then
         cb({ ok = false })
         return
     end
-
-    local targetId = selectedPlayer.serverId
     local amount = tonumber(data and data.amount or 0) or 0
-
-    -- Inchide UI-ul imediat dupa confirmare, exact ca sa nu ramana pay-ul pe ecran.
-    payOpen = false
-    sendNui({ action = 'closeAll' })
-    setFocus(false)
-
-    TriggerServerEvent('driftzone_playerinteract:server:pay', targetId, amount)
+    TriggerServerEvent('driftzone_playerinteract:server:pay', selectedPlayer.serverId, amount)
     cb({ ok = true })
 end)
 
