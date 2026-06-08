@@ -211,9 +211,13 @@ window.addEventListener('message', (event)=>{
     if(data.action==='room'){
         stopRoomRefresh();
         currentRoom = data.room || null;
-        if(suppressLobbyUpdates && mode === 'lobby') {
+
+        // Update-urile normale nu redeschid party-ul dupa ESC, dar create/join/E interaction
+        // trimit forceOpen=true si trebuie sa deschida lobby-ul imediat.
+        if(suppressLobbyUpdates && mode === 'lobby' && data.forceOpen !== true) {
             return;
         }
+
         suppressLobbyUpdates = false;
         show(app);
         renderRoom(data.room);

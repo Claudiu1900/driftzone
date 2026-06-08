@@ -1,17 +1,19 @@
 # driftzone_races
 
-Race lobby pentru DriftZone.
+Race lobby complet pentru DriftZone.
 
-## Update
+## Fixuri incluse
 
-- Dupa terminarea cursei, toti jucatorii sunt trimisi la `-1338.316528, -3047.960450, 13.929688, 331.65` si revin in bucket-ul normal.
-- Dupa Create Race se inchide flow-ul de create si se deschide direct meniul de party.
-- Dupa Join Race se inchide flow-ul de join si se deschide direct meniul de party.
-- ESC in party inchide UI-ul si te pune READY automat, dar ramai in party.
-- UI refacut complet, glass/futuristic, fara backdrop-filter/filter.
-- Race-ul ramane in virtual world, cu ghost/no collision intre masini.
+- Dupa Create Race se inchide flow-ul de create si se deschide direct party-ul.
+- Dupa Join Race se inchide flow-ul de join si se deschide direct party-ul.
+- Daca apesi E la interactiune si esti deja intr-un party, se redeschide party-ul tau.
+- ESC in party inchide UI-ul, te pune READY automat si ramai in party.
+- Update-urile normale de party nu redeschid UI-ul daca ai dat ESC.
+- UI refacut complet, stil Apple/futuristic, fara backdrop-filter/filter.
+- Race-ul ramane in routing bucket privat, cu ghost/no collision intre participanti.
+- Dupa finish, playerii sunt teleportati la hub.
 
-## Interactions
+## Interactions config
 
 Adauga in `Config.DefaultInteractions` din `driftzone_interactions/config.lua`:
 

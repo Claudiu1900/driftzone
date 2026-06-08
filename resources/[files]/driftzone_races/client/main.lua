@@ -388,10 +388,18 @@ RegisterNetEvent('driftzone_races:client:rooms', function(rooms)
     sendNui({ action = 'rooms', rooms = rooms or {} })
 end)
 
-RegisterNetEvent('driftzone_races:client:roomUpdate', function(room)
+RegisterNetEvent('driftzone_races:client:roomUpdate', function(room, forceOpen)
     currentRoom = room
-    sendNui({ action = 'room', room = room })
-    if not lobbyUiHidden then
+
+    if forceOpen == true then
+        lobbyUiHidden = false
+    end
+
+    sendNui({ action = 'room', room = room, forceOpen = forceOpen == true })
+
+    -- Create/Join/Interaction trebuie sa deschida fortat party-ul.
+    -- Update-urile normale nu redeschid UI-ul daca playerul a dat ESC in party.
+    if forceOpen == true or not lobbyUiHidden then
         setFocus(true)
     end
 end)

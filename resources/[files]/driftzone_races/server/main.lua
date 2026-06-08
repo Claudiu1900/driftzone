@@ -335,12 +335,12 @@ local function roomsPayload()
     return list
 end
 
-local function broadcastRoom(room)
+local function broadcastRoom(room, forceSrc)
     for _, m in ipairs(room.members) do
         if playerOnline(m.src) then
             local payload = roomPayload(room, m.src)
             payload.meReady = m.ready == true
-            TriggerClientEvent('driftzone_races:client:roomUpdate', m.src, payload)
+            TriggerClientEvent('driftzone_races:client:roomUpdate', m.src, payload, forceSrc ~= nil and tonumber(forceSrc) == tonumber(m.src))
         end
     end
 end
@@ -484,6 +484,20 @@ end
 RegisterNetEvent('driftzone_races:server:open', function()
     local src = source
     if not isLogged(src) then notify(src, 'warning', 'Trebuie sa fii logat.', 4000) return end
+
+    local roomId = PlayerRoom[src]
+    local room = roomId and Rooms[roomId] or nil
+
+    -- Daca jucatorul este deja intr-un party si apasa E la interactiune,
+    -- nu mai deschidem meniul principal. Ii redeschidem direct party-ul.
+    if room and not room.started and not room.finished then
+        local payload = roomPayload(room, src)
+        local member = findMember(room, src)
+        payload.meReady = member and member.ready == true or false
+        TriggerClientEvent('driftzone_races:client:roomUpdate', src, payload, true)
+        return
+    end
+
     TriggerClientEvent('driftzone_races:client:open', src, {
         mainColor = Config.MainColor,
         races = raceListPayload(),
@@ -560,7 +574,7 @@ RegisterNetEvent('driftzone_races:server:createRoom', function(data)
     Rooms[room.id] = room
     PlayerRoom[src] = room.id
     ensureStats(uid, room.ownerName)
-    TriggerClientEvent('driftzone_races:client:roomUpdate', src, roomPayload(room, src))
+    TriggerClientEvent('driftzone_races:client:roomUpdate', src, roomPayload(room, src), true)
     TriggerClientEvent('driftzone_races:client:rooms', -1, roomsPayload())
 end)
 
@@ -590,7 +604,7 @@ RegisterNetEvent('driftzone_races:server:joinRoom', function(data)
     room.lastJoinAt = os.time()
     PlayerRoom[src] = room.id
     ensureStats(uid, name)
-    broadcastRoom(room)
+    broadcastRoom(room, src)
     TriggerClientEvent('driftzone_races:client:rooms', -1, roomsPayload())
     if canStartRoom(room) then startRoom(room) end
 end)
