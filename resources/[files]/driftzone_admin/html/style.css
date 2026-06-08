@@ -119,3 +119,62 @@ button.ghost {
     font-size: 12px;
     font-weight: 700;
 }
+
+.add-car-panel {
+    width: 560px;
+}
+
+select {
+    width: 100%;
+    height: 38px;
+    border: 1px solid rgba(255,255,255,0.10);
+    outline: none;
+    border-radius: 12px;
+    padding: 0 11px;
+    color: white;
+    background: rgba(0,0,0,0.30);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+select option {
+    color: black;
+}
+
+.grid.three {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type=number] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+.image-preview {
+    margin: 10px 0 14px;
+    height: 132px;
+    border-radius: 16px;
+    border: 1px solid rgba(42,174,255,0.28);
+    background: rgba(0,0,0,0.24);
+    overflow: hidden;
+}
+
+.image-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.status.error {
+    color: #ff7d92;
+}
+
+.status.success {
+    color: #6dffbd;
+}

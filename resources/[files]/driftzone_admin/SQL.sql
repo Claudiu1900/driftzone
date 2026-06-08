@@ -18,3 +18,11 @@ CREATE TABLE IF NOT EXISTS `admin_command_logs` (
     KEY `idx_status` (`status`),
     KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+ALTER TABLE `vehiclenames`
+    ADD COLUMN IF NOT EXISTS `apear` TINYINT NOT NULL DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS `vip` TINYINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS `selling` TINYINT NOT NULL DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS `type` VARCHAR(20) NOT NULL DEFAULT 'drift';
+

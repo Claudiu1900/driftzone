@@ -51,6 +51,92 @@
         <div id="status" class="status">Auto-copy pornit...</div>
     </div>
 
+
+    <div id="addCarPanel" class="panel add-car-panel hidden">
+        <div class="title">DRIFTZONE ADD CAR</div>
+
+        <div class="field">
+            <label>CAR MODEL ID</label>
+            <input id="carModelInput" placeholder="ex: s15">
+        </div>
+
+        <div class="field">
+            <label>CAR NAME</label>
+            <input id="carNameInput" placeholder="ex: Nissan Silvia S15">
+        </div>
+
+        <div class="grid two">
+            <div>
+                <label>PRICE</label>
+                <input id="carPriceInput" type="number" min="0" placeholder="500000">
+            </div>
+
+            <div>
+                <label>CATEGORY</label>
+                <select id="carCategoryInput">
+                    <option value="1">1 - STARTER</option>
+                    <option value="2">2 - STREET CLASS</option>
+                    <option value="3">3 - JDM LEGENDS</option>
+                    <option value="4">4 - PRO DRIFT</option>
+                    <option value="5">5 - ELITE CLASS</option>
+                    <option value="6">6 - LIMITED EDITION</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid three">
+            <div>
+                <label>VIP</label>
+                <select id="carVipInput">
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                </select>
+            </div>
+
+            <div>
+                <label>APEAR</label>
+                <select id="carApearInput">
+                    <option value="1">1</option>
+                    <option value="0">0</option>
+                </select>
+            </div>
+
+            <div>
+                <label>SELLING</label>
+                <select id="carSellingInput">
+                    <option value="1">1</option>
+                    <option value="0">0</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid two">
+            <div>
+                <label>TYPE</label>
+                <select id="carTypeInput">
+                    <option value="drift">drift</option>
+                    <option value="hs">hs</option>
+                </select>
+            </div>
+
+            <div>
+                <label>IMAGE LINK</label>
+                <input id="carImageInput" placeholder="https://..." oninput="previewCarImage()">
+            </div>
+        </div>
+
+        <div id="imagePreviewBox" class="image-preview hidden">
+            <img id="carImagePreview" alt="preview">
+        </div>
+
+        <div class="buttons">
+            <button onclick="submitAddCar()">ADD CAR</button>
+            <button class="ghost" onclick="closeAddCarPanel()">CLOSE</button>
+        </div>
+
+        <div id="addCarStatus" class="status">Completeaza campurile obligatorii.</div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>

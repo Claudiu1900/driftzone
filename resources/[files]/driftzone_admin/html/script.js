@@ -8,6 +8,19 @@ const zInput = document.getElementById('zInput');
 const headingInput = document.getElementById('headingInput');
 const dimensionInput = document.getElementById('dimensionInput');
 const statusEl = document.getElementById('status');
+const addCarPanel = document.getElementById('addCarPanel');
+const carModelInput = document.getElementById('carModelInput');
+const carNameInput = document.getElementById('carNameInput');
+const carPriceInput = document.getElementById('carPriceInput');
+const carCategoryInput = document.getElementById('carCategoryInput');
+const carVipInput = document.getElementById('carVipInput');
+const carApearInput = document.getElementById('carApearInput');
+const carSellingInput = document.getElementById('carSellingInput');
+const carTypeInput = document.getElementById('carTypeInput');
+const carImageInput = document.getElementById('carImageInput');
+const carImagePreview = document.getElementById('carImagePreview');
+const imagePreviewBox = document.getElementById('imagePreviewBox');
+const addCarStatus = document.getElementById('addCarStatus');
 
 let currentCoords = '';
 
@@ -68,16 +81,106 @@ function closePanel() {
     nui('closeCoords');
 }
 
+
+function showAddCar(data = {}) {
+    if (panel) panel.classList.add('hidden');
+    addCarPanel.classList.remove('hidden');
+    addCarStatus.textContent = 'Completeaza campurile obligatorii.';
+    addCarStatus.classList.remove('error', 'success');
+
+    carModelInput.value = '';
+    carNameInput.value = '';
+    carPriceInput.value = '';
+    carCategoryInput.value = '1';
+    carVipInput.value = '0';
+    carApearInput.value = '1';
+    carSellingInput.value = '1';
+    carTypeInput.value = 'drift';
+    carImageInput.value = '';
+    imagePreviewBox.classList.add('hidden');
+
+    setTimeout(() => carModelInput.focus(), 80);
+}
+
+function closeAddCarPanel() {
+    addCarPanel.classList.add('hidden');
+    nui('closeAddCar');
+}
+
+function previewCarImage() {
+    const url = String(carImageInput.value || '').trim();
+    if (!url || !/^https?:\/\//i.test(url)) {
+        imagePreviewBox.classList.add('hidden');
+        carImagePreview.src = '';
+        return;
+    }
+
+    carImagePreview.src = url;
+    imagePreviewBox.classList.remove('hidden');
+}
+
+function submitAddCar() {
+    const payload = {
+        model: carModelInput.value.trim(),
+        name: carNameInput.value.trim(),
+        price: Number(carPriceInput.value || 0),
+        category: Number(carCategoryInput.value || 1),
+        vip: Number(carVipInput.value || 0),
+        apear: Number(carApearInput.value || 1),
+        selling: Number(carSellingInput.value || 1),
+        type: carTypeInput.value,
+        image: carImageInput.value.trim()
+    };
+
+    if (!payload.model || !payload.name) {
+        addCarStatus.textContent = 'Car Model ID si Car Name sunt obligatorii.';
+        addCarStatus.classList.add('error');
+        return;
+    }
+
+    addCarStatus.textContent = 'Se adauga masina...';
+    addCarStatus.classList.remove('error', 'success');
+
+    nui('submitAddCar', payload);
+}
+
+function addCarResult(data = {}) {
+    addCarStatus.textContent = data.message || (data.ok ? 'Masina adaugata.' : 'Eroare.');
+    addCarStatus.classList.toggle('success', data.ok === true);
+    addCarStatus.classList.toggle('error', data.ok !== true);
+
+    if (data.ok === true) {
+        carModelInput.value = '';
+        carNameInput.value = '';
+        carPriceInput.value = '';
+        carImageInput.value = '';
+        imagePreviewBox.classList.add('hidden');
+    }
+}
+
+
 window.addEventListener('message', (event) => {
     const data = event.data || {};
 
     if (data.action === 'coords') {
         showCoords(data.data || {});
     }
+
+    if (data.action === 'addCar') {
+        showAddCar(data.data || {});
+    }
+
+    if (data.action === 'addCarResult') {
+        addCarResult(data);
+    }
 });
 
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
-        closePanel();
+        if (!addCarPanel.classList.contains('hidden')) {
+            closeAddCarPanel();
+        } else {
+            closePanel();
+        }
     }
 });

@@ -1,6 +1,7 @@
 local noclip = false
 local noclipEntity = nil
 local coordsPanelOpen = false
+local addCarPanelOpen = false
 local teleporting = false
 
 local AdminCommands = {
@@ -27,7 +28,11 @@ local AdminCommands = {
     'takecar',
     'transfercar',
     'changeplate',
-    'addoutfit'
+    'addoutfit',
+    'cleanup',
+    'cancelcleanup',
+    'addcar',
+    'removecar'
 }
 
 local function notify(type, message, duration)
@@ -65,9 +70,43 @@ RegisterNUICallback('closeCoords', function(_, cb)
     cb({ ok = true })
 end)
 
+RegisterNetEvent('driftzone_admin:client:addCarPanel', function(data)
+    addCarPanelOpen = true
+
+    SetNuiFocus(true, true)
+    SetNuiFocusKeepInput(false)
+
+    sendNui({
+        action = 'addCar',
+        data = data or {}
+    })
+end)
+
+RegisterNetEvent('driftzone_admin:client:addCarResult', function(ok, message)
+    sendNui({
+        action = 'addCarResult',
+        ok = ok == true,
+        message = tostring(message or '')
+    })
+end)
+
+RegisterNUICallback('closeAddCar', function(_, cb)
+    addCarPanelOpen = false
+
+    SetNuiFocus(false, false)
+    SetNuiFocusKeepInput(false)
+
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('submitAddCar', function(data, cb)
+    TriggerServerEvent('driftzone_admin:server:addCarSubmit', data or {})
+    cb({ ok = true })
+end)
+
 CreateThread(function()
     while true do
-        if coordsPanelOpen then
+        if coordsPanelOpen or addCarPanelOpen then
             DisableControlAction(0, 200, true)
             DisableControlAction(0, 322, true)
             Wait(0)

@@ -22,7 +22,11 @@ local AdminCommands = {
     takecar = true,
     transfercar = true,
     changeplate = true,
-    addoutfit = true
+    addoutfit = true,
+    cleanup = true,
+    cancelcleanup = true,
+    addcar = true,
+    removecar = true
 }
 
 local Cooldowns = {
@@ -36,6 +40,9 @@ local Cooldowns = {
 local NoclipState = {}
 local AdminDataCache = {}
 local PlayerLookupCache = {}
+local CleanupState = nil
+local CleanupSerial = 0
+local VehicleNameColumns = nil
 
 local function trim(value)
     return tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
@@ -86,6 +93,165 @@ local function broadcast(message)
         time = os.date('%H:%M'),
         text = tostring(message or '')
     })
+end
+
+local function notifyAll(notifyType, message, duration)
+    TriggerClientEvent('client:notify', -1, notifyType or 'info', duration or 5000, tostring(message or ''))
+    broadcast(message)
+end
+
+local function parseCleanupTime(args)
+    args = args or {}
+    local amount = tonumber(args[1])
+    local unit = tostring(args[2] or 's'):lower()
+
+    if not amount or amount <= 0 then
+        return nil, 'Folosire: /cleanup 10 s sau /cleanup 10 m'
+    end
+
+    if unit == 'm' or unit == 'min' or unit == 'minute' or unit == 'minutes' then
+        return math.floor(amount * 60), ('%s minute'):format(math.floor(amount))
+    end
+
+    if unit == 's' or unit == 'sec' or unit == 'secunde' or unit == 'seconds' then
+        return math.floor(amount), ('%s secunde'):format(math.floor(amount))
+    end
+
+    return nil, 'Unitate invalida. Foloseste s sau m.'
+end
+
+local function countAndDeleteUnoccupiedVehicles()
+    local deleted = 0
+    local vehicles = GetAllVehicles()
+
+    for _, veh in ipairs(vehicles) do
+        if veh and veh ~= 0 and DoesEntityExist(veh) then
+            local driver = GetPedInVehicleSeat(veh, -1)
+            if not driver or driver == 0 then
+                SetEntityAsMissionEntity(veh, true, true)
+                DeleteEntity(veh)
+                deleted = deleted + 1
+            end
+        end
+    end
+
+    return deleted
+end
+
+local function loadVehicleNameColumns()
+    if VehicleNameColumns then return VehicleNameColumns end
+
+    VehicleNameColumns = {}
+    local ok, rows = pcall(function()
+        return MySQL.query.await('SHOW COLUMNS FROM `vehiclenames`', {}) or {}
+    end)
+
+    if ok and rows then
+        for _, row in ipairs(rows) do
+            if row.Field then
+                VehicleNameColumns[tostring(row.Field)] = true
+            end
+        end
+    end
+
+    return VehicleNameColumns
+end
+
+local function resetVehicleNameColumns()
+    VehicleNameColumns = nil
+end
+
+local function cleanSqlIdentifier(name)
+    return tostring(name or ''):gsub('`', '')
+end
+
+local function normalizeSelectValue(value, fallback)
+    local text = tostring(value or fallback or ''):lower()
+    if text == '' then text = tostring(fallback or '') end
+    return text
+end
+
+local function sanitizeVehicleModel(value)
+    return trim(tostring(value or ''):lower():gsub('%s+', ''))
+end
+
+local function parseBoolInt(value, default)
+    if value == nil or tostring(value) == '' then return tonumber(default or 0) or 0 end
+    local n = tonumber(value)
+    if n == 1 then return 1 end
+    return 0
+end
+
+local function getAddCarInsert(payload)
+    local cols = loadVehicleNameColumns()
+    local insertCols = {}
+    local params = {}
+
+    local function add(col, value)
+        if cols[col] then
+            insertCols[#insertCols + 1] = col
+            params[#params + 1] = value
+        end
+    end
+
+    local model = sanitizeVehicleModel(payload.model or payload.vehicle_model or payload.carModel)
+    local name = trim(payload.name or payload.vehicle_name or payload.carName)
+    local price = math.max(0, math.floor(tonumber(payload.price or 0) or 0))
+    local category = math.floor(tonumber(payload.category or 1) or 1)
+    local vip = parseBoolInt(payload.vip, 0)
+    local apear = parseBoolInt(payload.apear, 1)
+    local selling = parseBoolInt(payload.selling, 1)
+    local vehType = normalizeSelectValue(payload.type, 'drift')
+    local image = trim(payload.image or '')
+
+    if model == '' or name == '' then
+        return nil, nil, 'Car Model ID si Car Name sunt obligatorii.'
+    end
+
+    if category < 1 or category > 6 then
+        return nil, nil, 'Categoria trebuie sa fie intre 1 si 6.'
+    end
+
+    if vehType ~= 'drift' and vehType ~= 'hs' then
+        vehType = 'drift'
+    end
+
+    add('vehicle_model', model)
+    add('vehicle_name', name)
+
+    if cols.price then
+        add('price', price)
+    elseif cols.vehicle_price then
+        add('vehicle_price', price)
+    end
+
+    add('category', category)
+    add('vip', vip)
+    add('apear', apear)
+    add('selling', selling)
+    add('type', vehType)
+
+    if cols.image then
+        add('image', image)
+    elseif cols.vehicle_image then
+        add('vehicle_image', image)
+    end
+
+    if #insertCols <= 0 then
+        return nil, nil, 'Tabela vehiclenames nu are coloane compatibile.'
+    end
+
+    return insertCols, params, nil, {
+        model = model,
+        name = name,
+        price = price,
+        category = category,
+        vip = vip,
+        apear = apear,
+        selling = selling,
+        type = vehType,
+        image = image
+    }
 end
 
 local function getUid(src)
@@ -1300,6 +1466,100 @@ Commands.changeplate = function(src, args)
     notify(src, 'info', ('Ai schimbat numarul masinii ID %s in %s.'):format(vehicleId, plate))
 end
 
+
+Commands.cleanup = function(src, args)
+    local data = requireAdmin(src, Config.Commands.cleanup or 3, true)
+    if not data then return end
+
+    local seconds, labelOrError = parseCleanupTime(args)
+    if not seconds then
+        notify(src, 'warning', labelOrError)
+        return
+    end
+
+    if seconds < 1 then seconds = 1 end
+    if seconds > 3600 then seconds = 3600 end
+
+    CleanupSerial = CleanupSerial + 1
+    local serial = CleanupSerial
+    CleanupState = {
+        serial = serial,
+        adminUid = data.uid,
+        adminName = getPlayerNameSafe(src),
+        endsAt = os.time() + seconds
+    }
+
+    notifyAll('warning', ('Admin-ul %s (%s) a pornit cleanup. Masinile fara sofer se sterg in %s.'):format(getPlayerNameSafe(src), data.uid, labelOrError), 8000)
+
+    SetTimeout(seconds * 1000, function()
+        if not CleanupState or CleanupState.serial ~= serial then
+            return
+        end
+
+        local deleted = countAndDeleteUnoccupiedVehicles()
+        notifyAll('info', ('Cleanup finalizat. Au fost sterse %s masini fara sofer.'):format(deleted), 8000)
+
+        CleanupState = nil
+    end)
+end
+
+Commands.cancelcleanup = function(src, args)
+    local data = requireAdmin(src, Config.Commands.cancelcleanup or 3, true)
+    if not data then return end
+
+    if not CleanupState then
+        notify(src, 'warning', 'Nu exista cleanup activ.')
+        return
+    end
+
+    CleanupSerial = CleanupSerial + 1
+    CleanupState = nil
+
+    notifyAll('info', ('Admin-ul %s (%s) a anulat cleanup-ul activ.'):format(getPlayerNameSafe(src), data.uid), 7000)
+end
+
+Commands.addcar = function(src, args)
+    local data = requireAdmin(src, Config.Commands.addcar or 6, true)
+    if not data then return end
+
+    TriggerClientEvent('driftzone_admin:client:addCarPanel', src, {
+        categories = {
+            { value = 1, label = '1 - STARTER' },
+            { value = 2, label = '2 - STREET CLASS' },
+            { value = 3, label = '3 - JDM LEGENDS' },
+            { value = 4, label = '4 - PRO DRIFT' },
+            { value = 5, label = '5 - ELITE CLASS' },
+            { value = 6, label = '6 - LIMITED EDITION' }
+        }
+    })
+end
+
+Commands.removecar = function(src, args)
+    local data = requireAdmin(src, Config.Commands.removecar or 6, true)
+    if not data then return end
+
+    local id = tonumber(args[1])
+    if not id or id <= 0 then
+        notify(src, 'warning', 'Folosire: /removecar id_database')
+        return
+    end
+
+    local row = MySQL.single.await('SELECT * FROM `vehiclenames` WHERE `id` = ? LIMIT 1', { id })
+    if not row then
+        notify(src, 'warning', 'Nu exista masina cu acest ID in vehiclenames.')
+        return
+    end
+
+    local affected = MySQL.update.await('DELETE FROM `vehiclenames` WHERE `id` = ? LIMIT 1', { id }) or 0
+    resetVehicleNameColumns()
+
+    if affected > 0 then
+        notify(src, 'info', ('Masina ID %s a fost stearsa din vehiclenames.'):format(id))
+    else
+        notify(src, 'warning', 'Nu s-a putut sterge masina.')
+    end
+end
+
 Commands.addoutfit = function(src, args)
     local data = requireAdmin(src, Config.Commands.addoutfit, true)
     if not data then return end
@@ -1382,6 +1642,59 @@ local function runAdminCommand(src, command, args)
     logAdminCommand(src, command, args, 'success', ('executed in %sms'):format(elapsed))
     return true
 end
+
+
+RegisterNetEvent('driftzone_admin:server:addCarSubmit', function(payload)
+    local src = source
+    local data = requireAdmin(src, Config.Commands.addcar or 6, true)
+    if not data then
+        TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, 'Nu ai acces.')
+        logAdminCommand(src, 'addcar', { 'nui' }, 'failed', 'no access')
+        return
+    end
+
+    payload = payload or {}
+    local cols, params, err, normalized = getAddCarInsert(payload)
+    if err then
+        TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, err)
+        logAdminCommand(src, 'addcar', payload, 'failed', err)
+        return
+    end
+
+    local existing = MySQL.single.await('SELECT `id` FROM `vehiclenames` WHERE LOWER(`vehicle_model`) = ? LIMIT 1', { normalized.model })
+    if existing then
+        local msg = 'Exista deja o masina cu acest model ID.'
+        TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, msg)
+        logAdminCommand(src, 'addcar', normalized, 'failed', msg)
+        return
+    end
+
+    local placeholders = {}
+    for i = 1, #cols do placeholders[#placeholders + 1] = '?' end
+
+    local query = ('INSERT INTO `vehiclenames` (%s) VALUES (%s)'):format(
+        table.concat((function()
+            local out = {}
+            for _, c in ipairs(cols) do out[#out + 1] = sqlName(c) end
+            return out
+        end)(), ', '),
+        table.concat(placeholders, ', ')
+    )
+
+    local ok, insertIdOrErr = pcall(function()
+        return MySQL.insert.await(query, params)
+    end)
+
+    if not ok then
+        local msg = tostring(insertIdOrErr)
+        TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, 'Eroare DB la adaugare masina.')
+        logAdminCommand(src, 'addcar', normalized, 'error', msg)
+        return
+    end
+
+    TriggerClientEvent('driftzone_admin:client:addCarResult', src, true, ('Masina a fost adaugata cu ID %s.'):format(insertIdOrErr or '?'))
+    logAdminCommand(src, 'addcar', normalized, 'success', ('insert id %s'):format(insertIdOrErr or '?'))
+end)
 
 RegisterNetEvent('driftzone_admin:server:run', function(command, args)
     local src = source
@@ -1544,6 +1857,25 @@ AddEventHandler('onResourceStart', function(resource)
             ]])
         end)
     end)
+
+
+        pcall(function()
+            MySQL.update.await('ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `apear` TINYINT NOT NULL DEFAULT 1')
+        end)
+
+        pcall(function()
+            MySQL.update.await('ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `vip` TINYINT NOT NULL DEFAULT 0')
+        end)
+
+        pcall(function()
+            MySQL.update.await('ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `selling` TINYINT NOT NULL DEFAULT 1')
+        end)
+
+        pcall(function()
+            MySQL.update.await('ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `type` VARCHAR(20) NOT NULL DEFAULT "drift"')
+        end)
+
+        resetVehicleNameColumns()
 
     print('[DRIFTZONE_ADMIN] Server-side loaded.')
 end)

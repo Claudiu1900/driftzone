@@ -44,7 +44,12 @@ Config.Commands = {
     transfercar = 6,
     changeplate = 6,
 
-    addoutfit = 6
+    addoutfit = 6,
+
+    cleanup = 3,
+    cancelcleanup = 3,
+    addcar = 6,
+    removecar = 6
 }
 
 Config.Cooldowns = {
@@ -52,7 +57,10 @@ Config.Cooldowns = {
     veh = 5000,
     tptow = 30000,
     warn = 4000,
-    rwarn = 3000
+    rwarn = 3000,
+    cleanup = 3000,
+    cancelcleanup = 3000,
+    removecar = 3000
 }
 
 Config.Tptow = {
