@@ -317,7 +317,8 @@ local function createCheckpointFor(index)
     AddTextComponentString(cp.direction == 'finish' and 'Finish' or ('Checkpoint ' .. tostring(index)))
     EndTextCommandSetBlipName(finishBlip)
 
-    finishCheckpoint = CreateCheckpoint(1, coords.x, coords.y, coords.z + 0.8, nextCoords.x, nextCoords.y, nextCoords.z, activeRace.checkpointRadius or 12.0, 4, 199, 247, 165, 0)
+    local checkpointType = (cp.direction == 'finish') and 4 or 1
+    finishCheckpoint = CreateCheckpoint(checkpointType, coords.x, coords.y, coords.z + 0.8, nextCoords.x, nextCoords.y, nextCoords.z, activeRace.checkpointRadius or 12.0, 4, 199, 247, 165, 0)
     SetCheckpointCylinderHeight(finishCheckpoint, 4.5, 4.5, activeRace.checkpointRadius or 12.0)
     sendNui({ action = 'raceHud', visible = true, direction = cp.direction or 'straight', index = index, total = #activeRace.checkpoints })
 end
