@@ -21,3 +21,8 @@ restart driftzone_playerinteract
 ## SQL
 
 Ruleaza `sql.sql` daca nu ai tabela pentru `pay_logs`.
+
+
+## Update pozitie
+
+Doar pozitiile functiilor au fost modificate: PAY/functiile sunt mutate mult mai departe de cardul principal. UI-ul nu a fost schimbat.

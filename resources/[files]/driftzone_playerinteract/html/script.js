@@ -69,7 +69,7 @@ function buildActionButton(action, index, total) {
     const spread = total <= 1 ? 0 : 210;
     const start = total <= 1 ? 0 : -spread / 2;
     const angle = total <= 1 ? 0 : start + (spread / Math.max(1, total - 1)) * index;
-    const radius = total <= 1 ? 405 : 445;
+    const radius = total <= 1 ? 520 : 560;
     const rad = (angle - 90) * Math.PI / 180;
     const x = Math.cos(rad) * radius;
     const y = Math.sin(rad) * radius;
