@@ -43,6 +43,7 @@ local function getVehicleSelectParts()
     local categoryExpr = cols.category and "COALESCE(category, 1)" or "1"
     local sellingExpr = cols.selling and "COALESCE(selling, 1)" or "1"
     local vipExpr = cols.vip and "COALESCE(vip, 0)" or "0"
+    local apearExpr = cols.apear and "COALESCE(apear, 1)" or "1"
     local nameExpr = cols.vehicle_name and "COALESCE(NULLIF(vehicle_name, ''), vehicle_model)" or "vehicle_model"
 
     return {
@@ -51,6 +52,7 @@ local function getVehicleSelectParts()
         category = categoryExpr,
         selling = sellingExpr,
         vip = vipExpr,
+        apear = apearExpr,
         name = nameExpr
     }
 end
@@ -196,8 +198,9 @@ local function getShowroomVehicles()
             %s AS vip
         FROM vehiclenames
         WHERE %s BETWEEN 1 AND 6
+          AND %s = 1
         ORDER BY %s ASC, vehicle_name ASC
-    ]]):format(parts.name, parts.image, parts.price, parts.category, parts.selling, parts.vip, parts.category, parts.price), {}) or {}
+    ]]):format(parts.name, parts.image, parts.price, parts.category, parts.selling, parts.vip, parts.category, parts.apear, parts.price), {}) or {}
 
     local list = {}
 
@@ -236,8 +239,9 @@ local function getVehicleByModel(model)
             %s AS vip
         FROM vehiclenames
         WHERE LOWER(vehicle_model) = ?
+          AND %s = 1
         LIMIT 1
-    ]]):format(parts.name, parts.image, parts.price, parts.category, parts.selling, parts.vip), { model })
+    ]]):format(parts.name, parts.image, parts.price, parts.category, parts.selling, parts.vip, parts.apear), { model })
 
     if not row then return nil end
     return normalizeVehicle(row)

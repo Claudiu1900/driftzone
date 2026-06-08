@@ -70,3 +70,19 @@ FIX inclus: showroom-ul citeste pretul corect din `vehiclenames.price` daca `veh
 ## Fix extra preview vehicle
 
 Preview-ul nu se mai creează și din client și din UI în același timp. Acum UI-ul trimite un singur `preview`, iar clientul curăță toate preview-urile locale înainte să creeze mașina nouă.
+
+
+## Update apear showroom
+
+Am adaugat filtrul `vehiclenames.apear`:
+
+- `apear = 1` masina apare in showroom;
+- `apear = 0` masina nu apare deloc in showroom si nu poate fi cumparata prin request direct;
+- daca vechea tabela nu are coloana, ruleaza `SQL.sql`.
+
+Exemplu:
+
+```sql
+UPDATE vehiclenames SET apear = 0 WHERE vehicle_model = 'modelul_masinii';
+UPDATE vehiclenames SET apear = 1 WHERE vehicle_model = 'modelul_masinii';
+```

@@ -17,3 +17,11 @@ CREATE TABLE IF NOT EXISTS `ownedvehicles` (
 
 ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `vip` TINYINT NOT NULL DEFAULT 0;
 ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `vip` TINYINT NOT NULL DEFAULT 0;
+
+-- Controleaza daca masina apare in showroom.
+-- 1 = apare in showroom, 0 = nu apare deloc in showroom.
+ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `apear` TINYINT NOT NULL DEFAULT 1;
+
+-- Exemple:
+-- UPDATE `vehiclenames` SET `apear` = 0 WHERE `vehicle_model` = 'modelul_masinii';
+-- UPDATE `vehiclenames` SET `apear` = 1 WHERE `vehicle_model` = 'modelul_masinii';
