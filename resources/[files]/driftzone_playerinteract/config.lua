@@ -5,6 +5,7 @@ Config.Command = 'playerinteract'
 Config.CancelKey = 177 -- BACKSPACE / ESC-like close
 Config.MaxSelectDistance = 6.0
 Config.RayDistance = 18.0
+Config.SelectionScreenRadius = 0.065 -- cat de aproape trebuie sa fie mouse-ul de player pe ecran
 Config.TargetCircleDistance = 7.5
 
 Config.UsersTable = 'users'

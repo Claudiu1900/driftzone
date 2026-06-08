@@ -1,6 +1,7 @@
 'use strict';
 
 const app = document.getElementById('app');
+const selectorView = document.getElementById('selectorView');
 const radialView = document.getElementById('radialView');
 const payView = document.getElementById('payView');
 const playerName = document.getElementById('playerName');
@@ -13,6 +14,7 @@ const confirmPayBtn = document.getElementById('confirmPay');
 
 let selectedPlayer = null;
 let payLocked = false;
+let selectorMoveTimer = 0;
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -39,7 +41,19 @@ function setError(message) {
     payError.classList.remove('hidden');
 }
 
+function openSelector(data = {}) {
+    setMainColor(data.mainColor);
+    show(app);
+    app.classList.add('selecting');
+    show(selectorView);
+    hide(radialView);
+    hide(payView);
+    setError('');
+}
+
 function openMenu(data) {
+    app.classList.remove('selecting');
+    hide(selectorView);
     selectedPlayer = data.player || data || {};
     setMainColor(data.mainColor);
     playerName.textContent = selectedPlayer.name || 'Player';
@@ -66,7 +80,9 @@ function openPayView(data = {}) {
 }
 
 function closeUi() {
+    app.classList.remove('selecting');
     hide(app);
+    hide(selectorView);
     hide(radialView);
     hide(payView);
     setError('');
@@ -98,6 +114,7 @@ function confirmPay() {
 
 window.addEventListener('message', (event) => {
     const data = event.data || {};
+    if (data.action === 'openSelector') openSelector(data);
     if (data.action === 'openMenu') openMenu(data);
     if (data.action === 'openPay') openPayView(data);
     if (data.action === 'closeAll') closeUiLocal();
@@ -115,7 +132,9 @@ window.addEventListener('message', (event) => {
 });
 
 function closeUiLocal() {
+    app.classList.remove('selecting');
     hide(app);
+    hide(selectorView);
     hide(radialView);
     hide(payView);
     setError('');
@@ -124,6 +143,24 @@ function closeUiLocal() {
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeUi();
     if (e.key === 'Enter' && !payView.classList.contains('hidden')) confirmPay();
+});
+
+
+window.addEventListener('mousemove', (e) => {
+    if (selectorView.classList.contains('hidden')) return;
+    const now = Date.now();
+    if (now - selectorMoveTimer < 22) return;
+    selectorMoveTimer = now;
+    nui('mouseMove', {
+        x: e.clientX / Math.max(1, window.innerWidth),
+        y: e.clientY / Math.max(1, window.innerHeight)
+    });
+});
+
+window.addEventListener('mousedown', (e) => {
+    if (selectorView.classList.contains('hidden')) return;
+    if (e.button !== 0) return;
+    nui('selectClick');
 });
 
 document.addEventListener('DOMContentLoaded', () => {

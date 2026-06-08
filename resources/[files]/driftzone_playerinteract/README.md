@@ -35,3 +35,10 @@ ensure driftzone_playerinteract
 ## Config
 
 Schimbi tabele, coloane, limite pay si distanta in `config.lua`.
+
+## Fix selector mouse
+- `/playerinteract` deschide acum un overlay NUI transparent ca sa apara cursorul.
+- Selectia playerului se face dupa pozitia mouse-ului pe ecran, nu doar raycast din camera.
+- Cercul albastru apare la picioarele playerului selectabil.
+- Click stanga deschide meniul radial.
+- ESC inchide selectorul fara sa ramana blocat mouse-ul.
