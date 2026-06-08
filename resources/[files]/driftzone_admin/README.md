@@ -37,3 +37,9 @@ Ruleaza `SQL.sql`, apoi:
 ```cfg
 restart driftzone_admin
 ```
+
+
+## Update tradeble
+
+- `/addcar` are camp nou `tradeble` optional: `1` = masina poate fi folosita la trade, `0` = nu poate fi folosita la trade.
+- SQL adauga automat coloana `vehiclenames.tradeble` cu default `1`.

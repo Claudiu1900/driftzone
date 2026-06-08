@@ -145,6 +145,10 @@ select option {
     grid-template-columns: repeat(3, 1fr);
 }
 
+.grid.four {
+    grid-template-columns: repeat(4, 1fr);
+}
+
 input[type=number]::-webkit-outer-spin-button,
 input[type=number]::-webkit-inner-spin-button {
     -webkit-appearance: none;

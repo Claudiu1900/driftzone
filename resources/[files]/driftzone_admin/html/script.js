@@ -16,6 +16,7 @@ const carCategoryInput = document.getElementById('carCategoryInput');
 const carVipInput = document.getElementById('carVipInput');
 const carApearInput = document.getElementById('carApearInput');
 const carSellingInput = document.getElementById('carSellingInput');
+const carTradebleInput = document.getElementById('carTradebleInput');
 const carTypeInput = document.getElementById('carTypeInput');
 const carImageInput = document.getElementById('carImageInput');
 const carImagePreview = document.getElementById('carImagePreview');
@@ -95,6 +96,7 @@ function showAddCar(data = {}) {
     carVipInput.value = '0';
     carApearInput.value = '1';
     carSellingInput.value = '1';
+    carTradebleInput.value = '1';
     carTypeInput.value = 'drift';
     carImageInput.value = '';
     imagePreviewBox.classList.add('hidden');
@@ -128,6 +130,7 @@ function submitAddCar() {
         vip: Number(carVipInput.value || 0),
         apear: Number(carApearInput.value || 1),
         selling: Number(carSellingInput.value || 1),
+        tradeble: Number(carTradebleInput.value || 1),
         type: carTypeInput.value,
         image: carImageInput.value.trim()
     };

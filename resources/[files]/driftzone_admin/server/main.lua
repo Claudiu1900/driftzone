@@ -217,6 +217,7 @@ local function getAddCarInsert(payload)
     local vip = parseBoolInt(payload.vip, 0)
     local apear = parseBoolInt(payload.apear, 1)
     local selling = parseBoolInt(payload.selling, 1)
+    local tradeble = parseBoolInt(payload.tradeble or payload.tradable, 1)
     local vehType = normalizeSelectValue(payload.type, 'drift')
     local image = trim(payload.image or '')
 
@@ -245,6 +246,7 @@ local function getAddCarInsert(payload)
     add('vip', vip)
     add('apear', apear)
     add('selling', selling)
+    add('tradeble', tradeble)
     add('type', vehType)
 
     if cols.image then
@@ -265,6 +267,7 @@ local function getAddCarInsert(payload)
         vip = vip,
         apear = apear,
         selling = selling,
+        tradeble = tradeble,
         type = vehType,
         image = image
     }
