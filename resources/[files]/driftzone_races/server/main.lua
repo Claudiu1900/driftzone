@@ -165,6 +165,38 @@ local function addCash(uid, amount)
     return ok == true
 end
 
+local function addXp(uid, amount)
+    uid = tonumber(uid or 0) or 0
+    amount = math.max(0, math.floor(tonumber(amount or 0) or 0))
+    if uid <= 0 or amount <= 0 then return false end
+
+    local usersTable = cleanName(Config.UsersTable or 'users')
+    local uidCol = cleanName(Config.UsersIdColumn or 'uid')
+    local xpCol = cleanName(Config.UsersXpColumn or 'xp')
+
+    local ok, err = pcall(function()
+        MySQL.update.await(('UPDATE `%s` SET `%s` = COALESCE(`%s`, 0) + ? WHERE `%s` = ? LIMIT 1'):format(usersTable, xpCol, xpCol, uidCol), { amount, uid })
+    end)
+
+    if not ok then
+        print('[DRIFTZONE_RACES] addXp failed. Ruleaza sql.sql pentru users.xp. Error: ' .. tostring(err))
+        return false
+    end
+
+    return true
+end
+
+local function getRaceXp(race, won)
+    race = type(race) == 'table' and race or {}
+    local xp = type(race.xp) == 'table' and race.xp or {}
+
+    if won == true then
+        return math.max(0, math.floor(tonumber(xp.winner or race.winnerXp or 0) or 0))
+    end
+
+    return math.max(0, math.floor(tonumber(xp.loser or race.loserXp or 0) or 0))
+end
+
 local function takeCash(uid, amount)
     amount = math.max(0, math.floor(tonumber(amount or 0) or 0))
     if amount <= 0 then return true end
@@ -278,7 +310,9 @@ local function raceListPayload()
             description = race.description or '',
             maxPlayers = race.maxPlayers or 4,
             minPlayers = race.minPlayers or Config.MinPlayers,
-            checkpoints = #(race.checkpoints or {})
+            checkpoints = #(race.checkpoints or {}),
+            winnerXp = getRaceXp(race, true),
+            loserXp = getRaceXp(race, false)
         }
     end
     table.sort(list, function(a,b) return tostring(a.label) < tostring(b.label) end)
@@ -452,11 +486,16 @@ local function finishRace(room, winnerSrc)
     local tax = math.floor(pot * ((Config.HouseTaxPercent or 10) / 100))
     local prize = math.max(0, pot - tax)
 
+    local winnerXp = getRaceXp(room.race, true)
+    local loserXp = getRaceXp(room.race, false)
+
     addCash(winner.uid, prize)
+    addXp(winner.uid, winnerXp)
     addStats(winner.uid, winner.name, true, prize)
 
     for _, m in ipairs(room.members) do
         if m.src ~= winner.src then
+            addXp(m.uid, loserXp)
             addStats(m.uid, m.name, false, m.entryFee)
         end
     end
@@ -470,6 +509,7 @@ local function finishRace(room, winnerSrc)
                 pot = pot,
                 tax = tax,
                 won = m.src == winner.src,
+                xp = (m.src == winner.src) and winnerXp or loserXp,
                 returnPosition = vecToTable(Config.ReturnPosition)
             })
             setBucket(m.src, Config.ReturnBucket or 0)
@@ -666,6 +706,7 @@ AddEventHandler('playerDropped', function()
     elseif room and room.started and not room.finished then
         local m = findMember(room, src)
         if m then
+            addXp(m.uid, getRaceXp(room.race, false))
             addStats(m.uid, m.name, false, m.entryFee)
         end
         PlayerRoom[src] = nil

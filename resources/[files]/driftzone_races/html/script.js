@@ -158,7 +158,7 @@ function renderRaceStep() {
             <span>${esc(String(r.type || 'race').toUpperCase())}</span>
             <b>${esc(r.label)}</b>
             <p>${esc(r.description)}</p>
-            <div class="meta"><small>Max ${r.maxPlayers}</small><small>${r.checkpoints} CP</small></div>
+            <div class="meta"><small>Max ${r.maxPlayers}</small><small>${r.checkpoints} CP</small><small>XP W ${Number(r.winnerXp || 0)} / L ${Number(r.loserXp || 0)}</small></div>
         </button>
     `).join('')}</div>`;
 }
@@ -331,7 +331,7 @@ window.addEventListener('message', (event) => {
         const result = data.result || {};
         finishState.textContent = result.won ? 'VICTORY' : 'RACE FINISHED';
         finishWinner.textContent = result.winnerName || 'Winner';
-        finishMoney.textContent = result.won ? `+${money(result.prize)}` : `Winner prize: ${money(result.prize)}`;
+        finishMoney.textContent = result.won ? `+${money(result.prize)} • +${Number(result.xp || 0).toLocaleString('en-US')} XP` : `Winner prize: ${money(result.prize)} • +${Number(result.xp || 0).toLocaleString('en-US')} XP`;
         show(finishScreen);
         setTimeout(() => hide(finishScreen), 2400);
     }

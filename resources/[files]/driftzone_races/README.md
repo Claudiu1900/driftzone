@@ -48,3 +48,19 @@ Ruleaza `sql.sql`.
 ## UI update
 - Scos cardul ONLINE Race System din header.
 - Butonul X este refacut mai curat si premium.
+
+
+## XP rewards
+
+Fiecare race are XP configurabil in `config.lua`:
+
+```lua
+xp = { winner = 1200, loser = 350 }
+```
+
+La final:
+- castigatorul primeste `xp.winner` in `users.xp`;
+- pierzatorii primesc `xp.loser` in `users.xp`;
+- daca un player iese in timpul cursei, primeste XP-ul de loser.
+
+Ruleaza `sql.sql` ca sa existe coloana `users.xp`.

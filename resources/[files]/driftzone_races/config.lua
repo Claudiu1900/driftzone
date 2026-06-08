@@ -6,6 +6,7 @@ Config.UsersTable = 'users'
 Config.UsersIdColumn = 'uid'
 Config.UsersNameColumn = 'username'
 Config.UsersCashColumn = 'cash'
+Config.UsersXpColumn = 'xp'
 
 Config.OwnedVehiclesTable = 'ownedvehicles'
 Config.OwnedVehicleIdColumn = 'id'
@@ -64,6 +65,7 @@ Config.RaceTypes = {
         id = 'drift_mountain',
         label = 'Drift Race',
         type = 'drift',
+        xp = { winner = 500, loser = 150 },
         description = 'Cursa de drift pe munte cu checkpoint-uri directionale si lobby privat/public.',
         maxPlayers = 4,
         minPlayers = 2,
@@ -96,6 +98,7 @@ Config.RaceTypes = {
         id = 'highspeed_city_to_paleto',
         label = 'Highspeed Race',
         type = 'hs',
+        xp = { winner = 1200, loser = 350 },
         description = 'Cursa highspeed pentru masini rapide. Traseu lung cu maxim 8 jucatori.',
         maxPlayers = 8,
         minPlayers = 2,
