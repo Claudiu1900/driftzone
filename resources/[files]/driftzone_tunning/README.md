@@ -32,3 +32,18 @@ Apoi:
 ```cfg
 restart driftzone_tunning
 ```
+
+## Update tunable
+
+- Adaugă coloana `vehiclenames.tunable`.
+- `1` = masina poate intra in tunning.
+- `0` = masina nu poate intra in tunning.
+- Dacă este `0`, jucătorul primește mesajul: `Aceasta masina nu se poate modifica!`.
+- Verificarea este server-side și se face și la deschidere, și la plata modificărilor.
+
+SQL:
+
+```sql
+ALTER TABLE `vehiclenames`
+ADD COLUMN IF NOT EXISTS `tunable` TINYINT NOT NULL DEFAULT 1;
+```

@@ -1,5 +1,34 @@
 local UidCache = {}
 local CashCache = {}
+local VehicleNameColumns = nil
+
+local function getVehicleNameColumns()
+    if VehicleNameColumns then return VehicleNameColumns end
+
+    VehicleNameColumns = {}
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await('SHOW COLUMNS FROM `vehiclenames`', {}) or {}
+    end)
+
+    if ok and type(rows) == 'table' then
+        for _, row in ipairs(rows) do
+            if row and row.Field then
+                VehicleNameColumns[tostring(row.Field)] = true
+            end
+        end
+    end
+
+    return VehicleNameColumns
+end
+
+local function getTunableSelectExpression()
+    local cols = getVehicleNameColumns()
+    if cols.tunable then
+        return 'COALESCE(vn.tunable, 1)'
+    end
+    return '1'
+end
 
 local function sqlName(name)
     return ('`%s`'):format(tostring(name):gsub('`', ''))
@@ -161,15 +190,23 @@ local function getVehicleStateData(vehicle)
 end
 
 local function getOwnedVehicleForPlayer(vehicleId, uid)
-    return MySQL.single.await([[
+    local tunableExpr = getTunableSelectExpression()
+
+    return MySQL.single.await(([[
         SELECT ov.id, ov.owner_id, ov.vehicle_model, ov.vehicle_plate, ov.vehicle_tunning,
                COALESCE(vn.vehicle_name, ov.vehicle_model) AS vehicle_name,
-               COALESCE(vn.price, 0) AS vehicle_price
+               COALESCE(vn.price, 0) AS vehicle_price,
+               %s AS tunable
         FROM ownedvehicles ov
         LEFT JOIN vehiclenames vn ON vn.vehicle_model = ov.vehicle_model
         WHERE ov.id = ? AND ov.owner_id = ?
         LIMIT 1
-    ]], { vehicleId, uid })
+    ]]):format(tunableExpr), { vehicleId, uid })
+end
+
+local function isVehicleTunable(owned)
+    if not owned then return false end
+    return tonumber(owned.tunable or 1) == 1
 end
 
 local function cleanTuningObject(value)
@@ -248,6 +285,11 @@ local function openTuning(src)
         return
     end
 
+    if not isVehicleTunable(owned) then
+        notify(src, 'warning', 'Aceasta masina nu se poate modifica!')
+        return
+    end
+
     TriggerClientEvent('driftzone_tunning:client:open', src, {
         vehicleId = tonumber(owned.id),
         vehicleModel = tostring(owned.vehicle_model or vdata.model or ''),
@@ -300,6 +342,11 @@ local function buyTuning(src, payload)
 
     if not owned then
         notify(src, 'warning', 'Aceasta masina nu iti apartine.')
+        return
+    end
+
+    if not isVehicleTunable(owned) then
+        notify(src, 'warning', 'Aceasta masina nu se poate modifica!')
         return
     end
 
