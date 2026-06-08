@@ -266,6 +266,40 @@ local function logTrade(trade, accepted, reason)
     if not ok then print('[DRIFTZONE_PLAYERINTERACT] trade log failed: ' .. tostring(err)) end
 end
 
+
+local function logTradeRequest(req, accepted, reason)
+    if not req then return end
+    local tableName = cleanName(Config.TradeLogsTable or 'trade_logs')
+    local details = {
+        type = 'request',
+        id = req.id,
+        from = req.from,
+        to = req.to,
+        fromUid = req.fromUid,
+        toUid = req.toUid,
+        createdAt = req.createdAt,
+        expiresAt = req.expiresAt,
+        reason = reason
+    }
+    local ok, err = pcall(function()
+        MySQL.insert.await(([[
+            INSERT INTO `%s`
+            (`request_id`, `from_uid`, `from_name`, `to_uid`, `to_name`, `from_vehicle_id`, `to_vehicle_id`, `from_money`, `to_money`, `accepted`, `reason`, `details`, `created_at`)
+            VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?, ?, NOW())
+        ]]):format(tableName), {
+            tostring(req.id or ''),
+            tonumber(req.fromUid or 0) or 0,
+            req.from and getPlayerNameSafe(req.from) or 'Unknown',
+            tonumber(req.toUid or 0) or 0,
+            req.to and getPlayerNameSafe(req.to) or 'Unknown',
+            accepted and 1 or 0,
+            tostring(reason or ''),
+            jsonEncode(details)
+        })
+    end)
+    if not ok then print('[DRIFTZONE_PLAYERINTERACT] trade request log failed: ' .. tostring(err)) end
+end
+
 local function clearTrade(trade, message)
     if not trade then return end
     TradesById[trade.id] = nil
@@ -498,6 +532,7 @@ RegisterNetEvent('driftzone_playerinteract:server:requestTrade', function(target
     local timeout = tonumber(Config.Trade and Config.Trade.timeoutSeconds or 30) or 30
     PendingRequests[id] = { id = id, from = src, to = targetServerId, fromUid = fromUid, toUid = toUid, createdAt = os.time(), expiresAt = os.time() + timeout }
     PendingByPlayer[src] = id
+    logTradeRequest(PendingRequests[id], false, 'request_sent')
 
     notify(src, 'success', 'Cerere trimisa cu succes.', 4500)
     notify(targetServerId, 'info', 'Ai primit o cerere de trade!', 6500)
@@ -506,6 +541,7 @@ RegisterNetEvent('driftzone_playerinteract:server:requestTrade', function(target
     SetTimeout(timeout * 1000, function()
         local p = PendingRequests[id]
         if p and p.expiresAt <= os.time() then
+            logTradeRequest(p, false, 'request_expired')
             removePending(id)
             if playerOnline(p.from) then notify(p.from, 'warning', 'Cererea de trade a expirat!', 6000) end
         end
@@ -677,7 +713,7 @@ RegisterNetEvent('driftzone_playerinteract:server:cancelTrade', function(data)
     local active = TradesById[id]
     if active and (active.a == src or active.b == src) then logTrade(active, false, 'cancelled'); clearActiveTrade(active, 'Trade anulat.'); return end
     local p = PendingRequests[id]
-    if p and p.from == src then removePending(id); notify(src, 'warning', 'Cerere trade anulata.', 3500) end
+    if p and p.from == src then logTradeRequest(p, false, 'request_cancelled'); removePending(id); notify(src, 'warning', 'Cerere trade anulata.', 3500) end
 end)
 
 AddEventHandler('playerDropped', function()

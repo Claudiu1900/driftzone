@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS `pay_logs` (
 ALTER TABLE `users`
   MODIFY COLUMN `cash` BIGINT UNSIGNED NOT NULL DEFAULT 0;
 
+-- Trade logs pentru request_sent / request_expired / request_cancelled / cancelled / confirmed
 CREATE TABLE IF NOT EXISTS `trade_logs` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `request_id` VARCHAR(64) NOT NULL,

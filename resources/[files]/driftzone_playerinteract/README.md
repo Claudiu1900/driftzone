@@ -46,3 +46,9 @@ PAY si TRADE sunt separate complet in CSS:
 ```
 
 Schimbi una fara sa afectezi cealalta.
+
+
+## Update final
+
+- Trade logs in `trade_logs` pentru cereri, expirari, anulare si trade finalizat.
+- Meniul se inchide cu `ESC` sau cu tasta ``` ` ``` .

@@ -235,7 +235,14 @@ window.addEventListener('message', (event) => {
         if (data.ok) { setError(''); confirmPayBtn.querySelector('span').textContent = 'TRIMIS CU SUCCES'; } else setError(data.message || 'Plata a esuat.');
     }
 });
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeUi(); if (e.key === 'Enter' && !payView.classList.contains('hidden')) confirmPay(); });
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === '`' || e.code === 'Backquote') {
+        e.preventDefault();
+        closeUi();
+        return;
+    }
+    if (e.key === 'Enter' && !payView.classList.contains('hidden')) confirmPay();
+});
 window.addEventListener('mousemove', (e) => {
     if (selectorView.classList.contains('hidden')) return; const now = Date.now(); if (now - selectorMoveTimer < 16) return; selectorMoveTimer = now;
     nui('mouseMove', { x: e.clientX / Math.max(1, window.innerWidth), y: e.clientY / Math.max(1, window.innerHeight) });
