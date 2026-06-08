@@ -396,7 +396,17 @@ RegisterNetEvent('driftzone_playerinteract:client:tradeUpdate', function(payload
 end)
 
 RegisterNetEvent('driftzone_playerinteract:client:tradeStatus', function(payload)
-    sendNui({ action = 'tradeStatus', payload = payload or {} })
+    payload = payload or {}
+    sendNui({ action = 'tradeStatus', payload = payload })
+    if payload.close == true then
+        interactMode = false
+        payOpen = false
+        tradeOpen = false
+        menuOpen = false
+        selectedPlayer = nil
+        currentTarget = nil
+        setFocus(false)
+    end
 end)
 
 RegisterNetEvent('driftzone_playerinteract:client:tradeClose', function(message)

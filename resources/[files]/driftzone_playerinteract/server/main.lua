@@ -637,6 +637,14 @@ local function finalizeTrade(trade)
     clearActiveTrade(trade, 'Trade finalizat cu succes.')
 end
 
+
+local function offerHasSomething(offer)
+    offer = offer or {}
+    local ids = normalizeVehicleIds(offer.vehicleIds or offer.vehicleId)
+    local money = tonumber(offer.money or 0) or 0
+    return #ids > 0 or money > 0
+end
+
 RegisterNetEvent('driftzone_playerinteract:server:confirmTrade', function(data)
     local src = source
     data = type(data) == 'table' and data or {}
@@ -647,6 +655,13 @@ RegisterNetEvent('driftzone_playerinteract:server:confirmTrade', function(data)
 
     local ok = applyOfferUpdate(trade, src, data, false)
     if not ok then return end
+
+    local aOfferNow = trade.offers[trade.a] or { vehicleIds = {}, vehicles = {}, money = 0 }
+    local bOfferNow = trade.offers[trade.b] or { vehicleIds = {}, vehicles = {}, money = 0 }
+    if not offerHasSomething(aOfferNow) and not offerHasSomething(bOfferNow) then
+        TriggerClientEvent('driftzone_playerinteract:client:tradeStatus', src, { ok = false, message = 'Nu poti confirma un trade gol.' })
+        return
+    end
 
     trade.confirmed[src] = true
     broadcastTrade(trade)

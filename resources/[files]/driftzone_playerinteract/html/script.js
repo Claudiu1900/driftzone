@@ -70,7 +70,7 @@ function openSelector(data = {}) {
 function buildActionButton(action, index) {
     const special = action.id === 'trade' ? 'trade-card-action' : (action.id === 'pay' ? 'pay-card-action' : 'pay-card-action');
     return `<button class="${special}" style="--delay:${index * 70}ms" onclick="runAction('${escapeHtml(action.id)}')">
-        <i>${String(index + 1).padStart(2, '0')}</i>
+        <i>${action.id === 'trade' ? '01' : action.id === 'pay' ? '02' : String(index + 1).padStart(2, '0')}</i>
         <div><span>${escapeHtml(action.title || action.label || action.id)}</span><b>${escapeHtml(action.label || action.id)}</b><small>${escapeHtml(action.description || '')}</small></div>
     </button>`;
 }
@@ -104,7 +104,11 @@ function confirmPay() {
     if (!Number.isFinite(amount) || amount <= 0) { setError('Pune o suma valida.'); return; }
     payLocked = true; confirmPayBtn.disabled = true; confirmPayBtn.querySelector('span').textContent = 'SE TRIMITE...'; nui('pay', { amount });
 }
-function vehicleLabel(v) { return { name: v?.name || v?.vehicle_name || v?.model || 'Vehicul', plate: v?.plate || v?.vehicle_plate || 'NO PLATE' }; }
+function vehicleLabel(v) {
+    const name = v?.name || v?.vehicle_name || v?.model || 'Vehicul';
+    const plate = v?.plate || v?.vehicle_plate || 'NO PLATE';
+    return { name, plate, display: `${name} (${plate})` };
+}
 function normalizeVehicleIds(value) {
     if (Array.isArray(value)) return value.map(v => String(v)).filter(v => v && v !== '0');
     if (value === undefined || value === null || value === 0 || value === '0') return [];
@@ -115,7 +119,7 @@ function renderVehicleList(container, vehicles) {
     if (!list.length) { container.innerHTML = '<div class="trade-empty">Nu ai masini personale.</div>'; return; }
     container.innerHTML = list.map(v => {
         const id = String(v.id ?? ''); const lbl = vehicleLabel(v); const cls = selectedTradeVehicles.has(id) ? 'selected' : '';
-        return `<button class="trade-vehicle ${cls}" onclick="selectTradeVehicle('${escapeHtml(id)}')"><div><b>${escapeHtml(lbl.name)}</b><small>${escapeHtml(lbl.plate)}</small></div></button>`;
+        return `<button class="trade-vehicle ${cls}" onclick="selectTradeVehicle('${escapeHtml(id)}')"><div><b>${escapeHtml(lbl.display)}</b></div></button>`;
     }).join('');
 }
 function renderOtherOffer(offer) {
@@ -123,7 +127,7 @@ function renderOtherOffer(offer) {
     const cash = Number(offer?.money || 0);
     const parts = [];
     if (vehicles.length) {
-        parts.push(`<div class="trade-offer-line"><span>MASINI SELECTATE</span>${vehicles.map(v => `<div class="offer-vehicle"><b>${escapeHtml(vehicleLabel(v).name)}</b><small>${escapeHtml(vehicleLabel(v).plate)}</small></div>`).join('')}</div>`);
+        parts.push(`<div class="trade-offer-line"><span>MASINI SELECTATE</span>${vehicles.map(v => `<div class="offer-vehicle"><b>${escapeHtml(vehicleLabel(v).display)}</b></div>`).join('')}</div>`);
     }
     if (cash > 0) {
         parts.push(`<div class="trade-offer-line"><span>BANI</span><b>${money(cash)}</b></div>`);
@@ -137,6 +141,11 @@ function currentTradeOffer() {
         vehicleIds: Array.from(selectedTradeVehicles).map(v => Number(v)).filter(v => Number.isFinite(v) && v > 0),
         money: Number.isFinite(moneyValue) && moneyValue > 0 ? Math.floor(moneyValue) : 0
     };
+}
+function offerHasSomething(offer) {
+    const vehicles = Array.isArray(offer?.vehicles) ? offer.vehicles : (Array.isArray(offer?.vehicleIds) ? offer.vehicleIds : []);
+    const cash = Number(offer?.money || 0);
+    return vehicles.length > 0 || cash > 0;
 }
 function updateConfirmStatus(state = {}) {
     const my = state.myConfirmed === true; const other = state.otherConfirmed === true;
@@ -180,6 +189,12 @@ function submitTrade() {
     if (!tradeState?.sessionId) return;
     const offer = currentTradeOffer();
     if (!Number.isFinite(offer.money) || offer.money < 0) { setTradeError('Suma invalida.'); return; }
+    const myHasOffer = offer.vehicleIds.length > 0 || offer.money > 0;
+    const otherHasOffer = offerHasSomething(tradeState.otherOffer || {});
+    if (!myHasOffer && !otherHasOffer) {
+        setTradeError('Nu poti confirma un trade gol. Selecteaza o masina sau pune bani.');
+        return;
+    }
     tradeSubmitBtn.disabled = true;
     tradeSubmitBtn.querySelector('span').textContent = 'SE CONFIRMA...';
     nui('confirmTrade', offer);
@@ -205,7 +220,13 @@ window.addEventListener('message', (event) => {
         if (p.ok) {
             setTradeError(p.message || 'OK');
             if (p.close === true) setTimeout(closeUiLocal, 500);
-        } else setTradeError(p.message || 'Trade esuat.');
+        } else {
+            setTradeError(p.message || 'Trade esuat.');
+            if (tradeState?.sessionId && !tradeConfirmed) {
+                tradeSubmitBtn.disabled = false;
+                tradeSubmitBtn.querySelector('span').textContent = 'CONFIRM TRADE';
+            }
+        }
         if (tradeState?.sessionId && !p.close && (p.myConfirmed !== undefined || p.otherConfirmed !== undefined)) updateConfirmStatus(p);
     }
     if (data.action === 'tradeClose') { setTradeError(data.message || 'Trade finalizat.'); setTimeout(closeUiLocal, 700); }
