@@ -51,6 +51,7 @@ Config.OwnedVehiclesPlateColumn = 'vehicle_plate'
 Config.VehicleNamesTable = 'vehiclenames'
 Config.VehicleNamesModelColumn = 'vehicle_model'
 Config.VehicleNamesNameColumn = 'vehicle_name'
+Config.VehicleNamesTradableColumn = 'tradable'
 
 Config.TradeLogsTable = 'trade_logs'
 

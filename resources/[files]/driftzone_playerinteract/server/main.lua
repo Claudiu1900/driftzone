@@ -7,6 +7,52 @@ local function cleanName(value)
     return tostring(value or ''):gsub('`', '')
 end
 
+
+local VehicleNameColumns = nil
+
+local function loadVehicleNameColumns()
+    if VehicleNameColumns then return VehicleNameColumns end
+
+    VehicleNameColumns = {}
+    local tableName = cleanName(Config.VehicleNamesTable or 'vehiclenames')
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await(('SHOW COLUMNS FROM `%s`'):format(tableName), {})
+    end)
+
+    if ok and type(rows) == 'table' then
+        for _, row in ipairs(rows) do
+            if row.Field then
+                VehicleNameColumns[tostring(row.Field)] = true
+            end
+        end
+    end
+
+    return VehicleNameColumns
+end
+
+local function getTradableSql(alias)
+    alias = alias or 'vn'
+    local cols = loadVehicleNameColumns()
+    local configured = Config.VehicleNamesTradableColumn or 'tradable'
+    local configuredClean = cleanName(configured)
+
+    if cols[configuredClean] then
+        return ('COALESCE(%s.`%s`, 1)'):format(alias, configuredClean)
+    end
+
+    -- Compatibilitate cu varianta veche scrisa ca `tradeble`.
+    if cols.tradable and cols.tradeble then
+        return ('COALESCE(%s.`tradable`, %s.`tradeble`, 1)'):format(alias, alias)
+    elseif cols.tradable then
+        return ('COALESCE(%s.`tradable`, 1)'):format(alias)
+    elseif cols.tradeble then
+        return ('COALESCE(%s.`tradeble`, 1)'):format(alias)
+    end
+
+    return nil
+end
+
 local function notify(src, typ, msg, duration)
     TriggerClientEvent(Config.NotifyEvent or 'client:notify', src, typ or 'info', duration or 5000, tostring(msg or ''))
 end
@@ -132,6 +178,8 @@ local function getVehicleById(vehicleId, ownerUid)
     local namesT = cleanName(Config.VehicleNamesTable or 'vehiclenames')
     local namesModel = cleanName(Config.VehicleNamesModelColumn or 'vehicle_model')
     local namesName = cleanName(Config.VehicleNamesNameColumn or 'vehicle_name')
+    local tradableExpr = getTradableSql('vn')
+    local tradableWhere = tradableExpr and (' AND %s = 1'):format(tradableExpr) or ''
 
     local ok, row = pcall(function()
         return MySQL.single.await(([[
@@ -139,9 +187,9 @@ local function getVehicleById(vehicleId, ownerUid)
                    COALESCE(vn.`%s`, ov.`%s`) AS name
             FROM `%s` ov
             LEFT JOIN `%s` vn ON vn.`%s` = ov.`%s`
-            WHERE ov.`%s` = ? AND ov.`%s` = ?
+            WHERE ov.`%s` = ? AND ov.`%s` = ?%s
             LIMIT 1
-        ]]):format(idCol, ownerCol, modelCol, plateCol, namesName, modelCol, t, namesT, namesModel, modelCol, idCol, ownerCol), { vehicleId, ownerUid })
+        ]]):format(idCol, ownerCol, modelCol, plateCol, namesName, modelCol, t, namesT, namesModel, modelCol, idCol, ownerCol, tradableWhere), { vehicleId, ownerUid })
     end)
 
     if ok and row then return row end
@@ -203,6 +251,8 @@ local function getVehicles(uid)
     local namesT = cleanName(Config.VehicleNamesTable or 'vehiclenames')
     local namesModel = cleanName(Config.VehicleNamesModelColumn or 'vehicle_model')
     local namesName = cleanName(Config.VehicleNamesNameColumn or 'vehicle_name')
+    local tradableExpr = getTradableSql('vn')
+    local tradableWhere = tradableExpr and (' AND %s = 1'):format(tradableExpr) or ''
 
     local ok, rows = pcall(function()
         return MySQL.query.await(([[
@@ -210,10 +260,10 @@ local function getVehicles(uid)
                    COALESCE(vn.`%s`, ov.`%s`) AS name
             FROM `%s` ov
             LEFT JOIN `%s` vn ON vn.`%s` = ov.`%s`
-            WHERE ov.`%s` = ?
+            WHERE ov.`%s` = ?%s
             ORDER BY ov.`%s` DESC
             LIMIT %d
-        ]]):format(idCol, modelCol, plateCol, namesName, modelCol, t, namesT, namesModel, modelCol, ownerCol, idCol, limit), { uid })
+        ]]):format(idCol, modelCol, plateCol, namesName, modelCol, t, namesT, namesModel, modelCol, ownerCol, tradableWhere, idCol, limit), { uid })
     end)
 
     if not ok or type(rows) ~= 'table' then return {} end

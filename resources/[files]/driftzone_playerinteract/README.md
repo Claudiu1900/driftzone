@@ -52,3 +52,15 @@ Schimbi una fara sa afectezi cealalta.
 
 - Trade logs in `trade_logs` pentru cereri, expirari, anulare si trade finalizat.
 - Meniul se inchide cu `ESC` sau cu tasta ``` ` ``` .
+
+
+## Update tradable vehicles
+
+Trade-ul afiseaza si accepta doar masinile care au in `vehiclenames`:
+
+```sql
+tradable = 1
+```
+
+Daca `tradable = 0`, masina nu apare in meniul de trade si nu poate fi confirmata prin request direct.
+Ruleaza `sql.sql` ca sa adaugi coloana.

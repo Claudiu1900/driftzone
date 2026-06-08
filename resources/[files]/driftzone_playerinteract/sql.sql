@@ -40,3 +40,13 @@ CREATE TABLE IF NOT EXISTS `trade_logs` (
   KEY `idx_trade_logs_to_uid` (`to_uid`),
   KEY `idx_trade_logs_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- Masinile cu `tradable = 1` apar in meniul de trade.
+-- Masinile cu `tradable = 0` nu apar si nu pot fi confirmate in trade.
+ALTER TABLE `vehiclenames`
+ADD COLUMN IF NOT EXISTS `tradable` TINYINT NOT NULL DEFAULT 1;
+
+-- Compatibilitate: daca ai folosit inainte coloana scrisa `tradeble`, copiem valorile in `tradable`.
+-- Daca nu ai coloana `tradeble`, ignora linia de UPDATE sau foloseste doar `tradable`.
+-- UPDATE `vehiclenames` SET `tradable` = `tradeble` WHERE `tradeble` IS NOT NULL;
