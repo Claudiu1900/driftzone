@@ -13,6 +13,19 @@ local function notify(src, notifyType, message, duration)
     TriggerClientEvent((Config.Notify and Config.Notify.event) or 'client:notify', src, notifyType or 'info', duration or 5000, tostring(message or ''))
 end
 
+local function setGarageBlocked(src, state)
+    src = tonumber(src or 0) or 0
+    if src <= 0 or GetPlayerPing(src) <= 0 then return end
+
+    if GetResourceState('driftzone_garage') == 'started' then
+        pcall(function()
+            exports['driftzone_garage']:SetGarageBlocked(src, state == true, 'Garaj indisponibil.')
+        end)
+    end
+
+    TriggerClientEvent('driftzone_garage:client:setBlocked', src, state == true, 'Garaj indisponibil.')
+end
+
 local function cleanName(value)
     return tostring(value or ''):gsub('`', '')
 end
@@ -435,6 +448,7 @@ local function failSolo(src, reason)
     local data = ActiveSolo[src]
     if not data then return end
     ActiveSolo[src] = nil
+    setGarageBlocked(src, false)
     local race = getRace(data.raceId)
     if race and data.uid then
         setCooldown(data.uid, data.raceId, getResultCooldown(race, false))
@@ -447,6 +461,7 @@ local function finishSolo(src)
     local data = ActiveSolo[src]
     if not data then return end
     ActiveSolo[src] = nil
+    setGarageBlocked(src, false)
     local race = getRace(data.raceId)
     if not race then return end
     local cash = randomBetween(race.reward)
@@ -482,6 +497,7 @@ RegisterNetEvent('driftzone_racejob:server:startSolo', function(raceId, vehicleI
 
     local bucket = (Config.RaceBucketBase or 62000) + src
     ActiveSolo[src] = { uid = uid, raceId = race.id, bucket = bucket, startedAt = os.time() }
+    setGarageBlocked(src, true)
     setPlayerBucket(src, bucket)
     TriggerClientEvent('driftzone_racejob:client:startSolo', src, buildSoloPayload(src, race, vehicle))
 end)
@@ -506,6 +522,7 @@ local function cleanupDuo(sessionId, reason)
                 setCooldown(playerData.uid, session.raceId or 'special', getResultCooldown(race, false))
             end
             ActiveDuoByPlayer[src] = nil
+            setGarageBlocked(src, false)
             setPlayerBucket(src, Config.ReturnBucket or 0)
             TriggerClientEvent('driftzone_racejob:client:duoFailed', src, reason or 'Ati esuat livrarea.')
         end
@@ -673,6 +690,7 @@ RegisterNetEvent('driftzone_racejob:server:duoReady', function(sessionId, vehicl
         p1Payload.start = vecToTable(race.start1)
         p1Payload.slot = 1
         p1Payload.partnerName = session.players[session.p2].name
+        setGarageBlocked(session.p1, true)
         TriggerClientEvent('driftzone_racejob:client:prepareDuoRace', session.p1, p1Payload)
         local p2Payload = {
             sessionId = sessionId,
@@ -685,6 +703,7 @@ RegisterNetEvent('driftzone_racejob:server:duoReady', function(sessionId, vehicl
             slot = 2,
             partnerName = session.players[session.p1].name
         }
+        setGarageBlocked(session.p2, true)
         TriggerClientEvent('driftzone_racejob:client:prepareDuoRace', session.p2, p2Payload)
     end
 end)
@@ -731,6 +750,8 @@ RegisterNetEvent('driftzone_racejob:server:duoFinish', function(sessionId)
         }
         TriggerClientEvent('driftzone_racejob:client:duoCompleted', session.p1, summary)
         TriggerClientEvent('driftzone_racejob:client:duoCompleted', session.p2, summary)
+        setGarageBlocked(session.p1, false)
+        setGarageBlocked(session.p2, false)
         ActiveDuoByPlayer[session.p1] = nil
         ActiveDuoByPlayer[session.p2] = nil
         DuoSessions[sessionId] = nil
@@ -760,7 +781,10 @@ end, false)
 
 AddEventHandler('playerDropped', function()
     local src = source
-    if ActiveSolo[src] then ActiveSolo[src] = nil end
+    if ActiveSolo[src] then
+        setGarageBlocked(src, false)
+        ActiveSolo[src] = nil
+    end
     local sessionId = ActiveDuoByPlayer[src]
     if sessionId then cleanupDuo(sessionId, 'Partenerul a iesit de pe server. Livrarea a fost anulata.') end
     for inviteUid, invite in pairs(DuoInvites) do
@@ -770,7 +794,11 @@ end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    for _, id in ipairs(GetPlayers()) do SetPlayerRoutingBucket(tonumber(id), Config.ReturnBucket or 0) end
+    for _, id in ipairs(GetPlayers()) do
+        local src = tonumber(id)
+        setGarageBlocked(src, false)
+        SetPlayerRoutingBucket(src, Config.ReturnBucket or 0)
+    end
 end)
 
 CreateThread(function()

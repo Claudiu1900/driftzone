@@ -39,3 +39,18 @@ restart driftzone_racejob
 - Click pe o masina selecteaza strict masina respectiva.
 - Click pe alta masina deselecteaza automat selectia veche.
 - La Duo invite, input-ul si butonul au spatiu mai curat intre ele.
+
+
+## Update garage block
+
+- In timpul oricarei curse din `driftzone_racejob`, garajul este blocat.
+- Nu se mai poate deschide din comanda, trigger sau interactiune.
+- Daca jucatorul incearca sa deschida garajul, primeste notificarea: `Garaj indisponibil.`
+- Dupa finish/fail/resource stop, garajul se deblocheaza automat.
+
+Porneste `driftzone_garage` inainte de `driftzone_racejob`:
+
+```cfg
+ensure driftzone_garage
+ensure driftzone_racejob
+```

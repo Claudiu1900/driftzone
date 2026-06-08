@@ -3,12 +3,42 @@ local nuiReady = false
 local pendingOpenPayload = nil
 local ownedVehicleBlips = {}
 local protectedVehicles = {}
+local garageBlocked = false
+local garageBlockedReason = 'Garaj indisponibil.'
+
+local sendNui
+local setGarageFocus
 
 local function notify(type, message, duration)
     TriggerEvent('client:notify', type or 'info', duration or 5000, tostring(message or ''))
 end
 
-local function sendNui(data)
+local function isGarageBlocked()
+    return garageBlocked == true
+end
+
+local function blockMessage()
+    return tostring(garageBlockedReason or 'Garaj indisponibil.')
+end
+
+local function denyGarageOpen()
+    if garageOpened then
+        sendNui({ action = 'close' })
+        setGarageFocus(false)
+    end
+    pendingOpenPayload = nil
+    notify('warning', blockMessage(), 3500)
+    return false
+end
+
+local function canOpenGarage()
+    if isGarageBlocked() then
+        return denyGarageOpen()
+    end
+    return true
+end
+
+sendNui = function(data)
     if not nuiReady then
         if data.action == 'open' then pendingOpenPayload = data end
         return false
@@ -17,7 +47,7 @@ local function sendNui(data)
     return true
 end
 
-local function setGarageFocus(state)
+setGarageFocus = function(state)
     garageOpened = state == true
     SetNuiFocus(garageOpened, garageOpened)
     SetNuiFocusKeepInput(false)
@@ -25,6 +55,7 @@ local function setGarageFocus(state)
 end
 
 local function openGarageNui(vehicles, hasVip)
+    if not canOpenGarage() then return end
     local payload = { action = 'open', vehicles = vehicles or {}, hasVip = hasVip == true }
     if sendNui(payload) then setGarageFocus(true) else pendingOpenPayload = payload end
 end
@@ -365,6 +396,7 @@ local function prepareVehicleByNetId(netId, data)
 end
 
 RegisterNetEvent('driftzone_garage:client:open', function(vehicles, hasVip)
+    if not canOpenGarage() then return end
     openGarageNui(vehicles or {}, hasVip == true)
 end)
 
@@ -396,15 +428,18 @@ RegisterNetEvent('driftzone_garage:client:parkCurrent', function()
 end)
 
 RegisterNetEvent('driftzone_garage:client:openCommand', function()
+    if not canOpenGarage() then return end
     TriggerServerEvent('driftzone_garage:server:open')
 end)
 
 RegisterNUICallback('ready', function(_, cb)
     nuiReady = true
     if pendingOpenPayload then
-        SendNUIMessage(pendingOpenPayload)
+        if canOpenGarage() then
+            SendNUIMessage(pendingOpenPayload)
+            setGarageFocus(true)
+        end
         pendingOpenPayload = nil
-        setGarageFocus(true)
     end
     cb({ ok = true })
 end)
@@ -426,15 +461,57 @@ RegisterNUICallback('despawn', function(data, cb)
     cb({ ok = true })
 end)
 
-RegisterCommand('garage', function() TriggerServerEvent('driftzone_garage:server:open') end, false)
-RegisterCommand('garaj', function() TriggerServerEvent('driftzone_garage:server:open') end, false)
+RegisterCommand('garage', function() if canOpenGarage() then TriggerServerEvent('driftzone_garage:server:open') end end, false)
+RegisterCommand('garaj', function() if canOpenGarage() then TriggerServerEvent('driftzone_garage:server:open') end end, false)
 RegisterCommand('park', function() TriggerEvent('driftzone_garage:client:parkCurrent') end, false)
 
 -- Fara RegisterKeyMapping pe M. Garajul se deschide doar din comanda/interactiune.
 
 RegisterNetEvent('driftzone_garage:client:openFromInteraction', function()
+    if not canOpenGarage() then return end
     TriggerServerEvent('driftzone_garage:server:open')
 end)
+
+RegisterNetEvent('driftzone_garage:client:setBlocked', function(state, reason)
+    garageBlocked = state == true
+    garageBlockedReason = tostring(reason or 'Garaj indisponibil.')
+
+    if garageBlocked then
+        TriggerServerEvent('driftzone_garage:server:setBlocked', true, garageBlockedReason)
+        if garageOpened then
+            sendNui({ action = 'close' })
+            setGarageFocus(false)
+        end
+        pendingOpenPayload = nil
+    else
+        TriggerServerEvent('driftzone_garage:server:setBlocked', false, garageBlockedReason)
+    end
+end)
+
+RegisterNetEvent('driftzone_garage:client:block', function(reason)
+    TriggerEvent('driftzone_garage:client:setBlocked', true, reason or 'Garaj indisponibil.')
+end)
+
+RegisterNetEvent('driftzone_garage:client:unblock', function()
+    TriggerEvent('driftzone_garage:client:setBlocked', false)
+end)
+
+exports('SetBlocked', function(state, reason)
+    TriggerEvent('driftzone_garage:client:setBlocked', state == true, reason or 'Garaj indisponibil.')
+end)
+
+exports('Block', function(reason)
+    TriggerEvent('driftzone_garage:client:setBlocked', true, reason or 'Garaj indisponibil.')
+end)
+
+exports('Unblock', function()
+    TriggerEvent('driftzone_garage:client:setBlocked', false)
+end)
+
+exports('IsBlocked', function()
+    return isGarageBlocked()
+end)
+
 
 CreateThread(function()
     Wait(1500)

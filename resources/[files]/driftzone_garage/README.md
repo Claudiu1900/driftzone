@@ -95,3 +95,31 @@ restart driftzone_garage
 ```
 
 Daca masina are deja tuning salvat in `ownedvehicles.vehicle_tunning`, acum il forteaza la fiecare spawn.
+
+
+## Block pentru curse
+
+Garajul poate fi blocat temporar din alte scripturi, de exemplu in timpul curselor.
+Cat timp este blocat, nu se mai deschide nici din comanda, nici din trigger, nici din interaction.
+Jucatorul primeste notificarea: `Garaj indisponibil.`
+
+Server-side:
+
+```lua
+exports['driftzone_garage']:SetGarageBlocked(source, true, 'Garaj indisponibil.')
+exports['driftzone_garage']:SetGarageBlocked(source, false)
+```
+
+Client-side:
+
+```lua
+TriggerEvent('driftzone_garage:client:setBlocked', true, 'Garaj indisponibil.')
+TriggerEvent('driftzone_garage:client:setBlocked', false)
+```
+
+Compatibil:
+
+```lua
+TriggerEvent('driftzone_garage:client:block', 'Garaj indisponibil.')
+TriggerEvent('driftzone_garage:client:unblock')
+```

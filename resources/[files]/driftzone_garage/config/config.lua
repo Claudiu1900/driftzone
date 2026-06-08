@@ -42,3 +42,8 @@ Config.Garages = {
 
 -- Cooldown intre doua spawn-uri din garaj.
 Config.SpawnCooldownMs = 3000
+
+
+Config.Block = {
+    defaultReason = 'Garaj indisponibil.'
+}

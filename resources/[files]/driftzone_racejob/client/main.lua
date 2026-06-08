@@ -7,6 +7,7 @@ local finishCheckpoint = nil
 local raceEnding = false
 local countdownActive = false
 local currentDuoSession = nil
+local garageBlockedByRace = false
 
 local MOD_KEY_TYPES = {
     spoiler = 0, frontBumper = 1, rearBumper = 2, sideSkirt = 3, exhaust = 4, frame = 5,
@@ -22,6 +23,13 @@ local MOD_KEY_TYPES = {
 
 local function notify(type, message, duration)
     TriggerEvent('client:notify', type or 'info', duration or 5000, tostring(message or ''))
+end
+
+local function setGarageRaceBlock(state)
+    state = state == true
+    if garageBlockedByRace == state then return end
+    garageBlockedByRace = state
+    TriggerEvent('driftzone_garage:client:setBlocked', state, 'Garaj indisponibil.')
 end
 
 local function sendNui(data)
@@ -98,6 +106,7 @@ local function endLocalRace()
     cleanupVehicle()
     activeRace = nil
     currentDuoSession = nil
+    setGarageRaceBlock(false)
     raceEnding = false
 end
 
@@ -688,10 +697,12 @@ end)
 
 RegisterNetEvent('driftzone_racejob:client:startSolo', function(data)
     closeMenu(false)
+    setGarageRaceBlock(true)
     TriggerEvent('driftzone_hud:visible', true)
     Wait(350)
     local veh, err = spawnVehicle(data.vehicle, data.race and data.race.start or {})
     if veh == 0 then
+        setGarageRaceBlock(false)
         notify('warning', 'Masina nu a putut fi spawnata: ' .. tostring(err), 6000)
         TriggerServerEvent('driftzone_racejob:server:soloFail', 'Masina nu a putut fi spawnata.')
         return
@@ -708,12 +719,14 @@ end)
 
 RegisterNetEvent('driftzone_racejob:client:prepareDuoRace', function(data)
     closeMenu(false)
+    setGarageRaceBlock(true)
     TriggerEvent('driftzone_hud:visible', true)
     sendNui({ action = 'closeDuoGarage' })
     currentDuoSession = data.sessionId
     Wait(400)
     local veh, err = spawnVehicle(data.vehicle, data.start or {})
     if veh == 0 then
+        setGarageRaceBlock(false)
         notify('warning', 'Masina nu a putut fi spawnata: ' .. tostring(err), 6000)
         TriggerServerEvent('driftzone_racejob:server:duoSpawned', data.sessionId, false)
         return
@@ -780,6 +793,8 @@ RegisterNetEvent('driftzone_racejob:client:duoCompleted', function(data)
     clearRoute()
     cleanupVehicle()
     activeRace = nil
+    currentDuoSession = nil
+    setGarageRaceBlock(false)
     sendNui({ action = 'raceHud', visible = false })
     sendNui({ action = 'duoReward', data = data })
     notify('success', 'Ati finalizat Duo Race.', 5500)
@@ -808,6 +823,7 @@ end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
+    setGarageRaceBlock(false)
     clearRoute()
     cleanupVehicle()
     SetNuiFocus(false, false)

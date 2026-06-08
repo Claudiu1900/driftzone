@@ -25,6 +25,7 @@ client_scripts {
 }
 
 shared_scripts {
+    'config/config.lua',
     'config/config_settings.js',
     'data/events.js'
 }

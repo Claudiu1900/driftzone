@@ -64,3 +64,15 @@ La final:
 - daca un player iese in timpul cursei, primeste XP-ul de loser.
 
 Ruleaza `sql.sql` ca sa existe coloana `users.xp`.
+
+## Garage block pentru curse
+
+Cand o cursa incepe, `driftzone_races` blocheaza automat `driftzone_garage` pentru participantii din race.
+
+Cat timp playerul este in cursa:
+- `/garage` nu se deschide;
+- trigger-ele de open garage sunt blocate;
+- interactions pentru garaj sunt blocate;
+- playerul primeste notificare `Garaj indisponibil.`
+
+Dupa finish, disconnect sau restart la resource, garajul este deblocat automat.

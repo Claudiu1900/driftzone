@@ -408,12 +408,38 @@ local function setBucket(src, bucket)
     if playerOnline(src) then SetPlayerRoutingBucket(src, tonumber(bucket or 0) or 0) end
 end
 
+local function setGarageBlocked(src, state)
+    src = tonumber(src or 0) or 0
+    if src <= 0 or not playerOnline(src) then return end
+
+    -- driftzone_garage are export server-side. Daca resource-ul nu exista / nu este pornit,
+    -- nu blocam race-ul, doar ignoram safe.
+    if GetResourceState('driftzone_garage') == 'started' then
+        pcall(function()
+            exports['driftzone_garage']:SetGarageBlocked(src, state == true, 'Garaj indisponibil.')
+        end)
+    end
+
+    -- Backup client-side pentru cazul in care playerul incearca trigger-uri locale.
+    TriggerClientEvent('driftzone_garage:client:setBlocked', src, state == true, 'Garaj indisponibil.')
+end
+
+local function setRoomGarageBlocked(room, state)
+    if not room or type(room.members) ~= 'table' then return end
+    for _, m in ipairs(room.members) do
+        if m and m.src then
+            setGarageBlocked(m.src, state == true)
+        end
+    end
+end
+
 local function startRoom(room)
     if not room or room.started then return end
     if #room.members < (room.race.minPlayers or Config.MinPlayers) then return end
     room.started = true
     local bucket = Config.RaceBucketBase + room.id
     ActiveRaces[room.id] = room
+    setRoomGarageBlocked(room, true)
 
     for index, m in ipairs(room.members) do
         setBucket(m.src, bucket)
@@ -502,6 +528,7 @@ local function finishRace(room, winnerSrc)
 
     for _, m in ipairs(room.members) do
         if playerOnline(m.src) then
+            setGarageBlocked(m.src, false)
             TriggerClientEvent('driftzone_races:client:raceFinished', m.src, {
                 winnerUid = winner.uid,
                 winnerName = winner.name,
@@ -709,7 +736,20 @@ AddEventHandler('playerDropped', function()
             addXp(m.uid, getRaceXp(room.race, false))
             addStats(m.uid, m.name, false, m.entryFee)
         end
+        setGarageBlocked(src, false)
         PlayerRoom[src] = nil
+    end
+end)
+
+AddEventHandler('onResourceStop', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    for _, room in pairs(ActiveRaces) do
+        setRoomGarageBlocked(room, false)
+    end
+    for _, room in pairs(Rooms) do
+        if room and room.started then
+            setRoomGarageBlocked(room, false)
+        end
     end
 end)
 

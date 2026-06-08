@@ -1,9 +1,34 @@
 local ActiveVehicles = {}
 local SpawnCooldowns = {}
 local SpawnLocks = {}
+local GarageBlocked = {}
 
 local function notify(src, notifyType, message, duration)
     TriggerClientEvent('client:notify', src, notifyType or 'info', duration or 5000, tostring(message or ''))
+end
+
+local function setGarageBlocked(src, state, reason)
+    src = tonumber(src or 0) or 0
+    if src <= 0 then return false end
+
+    if state == true then
+        GarageBlocked[src] = tostring(reason or 'Garaj indisponibil.')
+        TriggerClientEvent('driftzone_garage:client:setBlocked', src, true, GarageBlocked[src])
+    else
+        GarageBlocked[src] = nil
+        TriggerClientEvent('driftzone_garage:client:setBlocked', src, false)
+    end
+
+    return true
+end
+
+local function isGarageBlocked(src)
+    return GarageBlocked[tonumber(src or 0)] ~= nil
+end
+
+local function denyGarageOpen(src)
+    notify(src, 'warning', GarageBlocked[tonumber(src or 0)] or 'Garaj indisponibil.', 3500)
+    return true
 end
 
 local function getUid(src)
@@ -180,8 +205,20 @@ end
 
 RegisterNetEvent('driftzone_garage:server:open', function()
     local src = source
+    if isGarageBlocked(src) then denyGarageOpen(src) return end
     if not isLogged(src) then notify(src, 'warning', 'Trebuie sa fii logat.') return end
     sendGarageList(src)
+end)
+
+RegisterNetEvent('driftzone_garage:server:setBlocked', function(state, reason)
+    local src = source
+    if src and src > 0 then
+        if state == true then
+            GarageBlocked[src] = tostring(reason or 'Garaj indisponibil.')
+        else
+            GarageBlocked[src] = nil
+        end
+    end
 end)
 
 RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId)
@@ -443,8 +480,9 @@ local function runCommand(src, command, args)
     command = tostring(command or ''):lower()
 
     if command == 'garage' or command == 'garaj' then
+        if isGarageBlocked(src) then denyGarageOpen(src) return true end
         TriggerClientEvent('driftzone_garage:client:openCommand', src)
-        return
+        return true
     end
 
     if command == 'park' then
@@ -461,6 +499,22 @@ exports('RunCommand', function(src, command, args)
     return runCommand(src, command, args or {})
 end)
 
+exports('SetGarageBlocked', function(src, state, reason)
+    return setGarageBlocked(src, state == true, reason or 'Garaj indisponibil.')
+end)
+
+exports('BlockGarage', function(src, reason)
+    return setGarageBlocked(src, true, reason or 'Garaj indisponibil.')
+end)
+
+exports('UnblockGarage', function(src)
+    return setGarageBlocked(src, false)
+end)
+
+exports('IsGarageBlocked', function(src)
+    return isGarageBlocked(src)
+end)
+
 exports('GetActiveVehicle', function(vehicleId)
     vehicleId = tonumber(vehicleId)
     return vehicleId and ActiveVehicles[vehicleId] or nil
@@ -468,6 +522,7 @@ end)
 
 AddEventHandler('playerDropped', function()
     local src = source
+    GarageBlocked[src] = nil
     local uid = getUid(src)
 
     SpawnCooldowns[src] = nil

@@ -21,6 +21,10 @@ local function notify(typ, msg, duration)
     TriggerEvent(Config.NotifyEvent or 'client:notify', typ or 'info', duration or 5000, tostring(msg or ''))
 end
 
+local function setGarageBlockedLocal(state)
+    TriggerEvent('driftzone_garage:client:setBlocked', state == true, 'Garaj indisponibil.')
+end
+
 local function sendNui(data)
     if not nuiReady then return false end
     SendNUIMessage(data)
@@ -336,6 +340,7 @@ local function endLocalRace()
     lobbyUiHidden = false
     checkpointIndex = 1
     raceGhostThread = false
+    setGarageBlockedLocal(false)
 end
 
 local function ghostLoop()
@@ -428,6 +433,7 @@ end)
 RegisterNetEvent('driftzone_races:client:startRace', function(payload)
     lobbyUiHidden = false
     closeMenu(false)
+    setGarageBlockedLocal(true)
     raceEnded = false
     activeRace = payload
     checkpointIndex = 1
@@ -439,6 +445,7 @@ RegisterNetEvent('driftzone_races:client:startRace', function(payload)
     if not raceVehicle then
         FreezeEntityPosition(ped, false)
         notify('error', 'Nu s-a putut spawna masina pentru cursa.', 5000)
+        setGarageBlockedLocal(false)
         return
     end
 
