@@ -6,11 +6,6 @@ description 'DriftZone Custom Vehicle Sounds'
 version '1.0.0'
 
 files {
-    -- Brabus 850
-    'audioconfig/brabus850_game.dat151.rel',
-    'audioconfig/brabus850_sounds.dat54.rel',
-    'sfx/dlc_brabus850/brabus850.awc',
-    'sfx/dlc_brabus850/brabus850_npc.awc',
 
     -- GT3 Flat 6
     'audioconfig/gt3flat6_amp.dat10.rel',
@@ -91,10 +86,6 @@ files {
     'sfx/dlc_toysupmk4/toysupmk4_npc.awc'
 }
 
--- Brabus 850
-data_file 'AUDIO_GAMEDATA' 'audioconfig/brabus850_game.dat151.rel'
-data_file 'AUDIO_SOUNDDATA' 'audioconfig/brabus850_sounds.dat54.rel'
-data_file 'AUDIO_WAVEPACK' 'sfx/dlc_brabus850'
 
 -- GT3 Flat 6
 data_file 'AUDIO_SYNTHDATA' 'audioconfig/gt3flat6_amp.dat10.rel'
