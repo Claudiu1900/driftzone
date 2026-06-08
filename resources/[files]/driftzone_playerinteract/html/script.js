@@ -68,9 +68,8 @@ function openSelector(data = {}) {
     hide(radialView); hide(payView); hide(tradeView); setError(''); setTradeError('');
 }
 function buildActionButton(action, index) {
-    const special = action.id === 'trade' ? 'trade-action-card' : (action.id === 'pay' ? 'pay-action-card' : '');
-    const posClass = action.id === 'trade' ? 'left' : 'right';
-    return `<button class="action-card ${posClass} ${special}" style="--x:0px;--y:0px;--delay:${index * 70}ms" onclick="runAction('${escapeHtml(action.id)}')">
+    const special = action.id === 'trade' ? 'trade-card-action' : (action.id === 'pay' ? 'pay-card-action' : 'pay-card-action');
+    return `<button class="${special}" style="--delay:${index * 70}ms" onclick="runAction('${escapeHtml(action.id)}')">
         <i>${String(index + 1).padStart(2, '0')}</i>
         <div><span>${escapeHtml(action.title || action.label || action.id)}</span><b>${escapeHtml(action.label || action.id)}</b><small>${escapeHtml(action.description || '')}</small></div>
     </button>`;

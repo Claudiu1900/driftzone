@@ -312,7 +312,7 @@ button {
 
 .action-card {
     position: absolute;
-    left: 50%;
+    left: 60%;
     top: 50%;
     width: 250px;
     min-height: 104px;
@@ -993,9 +993,9 @@ input[type=number] {
 
 /* DriftZone final positions: only positions changed */
 .action-card.pay-action-card {
-    left: 80% !important;
+    left: 60% !important;
     top: 50% !important;
-    transform: translate(-80%, -80%) !important;
+    transform: translate(-50%, -50%) !important;
 }
 .action-card.trade-action-card {
     left: 38% !important;
@@ -1135,4 +1135,140 @@ input[type=number] {
     .trade-columns { grid-template-columns: 1fr !important; }
     .trade-card { min-height: auto !important; }
     .trade-vehicles { max-height: 220px !important; }
+}
+
+
+/* =========================================================
+   INDEPENDENT ACTION CARDS - PAY si TRADE nu mai depind unul de altul
+   Muta PAY doar din .pay-card-action
+   Muta TRADE doar din .trade-card-action
+   ========================================================= */
+.pay-card-action {
+    position: absolute !important;
+    left: 72% !important;
+    top: 50% !important;
+    width: 250px;
+    min-height: 104px;
+    transform: translate(-50%, -50%) !important;
+    border: 1px solid rgba(255, 255, 255, .14);
+    background: linear-gradient(145deg, rgba(255, 255, 255, .115), rgba(255, 255, 255, .040)), rgba(5, 10, 20, .92);
+    color: white;
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 14px;
+    align-items: center;
+    text-align: left;
+    padding: 17px;
+    cursor: pointer;
+    box-shadow: 0 18px 52px rgba(0, 0, 0, .46), inset 0 1px 0 rgba(255, 255, 255, .12);
+    opacity: 0;
+    animation: independentActionIn .26s ease forwards;
+    animation-delay: var(--delay);
+    transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+
+.trade-card-action {
+    position: absolute !important;
+    left: 28% !important;
+    top: 50% !important;
+    width: 250px;
+    min-height: 104px;
+    transform: translate(-50%, -50%) !important;
+    border: 1px solid rgba(255, 255, 255, .14);
+    background: linear-gradient(145deg, rgba(255, 255, 255, .115), rgba(255, 255, 255, .040)), rgba(5, 10, 20, .92);
+    color: white;
+    display: grid;
+    grid-template-columns: 1fr 44px;
+    gap: 14px;
+    align-items: center;
+    text-align: right;
+    padding: 17px;
+    cursor: pointer;
+    box-shadow: 0 18px 52px rgba(0, 0, 0, .46), inset 0 1px 0 rgba(255, 255, 255, .12);
+    opacity: 0;
+    animation: independentActionIn .26s ease forwards;
+    animation-delay: var(--delay);
+    transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+
+.pay-card-action:hover,
+.trade-card-action:hover {
+    border-color: var(--main-line);
+    background: linear-gradient(145deg, rgba(4, 199, 247, .20), rgba(255, 255, 255, .045)), rgba(5, 10, 20, .96);
+    box-shadow: 0 20px 62px rgba(0, 0, 0, .52), 0 0 38px rgba(4, 199, 247, .16), inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+
+.pay-card-action i,
+.trade-card-action i {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(4, 199, 247, .35);
+    background: rgba(4, 199, 247, .12);
+    font-style: normal;
+    color: var(--main);
+}
+
+.pay-card-action i {
+    grid-column: 1;
+    grid-row: 1;
+}
+.pay-card-action div {
+    grid-column: 2;
+    grid-row: 1;
+}
+.trade-card-action i {
+    grid-column: 2;
+    grid-row: 1;
+}
+.trade-card-action div {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.pay-card-action span,
+.trade-card-action span {
+    display: block;
+    color: rgba(255, 255, 255, .88);
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 1.3px;
+}
+
+.pay-card-action b,
+.trade-card-action b {
+    display: block;
+    margin-top: 5px;
+    color: white;
+    font-size: 29px;
+    line-height: .95;
+    letter-spacing: -1px;
+}
+
+.pay-card-action small,
+.trade-card-action small {
+    display: block;
+    margin-top: 7px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+    line-height: 1.35;
+}
+
+@keyframes independentActionIn {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(.92); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@media (max-width: 1180px) {
+    .pay-card-action {
+        left: 78% !important;
+        width: 230px;
+    }
+    .trade-card-action {
+        left: 22% !important;
+        width: 230px;
+    }
 }

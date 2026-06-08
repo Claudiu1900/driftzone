@@ -34,3 +34,15 @@ ensure oxmysql
 ensure driftzone_auth
 ensure driftzone_playerinteract
 ```
+
+
+## Pozitii action cards
+
+PAY si TRADE sunt separate complet in CSS:
+
+```css
+.pay-card-action { left: 72%; }
+.trade-card-action { left: 28%; }
+```
+
+Schimbi una fara sa afectezi cealalta.
