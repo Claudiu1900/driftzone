@@ -43,3 +43,8 @@ ensure driftzone_races
 ## SQL
 
 Ruleaza `sql.sql`.
+
+
+## UI update
+- Scos cardul ONLINE Race System din header.
+- Butonul X este refacut mai curat si premium.
