@@ -66,13 +66,24 @@ function openSelector(data = {}) {
 }
 
 function buildActionButton(action, index, total) {
-    const spread = total <= 1 ? 0 : 210;
-    const start = total <= 1 ? 0 : -spread / 2;
-    const angle = total <= 1 ? 0 : start + (spread / Math.max(1, total - 1)) * index;
-    const radius = total <= 1 ? 520 : 560;
-    const rad = (angle - 90) * Math.PI / 180;
-    const x = Math.cos(rad) * radius;
-    const y = Math.sin(rad) * radius;
+    let x = 0;
+    let y = 0;
+
+    // Cand exista o singura functie, o punem clar in dreapta cardului principal.
+    // Inainte era calculata pe cerc si ajungea peste/foarte aproape de main pe unele rezolutii.
+    if (total <= 1) {
+        x = 520;
+        y = 0;
+    } else {
+        const spread = 210;
+        const start = -spread / 2;
+        const angle = start + (spread / Math.max(1, total - 1)) * index;
+        const radius = 560;
+        const rad = (angle - 90) * Math.PI / 180;
+        x = Math.cos(rad) * radius;
+        y = Math.sin(rad) * radius;
+    }
+
     const side = x < -60 ? 'left' : (x > 60 ? 'right' : 'center');
 
     return `

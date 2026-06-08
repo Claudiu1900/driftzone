@@ -716,6 +716,6 @@ body {
     }
 
     .action-card {
-        transform: translate(calc(-50% + min(var(--x), 310px)), calc(-50% + var(--y)));
+        transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y)));
     }
 }
