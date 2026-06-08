@@ -1,27 +1,20 @@
 # driftzone_playerinteract
 
-Varianta curata si optimizata.
+Varianta curata + PAY card reparat.
 
-## Ce s-a schimbat
+## Schimbari
 
-- scos tot UI-ul de selectie in afara cursorului;
-- scos notificarea cand dai `/playerinteract`;
-- cand selectezi playerul apare doar patratul cu nume/ID si butonul PAY;
-- butonul PAY este mutat mai departe de patratul principal, ca sa nu se suprapuna;
-- scos X, text ESC, texte de tutorial si background-uri mari;
-- input-ul de suma nu mai are sageti de plus/minus;
-- dupa confirmare PAY, UI-ul dispare imediat;
-- click gol nu da notificari;
-- selectia pe corpul playerului ramane optimizata.
+- PAY UI este inapoi pe card premium/frumos.
+- Simbolul/crosshair-ul NUI din mijlocul ecranului a fost scos complet.
+- Ramane doar cursorul normal al jocului/browserului cand alegi playerul.
+- UI-ul de selectie ramane fara texte, fara X, fara ESC hint.
+- Dupa confirmarea platii, UI-ul de pay dispare imediat.
+- Inputul pentru suma ramane fara sageti de plus/minus.
 
 ## Instalare
 
-Pune folderul `driftzone_playerinteract` in `resources`, apoi in `server.cfg`:
+Inlocuieste folderul `driftzone_playerinteract`, apoi ruleaza:
 
 ```cfg
-ensure oxmysql
-ensure driftzone_auth
-ensure driftzone_playerinteract
+restart driftzone_playerinteract
 ```
-
-Ruleaza `sql.sql` daca nu ai deja tabela `pay_logs`.
