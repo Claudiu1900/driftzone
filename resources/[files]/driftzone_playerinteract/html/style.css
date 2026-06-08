@@ -10,7 +10,7 @@ body {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
-    background: transparent;
+    background: transparent !important;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Arial, sans-serif;
 }
 
@@ -19,7 +19,7 @@ body {
     --main-soft: rgba(4, 199, 247, .14);
     --main-line: rgba(4, 199, 247, .52);
     --panel: rgba(5, 10, 20, .94);
-    --line: rgba(255, 255, 255, .12);
+    --line: rgba(255, 255, 255, .13);
     --text: rgba(255, 255, 255, .96);
     --muted: rgba(255, 255, 255, .60);
     --danger: #ff4163;
@@ -42,20 +42,186 @@ button {
 .app,
 .selector-view,
 .menu-view,
+.pay-view {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: transparent !important;
+    pointer-events: auto;
+}
 
+.selector-view {
+    cursor: default;
+}
+
+.menu-view,
 .pay-view {
     display: grid;
     place-items: center;
-    background: transparent;
-    pointer-events: auto;
+}
+
+.select-wrap {
+    position: relative;
+    width: 620px;
+    height: 260px;
+    display: grid;
+    place-items: center;
+    animation: menuIn .18s ease both;
+}
+
+.player-card {
+    position: relative;
+    width: 280px;
+    min-height: 132px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 22px 24px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .14);
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .036)),
+        rgba(4, 8, 18, .92);
+    box-shadow:
+        0 28px 88px rgba(0, 0, 0, .50),
+        0 0 46px rgba(4, 199, 247, .10),
+        inset 0 1px 0 rgba(255, 255, 255, .16);
+}
+
+.player-card::before {
+    content: "";
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--main), transparent);
+    opacity: .86;
+}
+
+.card-glow {
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    right: -75px;
+    top: -85px;
+    border-radius: 999px;
+    background: rgba(4, 199, 247, .16);
+    filter: blur(3px);
+    pointer-events: none;
+}
+
+.kicker,
+.pay-head span {
+    display: block;
+    color: var(--main);
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    font-size: 10px;
+    font-weight: 1000;
+}
+
+.player-card b {
+    position: relative;
+    max-width: 230px;
+    margin-top: 9px;
+    color: var(--text);
+    font-size: 30px;
+    line-height: 1.02;
+    letter-spacing: -.75px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: 0 0 24px rgba(4, 199, 247, .18);
+}
+
+.player-card small {
+    position: relative;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 1.1px;
+}
+
+.player-card em,
+.pay-head em {
+    color: white;
+    font-style: normal;
+}
+
+.pay-action {
+    position: absolute;
+    left: calc(50% + 210px);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 158px;
+    min-height: 92px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 7px;
+    padding: 18px;
+    cursor: pointer;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, .13);
+    background:
+        linear-gradient(145deg, rgba(4, 199, 247, .20), rgba(255, 255, 255, .045)),
+        rgba(5, 10, 20, .92);
+    box-shadow:
+        0 22px 58px rgba(0, 0, 0, .46),
+        0 0 42px rgba(4, 199, 247, .12),
+        inset 0 1px 0 rgba(255, 255, 255, .14);
+    animation: actionIn .20s ease both;
+    transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease, background .14s ease;
+}
+
+.pay-action:hover {
+    transform: translateY(-50%) scale(1.035);
+    border-color: var(--main-line);
+    background:
+        linear-gradient(145deg, rgba(4, 199, 247, .31), rgba(255, 255, 255, .060)),
+        rgba(5, 10, 20, .96);
+    box-shadow:
+        0 25px 70px rgba(0, 0, 0, .52),
+        0 0 52px rgba(4, 199, 247, .21),
+        inset 0 1px 0 rgba(255, 255, 255, .17);
+}
+
+.pay-action i {
+    font-style: normal;
+    color: var(--main);
+    font-size: 34px;
+    font-weight: 1000;
+    line-height: .9;
+    letter-spacing: -1.2px;
+}
+
+.pay-action span {
+    color: rgba(255, 255, 255, .68);
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
 .pay-shell {
     position: relative;
     width: min(540px, calc(100vw - 44px));
+    overflow: hidden;
     border: 1px solid var(--line);
-    background: linear-gradient(145deg, rgba(255, 255, 255, .11), rgba(255, 255, 255, .032)), rgba(5, 10, 20, .94);
-    box-shadow: 0 34px 110px rgba(0, 0, 0, .62), inset 0 1px 0 rgba(255, 255, 255, .15);
+    background:
+        radial-gradient(circle at 88% 0%, rgba(4, 199, 247, .18), transparent 34%),
+        linear-gradient(145deg, rgba(255, 255, 255, .11), rgba(255, 255, 255, .032)),
+        rgba(5, 10, 20, .94);
+    box-shadow:
+        0 34px 110px rgba(0, 0, 0, .62),
+        0 0 60px rgba(4, 199, 247, .10),
+        inset 0 1px 0 rgba(255, 255, 255, .15);
     padding: 28px;
     animation: payIn .20s ease both;
 }
@@ -69,21 +235,23 @@ button {
     box-shadow: 0 0 42px rgba(4, 199, 247, .08);
 }
 
+.pay-topline {
+    position: absolute;
+    top: 0;
+    left: 28px;
+    right: 28px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--main), transparent);
+    opacity: .9;
+}
+
 .pay-head {
     position: relative;
 }
 
-.pay-head span {
-    display: block;
-    color: var(--main);
-    text-transform: uppercase;
-    letter-spacing: 2.6px;
-    font-size: 11px;
-    font-weight: 1000;
-}
-
 .pay-head h1 {
     margin: 9px 0 0;
+    color: white;
     font-size: 50px;
     line-height: .92;
     letter-spacing: -2px;
@@ -165,6 +333,7 @@ button {
     cursor: pointer;
     font-size: 12px;
     font-weight: 900;
+    transition: background .14s ease, border-color .14s ease, color .14s ease;
 }
 
 .quick-values button:hover {
@@ -202,6 +371,12 @@ button {
     font-weight: 1000;
     letter-spacing: 1.4px;
     box-shadow: 0 0 34px rgba(4, 199, 247, .18);
+    transition: transform .14s ease, filter .14s ease, opacity .14s ease;
+}
+
+.confirm:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
 }
 
 .confirm svg {
@@ -214,13 +389,13 @@ button {
     cursor: not-allowed;
 }
 
-@keyframes popIn {
-    from { opacity: 0; transform: translate(-50%, -50%) scale(.94); }
-    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+@keyframes menuIn {
+    from { opacity: 0; transform: scale(.96); }
+    to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes actionIn {
-    from { opacity: 0; transform: translate(20px, -50%) scale(.94); }
+    from { opacity: 0; transform: translate(24px, -50%) scale(.94); }
     to { opacity: 1; transform: translateY(-50%) scale(1); }
 }
 
@@ -230,14 +405,23 @@ button {
 }
 
 @media (max-width: 900px) {
+    .select-wrap {
+        width: 100vw;
+        height: 420px;
+    }
+
     .pay-action {
         left: 50%;
-        top: calc(50% + 150px);
+        top: calc(50% + 145px);
         transform: translateX(-50%);
     }
 
+    .pay-action:hover {
+        transform: translateX(-50%) scale(1.035);
+    }
+
     @keyframes actionIn {
-        from { opacity: 0; transform: translate(-50%, 20px) scale(.94); }
+        from { opacity: 0; transform: translate(-50%, 24px) scale(.94); }
         to { opacity: 1; transform: translateX(-50%) scale(1); }
     }
 }

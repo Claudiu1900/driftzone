@@ -24,25 +24,37 @@ function nui(name, data = {}) {
     }).catch(() => {});
 }
 
-function setMainColor(color) {
-    if (color) document.documentElement.style.setProperty('--main', color);
+function show(el) {
+    if (el) el.classList.remove('hidden');
 }
 
-function show(el) { el.classList.remove('hidden'); }
-function hide(el) { el.classList.add('hidden'); }
+function hide(el) {
+    if (el) el.classList.add('hidden');
+}
+
+function setMainColor(color) {
+    if (color) document.documentElement.style.setProperty('--main', String(color));
+}
 
 function onlyNumbers(value) {
     return String(value || '').replace(/[^0-9]/g, '');
 }
 
 function setError(message) {
+    if (!payError) return;
     if (!message) {
         payError.textContent = '';
         payError.classList.add('hidden');
         return;
     }
-    payError.textContent = message;
+    payError.textContent = String(message);
     payError.classList.remove('hidden');
+}
+
+function resetPayButton() {
+    payLocked = false;
+    confirmPayBtn.disabled = false;
+    confirmPayBtn.querySelector('span').textContent = 'CONFIRM TRANSFER';
 }
 
 function openSelector(data = {}) {
@@ -61,6 +73,7 @@ function openMenu(data = {}) {
     playerName.textContent = selectedPlayer.name || 'Player';
     playerId.textContent = selectedPlayer.uid || selectedPlayer.serverId || 0;
     setError('');
+    resetPayButton();
     show(app);
     hide(selectorView);
     show(menuView);
@@ -72,20 +85,13 @@ function openPayView(data = {}) {
     payTargetName.textContent = selectedPlayer.name || 'Player';
     payTargetId.textContent = selectedPlayer.uid || selectedPlayer.serverId || 0;
     amountInput.value = '';
-    payLocked = false;
-    confirmPayBtn.disabled = false;
-    confirmPayBtn.querySelector('span').textContent = 'CONFIRM TRANSFER';
+    resetPayButton();
     setError('');
     show(app);
     hide(selectorView);
     hide(menuView);
     show(payView);
-    setTimeout(() => amountInput.focus(), 50);
-}
-
-function closeUi() {
-    closeUiLocal();
-    nui('close');
+    setTimeout(() => amountInput.focus(), 40);
 }
 
 function closeUiLocal() {
@@ -96,6 +102,11 @@ function closeUiLocal() {
     setError('');
     selectedPlayer = null;
     payLocked = false;
+}
+
+function closeUi() {
+    closeUiLocal();
+    nui('close');
 }
 
 function openPay() {
@@ -114,18 +125,23 @@ function confirmPay() {
         setError('Pune o suma valida.');
         return;
     }
+
     payLocked = true;
     confirmPayBtn.disabled = true;
     confirmPayBtn.querySelector('span').textContent = 'SE TRIMITE...';
+
+    // Cerinta: imediat dupa PAY dispare UI-ul.
     nui('pay', { amount });
     closeUiLocal();
 }
 
-amountInput.addEventListener('input', () => {
-    const clean = onlyNumbers(amountInput.value);
-    if (amountInput.value !== clean) amountInput.value = clean;
-    setError('');
-});
+if (amountInput) {
+    amountInput.addEventListener('input', () => {
+        const clean = onlyNumbers(amountInput.value);
+        if (amountInput.value !== clean) amountInput.value = clean;
+        setError('');
+    });
+}
 
 window.addEventListener('message', (event) => {
     const data = event.data || {};
@@ -137,15 +153,14 @@ window.addEventListener('message', (event) => {
         if (data.ok) {
             closeUiLocal();
         } else if (!payView.classList.contains('hidden')) {
-            payLocked = false;
-            confirmPayBtn.disabled = false;
-            confirmPayBtn.querySelector('span').textContent = 'CONFIRM TRANSFER';
+            resetPayButton();
             setError(data.message || 'Plata a esuat.');
         }
     }
 });
 
 window.addEventListener('keydown', (e) => {
+    // Nu exista UI cu ESC/X, dar tasta ramane ca fallback de siguranta.
     if (e.key === 'Escape') closeUi();
     if (e.key === 'Enter' && !payView.classList.contains('hidden')) confirmPay();
 });

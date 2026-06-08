@@ -4,25 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DriftZone Player Interact</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=final-good-1">
 </head>
 <body>
     <div id="app" class="app hidden">
+        <!-- Selectorul ramane gol: doar cursorul nativ, fara crosshair/text/panel -->
         <section id="selectorView" class="selector-view hidden"></section>
 
         <section id="menuView" class="menu-view hidden">
-            <div class="player-box">
-                <span>PLAYER</span>
-                <b id="playerName">Player</b>
-                <small>ID <em id="playerId">0</em></small>
+            <div class="select-wrap">
+                <div class="player-card">
+                    <div class="card-glow"></div>
+                    <span class="kicker">SELECTED PLAYER</span>
+                    <b id="playerName">Player</b>
+                    <small>UID / ID <em id="playerId">0</em></small>
+                </div>
+
+                <button id="payAction" class="pay-action" onclick="openPay()" type="button">
+                    <i>PAY</i>
+                    <span>Trimite cash</span>
+                </button>
             </div>
-            <button id="payAction" class="pay-action" onclick="openPay()">PAY</button>
         </section>
 
         <section id="payView" class="pay-view hidden">
             <div class="pay-shell">
+                <div class="pay-topline"></div>
+
                 <div class="pay-head">
-                    <span>PAY</span>
+                    <span>DRIFTZONE PAY</span>
                     <h1>Transfer cash</h1>
                     <p>Catre <b id="payTargetName">Player</b> <small>ID <em id="payTargetId">0</em></small></p>
                 </div>
@@ -31,21 +41,21 @@
                     <label for="amountInput">Suma cash</label>
                     <input id="amountInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="50000" autocomplete="off">
                     <div class="quick-values">
-                        <button onclick="quickAmount(10000)">$10,000</button>
-                        <button onclick="quickAmount(50000)">$50,000</button>
-                        <button onclick="quickAmount(100000)">$100,000</button>
+                        <button type="button" onclick="quickAmount(10000)">$10,000</button>
+                        <button type="button" onclick="quickAmount(50000)">$50,000</button>
+                        <button type="button" onclick="quickAmount(100000)">$100,000</button>
                     </div>
                     <div id="payError" class="pay-error hidden"></div>
                 </div>
 
-                <button id="confirmPay" class="confirm" onclick="confirmPay()">
+                <button id="confirmPay" class="confirm" onclick="confirmPay()" type="button">
                     <span>CONFIRM TRANSFER</span>
-                    <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
             </div>
         </section>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=final-good-1"></script>
 </body>
 </html>
