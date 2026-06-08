@@ -80,6 +80,38 @@ local function raceById(id)
     return (Config.RaceTypes or {})[tostring(id or '')]
 end
 
+
+local function normalizeTuningRaw(raw)
+    if type(raw) == 'table' then
+        local ok, encoded = pcall(json.encode, raw)
+        if ok and encoded and encoded ~= '' then return encoded end
+        return '{}'
+    end
+
+    local text = tostring(raw or '{}')
+    if text == '' or text == 'null' or text == 'nil' or text:find('^table:') then
+        return '{}'
+    end
+
+    -- Daca este JSON dublu encodat, il lasam intr-o forma curata JSON.
+    local probe = text
+    for _ = 1, 3 do
+        local ok, decoded = pcall(json.decode, probe)
+        if not ok then break end
+        if type(decoded) == 'table' then
+            local ok2, encoded = pcall(json.encode, decoded)
+            if ok2 and encoded and encoded ~= '' then return encoded end
+            return probe
+        elseif type(decoded) == 'string' then
+            probe = decoded
+        else
+            break
+        end
+    end
+
+    return text
+end
+
 local function normalizeModel(raw)
     local function pick(t)
         if type(t) ~= 'table' then return nil end
@@ -294,7 +326,7 @@ local function getVehicleData(uid, vehicleId, raceType)
         model = model,
         name = tostring(row.vehicle_name or model),
         plate = tostring(row.plate or 'DRIFT'),
-        tuning = tostring(row.tuning or '{}'),
+        tuning = normalizeTuningRaw(row.tuning),
         image = tostring(row.vehicle_image or ''),
         type = tostring(row.vehicle_type or raceType or '')
     }

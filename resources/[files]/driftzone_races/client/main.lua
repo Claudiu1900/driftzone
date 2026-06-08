@@ -105,13 +105,39 @@ local function applyTuning(vehicle, raw)
     if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
 
     local tuning = decodeTuning(raw)
-    requestControl(vehicle, 2500)
+
+    -- Unele garaje salveaza tuning-ul sub un wrapper: props/properties/mods/vehicleTunning.
+    local function unwrap(t)
+        if type(t) ~= 'table' then return t end
+        local wrappedKeys = {
+            'vehicleTunning', 'vehicle_tunning', 'dz_vehicle_tunning', 'dz_garage_tuning',
+            'props', 'properties', 'vehicleProps', 'vehicleProperties', 'modsData', 'tuning'
+        }
+        for _, key in ipairs(wrappedKeys) do
+            local v = t[key]
+            if type(v) == 'string' then
+                local decoded = decodeTuning(v)
+                if type(decoded) == 'table' and next(decoded) ~= nil then return decoded end
+            elseif type(v) == 'table' and next(v) ~= nil then
+                return v
+            end
+        end
+        return t
+    end
+    tuning = unwrap(tuning)
+    if type(tuning) ~= 'table' then tuning = {} end
+
+    requestControl(vehicle, 3500)
     SetVehicleModKit(vehicle, 0)
 
     local function toNumber(value, fallback)
         local n = tonumber(value)
         if n == nil then return fallback end
         return n
+    end
+
+    local function setToggle(modType, value)
+        ToggleVehicleMod(vehicle, tonumber(modType), boolValue(value))
     end
 
     local function setNumberMod(modType, value, customTires)
@@ -122,136 +148,138 @@ local function applyTuning(vehicle, raw)
         SetVehicleMod(vehicle, modType, modValue, boolValue(customTires))
     end
 
-    -- Culori normale + custom RGB
-    local primaryNumeric = tonumber(tuning.primaryColor or tuning.primaryColour or tuning.primary)
-    local secondaryNumeric = tonumber(tuning.secondaryColor or tuning.secondaryColour or tuning.secondary)
-    if primaryNumeric ~= nil or secondaryNumeric ~= nil then
-        local oldPrimary, oldSecondary = GetVehicleColours(vehicle)
-        SetVehicleColours(vehicle, primaryNumeric or oldPrimary or 0, secondaryNumeric or oldSecondary or 0)
-    end
-
-    local customPrimary = colorFrom(
-        tuning.customPrimaryColor or tuning.primaryCustomColor or tuning.primaryRGB or tuning.color1 or
-        tuning.primaryColorCustom or (type(tuning.colors) == 'table' and tuning.colors.primary)
-    )
-    if customPrimary then SetVehicleCustomPrimaryColour(vehicle, customPrimary.r, customPrimary.g, customPrimary.b) end
-
-    local customSecondary = colorFrom(
-        tuning.customSecondaryColor or tuning.secondaryCustomColor or tuning.secondaryRGB or tuning.color2 or
-        tuning.secondaryColorCustom or (type(tuning.colors) == 'table' and tuning.colors.secondary)
-    )
-    if customSecondary then SetVehicleCustomSecondaryColour(vehicle, customSecondary.r, customSecondary.g, customSecondary.b) end
-
-    local pearl, wheel = GetVehicleExtraColours(vehicle)
-    pearl = toNumber(tuning.pearlColor or tuning.pearlescentColor or tuning.pearl, pearl or 0)
-    wheel = toNumber(tuning.wheelColor or tuning.rimColor, wheel or 0)
-    SetVehicleExtraColours(vehicle, pearl, wheel)
-
-    if tuning.dashboardColor ~= nil then SetVehicleDashboardColour(vehicle, toNumber(tuning.dashboardColor, 0)) end
-    if tuning.interiorColor ~= nil then SetVehicleInteriorColour(vehicle, toNumber(tuning.interiorColor, 0)) end
-    if tuning.windowTint ~= nil then SetVehicleWindowTint(vehicle, toNumber(tuning.windowTint, 0)) end
-    if tuning.plateIndex ~= nil or tuning.plateType ~= nil then SetVehicleNumberPlateTextIndex(vehicle, toNumber(tuning.plateIndex or tuning.plateType, 0)) end
-
-    -- Roti + toate modurile standard GTA
-    if tuning.wheelType ~= nil or tuning.wheels ~= nil then
-        SetVehicleWheelType(vehicle, toNumber(tuning.wheelType or tuning.wheels, 0))
-    end
-
-    local allModKeys = {
+    -- Formate uzuale: ESX/QB/vRP/custom garage.
+    local modMap = {
         spoiler = 0, spoilers = 0, frontBumper = 1, rearBumper = 2, sideSkirt = 3, exhaust = 4,
-        frame = 5, grille = 6, hood = 7, fender = 8, rightFender = 9, roof = 10, engine = 11,
-        brakes = 12, transmission = 13, horn = 14, horns = 14, suspension = 15, armor = 16,
-        turbo = 18, tyreSmoke = 20, tireSmoke = 20, xenon = 22, frontWheels = 23, wheelsMod = 23,
-        backWheels = 24, plateHolder = 25, vanityPlate = 26, vanityPlates = 26, trimA = 27,
-        trimDesign = 27, ornaments = 28, dashboard = 29, dial = 30, doorSpeaker = 31, seats = 32,
-        steeringWheel = 33, shiftLever = 34, shiftLeavers = 34, plaques = 35, speakers = 36,
-        trunk = 37, hydraulics = 38, hydrolic = 38, engineBlock = 39, airFilter = 40, struts = 41,
-        archCover = 42, aerials = 43, trimB = 44, trim = 44, tank = 45, windows = 46, livery = 48
-    }
+        frame = 5, grille = 6, hood = 7, fender = 8, rightFender = 9, roof = 10,
+        engine = 11, brakes = 12, transmission = 13, horn = 14, horns = 14, suspension = 15, armor = 16,
+        turbo = 18, tyreSmoke = 20, tireSmoke = 20, xenon = 22,
+        frontWheels = 23, wheelsMod = 23, backWheels = 24, plateHolder = 25, vanityPlate = 26,
+        vanityPlates = 26, trimA = 27, trimDesign = 27, ornaments = 28, dashboard = 29, dial = 30,
+        doorSpeaker = 31, seats = 32, steeringWheel = 33, shiftLever = 34, shiftLeavers = 34,
+        plaques = 35, speakers = 36, trunk = 37, hydraulics = 38, hydrolic = 38,
+        engineBlock = 39, airFilter = 40, struts = 41, archCover = 42, aerials = 43,
+        trimB = 44, trim = 44, tank = 45, windows = 46, livery = 48,
 
-    local aliases = {
         modSpoilers = 0, modFrontBumper = 1, modRearBumper = 2, modSideSkirt = 3, modExhaust = 4,
         modFrame = 5, modGrille = 6, modHood = 7, modFender = 8, modRightFender = 9, modRoof = 10,
         modEngine = 11, modBrakes = 12, modTransmission = 13, modHorns = 14, modSuspension = 15,
-        modArmor = 16, modTurbo = 18, modSmokeEnabled = 20, modXenon = 22, modFrontWheels = 23,
-        modBackWheels = 24, modPlateHolder = 25, modVanityPlate = 26, modTrimA = 27, modOrnaments = 28,
-        modDashboard = 29, modDial = 30, modDoorSpeaker = 31, modSeats = 32, modSteeringWheel = 33,
-        modShifterLeavers = 34, modAPlate = 35, modSpeakers = 36, modTrunk = 37, modHydrolic = 38,
-        modEngineBlock = 39, modAirFilter = 40, modStruts = 41, modArchCover = 42, modAerials = 43,
+        modArmor = 16, modTurbo = 18, modSmokeEnabled = 20, modXenon = 22,
+        modFrontWheels = 23, modBackWheels = 24, modPlateHolder = 25, modVanityPlate = 26,
+        modTrimA = 27, modOrnaments = 28, modDashboard = 29, modDial = 30, modDoorSpeaker = 31,
+        modSeats = 32, modSteeringWheel = 33, modShifterLeavers = 34, modAPlate = 35,
+        modSpeakers = 36, modTrunk = 37, modHydrolic = 38, modEngineBlock = 39,
+        modAirFilter = 40, modStruts = 41, modArchCover = 42, modAerials = 43,
         modTrimB = 44, modTank = 45, modWindows = 46, modLivery = 48
     }
 
-    for key, modType in pairs(allModKeys) do
+    local customTires = tuning.customTires or tuning.customTyres or tuning.modCustomTiresF or tuning.modCustomTiresR
+
+    -- Culori standard.
+    local color1 = tuning.color1 or tuning.primaryColor or tuning.primaryColour or tuning.primary
+    local color2 = tuning.color2 or tuning.secondaryColor or tuning.secondaryColour or tuning.secondary
+    if color1 ~= nil or color2 ~= nil then
+        local old1, old2 = GetVehicleColours(vehicle)
+        SetVehicleColours(vehicle, toNumber(color1, old1 or 0), toNumber(color2, old2 or 0))
+    end
+
+    -- Culori extra/pearlescent/wheels.
+    local pearl, wheel = GetVehicleExtraColours(vehicle)
+    pearl = toNumber(tuning.pearlescentColor or tuning.pearlColor or tuning.pearl or tuning.pearlescentColour, pearl or 0)
+    wheel = toNumber(tuning.wheelColor or tuning.rimColor or tuning.wheelColour, wheel or 0)
+    SetVehicleExtraColours(vehicle, pearl, wheel)
+
+    -- RGB custom.
+    local cp = colorFrom(tuning.customPrimaryColor or tuning.primaryCustomColor or tuning.primaryRGB or tuning.rgbColor1 or tuning.customColor1 or tuning.primaryColorCustom or (type(tuning.colors) == 'table' and tuning.colors.primary))
+    if cp then SetVehicleCustomPrimaryColour(vehicle, cp.r, cp.g, cp.b) end
+
+    local cs = colorFrom(tuning.customSecondaryColor or tuning.secondaryCustomColor or tuning.secondaryRGB or tuning.rgbColor2 or tuning.customColor2 or tuning.secondaryColorCustom or (type(tuning.colors) == 'table' and tuning.colors.secondary))
+    if cs then SetVehicleCustomSecondaryColour(vehicle, cs.r, cs.g, cs.b) end
+
+    if tuning.dashboardColor ~= nil or tuning.dashboardColour ~= nil then SetVehicleDashboardColour(vehicle, toNumber(tuning.dashboardColor or tuning.dashboardColour, 0)) end
+    if tuning.interiorColor ~= nil or tuning.interiorColour ~= nil then SetVehicleInteriorColour(vehicle, toNumber(tuning.interiorColor or tuning.interiorColour, 0)) end
+    if tuning.windowTint ~= nil or tuning.modWindows ~= nil then SetVehicleWindowTint(vehicle, toNumber(tuning.windowTint or tuning.modWindows, 0)) end
+    if tuning.plateIndex ~= nil or tuning.plateType ~= nil then SetVehicleNumberPlateTextIndex(vehicle, toNumber(tuning.plateIndex or tuning.plateType, 0)) end
+    if tuning.plateText or tuning.plate then SetVehicleNumberPlateText(vehicle, tostring(tuning.plateText or tuning.plate):sub(1, 8)) end
+
+    if tuning.wheelType ~= nil or tuning.wheels ~= nil or tuning.modWheelType ~= nil then
+        SetVehicleWheelType(vehicle, toNumber(tuning.wheelType or tuning.wheels or tuning.modWheelType, 0))
+    end
+
+    -- Mods cu chei directe.
+    for key, modType in pairs(modMap) do
         if tuning[key] ~= nil then
             if modType == 18 or modType == 20 or modType == 22 then
-                ToggleVehicleMod(vehicle, modType, boolValue(tuning[key]))
+                setToggle(modType, tuning[key])
                 local n = tonumber(tuning[key])
-                if n and n >= 0 and modType ~= 18 then SetVehicleMod(vehicle, modType, n, boolValue(tuning.customTires or tuning.customTyres)) end
+                if n and n >= 0 and modType ~= 18 then setNumberMod(modType, n, customTires) end
             else
-                setNumberMod(modType, tuning[key], tuning.customTires or tuning.customTyres)
+                setNumberMod(modType, tuning[key], customTires)
             end
         end
     end
 
-    for key, modType in pairs(aliases) do
-        if tuning[key] ~= nil then
+    -- Mods in tabela: mods = { [11] = 3 } sau { engine = 3 } sau lista cu {modType=11, modIndex=3}.
+    local function applyModEntry(key, value)
+        local modType = tonumber(key) or modMap[key]
+        local modValue = value
+        local custom = customTires
+
+        if type(value) == 'table' then
+            modType = tonumber(value.modType or value.type or value.id or value[1]) or modType
+            modValue = value.mod or value.index or value.value or value.modIndex or value[2]
+            custom = value.customTires or value.customTyres or custom
+        end
+
+        if modType then
             if modType == 18 or modType == 20 or modType == 22 then
-                ToggleVehicleMod(vehicle, modType, boolValue(tuning[key]))
-                local n = tonumber(tuning[key])
-                if n and n >= 0 and modType ~= 18 then setNumberMod(modType, n, tuning.customTires or tuning.customTyres) end
+                setToggle(modType, modValue)
+                local n = tonumber(modValue)
+                if n and n >= 0 and modType ~= 18 then setNumberMod(modType, n, custom) end
             else
-                setNumberMod(modType, tuning[key], tuning.customTires or tuning.customTyres)
+                setNumberMod(modType, modValue, custom)
             end
         end
     end
 
-    -- Compatibilitate cu tuning.mods = { [11] = 3 } sau { engine = 3 }
     if type(tuning.mods) == 'table' then
-        for key, value in pairs(tuning.mods) do
-            local modType = tonumber(key) or allModKeys[key] or aliases[key]
-            if modType then
-                local modValue = value
-                local customTires = tuning.customTires or tuning.customTyres
-                if type(value) == 'table' then
-                    modValue = value.mod or value.index or value.value
-                    customTires = value.customTires or value.customTyres or customTires
-                end
-                if modType == 18 or modType == 20 or modType == 22 then
-                    ToggleVehicleMod(vehicle, modType, boolValue(modValue))
-                    local n = tonumber(modValue)
-                    if n and n >= 0 and modType ~= 18 then setNumberMod(modType, n, customTires) end
-                else
-                    setNumberMod(modType, modValue, customTires)
-                end
-            end
-        end
+        for key, value in pairs(tuning.mods) do applyModEntry(key, value) end
+    end
+    if type(tuning.modifications) == 'table' then
+        for key, value in pairs(tuning.modifications) do applyModEntry(key, value) end
     end
 
-    -- Compatibilitate cu chei numerice directe: [11] = 3 sau ["mod11"] = 3
+    -- Chei numerice directe: [11] = 3 sau ["mod11"] = 3.
     for key, value in pairs(tuning) do
         local modType = tonumber(key)
-        if modType then setNumberMod(modType, value, tuning.customTires or tuning.customTyres) end
+        if modType then applyModEntry(modType, value) end
         local modFromText = tostring(key):match('^mod(%d+)$')
-        if modFromText then setNumberMod(tonumber(modFromText), value, tuning.customTires or tuning.customTyres) end
+        if modFromText then applyModEntry(tonumber(modFromText), value) end
     end
 
-    -- Toggle-uri speciale
-    if tuning.turbo ~= nil or tuning.modTurbo ~= nil then ToggleVehicleMod(vehicle, 18, boolValue(tuning.turbo ~= nil and tuning.turbo or tuning.modTurbo)) end
-    if tuning.xenon ~= nil or tuning.modXenon ~= nil then ToggleVehicleMod(vehicle, 22, boolValue(tuning.xenon ~= nil and tuning.xenon or tuning.modXenon)) end
-    if tuning.tireSmoke ~= nil or tuning.tyreSmoke ~= nil or tuning.smokeEnabled ~= nil then ToggleVehicleMod(vehicle, 20, boolValue(tuning.tireSmoke or tuning.tyreSmoke or tuning.smokeEnabled)) end
+    -- Toggle-uri finale.
+    if tuning.turbo ~= nil or tuning.modTurbo ~= nil then setToggle(18, tuning.turbo ~= nil and tuning.turbo or tuning.modTurbo) end
+    if tuning.xenon ~= nil or tuning.modXenon ~= nil then setToggle(22, tuning.xenon ~= nil and tuning.xenon or tuning.modXenon) end
+    if tuning.tireSmoke ~= nil or tuning.tyreSmoke ~= nil or tuning.smokeEnabled ~= nil then setToggle(20, tuning.tireSmoke or tuning.tyreSmoke or tuning.smokeEnabled) end
 
-    if tuning.xenonColor ~= nil then
+    if tuning.xenonColor ~= nil or tuning.xenonColour ~= nil then
         ToggleVehicleMod(vehicle, 22, true)
-        SetVehicleXenonLightsColor(vehicle, toNumber(tuning.xenonColor, 0))
+        SetVehicleXenonLightsColor(vehicle, toNumber(tuning.xenonColor or tuning.xenonColour, 0))
     end
 
-    local neonColor = colorFrom(tuning.neonColor or tuning.neon)
+    local neonColor = colorFrom(tuning.neonColor or tuning.neonColour or tuning.neon)
     if neonColor then SetVehicleNeonLightsColour(vehicle, neonColor.r, neonColor.g, neonColor.b) end
-    local neonEnabled = tuning.neonEnabled or tuning.neonsEnabled
-    if type(neonEnabled) == 'table' then
+
+    local neonEnabled = tuning.neonEnabled or tuning.neonsEnabled or tuning.neon
+    if type(neonEnabled) == 'table' and not neonColor then
         for i = 0, 3 do
             local state = neonEnabled[i] or neonEnabled[i + 1]
             if state ~= nil then SetVehicleNeonLightEnabled(vehicle, i, boolValue(state)) end
+        end
+    elseif type(neonEnabled) == 'table' then
+        for i = 0, 3 do
+            local state = neonEnabled[i] or neonEnabled[i + 1]
+            if state ~= nil then SetVehicleNeonLightEnabled(vehicle, i, boolValue(state)) else SetVehicleNeonLightEnabled(vehicle, i, true) end
         end
     elseif neonColor or boolValue(neonEnabled) then
         for i = 0, 3 do SetVehicleNeonLightEnabled(vehicle, i, true) end
@@ -267,24 +295,32 @@ local function applyTuning(vehicle, raw)
     if type(extras) == 'table' then
         for key, value in pairs(extras) do
             local extraId = tonumber(key)
-            if extraId then SetVehicleExtra(vehicle, extraId, boolValue(value) and 0 or 1) end
+            if extraId and DoesExtraExist(vehicle, extraId) then
+                -- GTA: 0 = enabled, 1 = disabled.
+                SetVehicleExtra(vehicle, extraId, boolValue(value) and 0 or 1)
+            end
         end
     end
 
     if tuning.livery ~= nil then SetVehicleLivery(vehicle, toNumber(tuning.livery, 0)) end
     if tuning.modLivery ~= nil then SetVehicleMod(vehicle, 48, toNumber(tuning.modLivery, -1), false) end
-    if tuning.plateText or tuning.plate then SetVehicleNumberPlateText(vehicle, tostring(tuning.plateText or tuning.plate):sub(1, 8)) end
 
-    -- Repara dupa tuning, fara sa stearga modificarile vizuale.
+    -- Sanatate/fuel/dirt fara sa resetam modificarile vizuale.
     SetVehicleDirtLevel(vehicle, tonumber(tuning.dirtLevel or 0.0) or 0.0)
-    SetVehicleEngineHealth(vehicle, tonumber(tuning.engineHealth or 1000.0) or 1000.0)
-    SetVehicleBodyHealth(vehicle, tonumber(tuning.bodyHealth or 1000.0) or 1000.0)
-    SetVehiclePetrolTankHealth(vehicle, 1000.0)
+    SetVehicleEngineHealth(vehicle, tonumber(tuning.engineHealth or tuning.engine or 1000.0) or 1000.0)
+    SetVehicleBodyHealth(vehicle, tonumber(tuning.bodyHealth or tuning.body or 1000.0) or 1000.0)
+    SetVehiclePetrolTankHealth(vehicle, tonumber(tuning.tankHealth or 1000.0) or 1000.0)
 end
 
 local function forceRaceVehicleTuning(vehicle, raw)
     if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
-    local tuningRaw = tostring(raw or '{}')
+    local tuningRaw = raw
+    if type(tuningRaw) == 'table' then
+        local ok, encoded = pcall(json.encode, tuningRaw)
+        tuningRaw = ok and encoded or '{}'
+    end
+    tuningRaw = tostring(tuningRaw or '{}')
+    local netId = NetworkGetNetworkIdFromEntity(vehicle)
     local state = Entity(vehicle).state
     state:set('dz_race_tuning', tuningRaw, true)
     state:set('dz_garage_tuning', tuningRaw, true)
@@ -292,9 +328,14 @@ local function forceRaceVehicleTuning(vehicle, raw)
     state:set('dz_vehicle_tunning', tuningRaw, true)
 
     applyTuning(vehicle, tuningRaw)
-    TriggerEvent('client:tunning:applyVehicle', vehicle, tuningRaw)
-    TriggerEvent('driftzone_tunning:client:applyVehicle', vehicle, tuningRaw)
-    TriggerEvent('driftzone_garage:client:applyVehicleTuning', vehicle, tuningRaw)
+
+    -- Compatibilitate cu orice tuning/garage existent pe server.
+    pcall(function() TriggerEvent('client:tunning:applyVehicle', vehicle, tuningRaw) end)
+    pcall(function() TriggerEvent('client:tunning:applyVehicle', netId, tuningRaw) end)
+    pcall(function() TriggerEvent('driftzone_tunning:client:applyVehicle', vehicle, tuningRaw) end)
+    pcall(function() TriggerEvent('driftzone_tunning:client:applyVehicle', netId, tuningRaw) end)
+    pcall(function() TriggerEvent('driftzone_garage:client:applyVehicleTuning', vehicle, tuningRaw) end)
+    pcall(function() TriggerEvent('driftzone_garage:client:applyVehicleTuning', netId, tuningRaw) end)
 end
 
 local function normalizeModel(value)
