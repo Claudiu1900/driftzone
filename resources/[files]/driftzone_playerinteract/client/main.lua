@@ -5,6 +5,7 @@ local currentTarget = nil
 local menuOpen = false
 local payOpen = false
 local tradeOpen = false
+local barbutOpen = false
 local markerRotation = 0.0
 local lastRequest = 0
 local cursorX = 0.5
@@ -32,6 +33,7 @@ local function closeAll()
     currentTarget = nil
     payOpen = false
     tradeOpen = false
+    barbutOpen = false
     sendNui({ action = 'closeAll' })
     setFocus(false)
 end
@@ -240,8 +242,9 @@ local function openTargetMenu(info)
         player = info,
         mainColor = Config.MainColor,
         actions = {
+            { id = 'trade', label = 'TRADE', title = 'Schimba masini', description = 'Trade masini si cash cu playerul selectat' },
             { id = 'pay', label = 'PAY', title = 'Trimite bani', description = 'Transfer cash catre jucatorul selectat' },
-            { id = 'trade', label = 'TRADE', title = 'Schimba masini', description = 'Trade masini si cash cu playerul selectat' }
+            { id = 'barbut', label = 'BARBUT', title = 'Joaca barbut', description = 'Partida cu zaruri pe cash' }
         }
     })
     setFocus(true)
@@ -296,6 +299,9 @@ RegisterNUICallback('ready', function(_, cb)
 end)
 
 RegisterNUICallback('close', function(_, cb)
+    if barbutOpen then
+        TriggerServerEvent('driftzone_playerinteract:server:barbutClose', {})
+    end
     closeAll()
     cb({ ok = true })
 end)
@@ -356,6 +362,76 @@ RegisterNUICallback('pay', function(data, cb)
     cb({ ok = true })
 end)
 
+
+RegisterNUICallback('openBarbut', function(_, cb)
+    if not selectedPlayer then
+        cb({ ok = false })
+        return
+    end
+    barbutOpen = true
+    TriggerServerEvent('driftzone_playerinteract:server:openBarbut', selectedPlayer.serverId)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('barbutInvite', function(data, cb)
+    if not selectedPlayer then
+        cb({ ok = false })
+        return
+    end
+    TriggerServerEvent('driftzone_playerinteract:server:barbutInvite', selectedPlayer.serverId, tonumber(data and data.amount or 0) or 0)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('barbutReady', function(data, cb)
+    TriggerServerEvent('driftzone_playerinteract:server:barbutReady', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('barbutRetry', function(data, cb)
+    TriggerServerEvent('driftzone_playerinteract:server:barbutRetry', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('barbutClose', function(data, cb)
+    TriggerServerEvent('driftzone_playerinteract:server:barbutClose', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNetEvent('driftzone_playerinteract:client:barbutInviteMenu', function(payload)
+    barbutOpen = true
+    interactMode = false
+    sendNui({ action = 'barbutInviteMenu', payload = payload or {}, mainColor = Config.MainColor })
+    setFocus(true)
+end)
+
+RegisterNetEvent('driftzone_playerinteract:client:barbutOpen', function(payload)
+    barbutOpen = true
+    interactMode = false
+    sendNui({ action = 'barbutOpen', payload = payload or {}, mainColor = Config.MainColor })
+    setFocus(true)
+end)
+
+RegisterNetEvent('driftzone_playerinteract:client:barbutUpdate', function(payload)
+    barbutOpen = true
+    interactMode = false
+    sendNui({ action = 'barbutUpdate', payload = payload or {}, mainColor = Config.MainColor })
+    setFocus(true)
+end)
+
+RegisterNetEvent('driftzone_playerinteract:client:barbutRoll', function(payload)
+    barbutOpen = true
+    interactMode = false
+    sendNui({ action = 'barbutRoll', payload = payload or {}, mainColor = Config.MainColor })
+    setFocus(true)
+end)
+
+RegisterNetEvent('driftzone_playerinteract:client:barbutClose', function(message)
+    sendNui({ action = 'barbutClose', message = tostring(message or '') })
+    SetTimeout(900, function()
+        closeAll()
+    end)
+end)
+
 RegisterNUICallback('openTrade', function(_, cb)
     if not selectedPlayer then
         cb({ ok = false })
@@ -402,6 +478,7 @@ RegisterNetEvent('driftzone_playerinteract:client:tradeStatus', function(payload
         interactMode = false
         payOpen = false
         tradeOpen = false
+        barbutOpen = false
         menuOpen = false
         selectedPlayer = nil
         currentTarget = nil

@@ -766,9 +766,392 @@ RegisterNetEvent('driftzone_playerinteract:server:cancelTrade', function(data)
     if p and p.from == src then logTradeRequest(p, false, 'request_cancelled'); removePending(id); notify(src, 'warning', 'Cerere trade anulata.', 3500) end
 end)
 
+
+
+-- =========================================================
+-- DRIFTZONE BARBUT - player interact dice duel
+-- =========================================================
+local BarbutPending = {}
+local BarbutPendingByFrom = {}
+local BarbutSessions = {}
+local ActiveBarbutByPlayer = {}
+local NextBarbutId = 0
+local BarbutReadyCooldowns = {}
+
+local function getBarbutLogTable()
+    return cleanName(Config.BarbutLogsTable or 'barbut_logs')
+end
+
+local function newBarbutId(prefix)
+    NextBarbutId = NextBarbutId + 1
+    return ('DZBB-%s-%s'):format(os.time(), NextBarbutId)
+end
+
+local function logBarbut(data)
+    local tableName = getBarbutLogTable()
+    data = data or {}
+    pcall(function()
+        MySQL.insert.await(([[
+            INSERT INTO `%s`
+            (`session_id`, `from_uid`, `from_name`, `to_uid`, `to_name`, `amount`, `winner_uid`, `winner_name`, `tax`, `status`, `reason`, `details`, `created_at`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ]]):format(tableName), {
+            tostring(data.session_id or data.id or ''),
+            tonumber(data.from_uid or 0) or 0,
+            tostring(data.from_name or ''),
+            tonumber(data.to_uid or 0) or 0,
+            tostring(data.to_name or ''),
+            tonumber(data.amount or 0) or 0,
+            tonumber(data.winner_uid or 0) or 0,
+            tostring(data.winner_name or ''),
+            tonumber(data.tax or 0) or 0,
+            tostring(data.status or ''),
+            tostring(data.reason or ''),
+            jsonEncode(data.details or {})
+        })
+    end)
+end
+
+local function removeBarbutPending(id, reason)
+    local p = BarbutPending[id]
+    if not p then return end
+    if BarbutPendingByFrom[p.from] == id then BarbutPendingByFrom[p.from] = nil end
+    BarbutPending[id] = nil
+    if reason then
+        logBarbut({
+            id = id,
+            from_uid = p.fromUid,
+            from_name = p.fromName,
+            to_uid = p.toUid,
+            to_name = p.toName,
+            amount = p.amount,
+            status = 'request',
+            reason = reason,
+            details = p
+        })
+    end
+end
+
+local function findBarbutPending(fromSrc, toSrc)
+    local id = BarbutPendingByFrom[fromSrc]
+    local p = id and BarbutPending[id]
+    if p and p.to == toSrc and p.expiresAt >= os.time() then return id, p end
+    return nil, nil
+end
+
+local function barbutPayload(session, src)
+    local other = session.a == src and session.b or session.a
+    local myDice = session.dice[src] or { 1, 1 }
+    local otherDice = session.dice[other] or { 1, 1 }
+    return {
+        sessionId = session.id,
+        amount = session.amount,
+        taxPercent = session.taxPercent,
+        phase = session.phase,
+        me = { serverId = src, uid = session.uids[src], name = getPlayerNameSafe(src) },
+        other = { serverId = other, uid = session.uids[other], name = getPlayerNameSafe(other) },
+        myReady = session.ready[src] == true,
+        otherReady = session.ready[other] == true,
+        myRetry = session.retry[src] == true,
+        otherRetry = session.retry[other] == true,
+        myDice = myDice,
+        otherDice = otherDice,
+        myTotal = (tonumber(myDice[1] or 0) or 0) + (tonumber(myDice[2] or 0) or 0),
+        otherTotal = (tonumber(otherDice[1] or 0) or 0) + (tonumber(otherDice[2] or 0) or 0),
+        resultText = session.resultText or ''
+    }
+end
+
+local function broadcastBarbut(session, eventName)
+    if not session then return end
+    eventName = eventName or 'driftzone_playerinteract:client:barbutUpdate'
+    if playerOnline(session.a) then TriggerClientEvent(eventName, session.a, barbutPayload(session, session.a)) end
+    if playerOnline(session.b) then TriggerClientEvent(eventName, session.b, barbutPayload(session, session.b)) end
+end
+
+local function closeBarbut(session, message, statusReason)
+    if not session then return end
+    BarbutSessions[session.id] = nil
+    if session.a then ActiveBarbutByPlayer[session.a] = nil end
+    if session.b then ActiveBarbutByPlayer[session.b] = nil end
+    if statusReason then
+        logBarbut({
+            id = session.id,
+            from_uid = session.uids and session.uids[session.a] or 0,
+            from_name = session.a and getPlayerNameSafe(session.a) or '',
+            to_uid = session.uids and session.uids[session.b] or 0,
+            to_name = session.b and getPlayerNameSafe(session.b) or '',
+            amount = session.amount,
+            status = 'closed',
+            reason = statusReason,
+            details = session
+        })
+    end
+    if message and playerOnline(session.a) then TriggerClientEvent('driftzone_playerinteract:client:barbutClose', session.a, message) end
+    if message and playerOnline(session.b) then TriggerClientEvent('driftzone_playerinteract:client:barbutClose', session.b, message) end
+end
+
+local function createBarbutSession(req)
+    if not req then return end
+    local a = req.from
+    local b = req.to
+    local aUid = req.fromUid
+    local bUid = req.toUid
+    if not playerOnline(a) or not playerOnline(b) then return end
+    if ActiveBarbutByPlayer[a] or ActiveBarbutByPlayer[b] then
+        notify(a, 'warning', 'Unul dintre voi este deja intr-o partida de barbut.', 4500)
+        notify(b, 'warning', 'Unul dintre voi este deja intr-o partida de barbut.', 4500)
+        return
+    end
+    if getCash(aUid) < req.amount or getCash(bUid) < req.amount then
+        notify(a, 'warning', 'Unul dintre jucatori nu mai are suma necesara.', 4500)
+        notify(b, 'warning', 'Unul dintre jucatori nu mai are suma necesara.', 4500)
+        return
+    end
+    local id = newBarbutId()
+    local session = {
+        id = id,
+        a = a,
+        b = b,
+        uids = { [a] = aUid, [b] = bUid },
+        amount = req.amount,
+        taxPercent = tonumber(Config.Barbut and Config.Barbut.taxPercent or 10) or 10,
+        phase = 'ready',
+        ready = { [a] = false, [b] = false },
+        retry = { [a] = false, [b] = false },
+        dice = { [a] = { 1, 1 }, [b] = { 1, 1 } },
+        resultText = '',
+        createdAt = os.time()
+    }
+    BarbutSessions[id] = session
+    ActiveBarbutByPlayer[a] = id
+    ActiveBarbutByPlayer[b] = id
+    logBarbut({
+        id = id,
+        from_uid = aUid,
+        from_name = getPlayerNameSafe(a),
+        to_uid = bUid,
+        to_name = getPlayerNameSafe(b),
+        amount = req.amount,
+        status = 'started',
+        reason = 'accepted',
+        details = { request = req }
+    })
+    broadcastBarbut(session, 'driftzone_playerinteract:client:barbutOpen')
+end
+
+local function rollBarbut(session)
+    if not session or session.processing then return end
+    session.processing = true
+    session.phase = 'rolling'
+
+    local aUid = session.uids[session.a]
+    local bUid = session.uids[session.b]
+    local amount = tonumber(session.amount or 0) or 0
+    if getCash(aUid) < amount or getCash(bUid) < amount then
+        session.processing = false
+        closeBarbut(session, 'Partida de barbut anulata: unul dintre jucatori nu mai are banii.', 'no_cash')
+        return
+    end
+
+    local aDice = { math.random(1, 6), math.random(1, 6) }
+    local bDice = { math.random(1, 6), math.random(1, 6) }
+    session.dice[session.a] = aDice
+    session.dice[session.b] = bDice
+    local aTotal = aDice[1] + aDice[2]
+    local bTotal = bDice[1] + bDice[2]
+
+    if aTotal == bTotal then
+        session.phase = 'finished'
+        session.resultText = 'EGALITATE'
+        session.processing = false
+        session.ready[session.a] = false
+        session.ready[session.b] = false
+        session.retry[session.a] = false
+        session.retry[session.b] = false
+        logBarbut({ id = session.id, from_uid = aUid, from_name = getPlayerNameSafe(session.a), to_uid = bUid, to_name = getPlayerNameSafe(session.b), amount = amount, status = 'draw', reason = 'same_total', details = session })
+        broadcastBarbut(session, 'driftzone_playerinteract:client:barbutRoll')
+        return
+    end
+
+    local winner = aTotal > bTotal and session.a or session.b
+    local loser = winner == session.a and session.b or session.a
+    local winnerUid = session.uids[winner]
+    local loserUid = session.uids[loser]
+    local pot = amount * 2
+    local tax = math.floor(pot * ((tonumber(session.taxPercent or 10) or 10) / 100))
+    local payout = pot - tax
+
+    if not addCash(aUid, -amount) then session.processing = false; closeBarbut(session, 'Partida anulata: cash indisponibil.', 'take_a_failed'); return end
+    if not addCash(bUid, -amount) then addCash(aUid, amount); session.processing = false; closeBarbut(session, 'Partida anulata: cash indisponibil.', 'take_b_failed'); return end
+    if not addCash(winnerUid, payout) then
+        addCash(aUid, amount)
+        addCash(bUid, amount)
+        session.processing = false
+        closeBarbut(session, 'Partida anulata: payout esuat.', 'payout_failed')
+        return
+    end
+
+    session.phase = 'finished'
+    session.resultText = ('CASTIGATOR: %s'):format(getPlayerNameSafe(winner))
+    session.processing = false
+    session.ready[session.a] = false
+    session.ready[session.b] = false
+    session.retry[session.a] = false
+    session.retry[session.b] = false
+
+    logBarbut({
+        id = session.id,
+        from_uid = aUid,
+        from_name = getPlayerNameSafe(session.a),
+        to_uid = bUid,
+        to_name = getPlayerNameSafe(session.b),
+        amount = amount,
+        winner_uid = winnerUid,
+        winner_name = getPlayerNameSafe(winner),
+        tax = tax,
+        status = 'finished',
+        reason = 'winner',
+        details = { aDice = aDice, bDice = bDice, aTotal = aTotal, bTotal = bTotal, payout = payout, loserUid = loserUid }
+    })
+
+    notify(winner, 'success', ('Ai castigat la barbut $%s.'):format(payout), 6000)
+    notify(loser, 'warning', ('Ai pierdut la barbut $%s.'):format(amount), 6000)
+    broadcastBarbut(session, 'driftzone_playerinteract:client:barbutRoll')
+end
+
+RegisterNetEvent('driftzone_playerinteract:server:openBarbut', function(targetServerId)
+    local src = source
+    targetServerId = tonumber(targetServerId or 0) or 0
+    if not Config.Barbut or Config.Barbut.enabled ~= true then notify(src, 'warning', 'Barbut este dezactivat.', 4000); return end
+    if not isLogged(src) then notify(src, 'warning', 'Trebuie sa fii logat.', 4000); return end
+    if not playerOnline(targetServerId) or targetServerId == src then notify(src, 'warning', 'Jucator invalid.', 4000); return end
+    if not validDistance(src, targetServerId, 2.0) then notify(src, 'warning', 'Jucatorul este prea departe.', 4000); return end
+
+    local pendingId, pending = findBarbutPending(targetServerId, src)
+    if pending then
+        removeBarbutPending(pendingId, nil)
+        createBarbutSession(pending)
+        return
+    end
+
+    TriggerClientEvent('driftzone_playerinteract:client:barbutInviteMenu', src, {
+        target = { serverId = targetServerId, uid = getUid(targetServerId) or targetServerId, name = getPlayerNameSafe(targetServerId) },
+        maxBet = tonumber(Config.Barbut.maxBet or 1000000) or 1000000
+    })
+end)
+
+RegisterNetEvent('driftzone_playerinteract:server:barbutInvite', function(targetServerId, amount)
+    local src = source
+    targetServerId = tonumber(targetServerId or 0) or 0
+    amount = math.floor(tonumber(amount or 0) or 0)
+    if not Config.Barbut or Config.Barbut.enabled ~= true then return end
+    if not isLogged(src) then notify(src, 'warning', 'Trebuie sa fii logat.', 4000); return end
+    if not playerOnline(targetServerId) or targetServerId == src then notify(src, 'warning', 'Jucator invalid.', 4000); return end
+    if ActiveBarbutByPlayer[src] or ActiveBarbutByPlayer[targetServerId] then notify(src, 'warning', 'Unul dintre voi este deja intr-o partida.', 4000); return end
+    if not validDistance(src, targetServerId, 2.0) then notify(src, 'warning', 'Jucatorul este prea departe.', 4000); return end
+    local minBet = tonumber(Config.Barbut.minBet or 1) or 1
+    local maxBet = tonumber(Config.Barbut.maxBet or 1000000) or 1000000
+    if amount < minBet or amount > maxBet then notify(src, 'warning', ('Suma trebuie sa fie intre $%s si $%s.'):format(minBet, maxBet), 4500); return end
+    local srcUid = getUid(src)
+    local targetUid = getUid(targetServerId)
+    if not srcUid or not targetUid then notify(src, 'warning', 'Nu am gasit UID-ul jucatorilor.', 4000); return end
+    if getCash(srcUid) < amount then notify(src, 'warning', 'Nu ai destui bani pentru aceasta partida.', 4500); return end
+    if getCash(targetUid) < amount then notify(src, 'warning', 'Jucatorul selectat nu are destui bani pentru aceasta partida.', 4500); return end
+
+    local old = BarbutPendingByFrom[src]
+    if old then removeBarbutPending(old, 'replaced') end
+    local id = newBarbutId()
+    local req = {
+        id = id,
+        from = src,
+        to = targetServerId,
+        fromUid = srcUid,
+        toUid = targetUid,
+        fromName = getPlayerNameSafe(src),
+        toName = getPlayerNameSafe(targetServerId),
+        amount = amount,
+        createdAt = os.time(),
+        expiresAt = os.time() + (tonumber(Config.Barbut.timeoutSeconds or 30) or 30)
+    }
+    BarbutPending[id] = req
+    BarbutPendingByFrom[src] = id
+    notify(src, 'success', 'Invitatie barbut trimisa cu succes.', 4000)
+    TriggerClientEvent('driftzone_playerinteract:client:barbutClose', src, 'Invitatie barbut trimisa.')
+    notify(targetServerId, 'info', ('Ai fost invitat la o partida de barbut pe suma de $%s. Selecteaza playerul si apasa BARBUT ca sa accepti.'):format(amount), 9000)
+    logBarbut({ id = id, from_uid = srcUid, from_name = req.fromName, to_uid = targetUid, to_name = req.toName, amount = amount, status = 'request', reason = 'sent', details = req })
+
+    SetTimeout((tonumber(Config.Barbut.timeoutSeconds or 30) or 30) * 1000, function()
+        local p = BarbutPending[id]
+        if p then
+            removeBarbutPending(id, 'expired')
+            if playerOnline(src) then notify(src, 'warning', 'Invitatia de barbut a expirat.', 4500) end
+        end
+    end)
+end)
+
+RegisterNetEvent('driftzone_playerinteract:server:barbutReady', function(data)
+    local src = source
+    data = type(data) == 'table' and data or {}
+    local id = tostring(data.sessionId or ActiveBarbutByPlayer[src] or '')
+    local session = BarbutSessions[id]
+    if not session or (session.a ~= src and session.b ~= src) then return end
+    if session.phase ~= 'ready' and session.phase ~= 'finished' then return end
+    if session.phase == 'finished' then return end
+    local now = GetGameTimer()
+    local cd = BarbutReadyCooldowns[src] or 0
+    if cd > now then return end
+    BarbutReadyCooldowns[src] = now + (tonumber(Config.Barbut.readyCooldownMs or 1200) or 1200)
+    session.ready[src] = true
+    broadcastBarbut(session)
+    if session.ready[session.a] == true and session.ready[session.b] == true then
+        rollBarbut(session)
+    end
+end)
+
+RegisterNetEvent('driftzone_playerinteract:server:barbutRetry', function(data)
+    local src = source
+    data = type(data) == 'table' and data or {}
+    local id = tostring(data.sessionId or ActiveBarbutByPlayer[src] or '')
+    local session = BarbutSessions[id]
+    if not session or (session.a ~= src and session.b ~= src) then return end
+    if session.phase ~= 'finished' then return end
+    session.retry[src] = true
+    session.resultText = session.retry[session.a] and session.retry[session.b] and 'READY UP' or 'WAITING RETRY'
+    if session.retry[session.a] == true and session.retry[session.b] == true then
+        session.phase = 'ready'
+        session.ready[session.a] = false
+        session.ready[session.b] = false
+        session.retry[session.a] = false
+        session.retry[session.b] = false
+        session.dice[session.a] = { 1, 1 }
+        session.dice[session.b] = { 1, 1 }
+        session.resultText = ''
+    end
+    broadcastBarbut(session)
+end)
+
+RegisterNetEvent('driftzone_playerinteract:server:barbutClose', function(data)
+    local src = source
+    data = type(data) == 'table' and data or {}
+    local id = tostring(data.sessionId or ActiveBarbutByPlayer[src] or '')
+    local session = BarbutSessions[id]
+    if session and (session.a == src or session.b == src) then
+        closeBarbut(session, 'Partida de barbut a fost inchisa.', 'closed_by_player')
+    end
+end)
+
 AddEventHandler('playerDropped', function()
     local src = source
     PayCooldowns[src] = nil
+    BarbutReadyCooldowns[src] = nil
+    local bp = BarbutPendingByFrom[src]
+    if bp then removeBarbutPending(bp, 'player_dropped') end
+    for bid, bpdata in pairs(BarbutPending) do
+        if bpdata.to == src then removeBarbutPending(bid, 'player_dropped') end
+    end
+    local bsid = ActiveBarbutByPlayer[src]
+    if bsid and BarbutSessions[bsid] then closeBarbut(BarbutSessions[bsid], 'Partida de barbut anulata: player deconectat.', 'player_dropped') end
     local pendingId = PendingByPlayer[src]
     if pendingId then removePending(pendingId) end
     for id, p in pairs(PendingRequests) do

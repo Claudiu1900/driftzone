@@ -23,6 +23,30 @@ const tradeTargetName = document.getElementById('tradeTargetName');
 const tradeMoneyInput = document.getElementById('tradeMoneyInput');
 const tradeError = document.getElementById('tradeError');
 const tradeSubmitBtn = document.getElementById('tradeSubmitBtn');
+const barbutView = document.getElementById('barbutView');
+const barbutInvitePanel = document.getElementById('barbutInvitePanel');
+const barbutGamePanel = document.getElementById('barbutGamePanel');
+const barbutInviteTarget = document.getElementById('barbutInviteTarget');
+const barbutAmountInput = document.getElementById('barbutAmountInput');
+const barbutInviteError = document.getElementById('barbutInviteError');
+const barbutInviteBtn = document.getElementById('barbutInviteBtn');
+const barbutGameTitle = document.getElementById('barbutGameTitle');
+const barbutGameSubtitle = document.getElementById('barbutGameSubtitle');
+const barbutBetText = document.getElementById('barbutBetText');
+const barbutMyName = document.getElementById('barbutMyName');
+const barbutOtherName = document.getElementById('barbutOtherName');
+const barbutMyReady = document.getElementById('barbutMyReady');
+const barbutOtherReady = document.getElementById('barbutOtherReady');
+const barbutMyDice = document.getElementById('barbutMyDice');
+const barbutOtherDice = document.getElementById('barbutOtherDice');
+const barbutMyTotal = document.getElementById('barbutMyTotal');
+const barbutOtherTotal = document.getElementById('barbutOtherTotal');
+const barbutResultText = document.getElementById('barbutResultText');
+const barbutTaxText = document.getElementById('barbutTaxText');
+const barbutError = document.getElementById('barbutError');
+const barbutCloseBtn = document.getElementById('barbutCloseBtn');
+const barbutRetryBtn = document.getElementById('barbutRetryBtn');
+const barbutReadyBtn = document.getElementById('barbutReadyBtn');
 const myConfirmStatus = document.getElementById('myConfirmStatus');
 const theirConfirmStatus = document.getElementById('theirConfirmStatus');
 
@@ -34,6 +58,9 @@ let tradeState = null;
 let selectedTradeVehicles = new Set();
 let tradeMoneyTimer = null;
 let tradeConfirmed = false;
+let barbutState = null;
+let barbutRolling = false;
+let barbutInviteLocked = false;
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -51,8 +78,9 @@ function escapeHtml(value) {
 function money(n) { return '$' + Number(n || 0).toLocaleString('en-US'); }
 function defaultActions() {
     return [
+        { id: 'trade', label: 'TRADE', title: 'Schimba masini', description: 'Trade masini si bani' },
         { id: 'pay', label: 'PAY', title: 'Trimite bani', description: 'Transfer cash catre player' },
-        { id: 'trade', label: 'TRADE', title: 'Schimba masini', description: 'Trade masini si bani' }
+        { id: 'barbut', label: 'BARBUT', title: 'Joaca barbut', description: 'Zaruri pe cash' }
     ];
 }
 function setError(message) {
@@ -65,12 +93,13 @@ function setTradeError(message) {
 }
 function openSelector(data = {}) {
     setMainColor(data.mainColor); show(app); app.classList.add('selecting'); show(selectorView);
-    hide(radialView); hide(payView); hide(tradeView); setError(''); setTradeError('');
+    hide(radialView); hide(payView); hide(tradeView); hide(barbutView); setError(''); setTradeError(''); setBarbutError('');
 }
 function buildActionButton(action, index) {
-    const special = action.id === 'trade' ? 'trade-card-action' : (action.id === 'pay' ? 'pay-card-action' : 'pay-card-action');
+    const special = action.id === 'trade' ? 'trade-card-action' : (action.id === 'pay' ? 'pay-card-action' : (action.id === 'barbut' ? 'barbut-card-action' : 'pay-card-action'));
+    const numberText = action.id === 'trade' ? '01' : action.id === 'pay' ? '02' : action.id === 'barbut' ? '03' : String(index + 1).padStart(2, '0');
     return `<button class="${special}" style="--delay:${index * 70}ms" onclick="runAction('${escapeHtml(action.id)}')">
-        <i>${action.id === 'trade' ? '01' : action.id === 'pay' ? '02' : String(index + 1).padStart(2, '0')}</i>
+        <i>${numberText}</i>
         <div><span>${escapeHtml(action.title || action.label || action.id)}</span><b>${escapeHtml(action.label || action.id)}</b><small>${escapeHtml(action.description || '')}</small></div>
     </button>`;
 }
@@ -81,7 +110,7 @@ function renderActions(actions) {
 function openMenu(data = {}) {
     app.classList.remove('selecting'); hide(selectorView); selectedPlayer = data.player || data || {};
     setMainColor(data.mainColor); playerName.textContent = selectedPlayer.name || 'Player'; playerId.textContent = selectedPlayer.uid || selectedPlayer.serverId || 0;
-    renderActions(data.actions); show(app); show(radialView); hide(payView); hide(tradeView); setError(''); setTradeError('');
+    renderActions(data.actions); show(app); show(radialView); hide(payView); hide(tradeView); hide(barbutView); setError(''); setTradeError(''); setBarbutError('');
 }
 function openPayView(data = {}) {
     selectedPlayer = data.player || selectedPlayer || {}; payTargetName.textContent = selectedPlayer.name || 'Player'; payTargetId.textContent = selectedPlayer.uid || selectedPlayer.serverId || 0;
@@ -89,14 +118,14 @@ function openPayView(data = {}) {
     setError(''); show(app); hide(radialView); hide(tradeView); show(payView); setTimeout(() => amountInput.focus(), 80);
 }
 function closeUi() {
-    app.classList.remove('selecting'); hide(app); hide(selectorView); hide(radialView); hide(payView); hide(tradeView);
-    setError(''); setTradeError(''); selectedPlayer = null; availableActions = []; payLocked = false; tradeState = null; selectedTradeVehicles = new Set(); tradeConfirmed = false; nui('close');
+    app.classList.remove('selecting'); hide(app); hide(selectorView); hide(radialView); hide(payView); hide(tradeView); hide(barbutView);
+    setError(''); setTradeError(''); selectedPlayer = null; availableActions = []; payLocked = false; tradeState = null; selectedTradeVehicles = new Set(); tradeConfirmed = false; barbutState = null; barbutRolling = false; barbutInviteLocked = false; nui('close');
 }
 function closeUiLocal() {
-    app.classList.remove('selecting'); hide(app); hide(selectorView); hide(radialView); hide(payView); hide(tradeView);
-    setError(''); setTradeError(''); tradeState = null; selectedTradeVehicles = new Set(); tradeConfirmed = false;
+    app.classList.remove('selecting'); hide(app); hide(selectorView); hide(radialView); hide(payView); hide(tradeView); hide(barbutView);
+    setError(''); setTradeError(''); tradeState = null; selectedTradeVehicles = new Set(); tradeConfirmed = false; barbutState = null; barbutRolling = false; barbutInviteLocked = false;
 }
-function runAction(id) { if (id === 'pay') nui('openPay'); if (id === 'trade') nui('openTrade'); }
+function runAction(id) { if (id === 'pay') nui('openPay'); if (id === 'trade') nui('openTrade'); if (id === 'barbut') nui('openBarbut'); }
 function backToMenu() { nui('backToMenu'); }
 function quickAmount(value) { amountInput.value = String(value); setError(''); }
 function confirmPay() {
@@ -207,12 +236,131 @@ tradeMoneyInput.addEventListener('input', () => {
     tradeMoneyTimer = setTimeout(sendOfferUpdate, 350);
 });
 
+
+function setBarbutError(message) {
+    const targets = [barbutInviteError, barbutError];
+    targets.forEach((el) => {
+        if (!el) return;
+        if (!message) { el.textContent = ''; el.classList.add('hidden'); return; }
+        el.textContent = String(message);
+        el.classList.remove('hidden');
+    });
+}
+function diceHtml(value, rolling = false) {
+    const v = Math.max(1, Math.min(6, Number(value || 1)));
+    const dots = Array.from({ length: v }, (_, i) => `<i class="dot d${v}-${i + 1} ${v === 1 ? 'red' : ''}"></i>`).join('');
+    return `<div class="dice ${rolling ? 'rolling' : ''}" data-value="${v}">${dots}</div>`;
+}
+function renderDice(container, values, rolling = false) {
+    const list = Array.isArray(values) && values.length ? values : [1, 1];
+    container.innerHTML = list.map(v => diceHtml(v, rolling)).join('');
+}
+function barbutPayload(payload = {}) {
+    barbutState = payload || {};
+    barbutBetText.textContent = money(barbutState.amount || 0);
+    barbutTaxText.textContent = `Taxa castigator: ${Number(barbutState.taxPercent || 10)}%`;
+    barbutMyName.textContent = barbutState.me?.name || 'Tu';
+    barbutOtherName.textContent = barbutState.other?.name || 'Oponent';
+    barbutMyReady.textContent = barbutState.myReady ? 'READY' : 'NOT READY';
+    barbutOtherReady.textContent = barbutState.otherReady ? 'READY' : 'NOT READY';
+    barbutMyReady.classList.toggle('done', barbutState.myReady === true);
+    barbutOtherReady.classList.toggle('done', barbutState.otherReady === true);
+    const myDice = barbutState.myDice || [1, 1];
+    const otherDice = barbutState.otherDice || [1, 1];
+    renderDice(barbutMyDice, myDice, false);
+    renderDice(barbutOtherDice, otherDice, false);
+    barbutMyTotal.textContent = Number(barbutState.myTotal || (myDice[0] + myDice[1]) || 0);
+    barbutOtherTotal.textContent = Number(barbutState.otherTotal || (otherDice[0] + otherDice[1]) || 0);
+    const finished = barbutState.phase === 'finished';
+    barbutReadyBtn.classList.toggle('hidden', finished);
+    barbutRetryBtn.classList.toggle('hidden', !finished);
+    barbutReadyBtn.disabled = barbutState.myReady === true || barbutRolling;
+    if (!finished) {
+        barbutResultText.textContent = barbutState.myReady || barbutState.otherReady ? 'WAITING READY' : 'READY UP';
+        barbutGameSubtitle.textContent = 'Apasa READY. Cand ambii sunt ready, zarurile pornesc automat.';
+    }
+    if (finished && barbutState.resultText) {
+        barbutResultText.textContent = barbutState.resultText;
+        barbutGameSubtitle.textContent = 'Partida s-a terminat. CLOSE inchide pentru ambii, RETRY cere o noua runda.';
+    }
+}
+function openBarbutInvite(payload = {}) {
+    selectedPlayer = payload.target || selectedPlayer || {};
+    barbutInviteLocked = false;
+    barbutInviteTarget.textContent = selectedPlayer.name || 'Player';
+    barbutAmountInput.value = '';
+    barbutInviteBtn.disabled = false;
+    barbutInviteBtn.querySelector('span').textContent = 'INVITE';
+    setBarbutError('');
+    show(app); hide(radialView); hide(payView); hide(tradeView); show(barbutView); show(barbutInvitePanel); hide(barbutGamePanel);
+    setTimeout(() => barbutAmountInput.focus(), 80);
+}
+function sendBarbutInvite() {
+    if (barbutInviteLocked) return;
+    const amount = Math.floor(Number(barbutAmountInput.value || 0));
+    if (!Number.isFinite(amount) || amount <= 0) { setBarbutError('Pune o suma valida.'); return; }
+    if (amount > 1000000) { setBarbutError('Suma maxima este $1,000,000.'); return; }
+    barbutInviteLocked = true;
+    barbutInviteBtn.disabled = true;
+    barbutInviteBtn.querySelector('span').textContent = 'SE TRIMITE...';
+    nui('barbutInvite', { amount });
+    setTimeout(() => {
+        if (!barbutInvitePanel.classList.contains('hidden')) {
+            barbutInviteLocked = false;
+            barbutInviteBtn.disabled = false;
+            barbutInviteBtn.querySelector('span').textContent = 'INVITE';
+        }
+    }, 2200);
+}
+function openBarbutGame(payload = {}) {
+    setBarbutError('');
+    show(app); hide(radialView); hide(payView); hide(tradeView); show(barbutView); hide(barbutInvitePanel); show(barbutGamePanel);
+    barbutGameTitle.textContent = 'Barbut Duel';
+    barbutPayload(payload);
+}
+function readyBarbutGame() {
+    if (!barbutState || barbutRolling) return;
+    barbutReadyBtn.disabled = true;
+    nui('barbutReady', { sessionId: barbutState.sessionId });
+}
+function retryBarbutGame() {
+    if (!barbutState || barbutRolling) return;
+    barbutRetryBtn.disabled = true;
+    nui('barbutRetry', { sessionId: barbutState.sessionId });
+}
+function closeBarbutGame() {
+    nui('barbutClose', { sessionId: barbutState?.sessionId });
+}
+function rollBarbut(payload = {}) {
+    barbutRolling = true;
+    openBarbutGame({ ...payload, phase: 'rolling' });
+    barbutResultText.textContent = 'ROLLING...';
+    barbutReadyBtn.disabled = true;
+    barbutRetryBtn.classList.add('hidden');
+    let ticks = 0;
+    const timer = setInterval(() => {
+        ticks++;
+        renderDice(barbutMyDice, [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)], true);
+        renderDice(barbutOtherDice, [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)], true);
+        if (ticks >= 18) {
+            clearInterval(timer);
+            barbutRolling = false;
+            barbutPayload(payload);
+        }
+    }, 85);
+}
+
 window.addEventListener('message', (event) => {
     const data = event.data || {};
     if (data.action === 'openSelector') openSelector(data);
     if (data.action === 'openMenu') openMenu(data);
     if (data.action === 'openPay') openPayView(data);
     if (data.action === 'closeAll') closeUiLocal();
+    if (data.action === 'barbutInviteMenu') { setMainColor(data.mainColor); openBarbutInvite(data.payload || {}); }
+    if (data.action === 'barbutOpen') { setMainColor(data.mainColor); openBarbutGame(data.payload || {}); }
+    if (data.action === 'barbutUpdate') { setMainColor(data.mainColor); openBarbutGame(data.payload || {}); }
+    if (data.action === 'barbutRoll') { setMainColor(data.mainColor); rollBarbut(data.payload || {}); }
+    if (data.action === 'barbutClose') { setBarbutError(data.message || 'Partida a fost inchisa.'); setTimeout(closeUiLocal, 700); }
     if (data.action === 'tradeOpen') openTradeSession(data.payload || {});
     if (data.action === 'tradeUpdate') openTradeSession(data.payload || {});
     if (data.action === 'tradeStatus') {
@@ -238,7 +386,11 @@ window.addEventListener('message', (event) => {
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || e.key === '`' || e.code === 'Backquote') {
         e.preventDefault();
-        closeUi();
+        if (!barbutView.classList.contains('hidden') && barbutState && barbutState.sessionId) {
+            closeBarbutGame();
+        } else {
+            closeUi();
+        }
         return;
     }
     if (e.key === 'Enter' && !payView.classList.contains('hidden')) confirmPay();

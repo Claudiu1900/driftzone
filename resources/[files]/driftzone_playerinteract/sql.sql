@@ -50,3 +50,26 @@ ADD COLUMN IF NOT EXISTS `tradable` TINYINT NOT NULL DEFAULT 1;
 -- Compatibilitate: daca ai folosit inainte coloana scrisa `tradeble`, copiem valorile in `tradable`.
 -- Daca nu ai coloana `tradeble`, ignora linia de UPDATE sau foloseste doar `tradable`.
 -- UPDATE `vehiclenames` SET `tradable` = `tradeble` WHERE `tradeble` IS NOT NULL;
+
+
+CREATE TABLE IF NOT EXISTS `barbut_logs` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `session_id` VARCHAR(64) NOT NULL,
+  `from_uid` INT NOT NULL DEFAULT 0,
+  `from_name` VARCHAR(64) DEFAULT NULL,
+  `to_uid` INT NOT NULL DEFAULT 0,
+  `to_name` VARCHAR(64) DEFAULT NULL,
+  `amount` INT NOT NULL DEFAULT 0,
+  `winner_uid` INT NOT NULL DEFAULT 0,
+  `winner_name` VARCHAR(64) DEFAULT NULL,
+  `tax` INT NOT NULL DEFAULT 0,
+  `status` VARCHAR(32) NOT NULL DEFAULT '',
+  `reason` VARCHAR(128) DEFAULT NULL,
+  `details` LONGTEXT DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `session_id` (`session_id`),
+  KEY `from_uid` (`from_uid`),
+  KEY `to_uid` (`to_uid`),
+  KEY `winner_uid` (`winner_uid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

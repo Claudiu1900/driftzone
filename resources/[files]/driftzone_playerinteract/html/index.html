@@ -73,6 +73,75 @@
             </div>
         </section>
 
+
+        <section id="barbutView" class="barbut-view hidden">
+            <div id="barbutInvitePanel" class="barbut-invite hidden">
+                <div class="barbut-side-mark">03</div>
+                <div class="barbut-panel-head">
+                    <span>DRIFTZONE BARBUT</span>
+                    <h1>Dice Duel</h1>
+                    <p>Joaca o partida rapida de barbut cu <b id="barbutInviteTarget">Player</b>.</p>
+                </div>
+                <div class="barbut-bet-box">
+                    <label for="barbutAmountInput">Suma joc</label>
+                    <input id="barbutAmountInput" type="number" inputmode="numeric" min="1" max="1000000" placeholder="1000000" autocomplete="off">
+                    <small>Maxim $1,000,000 • ambii jucatori trebuie sa aiba suma.</small>
+                </div>
+                <div id="barbutInviteError" class="pay-error hidden"></div>
+                <div class="barbut-actions">
+                    <button class="back-btn" onclick="backToMenu()">Back</button>
+                    <button id="barbutInviteBtn" class="confirm barbut-main-btn" onclick="sendBarbutInvite()"><span>INVITE</span></button>
+                </div>
+            </div>
+
+            <div id="barbutGamePanel" class="barbut-game hidden">
+                <div class="barbut-table-glow"></div>
+                <div class="barbut-top">
+                    <div>
+                        <span>DRIFTZONE BARBUT</span>
+                        <h1 id="barbutGameTitle">Barbut Duel</h1>
+                        <p id="barbutGameSubtitle">Asteapta ca ambii jucatori sa apese READY.</p>
+                    </div>
+                    <div class="barbut-pot">
+                        <small>SUMA</small>
+                        <b id="barbutBetText">$0</b>
+                    </div>
+                </div>
+
+                <div class="barbut-board">
+                    <div class="barbut-player-card mine">
+                        <span>TU</span>
+                        <b id="barbutMyName">Player</b>
+                        <div id="barbutMyReady" class="barbut-ready-state">NOT READY</div>
+                        <div id="barbutMyDice" class="dice-row"></div>
+                        <strong id="barbutMyTotal">0</strong>
+                    </div>
+
+                    <div class="barbut-center">
+                        <div class="versus">VS</div>
+                        <div id="barbutResultText" class="barbut-result-text">READY UP</div>
+                        <div id="barbutTaxText" class="barbut-tax">Taxa castigator: 10%</div>
+                    </div>
+
+                    <div class="barbut-player-card other">
+                        <span>OPONENT</span>
+                        <b id="barbutOtherName">Player</b>
+                        <div id="barbutOtherReady" class="barbut-ready-state">NOT READY</div>
+                        <div id="barbutOtherDice" class="dice-row"></div>
+                        <strong id="barbutOtherTotal">0</strong>
+                    </div>
+                </div>
+
+                <div id="barbutError" class="pay-error hidden"></div>
+
+                <div class="barbut-actions game-actions">
+                    <button id="barbutCloseBtn" class="back-btn danger" onclick="closeBarbutGame()">CLOSE</button>
+                    <button id="barbutRetryBtn" class="back-btn retry hidden" onclick="retryBarbutGame()">RETRY</button>
+                    <button id="barbutReadyBtn" class="confirm barbut-main-btn" onclick="readyBarbutGame()"><span>READY</span></button>
+                </div>
+            </div>
+        </section>
+
         <section id="payView" class="pay-view hidden">
             <div class="pay-shell">
                 <button class="back-btn" onclick="backToMenu()">

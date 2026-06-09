@@ -1272,3 +1272,89 @@ input[type=number] {
         width: 230px;
     }
 }
+
+
+/* =========================================================
+   BARBUT ACTION CARD + UI
+   ========================================================= */
+.barbut-card-action {
+    position: absolute !important;
+    left: 50% !important;
+    top: 74% !important;
+    width: 265px;
+    min-height: 108px;
+    transform: translate(-50%, -50%) !important;
+    border: 1px solid rgba(255, 255, 255, .14);
+    background: linear-gradient(145deg, rgba(255, 255, 255, .115), rgba(255, 255, 255, .040)), rgba(5, 10, 20, .92);
+    color: white;
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 14px;
+    align-items: center;
+    text-align: left;
+    padding: 17px;
+    cursor: pointer;
+    box-shadow: 0 18px 52px rgba(0, 0, 0, .46), inset 0 1px 0 rgba(255, 255, 255, .12);
+    opacity: 0;
+    animation: independentActionIn .26s ease forwards;
+    animation-delay: var(--delay);
+}
+.barbut-card-action:hover {
+    border-color: var(--main-line);
+    background: linear-gradient(145deg, rgba(4, 199, 247, .20), rgba(255, 255, 255, .045)), rgba(5, 10, 20, .96);
+    box-shadow: 0 20px 62px rgba(0,0,0,.52), 0 0 38px rgba(4,199,247,.16), inset 0 1px 0 rgba(255,255,255,.14);
+}
+.barbut-card-action i { width: 44px; height: 44px; display:grid; place-items:center; border:1px solid rgba(4,199,247,.35); background:rgba(4,199,247,.12); font-style:normal; color:var(--main); }
+.barbut-card-action span { display:block; color:rgba(255,255,255,.88); font-size:13px; font-weight:900; text-transform:uppercase; letter-spacing:1.3px; }
+.barbut-card-action b { display:block; margin-top:5px; color:white; font-size:29px; line-height:.95; letter-spacing:-1px; }
+.barbut-card-action small { display:block; margin-top:7px; color:var(--muted); font-size:12px; font-weight:750; line-height:1.35; }
+
+.barbut-view { position: fixed; inset: 0; z-index: 4; display:grid; place-items:center; pointer-events:auto; background: radial-gradient(circle at center, rgba(4,199,247,.08), rgba(0,0,0,.12)); }
+.barbut-invite, .barbut-game { position: relative; color:white; border:1px solid rgba(255,255,255,.13); background: linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.030)), rgba(4,9,18,.95); box-shadow: 0 40px 120px rgba(0,0,0,.68), 0 0 55px rgba(4,199,247,.14), inset 0 1px 0 rgba(255,255,255,.12); }
+.barbut-invite { width: min(520px, calc(100vw - 42px)); padding: 30px; }
+.barbut-side-mark { position:absolute; right:22px; top:18px; color:var(--main); opacity:.32; font-size:58px; font-weight:1000; letter-spacing:-4px; }
+.barbut-panel-head span, .barbut-top span { color:var(--main); font-size:11px; font-weight:1000; letter-spacing:2.4px; text-transform:uppercase; }
+.barbut-panel-head h1, .barbut-top h1 { margin:9px 0 0; font-size:54px; line-height:.9; letter-spacing:-2.2px; }
+.barbut-panel-head p, .barbut-top p { margin:14px 0 0; color:var(--muted); font-weight:800; }
+.barbut-panel-head b { color:white; }
+.barbut-bet-box { margin-top:26px; padding:18px; border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.045); }
+.barbut-bet-box label { display:block; color:var(--main); font-size:12px; font-weight:1000; letter-spacing:1.7px; text-transform:uppercase; margin-bottom:10px; }
+.barbut-bet-box input { width:100%; height:66px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.24); color:white; outline:none; padding:0 17px; font-size:30px; font-weight:1000; }
+.barbut-bet-box input:focus { border-color:var(--main-line); box-shadow:0 0 0 4px rgba(4,199,247,.08); }
+.barbut-bet-box small { display:block; margin-top:10px; color:var(--muted); font-weight:800; }
+.barbut-actions { margin-top:16px; display:grid; grid-template-columns: .75fr 1.25fr; gap:10px; }
+.barbut-main-btn { margin-top:0 !important; height:52px !important; }
+.barbut-game { width:min(1100px, calc(100vw - 54px)); min-height:620px; padding:30px; overflow:hidden; }
+.barbut-table-glow { position:absolute; inset:auto -20% -45% -20%; height:460px; border-radius:50%; background:radial-gradient(circle, rgba(4,199,247,.18), transparent 68%); pointer-events:none; }
+.barbut-top { position:relative; display:flex; justify-content:space-between; gap:24px; align-items:flex-start; }
+.barbut-pot { min-width:180px; padding:18px; border:1px solid rgba(4,199,247,.32); background:rgba(4,199,247,.08); text-align:right; }
+.barbut-pot small { display:block; color:var(--muted); font-size:11px; font-weight:1000; letter-spacing:1.7px; }
+.barbut-pot b { display:block; margin-top:7px; color:var(--main); font-size:32px; font-weight:1000; text-shadow:0 0 20px rgba(4,199,247,.32); }
+.barbut-board { position:relative; margin-top:34px; display:grid; grid-template-columns:1fr 230px 1fr; gap:18px; align-items:stretch; }
+.barbut-player-card { min-height:345px; border:1px solid rgba(255,255,255,.11); background:linear-gradient(145deg, rgba(255,255,255,.085), rgba(255,255,255,.028)); padding:22px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.barbut-player-card span { color:var(--main); font-size:11px; font-weight:1000; letter-spacing:2px; }
+.barbut-player-card b { margin-top:8px; font-size:28px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.barbut-ready-state { margin-top:13px; height:30px; padding:0 12px; display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:var(--muted); font-size:11px; font-weight:1000; letter-spacing:1.2px; }
+.barbut-ready-state.done { border-color:rgba(85,255,189,.45); background:rgba(85,255,189,.12); color:var(--success); }
+.dice-row { margin-top:26px; display:flex; gap:16px; justify-content:center; min-height:92px; }
+.dice { position:relative; width:86px; height:86px; border-radius:14px; background:linear-gradient(145deg, #fff, #cfd4da); box-shadow:0 18px 36px rgba(0,0,0,.34), inset 0 2px 0 rgba(255,255,255,.85); }
+.dice.rolling { animation:diceShake .085s linear infinite; filter:brightness(1.1); }
+.dot { position:absolute; width:13px; height:13px; border-radius:50%; background:#090b10; box-shadow:inset 0 1px 1px rgba(255,255,255,.18); }
+.dot.red { background:#d9162d; }
+.d1-1,.d3-2,.d5-3 { left:50%; top:50%; transform:translate(-50%,-50%); }
+.d2-1,.d3-1,.d4-1,.d5-1,.d6-1 { left:20%; top:20%; }
+.d2-2,.d3-3,.d4-4,.d5-5,.d6-6 { right:20%; bottom:20%; }
+.d4-2,.d5-2,.d6-2 { right:20%; top:20%; }
+.d4-3,.d5-4,.d6-5 { left:20%; bottom:20%; }
+.d6-3 { left:20%; top:50%; transform:translateY(-50%); }
+.d6-4 { right:20%; top:50%; transform:translateY(-50%); }
+.barbut-player-card strong { margin-top:18px; font-size:50px; line-height:1; color:white; text-shadow:0 0 24px rgba(4,199,247,.20); }
+.barbut-center { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.versus { width:92px; height:92px; display:grid; place-items:center; border:1px solid rgba(4,199,247,.34); color:var(--main); background:rgba(4,199,247,.08); font-size:30px; font-weight:1000; }
+.barbut-result-text { margin-top:22px; color:white; font-size:26px; font-weight:1000; letter-spacing:-.8px; }
+.barbut-tax { margin-top:10px; color:var(--muted); font-size:12px; font-weight:850; }
+.game-actions { position:relative; grid-template-columns:.8fr .8fr 1.4fr; align-items:center; }
+.game-actions .danger { border-color:rgba(255,65,99,.28); background:rgba(255,65,99,.10); }
+.game-actions .retry { border-color:rgba(85,255,189,.28); background:rgba(85,255,189,.10); }
+@keyframes diceShake { from{ transform:rotate(-7deg) translateY(-2px); } to{ transform:rotate(7deg) translateY(2px); } }
+@media (max-width: 1000px) { .barbut-board{ grid-template-columns:1fr; } .barbut-center{ order:-1; } .barbut-game{ min-height:auto; } }
