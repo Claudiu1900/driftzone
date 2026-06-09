@@ -68,7 +68,8 @@ Config.BarbutLogsTable = 'barbut_logs'
 Config.Barbut = {
     enabled = true,
     minBet = 1,
-    timeoutSeconds = 30,
+    timeoutSeconds = 15,
     taxPercent = 10,
-    readyCooldownMs = 1200
+    readyCooldownMs = 1200,
+    resultNotifyDelayMs = 6500
 }

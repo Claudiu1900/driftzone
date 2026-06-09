@@ -277,23 +277,24 @@ function barbutPayload(payload = {}) {
     barbutMyTotal.textContent = finished ? (barbutState.myScoreLabel || Number(barbutState.myTotal || (myDice[0] + myDice[1]) || 0)) : '—';
     barbutOtherTotal.textContent = finished ? (barbutState.otherScoreLabel || Number(barbutState.otherTotal || (otherDice[0] + otherDice[1]) || 0)) : '—';
 
-    barbutReadyBtn.classList.toggle('hidden', finished || rolling);
-    barbutRetryBtn.classList.toggle('hidden', !finished || rolling);
+    // Nu mai exista buton separat de retry. Dupa fiecare runda apare direct READY.
+    barbutRetryBtn.classList.add('hidden');
+    barbutRetryBtn.disabled = true;
+    barbutReadyBtn.classList.toggle('hidden', rolling);
     barbutReadyBtn.disabled = barbutState.myReady === true || rolling;
-    barbutRetryBtn.disabled = barbutState.myRetry === true || rolling;
-    barbutRetryBtn.textContent = barbutState.myRetry ? 'WAITING' : 'RETRY';
+    barbutReadyBtn.querySelector('span').textContent = barbutState.myReady ? 'WAITING' : 'READY';
 
     if (!finished && !rolling) {
-        barbutResultText.textContent = barbutState.myReady || barbutState.otherReady ? 'WAITING READY' : 'READY UP';
-        barbutGameSubtitle.textContent = 'Cand ambii sunt pregatiti, zarurile pornesc automat.';
+        barbutResultText.textContent = barbutState.myReady || barbutState.otherReady ? 'WAITING' : 'READY';
+        barbutGameSubtitle.textContent = 'Runda este pregatita.';
     }
     if (rolling) {
-        barbutResultText.textContent = 'ROLLING...';
+        barbutResultText.textContent = 'ROLLING';
         barbutGameSubtitle.textContent = 'Zarurile se invart. Rezultatul apare la final.';
     }
     if (finished && barbutState.resultText) {
         barbutResultText.textContent = barbutState.resultText;
-        barbutGameSubtitle.textContent = 'Runda s-a terminat. RETRY porneste o noua runda daca ambii au cash suficient.';
+        barbutGameSubtitle.textContent = 'Apasa READY pentru o runda noua.';
     }
 }
 function openBarbutInvite(payload = {}) {
@@ -335,9 +336,8 @@ function readyBarbutGame() {
     nui('barbutReady', { sessionId: barbutState.sessionId });
 }
 function retryBarbutGame() {
-    if (!barbutState || barbutRolling) return;
-    barbutRetryBtn.disabled = true;
-    nui('barbutRetry', { sessionId: barbutState.sessionId });
+    // Compatibilitate veche: retry foloseste acelasi flux ca READY.
+    readyBarbutGame();
 }
 function closeBarbutGame() {
     nui('barbutClose', { sessionId: barbutState?.sessionId });
@@ -345,7 +345,7 @@ function closeBarbutGame() {
 function rollBarbut(payload = {}) {
     barbutRolling = true;
     openBarbutGame({ ...payload, phase: 'rolling', resultText: '', myDice: [1, 1], otherDice: [1, 1], myTotal: 0, otherTotal: 0, myScoreLabel: '', otherScoreLabel: '' });
-    barbutResultText.textContent = 'ROLLING...';
+    barbutResultText.textContent = 'ROLLING';
     barbutGameSubtitle.textContent = 'Zarurile se invart. Rezultatul apare la final.';
     barbutMyTotal.textContent = '—';
     barbutOtherTotal.textContent = '—';
@@ -354,17 +354,34 @@ function rollBarbut(payload = {}) {
     barbutRetryBtn.classList.add('hidden');
 
     let ticks = 0;
-    const maxTicks = 42;
+    const maxTicks = 74;
     const timer = setInterval(() => {
         ticks++;
-        renderDice(barbutMyDice, [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)], true);
-        renderDice(barbutOtherDice, [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)], true);
+        const slow = ticks > 52;
+        const my = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
+        const other = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
+        renderDice(barbutMyDice, my, true);
+        renderDice(barbutOtherDice, other, true);
+        barbutMyDice.classList.toggle('slow-roll', slow);
+        barbutOtherDice.classList.toggle('slow-roll', slow);
         if (ticks >= maxTicks) {
             clearInterval(timer);
+            barbutMyDice.classList.remove('slow-roll');
+            barbutOtherDice.classList.remove('slow-roll');
             setTimeout(() => {
-                barbutRolling = false;
-                barbutPayload(payload);
-            }, 260);
+                renderDice(barbutMyDice, payload.myDice || [1, 1], false);
+                renderDice(barbutOtherDice, payload.otherDice || [1, 1], false);
+                barbutMyDice.classList.add('dice-reveal');
+                barbutOtherDice.classList.add('dice-reveal');
+                setTimeout(() => {
+                    barbutRolling = false;
+                    barbutPayload(payload);
+                    setTimeout(() => {
+                        barbutMyDice.classList.remove('dice-reveal');
+                        barbutOtherDice.classList.remove('dice-reveal');
+                    }, 420);
+                }, 520);
+            }, 220);
         }
     }, 78);
 }

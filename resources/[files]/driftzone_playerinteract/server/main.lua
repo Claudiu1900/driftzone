@@ -923,6 +923,7 @@ local function createBarbutSession(req)
         retry = { [a] = false, [b] = false },
         dice = { [a] = { 1, 1 }, [b] = { 1, 1 } },
         resultText = '',
+        round = 0,
         createdAt = os.time()
     }
     BarbutSessions[id] = session
@@ -958,6 +959,8 @@ local function rollBarbut(session)
     if not session or session.processing then return end
     session.processing = true
     session.phase = 'rolling'
+    session.round = (tonumber(session.round or 0) or 0) + 1
+    local currentRound = session.round
 
     local aUid = session.uids[session.a]
     local bUid = session.uids[session.b]
@@ -1033,9 +1036,15 @@ local function rollBarbut(session)
         details = { aDice = aDice, bDice = bDice, aTotal = aTotal, bTotal = bTotal, aScore = aScore, bScore = bScore, payout = payout, loserUid = loserUid }
     })
 
-    notify(winner, 'success', ('Ai castigat la barbut $%s.'):format(payout), 6000)
-    notify(loser, 'warning', ('Ai pierdut la barbut $%s.'):format(amount), 6000)
     broadcastBarbut(session, 'driftzone_playerinteract:client:barbutRoll')
+
+    -- Notificarile apar doar dupa ce animatia s-a terminat si numerele au fost afisate.
+    SetTimeout((tonumber(Config.Barbut.resultNotifyDelayMs or 6500) or 6500), function()
+        local active = BarbutSessions[session.id]
+        if not active or active.round ~= currentRound or active.phase ~= 'finished' then return end
+        if playerOnline(winner) then notify(winner, 'success', ('Ai castigat la barbut $%s.'):format(payout), 6000) end
+        if playerOnline(loser) then notify(loser, 'warning', ('Ai pierdut la barbut $%s.'):format(amount), 6000) end
+    end)
 end
 
 RegisterNetEvent('driftzone_playerinteract:server:openBarbut', function(targetServerId)
@@ -1101,8 +1110,10 @@ RegisterNetEvent('driftzone_playerinteract:server:barbutInvite', function(target
     SetTimeout((tonumber(Config.Barbut.timeoutSeconds or 30) or 30) * 1000, function()
         local p = BarbutPending[id]
         if p then
+            local target = p.to
             removeBarbutPending(id, 'expired')
             if playerOnline(src) then notify(src, 'warning', 'Invitatia de barbut a expirat.', 4500) end
+            if playerOnline(target) then notify(target, 'warning', 'Invitatia de barbut a expirat.', 4500) end
         end
     end)
 end)
@@ -1114,16 +1125,48 @@ RegisterNetEvent('driftzone_playerinteract:server:barbutReady', function(data)
     local session = BarbutSessions[id]
     if not session or (session.a ~= src and session.b ~= src) then return end
     if session.phase ~= 'ready' and session.phase ~= 'finished' then return end
-    if session.phase == 'finished' then return end
+
     local now = GetGameTimer()
     local cd = BarbutReadyCooldowns[src] or 0
     if cd > now then return end
     BarbutReadyCooldowns[src] = now + (tonumber(Config.Barbut.readyCooldownMs or 1200) or 1200)
-    session.ready[src] = true
-    broadcastBarbut(session)
-    if session.ready[session.a] == true and session.ready[session.b] == true then
-        rollBarbut(session)
+
+    local amount = tonumber(session.amount or 0) or 0
+    local aUid = session.uids[session.a]
+    local bUid = session.uids[session.b]
+
+    if getCash(aUid) < amount or getCash(bUid) < amount then
+        notify(src, 'warning', 'Nu se poate porni runda: unul dintre jucatori nu are suma necesara.', 4500)
+        broadcastBarbut(session)
+        return
     end
+
+    session.ready[src] = true
+
+    if session.ready[session.a] == true and session.ready[session.b] == true then
+        if getCash(aUid) < amount or getCash(bUid) < amount then
+            session.ready[session.a] = false
+            session.ready[session.b] = false
+            session.resultText = 'CASH INSUFICIENT'
+            notify(session.a, 'warning', 'Runda anulata: unul dintre jucatori nu are suma necesara.', 4500)
+            notify(session.b, 'warning', 'Runda anulata: unul dintre jucatori nu are suma necesara.', 4500)
+            broadcastBarbut(session)
+            return
+        end
+
+        -- READY dupa final inseamna runda noua, fara buton separat de retry.
+        session.phase = 'ready'
+        session.resultText = ''
+        session.scoreLabels = nil
+        session.dice[session.a] = { 1, 1 }
+        session.dice[session.b] = { 1, 1 }
+        session.retry[session.a] = false
+        session.retry[session.b] = false
+        rollBarbut(session)
+        return
+    end
+
+    broadcastBarbut(session)
 end)
 
 RegisterNetEvent('driftzone_playerinteract:server:barbutRetry', function(data)
