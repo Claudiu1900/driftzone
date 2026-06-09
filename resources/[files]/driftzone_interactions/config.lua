@@ -42,7 +42,7 @@ Config.DefaultInteractions = {
 
 {
     id = 'driftzone_licenses',
-    coords = vector3(412.219788, 150.474732, 102.199952),
+    coords = vector3(412.246154, 150.751648, 103.199952),
     range = 2.6,
     key = 'E',
     text = 'Apasa E pentru inmatriculari',
