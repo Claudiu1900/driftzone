@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Licenses</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app" class="app hidden">
+        <div class="panel">
+            <header class="header">
+                <div>
+                    <span class="eyebrow">DRIFTZONE REGISTRY</span>
+                    <h1>License Plates</h1>
+                    <p>Schimba numarul de inmatriculare pentru masinile tale personale.</p>
+                </div>
+                <button class="close" onclick="closeUi()">×</button>
+            </header>
+
+            <div class="progress">
+                <div class="step active" data-step="1"><b>01</b><span>Tip</span></div>
+                <div class="line"></div>
+                <div class="step" data-step="2"><b>02</b><span>Numar</span></div>
+                <div class="line"></div>
+                <div class="step" data-step="3"><b>03</b><span>Masina</span></div>
+            </div>
+
+            <section id="typeView" class="view">
+                <div class="cards">
+                    <button class="type-card" onclick="chooseType('normal')">
+                        <div class="top"><span>NORMAL</span><b id="normalPrice">$100,000</b></div>
+                        <h2>DZ Plate</h2>
+                        <p>Numar obligatoriu cu prefix DZ. Platesti din cash.</p>
+                        <small>DZ + minim 3 litere/cifre</small>
+                    </button>
+
+                    <button class="type-card premium" onclick="chooseType('premium')">
+                        <div class="top"><span>PREMIUM</span><b id="premiumPrice">2,000 DZC</b></div>
+                        <h2>Custom Plate</h2>
+                        <p>Pui orice combinatie disponibila. Platesti cu DriftZone Coins.</p>
+                        <small>1 - 8 litere/cifre</small>
+                    </button>
+                </div>
+            </section>
+
+            <section id="plateView" class="view hidden">
+                <div class="plate-block">
+                    <label id="plateLabel">Numar inmatriculare</label>
+                    <input id="plateInput" maxlength="8" placeholder="DZABC1" autocomplete="off">
+                    <div id="rules" class="rules">Normal: trebuie sa inceapa cu DZ.</div>
+                    <div class="preview">
+                        <span>PREVIEW</span>
+                        <b id="platePreview">DZ---</b>
+                    </div>
+                </div>
+                <div id="plateError" class="error hidden"></div>
+                <div class="actions">
+                    <button class="ghost" onclick="goStep(1)">Back</button>
+                    <button onclick="validatePlateStep()">Next</button>
+                </div>
+            </section>
+
+            <section id="vehicleView" class="view hidden">
+                <div class="toolbar">
+                    <div>
+                        <span class="eyebrow">GARAGE</span>
+                        <b id="vehicleCount">0 vehicles</b>
+                    </div>
+                    <div class="balances"><span id="cashBalance">Cash: $0</span><span id="coinsBalance">DZC: 0</span></div>
+                </div>
+                <div id="vehicles" class="vehicles"></div>
+                <div id="buyError" class="error hidden"></div>
+                <div class="actions">
+                    <button class="ghost" onclick="goStep(2)">Back</button>
+                    <button id="buyBtn" onclick="buyPlate()">Buy Plate</button>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

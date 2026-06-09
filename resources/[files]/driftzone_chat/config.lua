@@ -39,7 +39,8 @@ Config.CommandRoutes = {
     driftzone_tickets = { 'ticket', 'tickets', 'cancelticket' },
     driftzone_codes = { 'code', 'codes', 'createcode', 'creatercode', 'delcode', 'codeslist' },
     driftzone_clothes = { 'haine', 'clothes', 'fixskin', 'setcl', 'bancl' },
-    driftzone_vs = { 'vs', 'dv', 'gotoveh', 'bringveh', 'fixveh' }
+    driftzone_vs = { 'vs', 'dv', 'gotoveh', 'bringveh', 'fixveh' },
+    driftzone_character = { 'character', 'fixcharacter' }
 }
 
 -- Comenzi speciale care nu au RunCommand export.
