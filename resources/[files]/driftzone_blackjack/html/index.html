@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Blackjack</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main id="app" class="app hidden">
+        <div class="table-glow"></div>
+        <section class="shell">
+            <aside class="side-panel">
+                <div class="brand">
+                    <span>DZ</span>
+                    <div>
+                        <h1>BLACKJACK</h1>
+                        <p>DriftZone private table</p>
+                    </div>
+                </div>
+
+                <div class="cash-card">
+                    <small>Cash disponibil</small>
+                    <b id="cashText">$0</b>
+                </div>
+
+                <div class="bet-box">
+                    <label for="betInput">Miza</label>
+                    <input id="betInput" type="number" min="1000" max="1000000" placeholder="100000" autocomplete="off">
+                    <div class="quick-grid">
+                        <button onclick="setBet(10000)">$10K</button>
+                        <button onclick="setBet(50000)">$50K</button>
+                        <button onclick="setBet(100000)">$100K</button>
+                        <button onclick="setBet(500000)">$500K</button>
+                        <button onclick="setBet(1000000)">$1M</button>
+                        <button onclick="maxBet()">MAX</button>
+                    </div>
+                    <button id="dealBtn" class="primary" onclick="startGame()">DEAL</button>
+                    <div id="statusBox" class="status hidden"></div>
+                </div>
+
+                <button class="close" onclick="closeUi()">CLOSE TABLE</button>
+            </aside>
+
+            <section class="table">
+                <div class="dealer-zone zone">
+                    <div class="zone-head">
+                        <span>DEALER</span>
+                        <b id="dealerValue">0</b>
+                    </div>
+                    <div id="dealerCards" class="cards"></div>
+                </div>
+
+                <div class="center-logo">
+                    <div>21</div>
+                    <span>BLACKJACK PAYS 3:2</span>
+                </div>
+
+                <div class="player-zone zone">
+                    <div class="zone-head">
+                        <span>PLAYER</span>
+                        <b id="playerValue">0</b>
+                    </div>
+                    <div id="playerCards" class="cards"></div>
+                </div>
+
+                <div class="actions">
+                    <button id="hitBtn" onclick="hit()">HIT</button>
+                    <button id="standBtn" onclick="stand()">STAND</button>
+                    <button id="doubleBtn" onclick="doubleDown()">DOUBLE</button>
+                    <button id="surrenderBtn" onclick="surrender()">SURRENDER</button>
+                </div>
+            </section>
+        </section>
+    </main>
+    <script src="script.js"></script>
+</body>
+</html>
