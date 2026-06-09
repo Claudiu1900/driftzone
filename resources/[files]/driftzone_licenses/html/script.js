@@ -82,7 +82,7 @@ function chooseType(type) {
         plateInput.value = state.limits.normalPrefix || 'DZ';
     } else {
         plateLabel.textContent = 'Numar premium';
-        plateInput.placeholder = 'EX: PLATE';
+        plateInput.placeholder = 'EX:PLATE';
         plateInput.maxLength = state.limits.premiumMaxLength || 8;
         rules.textContent = `Premium: orice combinatie disponibila, minim ${state.limits.premiumMinLength || 1}, maxim ${state.limits.premiumMaxLength || 8} caractere.`;
         plateInput.value = '';
