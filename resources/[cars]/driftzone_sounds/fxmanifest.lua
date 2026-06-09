@@ -23,11 +23,6 @@ data_file 'AUDIO_GAMEDATA' 'audioconfig/aq68lam52v10_game.dat'
 data_file 'AUDIO_SOUNDDATA' 'audioconfig/aq68lam52v10_sounds.dat'
 data_file 'AUDIO_WAVEPACK' 'sfx/dlc_aq68lam52v10'
 
--- aq98amgm279
-ddata_file 'AUDIO_GAMEDATA' 'audioconfig/aq98amgm279_game.dat'
-data_file 'AUDIO_SOUNDDATA' 'audioconfig/aq98amgm279_sounds.dat'
-data_file 'AUDIO_WAVEPACK' 'sfx/dlc_aq98amgm279'
-
 -- lg30meramgtr
 data_file 'AUDIO_GAMEDATA' 'audioconfig/lg30meramgtr_game.dat'
 data_file 'AUDIO_SOUNDDATA' 'audioconfig/lg30meramgtr_sounds.dat'
