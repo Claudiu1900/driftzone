@@ -29,7 +29,7 @@ data_file 'AUDIO_GAMEDATA' 'audioconfig/lamavgieng_game.dat'
 data_file 'AUDIO_SOUNDDATA' 'audioconfig/lamavgieng_sounds.dat'
 data_file 'AUDIO_WAVEPACK' 'sfx/dlc_lamavgieng'
 
--- lg30meramgtr
-data_file 'AUDIO_GAMEDATA' 'audioconfig/lg30meramgtr_game.dat'
-data_file 'AUDIO_SOUNDDATA' 'audioconfig/lg30meramgtr_sounds.dat'
-data_file 'AUDIO_WAVEPACK' 'sfx/dlc_lg30meramgtr'
+-- aq98amgm279
+data_file 'AUDIO_GAMEDATA' 'audioconfig/aq98amgm279_game.dat'
+data_file 'AUDIO_SOUNDDATA' 'audioconfig/aq98amgm279_sounds.dat'
+data_file 'AUDIO_WAVEPACK' 'sfx/dlc_aq98amgm279'
