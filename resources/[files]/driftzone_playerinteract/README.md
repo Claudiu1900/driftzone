@@ -37,3 +37,13 @@ ensure oxmysql
 ensure driftzone_auth
 ensure driftzone_playerinteract
 ```
+
+## Update Barbut v2
+
+- S-a scos numarul 03 din meniul unde introduci suma.
+- S-a scos limita maxima de 1.000.000 din Barbut.
+- S-a scos textul lung cu instructiunea READY din UI.
+- Rezultatul si scorurile apar doar dupa ce zarurile se opresc.
+- Animatia zarurilor este mai lunga si cu efect 3D.
+- RETRY a fost reparat si verifica din nou cash-ul ambilor jucatori.
+- Combinatia 1 + 1 este cea mai mare combinatie la Barbut.

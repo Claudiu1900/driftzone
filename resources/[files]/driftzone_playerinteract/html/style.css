@@ -1358,3 +1358,67 @@ input[type=number] {
 .game-actions .retry { border-color:rgba(85,255,189,.28); background:rgba(85,255,189,.10); }
 @keyframes diceShake { from{ transform:rotate(-7deg) translateY(-2px); } to{ transform:rotate(7deg) translateY(2px); } }
 @media (max-width: 1000px) { .barbut-board{ grid-template-columns:1fr; } .barbut-center{ order:-1; } .barbut-game{ min-height:auto; } }
+
+/* Barbut v2 polish */
+.barbut-side-mark { display: none !important; }
+.barbut-bet-box small { color: rgba(255,255,255,.48); }
+.barbut-game {
+    perspective: 1200px;
+    background:
+        radial-gradient(circle at 50% 72%, rgba(4,199,247,.13), transparent 42%),
+        linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.030)),
+        rgba(4,9,18,.96) !important;
+}
+.dice-row {
+    min-height: 118px !important;
+    perspective: 900px;
+    align-items: center;
+}
+.dice {
+    width: 94px !important;
+    height: 94px !important;
+    border-radius: 18px !important;
+    transform-style: preserve-3d;
+    background: linear-gradient(145deg, #ffffff 0%, #f1f5f9 35%, #b8c0cc 100%) !important;
+    box-shadow:
+        0 26px 52px rgba(0,0,0,.48),
+        0 6px 0 rgba(100,110,124,.55),
+        inset 0 3px 0 rgba(255,255,255,.94),
+        inset -10px -12px 20px rgba(0,0,0,.12) !important;
+}
+.dice::before {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    border-radius: 14px;
+    border: 1px solid rgba(0,0,0,.06);
+    background: linear-gradient(145deg, rgba(255,255,255,.45), rgba(255,255,255,0));
+    pointer-events: none;
+}
+.dice-face {
+    position: absolute;
+    inset: 0;
+    transform: translateZ(24px);
+}
+.dice.rolling {
+    animation: diceRoll3d .62s cubic-bezier(.2,.9,.25,1) infinite !important;
+    filter: brightness(1.08) contrast(1.05);
+}
+.barbut-player-card strong {
+    min-height: 54px;
+}
+.barbut-result-text {
+    min-height: 34px;
+    text-transform: uppercase;
+}
+.game-actions .retry:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+@keyframes diceRoll3d {
+    0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg) translateY(0) scale(1); }
+    22% { transform: rotateX(95deg) rotateY(50deg) rotateZ(-18deg) translateY(-16px) scale(1.05); }
+    48% { transform: rotateX(205deg) rotateY(155deg) rotateZ(28deg) translateY(6px) scale(.98); }
+    72% { transform: rotateX(330deg) rotateY(260deg) rotateZ(-22deg) translateY(-10px) scale(1.04); }
+    100% { transform: rotateX(450deg) rotateY(360deg) rotateZ(0deg) translateY(0) scale(1); }
+}

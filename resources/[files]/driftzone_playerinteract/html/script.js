@@ -249,7 +249,7 @@ function setBarbutError(message) {
 function diceHtml(value, rolling = false) {
     const v = Math.max(1, Math.min(6, Number(value || 1)));
     const dots = Array.from({ length: v }, (_, i) => `<i class="dot d${v}-${i + 1} ${v === 1 ? 'red' : ''}"></i>`).join('');
-    return `<div class="dice ${rolling ? 'rolling' : ''}" data-value="${v}">${dots}</div>`;
+    return `<div class="dice ${rolling ? 'rolling' : ''}" data-value="${v}"><div class="dice-face">${dots}</div></div>`;
 }
 function renderDice(container, values, rolling = false) {
     const list = Array.isArray(values) && values.length ? values : [1, 1];
@@ -257,6 +257,9 @@ function renderDice(container, values, rolling = false) {
 }
 function barbutPayload(payload = {}) {
     barbutState = payload || {};
+    const finished = barbutState.phase === 'finished';
+    const rolling = barbutState.phase === 'rolling' || barbutRolling;
+
     barbutBetText.textContent = money(barbutState.amount || 0);
     barbutTaxText.textContent = `Taxa castigator: ${Number(barbutState.taxPercent || 10)}%`;
     barbutMyName.textContent = barbutState.me?.name || 'Tu';
@@ -265,23 +268,32 @@ function barbutPayload(payload = {}) {
     barbutOtherReady.textContent = barbutState.otherReady ? 'READY' : 'NOT READY';
     barbutMyReady.classList.toggle('done', barbutState.myReady === true);
     barbutOtherReady.classList.toggle('done', barbutState.otherReady === true);
+
     const myDice = barbutState.myDice || [1, 1];
     const otherDice = barbutState.otherDice || [1, 1];
     renderDice(barbutMyDice, myDice, false);
     renderDice(barbutOtherDice, otherDice, false);
-    barbutMyTotal.textContent = Number(barbutState.myTotal || (myDice[0] + myDice[1]) || 0);
-    barbutOtherTotal.textContent = Number(barbutState.otherTotal || (otherDice[0] + otherDice[1]) || 0);
-    const finished = barbutState.phase === 'finished';
-    barbutReadyBtn.classList.toggle('hidden', finished);
-    barbutRetryBtn.classList.toggle('hidden', !finished);
-    barbutReadyBtn.disabled = barbutState.myReady === true || barbutRolling;
-    if (!finished) {
+
+    barbutMyTotal.textContent = finished ? (barbutState.myScoreLabel || Number(barbutState.myTotal || (myDice[0] + myDice[1]) || 0)) : '—';
+    barbutOtherTotal.textContent = finished ? (barbutState.otherScoreLabel || Number(barbutState.otherTotal || (otherDice[0] + otherDice[1]) || 0)) : '—';
+
+    barbutReadyBtn.classList.toggle('hidden', finished || rolling);
+    barbutRetryBtn.classList.toggle('hidden', !finished || rolling);
+    barbutReadyBtn.disabled = barbutState.myReady === true || rolling;
+    barbutRetryBtn.disabled = barbutState.myRetry === true || rolling;
+    barbutRetryBtn.textContent = barbutState.myRetry ? 'WAITING' : 'RETRY';
+
+    if (!finished && !rolling) {
         barbutResultText.textContent = barbutState.myReady || barbutState.otherReady ? 'WAITING READY' : 'READY UP';
-        barbutGameSubtitle.textContent = 'Apasa READY. Cand ambii sunt ready, zarurile pornesc automat.';
+        barbutGameSubtitle.textContent = 'Cand ambii sunt pregatiti, zarurile pornesc automat.';
+    }
+    if (rolling) {
+        barbutResultText.textContent = 'ROLLING...';
+        barbutGameSubtitle.textContent = 'Zarurile se invart. Rezultatul apare la final.';
     }
     if (finished && barbutState.resultText) {
         barbutResultText.textContent = barbutState.resultText;
-        barbutGameSubtitle.textContent = 'Partida s-a terminat. CLOSE inchide pentru ambii, RETRY cere o noua runda.';
+        barbutGameSubtitle.textContent = 'Runda s-a terminat. RETRY porneste o noua runda daca ambii au cash suficient.';
     }
 }
 function openBarbutInvite(payload = {}) {
@@ -299,7 +311,6 @@ function sendBarbutInvite() {
     if (barbutInviteLocked) return;
     const amount = Math.floor(Number(barbutAmountInput.value || 0));
     if (!Number.isFinite(amount) || amount <= 0) { setBarbutError('Pune o suma valida.'); return; }
-    if (amount > 1000000) { setBarbutError('Suma maxima este $1,000,000.'); return; }
     barbutInviteLocked = true;
     barbutInviteBtn.disabled = true;
     barbutInviteBtn.querySelector('span').textContent = 'SE TRIMITE...';
@@ -333,21 +344,29 @@ function closeBarbutGame() {
 }
 function rollBarbut(payload = {}) {
     barbutRolling = true;
-    openBarbutGame({ ...payload, phase: 'rolling' });
+    openBarbutGame({ ...payload, phase: 'rolling', resultText: '', myDice: [1, 1], otherDice: [1, 1], myTotal: 0, otherTotal: 0, myScoreLabel: '', otherScoreLabel: '' });
     barbutResultText.textContent = 'ROLLING...';
+    barbutGameSubtitle.textContent = 'Zarurile se invart. Rezultatul apare la final.';
+    barbutMyTotal.textContent = '—';
+    barbutOtherTotal.textContent = '—';
     barbutReadyBtn.disabled = true;
+    barbutReadyBtn.classList.add('hidden');
     barbutRetryBtn.classList.add('hidden');
+
     let ticks = 0;
+    const maxTicks = 42;
     const timer = setInterval(() => {
         ticks++;
         renderDice(barbutMyDice, [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)], true);
         renderDice(barbutOtherDice, [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)], true);
-        if (ticks >= 18) {
+        if (ticks >= maxTicks) {
             clearInterval(timer);
-            barbutRolling = false;
-            barbutPayload(payload);
+            setTimeout(() => {
+                barbutRolling = false;
+                barbutPayload(payload);
+            }, 260);
         }
-    }, 85);
+    }, 78);
 }
 
 window.addEventListener('message', (event) => {

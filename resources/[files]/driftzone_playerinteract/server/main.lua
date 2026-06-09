@@ -858,6 +858,8 @@ local function barbutPayload(session, src)
         otherDice = otherDice,
         myTotal = (tonumber(myDice[1] or 0) or 0) + (tonumber(myDice[2] or 0) or 0),
         otherTotal = (tonumber(otherDice[1] or 0) or 0) + (tonumber(otherDice[2] or 0) or 0),
+        myScoreLabel = session.scoreLabels and session.scoreLabels[src] or '',
+        otherScoreLabel = session.scoreLabels and session.scoreLabels[other] or '',
         resultText = session.resultText or ''
     }
 end
@@ -940,6 +942,18 @@ local function createBarbutSession(req)
     broadcastBarbut(session, 'driftzone_playerinteract:client:barbutOpen')
 end
 
+local function barbutScore(dice)
+    local d1 = tonumber(dice and dice[1] or 0) or 0
+    local d2 = tonumber(dice and dice[2] or 0) or 0
+
+    -- Regula DriftZone: 1 + 1 este cea mai mare combinatie posibila.
+    if d1 == 1 and d2 == 1 then
+        return 99, '1-1'
+    end
+
+    return d1 + d2, tostring(d1 + d2)
+end
+
 local function rollBarbut(session)
     if not session or session.processing then return end
     session.processing = true
@@ -960,8 +974,12 @@ local function rollBarbut(session)
     session.dice[session.b] = bDice
     local aTotal = aDice[1] + aDice[2]
     local bTotal = bDice[1] + bDice[2]
+    local aScore, aScoreLabel = barbutScore(aDice)
+    local bScore, bScoreLabel = barbutScore(bDice)
 
-    if aTotal == bTotal then
+    session.scoreLabels = { [session.a] = aScoreLabel, [session.b] = bScoreLabel }
+
+    if aScore == bScore then
         session.phase = 'finished'
         session.resultText = 'EGALITATE'
         session.processing = false
@@ -974,7 +992,7 @@ local function rollBarbut(session)
         return
     end
 
-    local winner = aTotal > bTotal and session.a or session.b
+    local winner = aScore > bScore and session.a or session.b
     local loser = winner == session.a and session.b or session.a
     local winnerUid = session.uids[winner]
     local loserUid = session.uids[loser]
@@ -1012,7 +1030,7 @@ local function rollBarbut(session)
         tax = tax,
         status = 'finished',
         reason = 'winner',
-        details = { aDice = aDice, bDice = bDice, aTotal = aTotal, bTotal = bTotal, payout = payout, loserUid = loserUid }
+        details = { aDice = aDice, bDice = bDice, aTotal = aTotal, bTotal = bTotal, aScore = aScore, bScore = bScore, payout = payout, loserUid = loserUid }
     })
 
     notify(winner, 'success', ('Ai castigat la barbut $%s.'):format(payout), 6000)
@@ -1037,7 +1055,7 @@ RegisterNetEvent('driftzone_playerinteract:server:openBarbut', function(targetSe
 
     TriggerClientEvent('driftzone_playerinteract:client:barbutInviteMenu', src, {
         target = { serverId = targetServerId, uid = getUid(targetServerId) or targetServerId, name = getPlayerNameSafe(targetServerId) },
-        maxBet = tonumber(Config.Barbut.maxBet or 1000000) or 1000000
+        maxBet = 0
     })
 end)
 
@@ -1051,8 +1069,7 @@ RegisterNetEvent('driftzone_playerinteract:server:barbutInvite', function(target
     if ActiveBarbutByPlayer[src] or ActiveBarbutByPlayer[targetServerId] then notify(src, 'warning', 'Unul dintre voi este deja intr-o partida.', 4000); return end
     if not validDistance(src, targetServerId, 2.0) then notify(src, 'warning', 'Jucatorul este prea departe.', 4000); return end
     local minBet = tonumber(Config.Barbut.minBet or 1) or 1
-    local maxBet = tonumber(Config.Barbut.maxBet or 1000000) or 1000000
-    if amount < minBet or amount > maxBet then notify(src, 'warning', ('Suma trebuie sa fie intre $%s si $%s.'):format(minBet, maxBet), 4500); return end
+    if amount < minBet then notify(src, 'warning', ('Suma minima este $%s.'):format(minBet), 4500); return end
     local srcUid = getUid(src)
     local targetUid = getUid(targetServerId)
     if not srcUid or not targetUid then notify(src, 'warning', 'Nu am gasit UID-ul jucatorilor.', 4000); return end
@@ -1116,9 +1133,29 @@ RegisterNetEvent('driftzone_playerinteract:server:barbutRetry', function(data)
     local session = BarbutSessions[id]
     if not session or (session.a ~= src and session.b ~= src) then return end
     if session.phase ~= 'finished' then return end
+    local amount = tonumber(session.amount or 0) or 0
+    local aUid = session.uids[session.a]
+    local bUid = session.uids[session.b]
+
+    if getCash(aUid) < amount or getCash(bUid) < amount then
+        notify(src, 'warning', 'Retry indisponibil: unul dintre jucatori nu are suma necesara.', 4500)
+        broadcastBarbut(session)
+        return
+    end
+
     session.retry[src] = true
     session.resultText = session.retry[session.a] and session.retry[session.b] and 'READY UP' or 'WAITING RETRY'
     if session.retry[session.a] == true and session.retry[session.b] == true then
+        if getCash(aUid) < amount or getCash(bUid) < amount then
+            session.retry[session.a] = false
+            session.retry[session.b] = false
+            session.resultText = 'RETRY ANULAT - CASH INSUFICIENT'
+            notify(session.a, 'warning', 'Retry anulat: unul dintre jucatori nu are suma necesara.', 4500)
+            notify(session.b, 'warning', 'Retry anulat: unul dintre jucatori nu are suma necesara.', 4500)
+            broadcastBarbut(session)
+            return
+        end
+
         session.phase = 'ready'
         session.ready[session.a] = false
         session.ready[session.b] = false
@@ -1126,6 +1163,7 @@ RegisterNetEvent('driftzone_playerinteract:server:barbutRetry', function(data)
         session.retry[session.b] = false
         session.dice[session.a] = { 1, 1 }
         session.dice[session.b] = { 1, 1 }
+        session.scoreLabels = nil
         session.resultText = ''
     end
     broadcastBarbut(session)
