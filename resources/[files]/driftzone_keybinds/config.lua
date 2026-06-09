@@ -83,9 +83,27 @@ Config.Keybinds = {
         id = 'playerinteract',
         name = 'Player Interactions',
         description = 'Deschide meniul de interactiunii cu jucatorii din apropiere',
-        key = 'ALT',
+        key = 'Z',
         eventType = 'command',
         eventName = 'playerinteract',
+        enabled = true
+    },
+        {
+        id = 'lockveh',
+        name = 'Lock / Unlock Vehicle',
+        description = 'Incuie sau descuie masina personala',
+        key = 'F3',
+        eventType = 'command',
+        eventName = 'vehiclelock',
+        enabled = true
+    },
+            {
+        id = 'engine',
+        name = 'Engine Toggle',
+        description = 'Pornește sau oprește motorul mașinii',
+        key = 'TAB',
+        eventType = 'command',
+        eventName = 'engine',
         enabled = true
     },
     {
