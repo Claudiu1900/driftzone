@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CVehicleModelInfoVarGlobal>
+    <Kits>
+        <Item>
+            <kitName>9749_mansm8c_modkit</kitName>
+            <id value="9749" />
+            <kitType>MKT_SPECIAL</kitType>
+            <visibleMods>
+                <Item>
+                  <modelName>mansm8c_livery1</modelName>
+                  <modShopLabel>MANSB</modShopLabel>
+                  <linkedModels/>
+                  <turnOffBones/>
+                  <type>VMT_LIVERY_MOD</type>
+                  <bone>chassis</bone>
+                  <collisionBone>chassis</collisionBone>
+                  <cameraPos>VMCP_DEFAULT</cameraPos>
+                  <audioApply value="1.00000000"/>
+                  <weight value="0"/>
+                  <turnOffExtra value="false"/>
+                  <disableBonnetCamera value="false"/>
+                  <allowBonnetSlide value="true"/>
+                </Item>
+                <Item>
+                  <modelName>mansm8c_livery2</modelName>
+                  <modShopLabel>MANSW</modShopLabel>
+                  <linkedModels/>
+                  <turnOffBones/>
+                  <type>VMT_LIVERY_MOD</type>
+                  <bone>chassis</bone>
+                  <collisionBone>chassis</collisionBone>
+                  <cameraPos>VMCP_DEFAULT</cameraPos>
+                  <audioApply value="1.00000000"/>
+                  <weight value="0"/>
+                  <turnOffExtra value="false"/>
+                  <disableBonnetCamera value="false"/>
+                  <allowBonnetSlide value="true"/>
+                </Item>
+                <Item>
+                  <modelName>mansm8c_livery3</modelName>
+                  <modShopLabel>DDKB</modShopLabel>
+                  <linkedModels/>
+                  <turnOffBones/>
+                  <type>VMT_LIVERY_MOD</type>
+                  <bone>chassis</bone>
+                  <collisionBone>chassis</collisionBone>
+                  <cameraPos>VMCP_DEFAULT</cameraPos>
+                  <audioApply value="1.00000000"/>
+                  <weight value="0"/>
+                  <turnOffExtra value="false"/>
+                  <disableBonnetCamera value="false"/>
+                  <allowBonnetSlide value="true"/>
+                </Item>
+                <Item>
+                  <modelName>mansm8c_livery4</modelName>
+                  <modShopLabel>DDKW</modShopLabel>
+                  <linkedModels/>
+                  <turnOffBones/>
+                  <type>VMT_LIVERY_MOD</type>
+                  <bone>chassis</bone>
+                  <collisionBone>chassis</collisionBone>
+                  <cameraPos>VMCP_DEFAULT</cameraPos>
+                  <audioApply value="1.00000000"/>
+                  <weight value="0"/>
+                  <turnOffExtra value="false"/>
+                  <disableBonnetCamera value="false"/>
+                  <allowBonnetSlide value="true"/>
+                </Item>
+                <Item>
+                  <modelName>mansm8c_livery5</modelName>
+                  <modShopLabel>LEGEND</modShopLabel>
+                  <linkedModels/>
+                  <turnOffBones/>
+                  <type>VMT_LIVERY_MOD</type>
+                  <bone>chassis</bone>
+                  <collisionBone>chassis</collisionBone>
+                  <cameraPos>VMCP_DEFAULT</cameraPos>
+                  <audioApply value="1.00000000"/>
+                  <weight value="0"/>
+                  <turnOffExtra value="false"/>
+                  <disableBonnetCamera value="false"/>
+                  <allowBonnetSlide value="true"/>
+                </Item>
+                <Item>
+                  <modelName>mansm8c_livery6</modelName>
+                  <modShopLabel>MFORCE</modShopLabel>
+                  <linkedModels/>
+                  <turnOffBones/>
+                  <type>VMT_LIVERY_MOD</type>
+                  <bone>chassis</bone>
+                  <collisionBone>chassis</collisionBone>
+                  <cameraPos>VMCP_DEFAULT</cameraPos>
+                  <audioApply value="1.00000000"/>
+                  <weight value="0"/>
+                  <turnOffExtra value="false"/>
+                  <disableBonnetCamera value="false"/>
+                  <allowBonnetSlide value="true"/>
+                </Item>
+                <Item>
+                  <modelName>mansm8c_livery7</modelName>
+                  <modShopLabel>DDK</modShopLabel>
+                  <linkedModels/>
+                  <turnOffBones/>
+                  <type>VMT_LIVERY_MOD</type>
+                  <bone>chassis</bone>
+                  <collisionBone>chassis</collisionBone>
+                  <cameraPos>VMCP_DEFAULT</cameraPos>
+                  <audioApply value="1.00000000"/>
+                  <weight value="0"/>
+                  <turnOffExtra value="false"/>
+                  <disableBonnetCamera value="false"/>
+                  <allowBonnetSlide value="true"/>
+                </Item>
+            </visibleMods>
+            <linkMods />
+            <statMods>
+                <Item>
+                    <identifier />
+                    <modifier value="75" />
+                    <audioApply value="1.000000" />
+                    <weight value="0" />
+                    <type>VMT_ENGINE</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="95" />
+                    <audioApply value="1.000000" />
+                    <weight value="0" />
+                    <type>VMT_ENGINE</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="115" />
+                    <audioApply value="1.000000" />
+                    <weight value="0" />
+                    <type>VMT_ENGINE</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="135" />
+                    <audioApply value="1.000000" />
+                    <weight value="0" />
+                    <type>VMT_ENGINE</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="25" />
+                    <audioApply value="1.000000" />
+                    <weight value="5" />
+                    <type>VMT_BRAKES</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="50" />
+                    <audioApply value="1.000000" />
+                    <weight value="5" />
+                    <type>VMT_BRAKES</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="100" />
+                    <audioApply value="1.000000" />
+                    <weight value="5" />
+                    <type>VMT_BRAKES</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="25" />
+                    <audioApply value="1.000000" />
+                    <weight value="5" />
+                    <type>VMT_GEARBOX</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="50" />
+                    <audioApply value="1.000000" />
+                    <weight value="5" />
+                    <type>VMT_GEARBOX</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="100" />
+                    <audioApply value="1.000000" />
+                    <weight value="5" />
+                    <type>VMT_GEARBOX</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="20" />
+                    <audioApply value="1.000000" />
+                    <weight value="0" />
+                    <type>VMT_ARMOUR</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="40" />
+                    <audioApply value="1.000000" />
+                    <weight value="10" />
+                    <type>VMT_ARMOUR</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="60" />
+                    <audioApply value="1.000000" />
+                    <weight value="20" />
+                    <type>VMT_ARMOUR</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="80" />
+                    <audioApply value="1.000000" />
+                    <weight value="30" />
+                    <type>VMT_ARMOUR</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="100" />
+                    <audioApply value="1.000000" />
+                    <weight value="40" />
+                    <type>VMT_ARMOUR</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="6" />
+                    <audioApply value="1.000000" />
+                    <weight value="0" />
+                    <type>VMT_SUSPENSION</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="11" />
+                    <audioApply value="1.000000" />
+                    <weight value="0" />
+                    <type>VMT_SUSPENSION</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="16" />
+                    <audioApply value="1.000000" />
+                    <weight value="0" />
+                    <type>VMT_SUSPENSION</type>
+                </Item>
+                <Item>
+                    <identifier />
+                    <modifier value="30" />
+                    <audioApply value="1.000000" />
+                    <weight value="0" />
+                    <type>VMT_SUSPENSION</type>
+                </Item>
+            </statMods>
+            <slotNames />
+            <liveryNames/>
+        </Item>
+    </Kits>
+</CVehicleModelInfoVarGlobal>
