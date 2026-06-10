@@ -48,10 +48,13 @@ ALTER TABLE `vehiclenames`
 ADD COLUMN IF NOT EXISTS `tunable` TINYINT NOT NULL DEFAULT 1;
 ```
 
+## Update addon full tuning
 
-## Update add-on tuning + logs
+- Categoriile vizibile pentru masini add-on sunt afisate fortat cand FiveM returneaza `0` la `GetNumVehicleMods`.
+- Daca masina are modkit real, se foloseste count-ul real.
+- Daca native-ul returneaza 0, se foloseste fallback optimizat din `config.lua`.
+- Livery are suport dublu: `SetVehicleMod(48, ...)` si `SetVehicleLivery(...)`.
+- Comanda admin: `/tunning`, admin 6+ si aduty yes.
+- Loguri in `tunning_logs` pentru cumparari si folosire admin.
 
-- Masinile add-on primesc acum si categorii native `Extra 1` - `Extra 14`, daca acele extra-uri exista pe vehicul.
-- `Livery` foloseste fallback pe `GetVehicleLiveryCount` / `SetVehicleLivery` pentru masinile care nu folosesc modkit clasic la livery.
-- Categoriile apar doar daca vehiculul chiar are acele optiuni, ca sa nu incarce UI inutil.
-- Fiecare plata de tuning este salvata in `tunning_logs` cu UID, masina, suma, schimbari si tuning JSON.
+Important: daca un addon nu are deloc modkit/carcols pentru piesele vizibile, meniul le poate afisa fortat, dar piesa respectiva nu are ce sa aplice in joc. Pentru addon-uri facute corect, piesele apar si se aplica.

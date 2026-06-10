@@ -1,6 +1,8 @@
 local UidCache = {}
 local CashCache = {}
 local VehicleNameColumns = nil
+local getUid
+local isLogged
 
 local function getVehicleNameColumns()
     if VehicleNameColumns then return VehicleNameColumns end
@@ -38,7 +40,77 @@ local function notify(src, notifyType, message, duration)
     TriggerClientEvent('client:notify', src, notifyType or 'info', duration or 5000, tostring(message or ''))
 end
 
-local function getUid(src)
+local function jsonSafe(data)
+    local ok, result = pcall(function()
+        return json.encode(data or {})
+    end)
+    if ok then return result end
+    return '{}'
+end
+
+local function logTunning(action, src, uid, vehicleId, vehicleModel, vehiclePlate, price, details)
+    local tableName = tostring(Config.LogsTable or 'tunning_logs'):gsub('`', '')
+    local name = src and src > 0 and GetPlayerName(src) or 'CONSOLE'
+
+    pcall(function()
+        MySQL.insert.await(([[
+            INSERT INTO `%s`
+            (`action`, `uid`, `player_name`, `vehicle_id`, `vehicle_model`, `vehicle_plate`, `price`, `details`, `created_at`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ]]):format(tableName), {
+            tostring(action or 'unknown'),
+            tonumber(uid or 0) or 0,
+            tostring(name or 'Unknown'),
+            tonumber(vehicleId or 0) or 0,
+            tostring(vehicleModel or ''),
+            tostring(vehiclePlate or ''),
+            tonumber(price or 0) or 0,
+            jsonSafe(details or {})
+        })
+    end)
+end
+
+local function isAdutyValue(value)
+    local text = tostring(value or ''):lower()
+    return value == true or tonumber(value) == 1 or text == 'yes' or text == 'true'
+end
+
+local function getAdminData(src)
+    local uid = getUid(src)
+    if not uid then return nil end
+
+    local row = MySQL.single.await('SELECT * FROM users WHERE uid = ? LIMIT 1', { uid })
+    if not row then return nil end
+
+    return {
+        uid = uid,
+        username = tostring(row.username or GetPlayerName(src) or 'Admin'),
+        level = tonumber(row.admin_level or row.admin or 0) or 0,
+        aduty = isAdutyValue(row.aduty)
+    }
+end
+
+local function requireAdmin(src, level)
+    if not isLogged(src) then
+        notify(src, 'warning', 'Trebuie sa fii logat.')
+        return nil
+    end
+
+    local data = getAdminData(src)
+    if not data or data.level < (tonumber(level or Config.AdminMinLevel or 6) or 6) then
+        notify(src, 'warning', 'Nu ai acces la aceasta comanda.')
+        return nil
+    end
+
+    if Config.AdminDutyRequired ~= false and not data.aduty then
+        notify(src, 'warning', 'Trebuie sa fii ON DUTY.')
+        return nil
+    end
+
+    return data
+end
+
+function getUid(src)
     local state = Player(src).state
 
     if state and tonumber(state.dz_uid) and tonumber(state.dz_uid) > 0 then
@@ -68,7 +140,7 @@ local function getUid(src)
     return nil
 end
 
-local function isLogged(src)
+function isLogged(src)
     local state = Player(src).state
 
     if state and state.dz_logged == true then
@@ -157,30 +229,6 @@ local function takeCash(uid, amount)
     end
 
     return false, getCash(uid, true)
-end
-
-local function logTuning(src, uid, owned, total, changes, tuning, remainingCash)
-    local ok, err = pcall(function()
-        MySQL.insert.await([[
-            INSERT INTO `tunning_logs`
-            (`uid`, `player_name`, `vehicle_id`, `vehicle_model`, `vehicle_plate`, `paid`, `remaining_cash`, `changes`, `tuning`, `created_at`)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-        ]], {
-            tonumber(uid or 0) or 0,
-            GetPlayerName(src) or 'Unknown',
-            tonumber(owned and owned.id or 0) or 0,
-            tostring(owned and owned.vehicle_model or ''),
-            tostring(owned and owned.vehicle_plate or ''),
-            tonumber(total or 0) or 0,
-            tonumber(remainingCash or 0) or 0,
-            json.encode(changes or {}),
-            json.encode(tuning or {})
-        })
-    end)
-
-    if not ok then
-        print('[DRIFTZONE_TUNNING] tunning_logs insert failed: ' .. tostring(err))
-    end
 end
 
 local function vehicleExists(entity)
@@ -327,6 +375,41 @@ local function openTuning(src)
     })
 end
 
+
+local function openAdminTuning(src)
+    local admin = requireAdmin(src, Config.AdminMinLevel or 6)
+    if not admin then return end
+
+    local vehicle = getCurrentVehicle(src)
+    if vehicle == 0 then
+        notify(src, 'warning', 'Trebuie sa fii intr-o masina.')
+        return
+    end
+
+    local vdata = getVehicleStateData(vehicle) or {}
+    local modelHash = GetEntityModel(vehicle)
+    local modelName = tostring(vdata.model or '')
+    if modelName == '' then modelName = tostring(modelHash or '') end
+
+    logTunning('admin_open', src, admin.uid, tonumber(vdata.vehicleId or 0) or 0, modelName, tostring(vdata.plate or ''), 0, {
+        admin = true,
+        admin_level = admin.level
+    })
+
+    TriggerClientEvent('driftzone_tunning:client:open', src, {
+        vehicleId = 0,
+        adminMode = true,
+        vehicleModel = modelName,
+        vehicleName = tostring(vdata.name or 'Admin Vehicle'),
+        vehiclePlate = tostring(vdata.plate or GetVehicleNumberPlateText(vehicle) or ''),
+        vehiclePrice = 1000000,
+        playerMoney = 999999999,
+        categories = Config.Categories or {},
+        pricePercent = Config.PricePercent or {},
+        savedTuning = {}
+    })
+end
+
 local function buyTuning(src, payload)
     if not isLogged(src) then
         notify(src, 'warning', 'Trebuie sa fii logat.')
@@ -351,6 +434,30 @@ local function buyTuning(src, payload)
     local vehicleId = tonumber(data.vehicleId or 0) or 0
 
     if vehicleId <= 0 then
+        if data.adminMode == true then
+            local admin = requireAdmin(src, Config.AdminMinLevel or 6)
+            if not admin then return end
+
+            local tuning = cleanTuningObject(data.tuning or {})
+            local raw = json.encode(tuning)
+            Entity(vehicle).state:set('vehicleTunning', raw, true)
+            Entity(vehicle).state:set('dz_vehicle_tunning', raw, true)
+
+            logTunning('admin_apply', src, admin.uid, 0, tostring(GetEntityModel(vehicle)), tostring(GetVehicleNumberPlateText(vehicle) or ''), 0, {
+                changes = data.changes or {},
+                tuning = tuning
+            })
+
+            notify(src, 'info', 'Tuning admin aplicat pe vehicul.')
+            TriggerClientEvent('driftzone_tunning:client:paid', src, {
+                tuning = tuning,
+                paid = 0,
+                money = getCash(uid),
+                cash = getCash(uid)
+            })
+            return
+        end
+
         notify(src, 'warning', 'Vehicul invalid.')
         return
     end
@@ -401,12 +508,16 @@ local function buyTuning(src, payload)
         { json.encode(tuning), vehicleId, uid }
     )
 
-    logTuning(src, uid, owned, total, changes, tuning, remainingCash)
-
     local raw = json.encode(tuning)
 
     Entity(vehicle).state:set('vehicleTunning', raw, true)
     Entity(vehicle).state:set('dz_vehicle_tunning', raw, true)
+
+    logTunning('buy', src, uid, vehicleId, tostring(owned.vehicle_model or ''), tostring(owned.vehicle_plate or ''), total, {
+        changes = changes,
+        tuning = tuning,
+        remainingCash = remainingCash
+    })
 
     notify(src, 'info', ('Tuning aplicat cu succes. Ai platit $%s.'):format(total))
 
@@ -426,6 +537,10 @@ RegisterNetEvent('driftzone_tunning:server:buy', function(payload)
     buyTuning(source, payload)
 end)
 
+RegisterNetEvent('driftzone_tunning:server:adminOpen', function()
+    openAdminTuning(source)
+end)
+
 RegisterCommand('tuning', function(src)
     if src ~= 0 then
         openTuning(src)
@@ -435,6 +550,12 @@ end, false)
 RegisterCommand('tune', function(src)
     if src ~= 0 then
         openTuning(src)
+    end
+end, false)
+
+RegisterCommand(Config.AdminCommand or 'tunning', function(src)
+    if src ~= 0 then
+        openAdminTuning(src)
     end
 end, false)
 

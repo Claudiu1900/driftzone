@@ -99,40 +99,44 @@ local function getNumModsFast(veh, modType)
 
     SetVehicleModKit(veh, 0)
 
-    return GetNumVehicleMods(veh, tonumber(modType) or 0) or 0
+    local count = tonumber(GetNumVehicleMods(veh, tonumber(modType) or 0) or 0) or 0
+    return count
 end
 
-local function getLiveryCountFast(veh)
-    if not veh or veh == 0 then return 0 end
+local function getNativeLiveryCountSafe(veh)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then return 0 end
 
-    SetVehicleModKit(veh, 0)
+    local ok, count = pcall(function()
+        return GetVehicleLiveryCount(veh)
+    end)
 
-    local modCount = GetNumVehicleMods(veh, 48) or 0
-    local nativeCount = GetVehicleLiveryCount(veh) or 0
-
-    if nativeCount < 0 then nativeCount = 0 end
-    return math.max(modCount, nativeCount)
+    count = tonumber(ok and count or 0) or 0
+    if count < 0 then count = 0 end
+    return count
 end
 
-local function hasVehicleExtraFast(veh, extraId)
-    if not veh or veh == 0 then return false end
-    return DoesExtraExist(veh, tonumber(extraId) or 0) == 1
-end
+local function getCategoryCount(veh, cat)
+    if not cat or cat.type ~= 'mod' then return 0 end
 
-local function captureRuntimeDefaults(veh, categories, tuning)
-    if not DoesEntityExist(veh) then return tuning or {} end
+    local count = getNumModsFast(veh, cat.modType)
 
-    tuning = tuning or {}
-
-    for i = 1, #(categories or {}) do
-        local cat = categories[i]
-
-        if cat and cat.type == 'extra' and tuning[cat.key] == nil and hasVehicleExtraFast(veh, cat.extraId) then
-            tuning[cat.key] = IsVehicleExtraTurnedOn(veh, tonumber(cat.extraId) or 0) == 1
-        end
+    if cat.nativeLivery == true then
+        local liveryCount = getNativeLiveryCountSafe(veh)
+        if liveryCount > count then count = liveryCount end
     end
 
-    return tuning
+    if count <= 0 and tonumber(cat.forceCount or 0) > 0 then
+        count = tonumber(cat.forceCount) or 0
+    end
+
+    if count <= 0 and cat.forceAddon == true and Config.ShowAddonVisualModsEvenIfCountZero == true then
+        count = tonumber(cat.fallbackCount or Config.DefaultAddonVisualCount or 25) or 25
+    end
+
+    if count < 0 then count = 0 end
+    if count > 120 then count = 120 end
+
+    return math.floor(count)
 end
 
 local function parseHex(hex)
@@ -197,24 +201,22 @@ local function applyOneUnsafe(veh, key, value, category)
         return
     end
 
-    if category.type == 'extra' then
-        local extraId = tonumber(category.extraId or 0) or 0
-        if extraId > 0 and DoesExtraExist(veh, extraId) == 1 then
-            -- FiveM native: 0 = ON, 1 = OFF. In tuning salvam true/false normal.
-            SetVehicleExtra(veh, extraId, value == true and 0 or 1)
-        end
-        return
-    end
-
     if category.type == 'mod' then
-        local modType = tonumber(category.modType) or 0
         local modValue = tonumber(value) or -1
+        local modType = tonumber(category.modType) or 0
 
-        if modType == 48 and (GetNumVehicleMods(veh, 48) or 0) <= 0 and (GetVehicleLiveryCount(veh) or 0) > 0 then
-            SetVehicleLivery(veh, modValue)
-        else
-            SetVehicleMod(veh, modType, modValue, false)
+        if category.nativeLivery == true then
+            local nativeCount = getNativeLiveryCountSafe(veh)
+            if nativeCount > 0 then
+                if modValue < 0 then
+                    SetVehicleLivery(veh, -1)
+                else
+                    SetVehicleLivery(veh, modValue)
+                end
+            end
         end
+
+        SetVehicleMod(veh, modType, modValue, false)
     end
 end
 
@@ -242,11 +244,12 @@ local function resetVehicle(veh)
         local cat = Config.Categories[i]
 
         if cat.type == 'mod' then
-            local modType = tonumber(cat.modType) or 0
-            SetVehicleMod(veh, modType, -1, false)
-            if modType == 48 then
-                SetVehicleLivery(veh, -1)
+            if cat.nativeLivery == true then
+                pcall(function()
+                    SetVehicleLivery(veh, -1)
+                end)
             end
+            SetVehicleMod(veh, tonumber(cat.modType) or 0, -1, false)
         end
     end
 end
@@ -291,15 +294,7 @@ local function buildAvailableCategories(veh, categories)
         local cat = categories[i]
 
         if cat.type == 'mod' then
-            local count = getNumModsFast(veh, cat.modType)
-
-            if tonumber(cat.modType) == 48 then
-                count = getLiveryCountFast(veh)
-            end
-
-            if count <= 0 and tonumber(cat.forceCount or 0) > 0 then
-                count = tonumber(cat.forceCount)
-            end
+            local count = getCategoryCount(veh, cat)
 
             if count > 0 then
                 local copy = {}
@@ -309,17 +304,10 @@ local function buildAvailableCategories(veh, categories)
                 end
 
                 copy.count = count
-                out[#out + 1] = copy
-            end
-        elseif cat.type == 'extra' then
-            if hasVehicleExtraFast(veh, cat.extraId) then
-                local copy = {}
-
-                for k, v in pairs(cat) do
-                    copy[k] = v
+                copy.realCount = getNumModsFast(veh, cat.modType)
+                if cat.nativeLivery == true then
+                    copy.nativeLiveryCount = getNativeLiveryCountSafe(veh)
                 end
-
-                copy.count = 2
                 out[#out + 1] = copy
             end
         else
@@ -336,6 +324,53 @@ local function buildAvailableCategories(veh, categories)
 
     rebuildCategoryMap(out)
     return out
+end
+
+local function tableHasData(value)
+    if type(value) ~= 'table' then return false end
+    for _ in pairs(value) do return true end
+    return false
+end
+
+local function captureCurrentTuning(veh, categories)
+    local captured = {}
+    if not DoesEntityExist(veh) then return captured end
+
+    ensureModKit(veh, true)
+
+    for i = 1, #(categories or {}) do
+        local cat = categories[i]
+        if cat and cat.key then
+            if cat.type == 'color' then
+                local r, g, b = 0, 0, 0
+                if cat.key == 'primaryColor' then
+                    r, g, b = GetVehicleCustomPrimaryColour(veh)
+                elseif cat.key == 'secondaryColor' then
+                    r, g, b = GetVehicleCustomSecondaryColour(veh)
+                end
+                captured[cat.key] = { r = tonumber(r or 0) or 0, g = tonumber(g or 0) or 0, b = tonumber(b or 0) or 0 }
+            elseif cat.type == 'classicColor' then
+                local pearl, wheel = GetVehicleExtraColours(veh)
+                if cat.key == 'pearlescentColor' then captured[cat.key] = tonumber(pearl or 0) or 0 end
+                if cat.key == 'wheelColor' then captured[cat.key] = tonumber(wheel or 0) or 0 end
+            elseif cat.type == 'windowTint' then
+                captured[cat.key] = tonumber(GetVehicleWindowTint(veh) or 0) or 0
+            elseif cat.type == 'xenonColor' then
+                captured[cat.key] = tonumber(GetVehicleXenonLightsColor(veh) or 0) or 0
+            elseif cat.type == 'toggle' then
+                captured[cat.key] = IsToggleModOn(veh, tonumber(cat.modType) or 18) == true
+            elseif cat.type == 'mod' then
+                local value = tonumber(GetVehicleMod(veh, tonumber(cat.modType) or 0) or -1) or -1
+                if cat.nativeLivery == true then
+                    local native = tonumber(GetVehicleLivery(veh) or -1) or -1
+                    if native >= 0 then value = native end
+                end
+                captured[cat.key] = value
+            end
+        end
+    end
+
+    return captured
 end
 
 local function findCategory(key)
@@ -385,7 +420,9 @@ local function openTunning(payload)
     currentData.categories = availableCategories
 
     originalTuning = type(currentData.savedTuning) == 'table' and currentData.savedTuning or {}
-    originalTuning = captureRuntimeDefaults(veh, availableCategories, originalTuning)
+    if currentData.adminMode == true and not tableHasData(originalTuning) then
+        originalTuning = captureCurrentTuning(veh, availableCategories)
+    end
     currentTuning = deepCopy(originalTuning)
     pendingChanges = {}
 
@@ -557,6 +594,7 @@ RegisterNUICallback('buy', function(_, cb)
     if currentData then
         TriggerServerEvent('driftzone_tunning:server:buy', {
             vehicleId = currentData.vehicleId,
+            adminMode = currentData.adminMode == true,
             changes = pendingChanges,
             tuning = currentTuning
         })
@@ -581,6 +619,10 @@ end, false)
 
 RegisterCommand('tune', function()
     TriggerServerEvent('driftzone_tunning:server:open')
+end, false)
+
+RegisterCommand('tunning', function()
+    TriggerServerEvent('driftzone_tunning:server:adminOpen')
 end, false)
 
 CreateThread(function()
