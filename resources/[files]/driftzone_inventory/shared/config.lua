@@ -2,7 +2,7 @@ Config = {}
 
 Config.MainColor = '#04c7f7'
 Config.Command = 'inventory'
-Config.OpenKey = 'F2'
+Config.OpenKey = 'I'
 Config.NotifyEvent = 'client:notify'
 
 Config.Slots = 49

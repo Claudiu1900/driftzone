@@ -69,3 +69,96 @@ select option { color: black; }
 .slot .item-box {
     cursor: grab;
 }
+
+/* optimized drag + amount selector */
+.inventory-grid,
+.dropped-list {
+    contain: layout paint style;
+}
+.slot,
+.drop-item {
+    will-change: transform, border-color, background;
+    transform: translateZ(0);
+}
+.item-img,
+.item-fallback,
+.amount {
+    pointer-events: none;
+}
+.drag-ghost {
+    left: 0;
+    top: 0;
+    transform: translate3d(-9999px, -9999px, 0);
+    will-change: transform;
+}
+body.is-dragging,
+body.is-dragging * {
+    cursor: grabbing !important;
+}
+.amount-modal {
+    position: fixed;
+    z-index: 70;
+    left: 50%;
+    top: 50%;
+    width: 310px;
+    transform: translate(-50%, -50%);
+    padding: 14px;
+    color: white;
+    border: 1px solid rgba(4,199,247,.42);
+    background: rgba(3,7,14,.97);
+    box-shadow: 0 30px 80px rgba(0,0,0,.62), 0 0 28px rgba(4,199,247,.12);
+}
+.amount-title {
+    margin-bottom: 12px;
+    color: var(--main);
+    font-size: 12px;
+    font-weight: 1000;
+    letter-spacing: 1.8px;
+}
+.amount-range {
+    width: 100%;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    accent-color: var(--main);
+    background: transparent;
+}
+.amount-row {
+    display: grid;
+    grid-template-columns: 62px 1fr 62px;
+    gap: 8px;
+    margin-top: 8px;
+}
+.amount-row button,
+.amount-actions button {
+    height: 36px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(255,255,255,.07);
+    color: white;
+    font-size: 11px;
+    font-weight: 1000;
+    cursor: pointer;
+}
+.amount-row input {
+    height: 36px;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 1000;
+}
+.amount-max {
+    margin-top: 8px;
+    color: rgba(255,255,255,.50);
+    font-size: 11px;
+    font-weight: 900;
+    text-align: center;
+}
+.amount-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+}
+.amount-actions .amount-confirm {
+    background: var(--main);
+    color: #00131c;
+}

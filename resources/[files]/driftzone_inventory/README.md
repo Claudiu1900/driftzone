@@ -39,3 +39,9 @@ Restart:
 ```cfg
 restart driftzone_inventory
 ```
+
+## Update drag/drop + amounts
+
+- Inventarul se deschide pe tasta `I`.
+- Drag & drop este optimizat cu event delegation + requestAnimationFrame.
+- Pentru iteme stackable cu mai mult de 1 bucata, DROP si GIVE deschid selector de cantitate cu slider, input, MIN si MAX.

@@ -22,6 +22,21 @@
             <button id="ctxGive" onclick="startGiveSelect()">GIVE</button>
             <button id="ctxDrop" onclick="dropSelected()">DROP</button>
         </div>
+
+        <div id="amountModal" class="amount-modal hidden">
+            <div id="amountTitle" class="amount-title">AMOUNT</div>
+            <input id="amountRange" class="amount-range" type="range" min="1" max="1" value="1" oninput="syncAmountFromRange()">
+            <div class="amount-row">
+                <button onclick="setAmountMin()">MIN</button>
+                <input id="amountInput" type="number" min="1" value="1" oninput="syncAmountFromInput()">
+                <button onclick="setAmountMax()">MAX</button>
+            </div>
+            <div id="amountMax" class="amount-max">MAX 1</div>
+            <div class="amount-actions">
+                <button onclick="cancelAmount()">CANCEL</button>
+                <button class="amount-confirm" onclick="confirmAmount()">OK</button>
+            </div>
+        </div>
     </main>
 
     <main id="selectorRoot" class="selector-root hidden">

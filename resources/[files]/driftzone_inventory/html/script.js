@@ -11,6 +11,11 @@ const contextName = document.getElementById('contextName');
 const ctxUse = document.getElementById('ctxUse');
 const ctxGive = document.getElementById('ctxGive');
 const ctxDrop = document.getElementById('ctxDrop');
+const amountModal = document.getElementById('amountModal');
+const amountRange = document.getElementById('amountRange');
+const amountInput = document.getElementById('amountInput');
+const amountTitle = document.getElementById('amountTitle');
+const amountMax = document.getElementById('amountMax');
 
 const itemId = document.getElementById('itemId');
 const itemName = document.getElementById('itemName');
@@ -27,10 +32,16 @@ const addStatus = document.getElementById('addStatus');
 let slots = 49;
 let inventory = {};
 let dropped = [];
-let dragged = null;
 let selectedSlot = null;
 let selectorActive = false;
 let pendingGive = null;
+let amountAction = null;
+let drag = null;
+let dragGhost = null;
+let ghostX = 0;
+let ghostY = 0;
+let rafPending = false;
+let lastHoverEl = null;
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -46,6 +57,14 @@ function esc(value) {
     return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 function amountText(v) { return Number(v || 0).toLocaleString('en-US'); }
+function bool(v) { return v === true || Number(v) === 1 || String(v).toLowerCase() === 'true'; }
+function getItemBySlot(slot) { return inventory[Number(slot || 0)] || null; }
+function isStackableMany(item) { return item && bool(item.stackable) && Number(item.amount || 0) > 1; }
+function clampAmount(value, max) {
+    const m = Math.max(1, Math.floor(Number(max || 1)));
+    const n = Math.floor(Number(value || 1));
+    return Math.min(m, Math.max(1, Number.isFinite(n) ? n : 1));
+}
 
 function closeUi() { nui('close'); closeLocal(); }
 function closeLocal() {
@@ -53,11 +72,12 @@ function closeLocal() {
     hide(selectorRoot);
     hide(addItemRoot);
     hide(contextMenu);
+    hide(amountModal);
     selectedSlot = null;
-    dragged = null;
-    clearDragGhost();
     selectorActive = false;
     pendingGive = null;
+    amountAction = null;
+    cancelDrag();
 }
 
 function itemInitial(name) {
@@ -68,8 +88,8 @@ function itemInitial(name) {
 function itemVisual(item) {
     const image = item && item.image ? String(item.image) : '';
     const name = item && item.item_name ? String(item.item_name) : String(item?.item_id || '?');
-    const fallback = `<div class="item-fallback">${esc(itemInitial(name))}</div>`;
-    const img = image ? `<img class="item-img" src="${esc(image)}" draggable="false" onerror="this.outerHTML='${fallback.replace(/'/g, "\\'")}'">` : fallback;
+    const fallbackText = esc(itemInitial(name));
+    const img = image ? `<img class="item-img" src="${esc(image)}" draggable="false" onerror="this.style.display='none';this.nextElementSibling.classList.remove('hidden')"><div class="item-fallback hidden">${fallbackText}</div>` : `<div class="item-fallback">${fallbackText}</div>`;
     const amount = Number(item?.amount || 0) > 1 ? `<div class="amount">${amountText(item.amount)}</div>` : '';
     return `<div class="item-box">${img}${amount}</div>`;
 }
@@ -81,7 +101,6 @@ function renderInventory() {
         html.push(`<div class="slot${selectedSlot === i ? ' selected' : ''}" data-slot="${i}">${item ? itemVisual(item) : ''}</div>`);
     }
     grid.innerHTML = html.join('');
-    bindSlots();
 }
 
 function renderDropped() {
@@ -90,7 +109,6 @@ function renderDropped() {
         droppedList.innerHTML = '';
         return;
     }
-
     show(droppedPanel);
     const html = [];
     for (const d of dropped) {
@@ -98,142 +116,183 @@ function renderDropped() {
         for (let i = 0; i < entries.length; i++) {
             const item = entries[i];
             if (!item) continue;
-            html.push(`<div class="drop-item" draggable="true" data-drop="${esc(d.id)}" data-index="${i + 1}">${itemVisual(item)}</div>`);
+            html.push(`<div class="drop-item" data-drop="${esc(d.id)}" data-index="${i + 1}">${itemVisual(item)}</div>`);
         }
     }
     droppedList.innerHTML = html.join('');
-    bindDrops();
 }
 
-let dragGhost = null;
-let dragStartedAt = 0;
-
-function clearDragGhost() {
-    if (dragGhost && dragGhost.parentNode) dragGhost.parentNode.removeChild(dragGhost);
-    dragGhost = null;
-}
-
-function makeDragGhost(html, x, y) {
-    clearDragGhost();
+function createGhost(html) {
+    destroyGhost();
     dragGhost = document.createElement('div');
     dragGhost.className = 'drag-ghost';
     dragGhost.innerHTML = html || '';
     document.body.appendChild(dragGhost);
-    moveDragGhost(x, y);
 }
 
-function moveDragGhost(x, y) {
-    if (!dragGhost) return;
-    dragGhost.style.left = `${x}px`;
-    dragGhost.style.top = `${y}px`;
+function destroyGhost() {
+    if (dragGhost && dragGhost.parentNode) dragGhost.parentNode.removeChild(dragGhost);
+    dragGhost = null;
 }
 
-function finishCustomDrag(e) {
-    if (!dragged) return;
+function scheduleGhostMove(x, y) {
+    ghostX = x;
+    ghostY = y;
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+        rafPending = false;
+        if (dragGhost) dragGhost.style.transform = `translate3d(${ghostX - 41}px, ${ghostY - 41}px, 0) scale(1.04)`;
+    });
+}
 
-    const currentDrag = dragged;
-    const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
-    const slotEl = dropTarget ? dropTarget.closest('.slot') : null;
-    const droppedEl = dropTarget ? dropTarget.closest('.dropped-panel') : null;
+function setHover(el) {
+    if (lastHoverEl === el) return;
+    if (lastHoverEl) lastHoverEl.classList.remove('drag-over');
+    lastHoverEl = el;
+    if (lastHoverEl) lastHoverEl.classList.add('drag-over');
+}
 
-    document.querySelectorAll('.slot.drag-over, .dropped-panel.drag-over').forEach(el => el.classList.remove('drag-over'));
+function cancelDrag() {
+    if (lastHoverEl) lastHoverEl.classList.remove('drag-over');
+    lastHoverEl = null;
+    drag = null;
+    destroyGhost();
+}
+
+function beginDragFromSlot(e, slotEl) {
+    const slot = Number(slotEl.dataset.slot || 0);
+    const item = getItemBySlot(slot);
+    if (!item) return;
+    selectedSlot = slot;
+    hide(contextMenu);
+    hide(amountModal);
+    drag = {
+        type: 'inventory',
+        slot,
+        item,
+        startX: e.clientX,
+        startY: e.clientY,
+        active: false,
+        clickBlocked: false
+    };
+    e.preventDefault();
+}
+
+function beginDragFromDrop(e, dropEl) {
+    hide(contextMenu);
+    hide(amountModal);
+    drag = {
+        type: 'drop',
+        dropId: dropEl.dataset.drop,
+        index: Number(dropEl.dataset.index || 0),
+        html: dropEl.innerHTML,
+        startX: e.clientX,
+        startY: e.clientY,
+        active: false,
+        clickBlocked: false
+    };
+    e.preventDefault();
+}
+
+function updateDrag(e) {
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.active && Math.sqrt(dx * dx + dy * dy) > 5) {
+        drag.active = true;
+        drag.clickBlocked = true;
+        createGhost(drag.type === 'inventory' ? itemVisual(drag.item) : drag.html);
+        document.body.classList.add('is-dragging');
+    }
+    if (!drag.active) return;
+    scheduleGhostMove(e.clientX, e.clientY);
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    const slot = target ? target.closest('.slot') : null;
+    const panel = target ? target.closest('.dropped-panel') : null;
+    setHover(slot || (panel && drag.type === 'inventory' ? panel : null));
+}
+
+function finishDrag(e) {
+    if (!drag) return;
+    document.body.classList.remove('is-dragging');
+    const wasActive = drag.active;
+    const current = drag;
+    if (lastHoverEl) lastHoverEl.classList.remove('drag-over');
+    lastHoverEl = null;
+    destroyGhost();
+    drag = null;
+    if (!wasActive) return;
+
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    const slotEl = target ? target.closest('.slot') : null;
+    const droppedEl = target ? target.closest('.dropped-panel') : null;
 
     if (slotEl) {
         const to = Number(slotEl.dataset.slot || 0);
         if (to > 0) {
-            if (currentDrag.type === 'inventory' && currentDrag.slot !== to) {
-                nui('move', { from: currentDrag.slot, to });
-            } else if (currentDrag.type === 'drop') {
-                nui('pickupDrop', { dropId: currentDrag.dropId, index: currentDrag.index, to });
+            if (current.type === 'inventory' && current.slot !== to) {
+                nui('move', { from: current.slot, to });
+            } else if (current.type === 'drop') {
+                nui('pickupDrop', { dropId: current.dropId, index: current.index, to });
             }
         }
-    } else if (droppedEl && currentDrag.type === 'inventory') {
-        nui('dropItem', { slot: currentDrag.slot, amount: 1 });
+        return;
     }
 
-    dragged = null;
-    clearDragGhost();
-}
-
-function beginInventoryDrag(e, index) {
-    if (e.button !== 0) return;
-    const item = inventory[index];
-    if (!item) return;
-
-    selectedSlot = index;
-    dragged = { type: 'inventory', slot: index };
-    dragStartedAt = Date.now();
-    makeDragGhost(itemVisual(item), e.clientX, e.clientY);
-    hide(contextMenu);
-    e.preventDefault();
-    e.stopPropagation();
-}
-
-function beginDropDrag(e, el) {
-    if (e.button !== 0) return;
-    dragged = { type: 'drop', dropId: el.dataset.drop, index: Number(el.dataset.index || 0) };
-    dragStartedAt = Date.now();
-    makeDragGhost(el.innerHTML, e.clientX, e.clientY);
-    hide(contextMenu);
-    e.preventDefault();
-    e.stopPropagation();
-}
-
-function bindSlots() {
-    document.querySelectorAll('.slot').forEach((slot) => {
-        const index = Number(slot.dataset.slot);
-
-        slot.setAttribute('draggable', 'false');
-        slot.addEventListener('dragstart', (e) => e.preventDefault());
-        slot.addEventListener('mousedown', (e) => beginInventoryDrag(e, index));
-
-        slot.addEventListener('mouseenter', () => {
-            if (dragged) slot.classList.add('drag-over');
-        });
-
-        slot.addEventListener('mouseleave', () => slot.classList.remove('drag-over'));
-
-        slot.addEventListener('click', () => {
-            if (Date.now() - dragStartedAt < 180) return;
-            selectedSlot = inventory[index] ? index : null;
-            hide(contextMenu);
-            renderInventory();
-        });
-
-        slot.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            const item = inventory[index];
-            if (!item) return;
-            selectedSlot = index;
-            renderInventory();
-            openContextMenu(e.clientX, e.clientY, item);
-        });
-    });
-}
-
-function bindDrops() {
-    document.querySelectorAll('.drop-item').forEach((el) => {
-        el.setAttribute('draggable', 'false');
-        el.addEventListener('dragstart', (e) => e.preventDefault());
-        el.addEventListener('mousedown', (e) => beginDropDrag(e, el));
-    });
-
-    droppedPanel.addEventListener('mouseenter', () => {
-        if (dragged && dragged.type === 'inventory') droppedPanel.classList.add('drag-over');
-    });
-
-    droppedPanel.addEventListener('mouseleave', () => droppedPanel.classList.remove('drag-over'));
+    if (droppedEl && current.type === 'inventory') {
+        selectedSlot = current.slot;
+        const item = getItemBySlot(current.slot);
+        if (isStackableMany(item)) openAmountModal('drop', current.slot, item);
+        else nui('dropItem', { slot: current.slot, amount: 1 });
+    }
 }
 
 function openContextMenu(x, y, item) {
     contextName.textContent = item.item_name || item.item_id || 'Item';
-    ctxUse.style.display = item.usable ? 'block' : 'none';
-    ctxGive.style.display = item.giveable ? 'block' : 'none';
+    ctxUse.style.display = bool(item.usable) ? 'block' : 'none';
+    ctxGive.style.display = bool(item.giveable) ? 'block' : 'none';
     ctxDrop.style.display = 'block';
-
     contextMenu.style.left = `${Math.min(x, window.innerWidth - 190)}px`;
     contextMenu.style.top = `${Math.min(y, window.innerHeight - 170)}px`;
     show(contextMenu);
+}
+
+function openAmountModal(action, slot, item) {
+    const max = Math.max(1, Math.floor(Number(item?.amount || 1)));
+    amountAction = { action, slot, max };
+    amountTitle.textContent = action === 'give' ? 'GIVE AMOUNT' : 'DROP AMOUNT';
+    amountMax.textContent = `MAX ${amountText(max)}`;
+    amountRange.min = '1';
+    amountRange.max = String(max);
+    amountRange.value = '1';
+    amountInput.min = '1';
+    amountInput.max = String(max);
+    amountInput.value = '1';
+    hide(contextMenu);
+    show(amountModal);
+    setTimeout(() => amountInput.focus(), 40);
+}
+
+function syncAmountFromRange() { amountInput.value = amountRange.value; }
+function syncAmountFromInput() {
+    if (!amountAction) return;
+    const value = clampAmount(amountInput.value, amountAction.max);
+    amountInput.value = String(value);
+    amountRange.value = String(value);
+}
+function setAmountMin() { if (!amountAction) return; amountInput.value = '1'; amountRange.value = '1'; }
+function setAmountMax() { if (!amountAction) return; amountInput.value = String(amountAction.max); amountRange.value = String(amountAction.max); }
+function cancelAmount() { amountAction = null; hide(amountModal); }
+function confirmAmount() {
+    if (!amountAction) return;
+    const amount = clampAmount(amountInput.value, amountAction.max);
+    const slot = amountAction.slot;
+    const action = amountAction.action;
+    amountAction = null;
+    hide(amountModal);
+    if (action === 'drop') nui('dropItem', { slot, amount });
+    if (action === 'give') startGiveSelectWithAmount(slot, amount);
 }
 
 function useSelected() {
@@ -242,18 +301,27 @@ function useSelected() {
     hide(contextMenu);
 }
 
-function startGiveSelect() {
-    if (!selectedSlot || !inventory[selectedSlot]) return;
-    pendingGive = { slot: selectedSlot, amount: 1 };
+function startGiveSelectWithAmount(slot, amount) {
+    pendingGive = { slot, amount };
     hide(contextMenu);
+    hide(amountModal);
     hide(inventoryRoot);
     selectorActive = true;
     show(selectorRoot);
     nui('startGiveSelector', pendingGive);
 }
 
+function startGiveSelect() {
+    if (!selectedSlot || !inventory[selectedSlot]) return;
+    const item = inventory[selectedSlot];
+    if (isStackableMany(item)) return openAmountModal('give', selectedSlot, item);
+    startGiveSelectWithAmount(selectedSlot, 1);
+}
+
 function dropSelected() {
     if (!selectedSlot || !inventory[selectedSlot]) return;
+    const item = inventory[selectedSlot];
+    if (isStackableMany(item)) return openAmountModal('drop', selectedSlot, item);
     nui('dropItem', { slot: selectedSlot, amount: 1 });
     hide(contextMenu);
 }
@@ -262,15 +330,15 @@ function openInventory(data = {}) {
     slots = Number(data.slots || 49);
     inventory = {};
     dropped = Array.isArray(data.dropped) ? data.dropped : [];
-
     const inv = data.inventory || {};
     if (Array.isArray(inv)) inv.forEach((item, idx) => { if (item) inventory[idx + 1] = item; });
     else Object.keys(inv).forEach((key) => { if (inv[key]) inventory[Number(key)] = inv[key]; });
-
     document.documentElement.style.setProperty('--main', data.mainColor || '#04c7f7');
     selectedSlot = null;
     hide(selectorRoot);
     hide(addItemRoot);
+    hide(contextMenu);
+    hide(amountModal);
     show(inventoryRoot);
     renderInventory();
     renderDropped();
@@ -281,17 +349,8 @@ function updateDropped(data = {}) {
     if (!inventoryRoot.classList.contains('hidden')) renderDropped();
 }
 
-function openSelector() {
-    hide(inventoryRoot);
-    hide(addItemRoot);
-    selectorActive = true;
-    show(selectorRoot);
-}
-
-function closeSelector() {
-    selectorActive = false;
-    hide(selectorRoot);
-}
+function openSelector() { hide(inventoryRoot); hide(addItemRoot); selectorActive = true; show(selectorRoot); }
+function closeSelector() { selectorActive = false; hide(selectorRoot); }
 
 function openAddItem() {
     hide(inventoryRoot);
@@ -319,7 +378,7 @@ function previewImage() {
 }
 
 function submitAddItem() {
-    const payload = {
+    nui('submitAddItem', {
         item_id: itemId.value.trim(),
         item_name: itemName.value.trim(),
         image: itemImage.value.trim(),
@@ -328,8 +387,7 @@ function submitAddItem() {
         usable: Number(itemUsable.value || 0),
         giveable: Number(itemGiveable.value || 1),
         max_stack: Number(itemMaxStack.value || 100)
-    };
-    nui('submitAddItem', payload);
+    });
 }
 
 window.addEventListener('message', (event) => {
@@ -346,28 +404,68 @@ window.addEventListener('message', (event) => {
     }
 });
 
+grid.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    const slot = e.target.closest('.slot');
+    if (!slot) return;
+    beginDragFromSlot(e, slot);
+});
+
+droppedList.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    const drop = e.target.closest('.drop-item');
+    if (!drop) return;
+    beginDragFromDrop(e, drop);
+});
+
+grid.addEventListener('click', (e) => {
+    if (drag && drag.clickBlocked) return;
+    const slotEl = e.target.closest('.slot');
+    if (!slotEl) return;
+    const index = Number(slotEl.dataset.slot || 0);
+    selectedSlot = inventory[index] ? index : null;
+    hide(contextMenu);
+    renderInventory();
+});
+
+grid.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const slotEl = e.target.closest('.slot');
+    if (!slotEl) return;
+    const index = Number(slotEl.dataset.slot || 0);
+    const item = inventory[index];
+    if (!item) return;
+    selectedSlot = index;
+    renderInventory();
+    openContextMenu(e.clientX, e.clientY, item);
+});
+
 document.addEventListener('mousemove', (e) => {
     if (selectorActive) nui('selectorMove', { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
-    if (dragged) {
-        moveDragGhost(e.clientX, e.clientY);
-        const target = document.elementFromPoint(e.clientX, e.clientY);
-        document.querySelectorAll('.slot.drag-over, .dropped-panel.drag-over').forEach(el => el.classList.remove('drag-over'));
-        const slot = target ? target.closest('.slot') : null;
-        const panel = target ? target.closest('.dropped-panel') : null;
-        if (slot) slot.classList.add('drag-over');
-        if (panel && dragged.type === 'inventory') panel.classList.add('drag-over');
-    }
+    updateDrag(e);
 });
+
+document.addEventListener('mouseup', finishDrag);
 
 document.addEventListener('mousedown', (e) => {
     if (selectorActive && e.button === 0) nui('selectorClick', {});
     if (!contextMenu.classList.contains('hidden') && !contextMenu.contains(e.target)) hide(contextMenu);
-});
-
-document.addEventListener('mouseup', (e) => {
-    if (dragged) finishCustomDrag(e);
+    if (!amountModal.classList.contains('hidden') && !amountModal.contains(e.target) && !contextMenu.contains(e.target)) cancelAmount();
 });
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeUi();
 });
+
+window.syncAmountFromRange = syncAmountFromRange;
+window.syncAmountFromInput = syncAmountFromInput;
+window.setAmountMin = setAmountMin;
+window.setAmountMax = setAmountMax;
+window.cancelAmount = cancelAmount;
+window.confirmAmount = confirmAmount;
+window.useSelected = useSelected;
+window.startGiveSelect = startGiveSelect;
+window.dropSelected = dropSelected;
+window.closeUi = closeUi;
+window.previewImage = previewImage;
+window.submitAddItem = submitAddItem;
