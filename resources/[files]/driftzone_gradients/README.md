@@ -1,57 +1,46 @@
 # driftzone_gradients
 
-Sistem DriftZone pentru aplicarea gradientelor pe vehicule.
+Sistem DriftZone pentru chameleon/gradient paint.
 
-## Fix important
+## Important
 
-Versiunea aceasta nu mai foloseste colorId-uri chameleon 161+ ca vopsea principala, pentru ca pe unele build-uri FiveM/GTA apar negru/gri.
+Chameleon real nu este RGB. Scriptul foloseste `SetVehicleColours` cu colorId-uri chameleon GTA/FiveM, de la `161` la `222`.
 
-Acum fiecare gradient are:
+Daca apare negru/gri, nu este bug de UI: serverul trebuie sa ruleze game build compatibil. Pune in `server.cfg`:
 
-- `startColor` RGB
-- `endColor` RGB
-- `pearlColor` RGB
+```cfg
+sv_enforceGameBuild 2699
+```
 
-Astfel gradientele sunt vizibile pe toate masinile compatibile cu custom colours.
+Dupa asta trebuie restart complet la server, nu doar restart la resource.
 
-## Folosire admin
+## Comanda admin
 
 ```txt
 /gradient id
 ```
 
-Necesita admin 6+ si aduty yes.
+Valabil admin 6+ cu aduty yes.
 
-## Folosire din item/inventory
+## Iteme inventory
 
-Item pentru gradient ID 25:
+Itemul pentru gradient ID 25 trebuie sa fie:
 
 ```txt
 25_gradient
 ```
 
-Trigger client:
+## Instalare
 
-```lua
-TriggerEvent('driftzone_gradients:client:useGradient', 25)
+```cfg
+ensure oxmysql
+ensure driftzone_auth
+ensure driftzone_inventory
+ensure driftzone_gradients
 ```
 
-Server export:
+Ruleaza `SQL.sql`, apoi:
 
-```lua
-exports.driftzone_gradients:OpenGradient(source, 25)
+```cfg
+restart driftzone_gradients
 ```
-
-## Aplicare
-
-Dupa selectarea masinii alegi:
-
-- Culoare Principala
-- Culoare Secundara
-- Ambele
-
-La folosire cu item, masina trebuie sa fie personala. La comanda admin merge pe orice masina.
-
-## SQL
-
-Ruleaza `SQL.sql`.
