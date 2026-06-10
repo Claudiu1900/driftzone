@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'DriftZone Gradients - real chameleon paint using chameleonpaint data'
-version '1.1.0'
+version '1.1.1'
 
 shared_script 'shared/config.lua'
 

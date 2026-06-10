@@ -11,7 +11,16 @@ local function notify(typ, msg, duration)
 end
 
 local function sendNui(data)
-    if uiReady then SendNUIMessage(data) end
+    SendNUIMessage(data)
+end
+
+local function waitUiReady(maxMs)
+    if uiReady then return true end
+    local timeout = GetGameTimer() + (maxMs or 1500)
+    while not uiReady and GetGameTimer() < timeout do
+        Wait(25)
+    end
+    return uiReady
 end
 
 local function setFocus(state)
@@ -25,7 +34,9 @@ local function stopSelector(sendCancel)
     currentGradient = nil
     setFocus(false)
     sendNui({ action = 'close' })
-    if sendCancel then TriggerServerEvent('driftzone_gradients:server:cancel') end
+    if sendCancel then
+        TriggerServerEvent('driftzone_gradients:server:cancel')
+    end
 end
 
 local function project(coords)
@@ -137,7 +148,6 @@ local function drawArrow(vehicle)
     )
 end
 
-
 local function requestVehicleControl(vehicle, timeoutMs)
     if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return false end
     if NetworkHasControlOfEntity(vehicle) then return true end
@@ -169,7 +179,6 @@ local function applyGradientColors(vehicle, gradient, applyTo)
 
     applyTo = tostring(applyTo or 'both'):lower()
 
-    -- Custom RGB blocheaza culoarea normala/chameleon, deci il curatam cand aplicam.
     if applyTo == 'primary' then
         ClearVehicleCustomPrimaryColour(vehicle)
         SetVehicleColours(vehicle, colorId, currentSecondary)
@@ -182,7 +191,6 @@ local function applyGradientColors(vehicle, gradient, applyTo)
         SetVehicleColours(vehicle, colorId, colorId)
     end
 
-    -- Re-apel mic pentru unele addon-uri unde prima setare nu se propaga instant.
     Wait(60)
     if DoesEntityExist(vehicle) then
         if applyTo == 'primary' then
@@ -195,40 +203,20 @@ local function applyGradientColors(vehicle, gradient, applyTo)
         SetVehicleDirtLevel(vehicle, 0.0)
     end
 end
-    if type(gradient) ~= 'table' then return end
-
-    SetVehicleModKit(vehicle, 0)
-
-    local sr, sg, sb = rgb(gradient.startColor, { r = 4, g = 199, b = 247 })
-    local er, eg, eb = rgb(gradient.endColor, { r = 0, g = 110, b = 255 })
-    local pr, pg, pb = rgb(gradient.pearlColor, gradient.endColor or gradient.startColor)
-
-    applyTo = tostring(applyTo or 'both'):lower()
-
-    if applyTo == 'primary' then
-        SetVehicleCustomPrimaryColour(vehicle, sr, sg, sb)
-        -- Pearl subtil pentru efect de shift, fara sa transforme masina in negru.
-        SetVehicleTyreSmokeColor(vehicle, pr, pg, pb)
-    elseif applyTo == 'secondary' then
-        SetVehicleCustomSecondaryColour(vehicle, er, eg, eb)
-        SetVehicleTyreSmokeColor(vehicle, pr, pg, pb)
-    else
-        SetVehicleCustomPrimaryColour(vehicle, sr, sg, sb)
-        SetVehicleCustomSecondaryColour(vehicle, er, eg, eb)
-        SetVehicleTyreSmokeColor(vehicle, pr, pg, pb)
-    end
-end
 
 RegisterNetEvent('driftzone_gradients:client:startSelector', function(data)
     currentGradient = data and data.gradient or nil
     if not currentGradient then return notify('warning', 'Gradient invalid.') end
 
-    selecting = true
-    selectedVehicle = nil
-    cursorX, cursorY = 0.5, 0.5
-    sendNui({ action = 'selector', mainColor = (data and data.mainColor) or Config.MainColor })
-    setFocus(true)
-    notify('info', 'Selecteaza masina pe care vrei sa aplici gradientul.', 3500)
+    CreateThread(function()
+        waitUiReady(1500)
+        selecting = true
+        selectedVehicle = nil
+        cursorX, cursorY = 0.5, 0.5
+        setFocus(true)
+        sendNui({ action = 'selector', mainColor = (data and data.mainColor) or Config.MainColor })
+        notify('info', 'Selecteaza masina pe care vrei sa aplici gradientul.', 3500)
+    end)
 end)
 
 RegisterNetEvent('driftzone_gradients:client:openApplyMenu', function(data)
@@ -245,6 +233,7 @@ end)
 RegisterNetEvent('driftzone_gradients:client:applyGradient', function(netId, gradient, applyTo)
     netId = tonumber(netId or 0) or 0
     if netId <= 0 then return end
+
     local vehicle = NetToVeh(netId)
     if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
         applyGradientColors(vehicle, gradient, tostring(applyTo or 'both'))

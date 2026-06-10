@@ -1,64 +1,56 @@
 # driftzone_gradients
 
-Sistem DriftZone pentru chameleon paint real pe vehicule.
+Sistem DriftZone pentru aplicarea vopselelor chameleon/gradient reale pe vehicule.
 
-## Ce este schimbat
+## Fix inclus
 
-Aceasta versiune include fisierele din `chameleonpaint-main`:
+- /gradient functioneaza din nou.
+- A fost reparat client/main.lua, unde ramasese cod vechi RGB dupa functia chameleon si putea strica incarcarea clientului.
+- Foloseste doar `users.admin_level`, nu `users.admin`.
+- Include fisierele din chameleonpaint: `carcols_gen9.meta`, `carmodcols_gen9.meta`, `carmodcols.ymt`, `vehicle_paint_ramps.ytd`.
+- Salveaza in `ownedvehicles.gradient`.
+- Loguri in `gradient_logs`.
 
-- `data/carcols_gen9.meta`
-- `data/carmodcols_gen9.meta`
-- `data/carmodcols.ymt`
-- `stream/vehicle_paint_ramps.ytd`
-
-Fara aceste fisiere, culorile chameleon apar negru/gri sau culoare simpla.
-
-## Important server.cfg
-
-Pentru chameleon trebuie game build nou:
+## Instalare
 
 ```cfg
 sv_enforceGameBuild 2699
+ensure oxmysql
+ensure driftzone_auth
+ensure driftzone_inventory
+ensure driftzone_gradients
 ```
 
-Dupa modificare fa restart complet la server, nu doar restart la resource.
+Ruleaza `SQL.sql`, apoi restart complet la server daca ai schimbat game build-ul.
 
-## Folosire admin
+## Comanda admin
 
 ```txt
-/gradient id
+/gradient 1
+/gradient 10
+/gradient 16
 ```
 
-Necesita admin 6+ si aduty yes. Adminul poate aplica pe orice masina.
+Comanda este pentru admin 6+ cu aduty yes.
 
-## Folosire din item
+## Item inventory
 
-Item pentru gradient ID 5:
+Itemele raman de forma:
 
 ```txt
-5_gradient
+1_gradient
+2_gradient
+16_gradient
 ```
 
 Trigger client:
 
 ```lua
-TriggerEvent('driftzone_gradients:client:useGradient', 5)
+TriggerEvent('driftzone_gradients:client:useGradient', 1)
 ```
 
-Server export:
+Export server:
 
 ```lua
-exports.driftzone_gradients:OpenGradient(source, 5)
+exports.driftzone_gradients:OpenGradient(source, 1)
 ```
-
-La item/trigger masina trebuie sa fie personala si itemul se sterge doar dupa aplicare reusita.
-
-## Gradiente reale incluse
-
-ID 1-16 sunt chameleon paint reale din chameleonpaint:
-
-1 Monochrome, 2 Night & Day, 3 The Verlierer, 4 Sprunk Extreme, 5 Vice City, 6 Synthwave Nights, 7 Four Seasons, 8 Maisonette 9 Throwback, 9 Bubblegum, 10 Full Rainbow, 11 Sunset, 12 The Seven, 13 Kamen Rider, 14 Chromatic Aberration, 15 Its Christmas!, 16 Temperature.
-
-## SQL
-
-Ruleaza `SQL.sql`.
