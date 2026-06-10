@@ -55,6 +55,7 @@ function closeLocal() {
     hide(contextMenu);
     selectedSlot = null;
     dragged = null;
+    clearDragGhost();
     selectorActive = false;
     pendingGive = null;
 }
@@ -104,38 +105,96 @@ function renderDropped() {
     bindDrops();
 }
 
+let dragGhost = null;
+let dragStartedAt = 0;
+
+function clearDragGhost() {
+    if (dragGhost && dragGhost.parentNode) dragGhost.parentNode.removeChild(dragGhost);
+    dragGhost = null;
+}
+
+function makeDragGhost(html, x, y) {
+    clearDragGhost();
+    dragGhost = document.createElement('div');
+    dragGhost.className = 'drag-ghost';
+    dragGhost.innerHTML = html || '';
+    document.body.appendChild(dragGhost);
+    moveDragGhost(x, y);
+}
+
+function moveDragGhost(x, y) {
+    if (!dragGhost) return;
+    dragGhost.style.left = `${x}px`;
+    dragGhost.style.top = `${y}px`;
+}
+
+function finishCustomDrag(e) {
+    if (!dragged) return;
+
+    const currentDrag = dragged;
+    const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+    const slotEl = dropTarget ? dropTarget.closest('.slot') : null;
+    const droppedEl = dropTarget ? dropTarget.closest('.dropped-panel') : null;
+
+    document.querySelectorAll('.slot.drag-over, .dropped-panel.drag-over').forEach(el => el.classList.remove('drag-over'));
+
+    if (slotEl) {
+        const to = Number(slotEl.dataset.slot || 0);
+        if (to > 0) {
+            if (currentDrag.type === 'inventory' && currentDrag.slot !== to) {
+                nui('move', { from: currentDrag.slot, to });
+            } else if (currentDrag.type === 'drop') {
+                nui('pickupDrop', { dropId: currentDrag.dropId, index: currentDrag.index, to });
+            }
+        }
+    } else if (droppedEl && currentDrag.type === 'inventory') {
+        nui('dropItem', { slot: currentDrag.slot, amount: 1 });
+    }
+
+    dragged = null;
+    clearDragGhost();
+}
+
+function beginInventoryDrag(e, index) {
+    if (e.button !== 0) return;
+    const item = inventory[index];
+    if (!item) return;
+
+    selectedSlot = index;
+    dragged = { type: 'inventory', slot: index };
+    dragStartedAt = Date.now();
+    makeDragGhost(itemVisual(item), e.clientX, e.clientY);
+    hide(contextMenu);
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+function beginDropDrag(e, el) {
+    if (e.button !== 0) return;
+    dragged = { type: 'drop', dropId: el.dataset.drop, index: Number(el.dataset.index || 0) };
+    dragStartedAt = Date.now();
+    makeDragGhost(el.innerHTML, e.clientX, e.clientY);
+    hide(contextMenu);
+    e.preventDefault();
+    e.stopPropagation();
+}
+
 function bindSlots() {
     document.querySelectorAll('.slot').forEach((slot) => {
         const index = Number(slot.dataset.slot);
 
-        slot.addEventListener('dragstart', (e) => {
-            const item = inventory[index];
-            if (!item) { e.preventDefault(); return; }
-            dragged = { type: 'inventory', slot: index };
-            e.dataTransfer.effectAllowed = 'move';
+        slot.setAttribute('draggable', 'false');
+        slot.addEventListener('dragstart', (e) => e.preventDefault());
+        slot.addEventListener('mousedown', (e) => beginInventoryDrag(e, index));
+
+        slot.addEventListener('mouseenter', () => {
+            if (dragged) slot.classList.add('drag-over');
         });
 
-        slot.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            slot.classList.add('drag-over');
-        });
-
-        slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
-
-        slot.addEventListener('drop', (e) => {
-            e.preventDefault();
-            slot.classList.remove('drag-over');
-            if (!dragged) return;
-            if (dragged.type === 'inventory' && dragged.slot !== index) {
-                nui('move', { from: dragged.slot, to: index });
-            }
-            if (dragged.type === 'drop') {
-                nui('pickupDrop', { dropId: dragged.dropId, index: dragged.index, to: index });
-            }
-            dragged = null;
-        });
+        slot.addEventListener('mouseleave', () => slot.classList.remove('drag-over'));
 
         slot.addEventListener('click', () => {
+            if (Date.now() - dragStartedAt < 180) return;
             selectedSlot = inventory[index] ? index : null;
             hide(contextMenu);
             renderInventory();
@@ -154,25 +213,16 @@ function bindSlots() {
 
 function bindDrops() {
     document.querySelectorAll('.drop-item').forEach((el) => {
-        el.addEventListener('dragstart', (e) => {
-            dragged = { type: 'drop', dropId: el.dataset.drop, index: Number(el.dataset.index || 0) };
-            e.dataTransfer.effectAllowed = 'move';
-        });
+        el.setAttribute('draggable', 'false');
+        el.addEventListener('dragstart', (e) => e.preventDefault());
+        el.addEventListener('mousedown', (e) => beginDropDrag(e, el));
     });
 
-    droppedPanel.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        droppedPanel.classList.add('drag-over');
+    droppedPanel.addEventListener('mouseenter', () => {
+        if (dragged && dragged.type === 'inventory') droppedPanel.classList.add('drag-over');
     });
-    droppedPanel.addEventListener('dragleave', () => droppedPanel.classList.remove('drag-over'));
-    droppedPanel.addEventListener('drop', (e) => {
-        e.preventDefault();
-        droppedPanel.classList.remove('drag-over');
-        if (dragged && dragged.type === 'inventory') {
-            nui('dropItem', { slot: dragged.slot, amount: 1 });
-        }
-        dragged = null;
-    });
+
+    droppedPanel.addEventListener('mouseleave', () => droppedPanel.classList.remove('drag-over'));
 }
 
 function openContextMenu(x, y, item) {
@@ -298,11 +348,24 @@ window.addEventListener('message', (event) => {
 
 document.addEventListener('mousemove', (e) => {
     if (selectorActive) nui('selectorMove', { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
+    if (dragged) {
+        moveDragGhost(e.clientX, e.clientY);
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        document.querySelectorAll('.slot.drag-over, .dropped-panel.drag-over').forEach(el => el.classList.remove('drag-over'));
+        const slot = target ? target.closest('.slot') : null;
+        const panel = target ? target.closest('.dropped-panel') : null;
+        if (slot) slot.classList.add('drag-over');
+        if (panel && dragged.type === 'inventory') panel.classList.add('drag-over');
+    }
 });
 
 document.addEventListener('mousedown', (e) => {
     if (selectorActive && e.button === 0) nui('selectorClick', {});
     if (!contextMenu.classList.contains('hidden') && !contextMenu.contains(e.target)) hide(contextMenu);
+});
+
+document.addEventListener('mouseup', (e) => {
+    if (dragged) finishCustomDrag(e);
 });
 
 document.addEventListener('keydown', (e) => {
