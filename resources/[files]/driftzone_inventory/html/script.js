@@ -1,14 +1,16 @@
 'use strict';
 
 const inventoryRoot = document.getElementById('inventoryRoot');
+const selectorRoot = document.getElementById('selectorRoot');
 const addItemRoot = document.getElementById('addItemRoot');
 const grid = document.getElementById('grid');
-const tooltip = document.getElementById('tooltip');
+const droppedPanel = document.getElementById('droppedPanel');
+const droppedList = document.getElementById('droppedList');
 const contextMenu = document.getElementById('contextMenu');
-const givePanel = document.getElementById('givePanel');
-const targetName = document.getElementById('targetName');
-const giveAmount = document.getElementById('giveAmount');
-const modeText = document.getElementById('modeText');
+const contextName = document.getElementById('contextName');
+const ctxUse = document.getElementById('ctxUse');
+const ctxGive = document.getElementById('ctxGive');
+const ctxDrop = document.getElementById('ctxDrop');
 
 const itemId = document.getElementById('itemId');
 const itemName = document.getElementById('itemName');
@@ -24,11 +26,11 @@ const addStatus = document.getElementById('addStatus');
 
 let slots = 49;
 let inventory = {};
-let currentMode = 'normal';
-let currentTarget = null;
-let draggedSlot = null;
+let dropped = [];
+let dragged = null;
 let selectedSlot = null;
-let lastMouse = { x: 0, y: 0 };
+let selectorActive = false;
+let pendingGive = null;
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -43,10 +45,18 @@ function hide(el) { if (el) el.classList.add('hidden'); }
 function esc(value) {
     return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
+function amountText(v) { return Number(v || 0).toLocaleString('en-US'); }
 
 function closeUi() { nui('close'); closeLocal(); }
 function closeLocal() {
-    hide(inventoryRoot); hide(addItemRoot); hide(tooltip); hide(contextMenu); selectedSlot = null; draggedSlot = null;
+    hide(inventoryRoot);
+    hide(selectorRoot);
+    hide(addItemRoot);
+    hide(contextMenu);
+    selectedSlot = null;
+    dragged = null;
+    selectorActive = false;
+    pendingGive = null;
 }
 
 function itemInitial(name) {
@@ -54,24 +64,44 @@ function itemInitial(name) {
     return text ? text[0].toUpperCase() : '?';
 }
 
+function itemVisual(item) {
+    const image = item && item.image ? String(item.image) : '';
+    const name = item && item.item_name ? String(item.item_name) : String(item?.item_id || '?');
+    const fallback = `<div class="item-fallback">${esc(itemInitial(name))}</div>`;
+    const img = image ? `<img class="item-img" src="${esc(image)}" draggable="false" onerror="this.outerHTML='${fallback.replace(/'/g, "\\'")}'">` : fallback;
+    const amount = Number(item?.amount || 0) > 1 ? `<div class="amount">${amountText(item.amount)}</div>` : '';
+    return `<div class="item-box">${img}${amount}</div>`;
+}
+
 function renderInventory() {
     const html = [];
     for (let i = 1; i <= slots; i++) {
         const item = inventory[i];
-        const selected = selectedSlot === i ? ' selected' : '';
-        html.push(`<div class="slot${selected}" data-slot="${i}" draggable="${item ? 'true' : 'false'}">
-            <div class="slot-index">${String(i).padStart(2, '0')}</div>
-            ${item ? renderItem(item) : ''}
-        </div>`);
+        html.push(`<div class="slot${selectedSlot === i ? ' selected' : ''}" data-slot="${i}">${item ? itemVisual(item) : ''}</div>`);
     }
     grid.innerHTML = html.join('');
     bindSlots();
 }
 
-function renderItem(item) {
-    const img = item.image ? `<img class="item-img" src="${esc(item.image)}" onerror="this.outerHTML='<div class=&quot;item-fallback&quot;>${esc(itemInitial(item.item_name))}</div>'">` : `<div class="item-fallback">${esc(itemInitial(item.item_name))}</div>`;
-    const amount = Number(item.amount || 0) > 1 ? `<div class="amount">${Number(item.amount).toLocaleString('en-US')}</div>` : '';
-    return `${img}${amount}`;
+function renderDropped() {
+    if (!Array.isArray(dropped) || dropped.length <= 0) {
+        hide(droppedPanel);
+        droppedList.innerHTML = '';
+        return;
+    }
+
+    show(droppedPanel);
+    const html = [];
+    for (const d of dropped) {
+        const entries = Array.isArray(d.items) ? d.items : [];
+        for (let i = 0; i < entries.length; i++) {
+            const item = entries[i];
+            if (!item) continue;
+            html.push(`<div class="drop-item" draggable="true" data-drop="${esc(d.id)}" data-index="${i + 1}">${itemVisual(item)}</div>`);
+        }
+    }
+    droppedList.innerHTML = html.join('');
+    bindDrops();
 }
 
 function bindSlots() {
@@ -79,8 +109,9 @@ function bindSlots() {
         const index = Number(slot.dataset.slot);
 
         slot.addEventListener('dragstart', (e) => {
-            if (!inventory[index]) { e.preventDefault(); return; }
-            draggedSlot = index;
+            const item = inventory[index];
+            if (!item) { e.preventDefault(); return; }
+            dragged = { type: 'inventory', slot: index };
             e.dataTransfer.effectAllowed = 'move';
         });
 
@@ -94,16 +125,14 @@ function bindSlots() {
         slot.addEventListener('drop', (e) => {
             e.preventDefault();
             slot.classList.remove('drag-over');
-            const to = index;
-            if (draggedSlot && draggedSlot !== to) nui('move', { from: draggedSlot, to });
-            draggedSlot = null;
-        });
-
-        slot.addEventListener('mouseenter', () => showTooltip(index));
-        slot.addEventListener('mouseleave', () => hide(tooltip));
-        slot.addEventListener('mousemove', (e) => {
-            lastMouse = { x: e.clientX, y: e.clientY };
-            moveTooltip(e.clientX, e.clientY);
+            if (!dragged) return;
+            if (dragged.type === 'inventory' && dragged.slot !== index) {
+                nui('move', { from: dragged.slot, to: index });
+            }
+            if (dragged.type === 'drop') {
+                nui('pickupDrop', { dropId: dragged.dropId, index: dragged.index, to: index });
+            }
+            dragged = null;
         });
 
         slot.addEventListener('click', () => {
@@ -114,34 +143,46 @@ function bindSlots() {
 
         slot.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            if (!inventory[index]) return;
+            const item = inventory[index];
+            if (!item) return;
             selectedSlot = index;
             renderInventory();
-            openContextMenu(e.clientX, e.clientY);
+            openContextMenu(e.clientX, e.clientY, item);
         });
     });
 }
 
-function showTooltip(slot) {
-    const item = inventory[slot];
-    if (!item) return;
-    tooltip.innerHTML = `${esc(item.item_name || item.item_id)}<small>${esc(item.item_id)}${item.amount > 1 ? ' • x' + item.amount : ''}</small>`;
-    show(tooltip);
-    moveTooltip(lastMouse.x, lastMouse.y);
+function bindDrops() {
+    document.querySelectorAll('.drop-item').forEach((el) => {
+        el.addEventListener('dragstart', (e) => {
+            dragged = { type: 'drop', dropId: el.dataset.drop, index: Number(el.dataset.index || 0) };
+            e.dataTransfer.effectAllowed = 'move';
+        });
+    });
+
+    droppedPanel.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        droppedPanel.classList.add('drag-over');
+    });
+    droppedPanel.addEventListener('dragleave', () => droppedPanel.classList.remove('drag-over'));
+    droppedPanel.addEventListener('drop', (e) => {
+        e.preventDefault();
+        droppedPanel.classList.remove('drag-over');
+        if (dragged && dragged.type === 'inventory') {
+            nui('dropItem', { slot: dragged.slot, amount: 1 });
+        }
+        dragged = null;
+    });
 }
 
-function moveTooltip(x, y) {
-    tooltip.style.left = `${x + 14}px`;
-    tooltip.style.top = `${y + 14}px`;
-}
+function openContextMenu(x, y, item) {
+    contextName.textContent = item.item_name || item.item_id || 'Item';
+    ctxUse.style.display = item.usable ? 'block' : 'none';
+    ctxGive.style.display = item.giveable ? 'block' : 'none';
+    ctxDrop.style.display = 'block';
 
-function openContextMenu(x, y) {
-    contextMenu.style.left = `${x}px`;
-    contextMenu.style.top = `${y}px`;
-    const item = inventory[selectedSlot];
-    const buttons = contextMenu.querySelectorAll('button');
-    if (buttons[0]) buttons[0].style.display = item && item.usable ? 'block' : 'none';
-    if (buttons[1]) buttons[1].style.display = currentMode === 'give' && item && item.giveable && item.tradable ? 'block' : 'none';
+    contextMenu.style.left = `${Math.min(x, window.innerWidth - 190)}px`;
+    contextMenu.style.top = `${Math.min(y, window.innerHeight - 170)}px`;
     show(contextMenu);
 }
 
@@ -151,50 +192,60 @@ function useSelected() {
     hide(contextMenu);
 }
 
-function selectForGive() {
+function startGiveSelect() {
+    if (!selectedSlot || !inventory[selectedSlot]) return;
+    pendingGive = { slot: selectedSlot, amount: 1 };
     hide(contextMenu);
-    if (!selectedSlot || currentMode !== 'give') return;
-    giveAmount.focus();
+    hide(inventoryRoot);
+    selectorActive = true;
+    show(selectorRoot);
+    nui('startGiveSelector', pendingGive);
 }
 
-function sendGive() {
+function dropSelected() {
     if (!selectedSlot || !inventory[selectedSlot]) return;
-    const amount = Math.max(1, Math.floor(Number(giveAmount.value || 1)));
-    nui('giveItem', { slot: selectedSlot, amount });
+    nui('dropItem', { slot: selectedSlot, amount: 1 });
+    hide(contextMenu);
 }
 
 function openInventory(data = {}) {
     slots = Number(data.slots || 49);
-    currentMode = data.mode || 'normal';
-    currentTarget = data.target || null;
     inventory = {};
+    dropped = Array.isArray(data.dropped) ? data.dropped : [];
 
     const inv = data.inventory || {};
-    if (Array.isArray(inv)) {
-        inv.forEach((item, idx) => { if (item) inventory[idx + 1] = item; });
-    } else {
-        Object.keys(inv).forEach((key) => { if (inv[key]) inventory[Number(key)] = inv[key]; });
-    }
+    if (Array.isArray(inv)) inv.forEach((item, idx) => { if (item) inventory[idx + 1] = item; });
+    else Object.keys(inv).forEach((key) => { if (inv[key]) inventory[Number(key)] = inv[key]; });
 
     document.documentElement.style.setProperty('--main', data.mainColor || '#04c7f7');
-    modeText.textContent = currentMode === 'give' && currentTarget ? `Give către ${currentTarget.name || 'Player'}` : '49 slots';
-
-    if (currentMode === 'give' && currentTarget) {
-        targetName.textContent = currentTarget.name || 'Player';
-        giveAmount.value = '1';
-        show(givePanel);
-    } else {
-        hide(givePanel);
-    }
-
+    selectedSlot = null;
+    hide(selectorRoot);
     hide(addItemRoot);
     show(inventoryRoot);
     renderInventory();
+    renderDropped();
 }
 
-function openAddItem(data = {}) {
-    document.documentElement.style.setProperty('--main', data.mainColor || '#04c7f7');
+function updateDropped(data = {}) {
+    dropped = Array.isArray(data.dropped) ? data.dropped : [];
+    if (!inventoryRoot.classList.contains('hidden')) renderDropped();
+}
+
+function openSelector() {
     hide(inventoryRoot);
+    hide(addItemRoot);
+    selectorActive = true;
+    show(selectorRoot);
+}
+
+function closeSelector() {
+    selectorActive = false;
+    hide(selectorRoot);
+}
+
+function openAddItem() {
+    hide(inventoryRoot);
+    hide(selectorRoot);
     show(addItemRoot);
     itemId.value = '';
     itemName.value = '';
@@ -204,19 +255,15 @@ function openAddItem(data = {}) {
     itemUsable.value = '0';
     itemGiveable.value = '1';
     itemMaxStack.value = '100';
+    hide(imagePreview);
     addStatus.textContent = 'Completează itemul.';
     addStatus.className = 'add-status';
-    hide(imagePreview);
     setTimeout(() => itemId.focus(), 80);
 }
 
 function previewImage() {
     const url = String(itemImage.value || '').trim();
-    if (!url || !/^https?:\/\//i.test(url)) {
-        hide(imagePreview);
-        previewImg.src = '';
-        return;
-    }
+    if (!url) { hide(imagePreview); previewImg.src = ''; return; }
     previewImg.src = url;
     show(imagePreview);
 }
@@ -233,23 +280,29 @@ function submitAddItem() {
         max_stack: Number(itemMaxStack.value || 100)
     };
     nui('submitAddItem', payload);
-    addStatus.textContent = 'Se salvează...';
-    addStatus.className = 'add-status';
 }
 
 window.addEventListener('message', (event) => {
-    const data = event.data || {};
-    if (data.action === 'openInventory') openInventory(data.data || {});
-    if (data.action === 'openAddItem') openAddItem(data.data || {});
-    if (data.action === 'closeAll') closeLocal();
-    if (data.action === 'addItemResult') {
-        addStatus.textContent = data.message || (data.ok ? 'Salvat.' : 'Eroare.');
-        addStatus.className = data.ok ? 'add-status success' : 'add-status error';
+    const msg = event.data || {};
+    if (msg.action === 'openInventory') openInventory(msg.data || {});
+    if (msg.action === 'updateDropped') updateDropped(msg.data || {});
+    if (msg.action === 'openSelector') openSelector();
+    if (msg.action === 'closeSelector') closeSelector();
+    if (msg.action === 'closeAll') closeLocal();
+    if (msg.action === 'openAddItem') openAddItem(msg.data || {});
+    if (msg.action === 'addItemResult') {
+        addStatus.textContent = msg.message || '';
+        addStatus.className = `add-status ${msg.ok ? 'success' : 'error'}`;
     }
 });
 
-document.addEventListener('click', (e) => {
-    if (!contextMenu.contains(e.target)) hide(contextMenu);
+document.addEventListener('mousemove', (e) => {
+    if (selectorActive) nui('selectorMove', { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
+});
+
+document.addEventListener('mousedown', (e) => {
+    if (selectorActive && e.button === 0) nui('selectorClick', {});
+    if (!contextMenu.classList.contains('hidden') && !contextMenu.contains(e.target)) hide(contextMenu);
 });
 
 document.addEventListener('keydown', (e) => {

@@ -34,3 +34,9 @@ Config.ItemDefaults = {
     giveable = 1,
     max_stack = 100
 }
+
+Config.GiveSelectDistance = 6.0
+Config.DropMergeRadius = 4.0
+Config.DropShowRadius = 4.0
+Config.DropPickupRadius = 4.0
+Config.DropMarkerRadius = 35.0

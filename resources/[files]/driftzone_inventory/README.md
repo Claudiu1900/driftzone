@@ -1,31 +1,24 @@
 # driftzone_inventory
 
-Inventory FiveM pentru DriftZone.
+Inventory DriftZone optimizat.
 
-## Functii
+## Funcții
 
-- 49 sloturi: 7 pe rand x 7 randuri.
-- Sloturi patrate.
-- Drag & drop intre sloturi.
-- Stack automat pentru iteme stackable.
-- Save in baza de date in tabela `inventory`.
-- Itemele sunt definite in `inventory_items`.
-- Click dreapta pe item: arata meniul minimal cu nume si actiuni.
-- UI curat, fara texte inutile.
-- Give catre player prin event pentru `driftzone_playerinteract`.
-- Admin panel `/additem` pentru creare iteme.
-
-## Comenzi
-
-```txt
-/inventory
-/additem
-/giveitem uid item_id bucati
-/takeitem uid item_id bucati
-/wipeinventory uid
-```
-
-Comenzile admin cer admin 6+ si aduty yes.
+- 49 sloturi, 7x7.
+- Sloturi pătrate.
+- Drag & drop între sloturi.
+- Imaginea itemului umple tot slotul.
+- Fără header, fără DZ, fără X, fără numere pe sloturi.
+- Click dreapta pe item: nume item + USE / GIVE / DROP.
+- Numele nu mai apare la hover.
+- GIVE: închide inventarul, apare selectorul de player, verifică sloturile țintei și trimite itemul.
+- DROP: aruncă itemul la locația playerului.
+- Drop-urile în radius 4m se combină într-un singur punct.
+- Dropped items apar în dreapta când ești în radius 4m.
+- Itemele din Dropped Items se pot trage în inventar.
+- Marker albastru spre pământ la locația drop-ului.
+- Admin UI `/additem`.
+- Comenzi admin: `/giveitem`, `/takeitem`, `/wipeinventory`.
 
 ## Instalare
 
@@ -35,31 +28,14 @@ ensure driftzone_auth
 ensure driftzone_inventory
 ```
 
-Ruleaza `SQL.sql`, apoi:
+Rulează:
+
+```txt
+driftzone_inventory/SQL.sql
+```
+
+Restart:
 
 ```cfg
 restart driftzone_inventory
-```
-
-## Integrare cu driftzone_playerinteract
-
-Adauga un action card nou in playerinteract, de exemplu `GIVE ITEM`, iar cand este apasat sa trimita serverId-ul targetului la:
-
-```lua
-TriggerEvent('driftzone_inventory:client:openGiveToPlayer', targetServerId)
-```
-
-Pentru test poti folosi:
-
-```txt
-/giveinv id
-```
-
-## Exporturi server
-
-```lua
-exports.driftzone_inventory:GiveItem(uid, itemId, amount)
-exports.driftzone_inventory:TakeItem(uid, itemId, amount)
-exports.driftzone_inventory:GetInventory(uid)
-exports.driftzone_inventory:HasSpaceForItem(uid, itemId, amount)
 ```

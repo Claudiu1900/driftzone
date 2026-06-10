@@ -9,49 +9,28 @@
 <body>
     <main id="inventoryRoot" class="inventory-root hidden">
         <section class="inventory-shell">
-            <div class="topbar">
-                <div class="brand">
-                    <span>DZ</span>
-                    <div>
-                        <b>Inventory</b>
-                        <small id="modeText">49 slots</small>
-                    </div>
-                </div>
-                <button class="close-btn" onclick="closeUi()">×</button>
-            </div>
-
             <div id="grid" class="inventory-grid"></div>
-
-            <div id="givePanel" class="give-panel hidden">
-                <div>
-                    <span>Oferă către</span>
-                    <b id="targetName">Player</b>
-                </div>
-                <input id="giveAmount" type="number" min="1" value="1" autocomplete="off">
-                <button onclick="sendGive()">GIVE</button>
-            </div>
         </section>
 
-        <div id="tooltip" class="tooltip hidden"></div>
+        <aside id="droppedPanel" class="dropped-panel hidden">
+            <div id="droppedList" class="dropped-list"></div>
+        </aside>
+
         <div id="contextMenu" class="context-menu hidden">
-            <button onclick="useSelected()">USE</button>
-            <button onclick="selectForGive()">GIVE</button>
+            <div id="contextName" class="context-name">Item</div>
+            <button id="ctxUse" onclick="useSelected()">USE</button>
+            <button id="ctxGive" onclick="startGiveSelect()">GIVE</button>
+            <button id="ctxDrop" onclick="dropSelected()">DROP</button>
         </div>
+    </main>
+
+    <main id="selectorRoot" class="selector-root hidden">
+        <div class="selector-dot"></div>
     </main>
 
     <main id="addItemRoot" class="add-root hidden">
         <section class="add-shell">
-            <div class="topbar">
-                <div class="brand">
-                    <span>DZ</span>
-                    <div>
-                        <b>Add Item</b>
-                        <small>inventory_items</small>
-                    </div>
-                </div>
-                <button class="close-btn" onclick="closeUi()">×</button>
-            </div>
-
+            <div class="add-title">ADD ITEM</div>
             <div class="form-grid">
                 <label>Item ID<input id="itemId" placeholder="water"></label>
                 <label>Item Name<input id="itemName" placeholder="Apă"></label>
@@ -62,10 +41,12 @@
                 <label>Giveable<select id="itemGiveable"><option value="1">1</option><option value="0">0</option></select></label>
                 <label>Max Stack<input id="itemMaxStack" type="number" min="1" value="100"></label>
             </div>
-
             <div id="imagePreview" class="image-preview hidden"><img id="previewImg"></div>
             <div id="addStatus" class="add-status">Completează itemul.</div>
-            <button class="save-btn" onclick="submitAddItem()">SAVE ITEM</button>
+            <div class="add-buttons">
+                <button class="save-btn" onclick="submitAddItem()">SAVE ITEM</button>
+                <button class="ghost-btn" onclick="closeUi()">CLOSE</button>
+            </div>
         </section>
     </main>
 

@@ -3,6 +3,8 @@ local ItemsCache = nil
 local ItemsCacheExpires = 0
 local OpenPlayers = {}
 local GiveSessions = {}
+local Drops = {}
+local NextDropId = 0
 
 local function sqlName(name)
     return ('`%s`'):format(tostring(name or ''):gsub('`', ''))
@@ -325,6 +327,158 @@ local function takeItemFromUid(uid, itemId, amount)
     return true, 'Item scos.'
 end
 
+
+local function getPlayerCoords(src)
+    local ped = GetPlayerPed(src)
+    if not ped or ped == 0 then return nil end
+    local coords = GetEntityCoords(ped)
+    if not coords then return nil end
+    return coords
+end
+
+local function distanceCoords(a, b)
+    if not a or not b then return 999999.0 end
+    local dx = (a.x or 0.0) - (b.x or 0.0)
+    local dy = (a.y or 0.0) - (b.y or 0.0)
+    local dz = (a.z or 0.0) - (b.z or 0.0)
+    return math.sqrt(dx * dx + dy * dy + dz * dz)
+end
+
+local function hydrateDropItems(items)
+    local metas = loadItems(false)
+    local out = {}
+    for _, slot in ipairs(items or {}) do
+        if slot and slot.item_id and slot.amount and slot.amount > 0 then
+            local meta = metas[slot.item_id]
+            if meta then
+                out[#out + 1] = {
+                    item_id = slot.item_id,
+                    item_name = meta.item_name,
+                    image = meta.image,
+                    amount = slot.amount,
+                    tradable = meta.tradable,
+                    stackable = meta.stackable,
+                    usable = meta.usable,
+                    giveable = meta.giveable,
+                    max_stack = meta.max_stack
+                }
+            end
+        end
+    end
+    return out
+end
+
+local function getNearbyDropsForCoords(coords, radius)
+    local out = {}
+    radius = tonumber(radius or 4.0) or 4.0
+    for id, drop in pairs(Drops) do
+        if drop and drop.items and #drop.items > 0 then
+            local dcoords = vector3(drop.x + 0.0, drop.y + 0.0, drop.z + 0.0)
+            if #(coords - dcoords) <= radius then
+                out[#out + 1] = {
+                    id = id,
+                    x = drop.x,
+                    y = drop.y,
+                    z = drop.z,
+                    items = hydrateDropItems(drop.items)
+                }
+            end
+        end
+    end
+    return out
+end
+
+local function getMarkerDropsForCoords(coords, radius)
+    local out = {}
+    radius = tonumber(radius or 35.0) or 35.0
+    for id, drop in pairs(Drops) do
+        if drop and drop.items and #drop.items > 0 then
+            local dcoords = vector3(drop.x + 0.0, drop.y + 0.0, drop.z + 0.0)
+            if #(coords - dcoords) <= radius then
+                out[#out + 1] = { id = id, x = drop.x, y = drop.y, z = drop.z }
+            end
+        end
+    end
+    return out
+end
+
+local function findDropNear(coords)
+    for id, drop in pairs(Drops) do
+        if drop and drop.items and #drop.items > 0 then
+            local dcoords = vector3(drop.x + 0.0, drop.y + 0.0, drop.z + 0.0)
+            if #(coords - dcoords) <= (Config.DropMergeRadius or 4.0) then
+                return id, drop
+            end
+        end
+    end
+    return nil, nil
+end
+
+local function addToDrop(drop, itemId, amount)
+    local meta = getItem(itemId)
+    if not meta then return false end
+    amount = math.floor(tonumber(amount or 1) or 1)
+    if amount <= 0 then return false end
+
+    if meta.stackable then
+        for _, slot in ipairs(drop.items) do
+            if slot.item_id == itemId then
+                slot.amount = slot.amount + amount
+                return true
+            end
+        end
+    end
+
+    drop.items[#drop.items + 1] = { item_id = itemId, amount = amount }
+    return true
+end
+
+local function addItemToUidPreferred(uid, itemId, amount, preferredSlot)
+    uid = tonumber(uid)
+    itemId = trim(itemId)
+    amount = math.floor(tonumber(amount or 1) or 1)
+    preferredSlot = tonumber(preferredSlot or 0) or 0
+    if not uid or uid <= 0 or itemId == '' or amount <= 0 then return false, 'Date invalide.' end
+
+    local item = getItem(itemId)
+    if not item then return false, 'Item ID invalid.' end
+    local inv = ensureInventory(uid)
+    local remaining = amount
+
+    if preferredSlot >= 1 and preferredSlot <= Config.Slots then
+        local slot = inv[preferredSlot]
+        if not slot then
+            local put = item.stackable and math.min(remaining, item.max_stack) or 1
+            inv[preferredSlot] = { item_id = item.item_id, amount = put }
+            remaining = remaining - put
+        elseif item.stackable and slot.item_id == item.item_id and slot.amount < item.max_stack then
+            local add = math.min(remaining, item.max_stack - slot.amount)
+            slot.amount = slot.amount + add
+            remaining = remaining - add
+        end
+    end
+
+    if remaining > 0 then
+        local ok, msg = giveItemToUid(uid, itemId, remaining)
+        if not ok then
+            saveInventory(uid)
+            return false, msg
+        end
+    end
+
+    saveInventory(uid)
+    return true, 'Item adaugat.'
+end
+
+local function pushNearbyDrops(src)
+    local coords = getPlayerCoords(src)
+    if not coords then return end
+    TriggerClientEvent('driftzone_inventory:client:updateDropped', src, {
+        dropped = getNearbyDropsForCoords(coords, Config.DropShowRadius or 4.0),
+        drops = getMarkerDropsForCoords(coords, Config.DropMarkerRadius or 35.0)
+    })
+end
+
 local function pushInventory(src, mode, target)
     local uid = getUid(src)
     if not uid then return end
@@ -335,7 +489,12 @@ local function pushInventory(src, mode, target)
         inventory = hydrateInventory(inv),
         mainColor = Config.MainColor,
         mode = mode or 'normal',
-        target = target or nil
+        target = target or nil,
+        dropped = (function()
+            local coords = getPlayerCoords(src)
+            if coords then return getNearbyDropsForCoords(coords, Config.DropShowRadius or 4.0) end
+            return {}
+        end)()
     })
 end
 
@@ -559,7 +718,6 @@ RegisterNetEvent('driftzone_inventory:server:giveSelected', function(targetServe
     local item = getItem(slot.item_id)
     if not item then return notify(src, 'warning', 'Item invalid.') end
     if not item.giveable then return notify(src, 'warning', 'Acest item nu poate fi oferit.') end
-    if not item.tradable then return notify(src, 'warning', 'Acest item nu este tradable.') end
     if not hasFreeSlotOrStack(toUid, item.item_id, amount) then return notify(src, 'warning', 'Jucatorul nu are sloturi disponibile.') end
 
     slot.amount = slot.amount - amount
@@ -593,6 +751,84 @@ RegisterNetEvent('driftzone_inventory:server:useItem', function(slotIndex)
 
     TriggerEvent('driftzone_inventory:server:itemUsed', src, uid, item.item_id, slotIndex)
     TriggerClientEvent('driftzone_inventory:client:itemUsed', src, item.item_id)
+end)
+
+
+RegisterNetEvent('driftzone_inventory:server:requestNearbyDrops', function()
+    local src = source
+    if not src or src <= 0 then return end
+    pushNearbyDrops(src)
+end)
+
+RegisterNetEvent('driftzone_inventory:server:dropItem', function(slotIndex, amount)
+    local src = source
+    local uid = getUid(src)
+    if not uid then return end
+
+    slotIndex = tonumber(slotIndex or 0) or 0
+    amount = math.floor(tonumber(amount or 1) or 1)
+    if slotIndex < 1 or slotIndex > Config.Slots or amount <= 0 then return end
+
+    local coords = getPlayerCoords(src)
+    if not coords then return end
+
+    local inv = ensureInventory(uid)
+    local slot = inv[slotIndex]
+    if not slot or slot.amount < amount then return notify(src, 'warning', 'Nu ai suficiente bucati.') end
+
+    local item = getItem(slot.item_id)
+    if not item then return notify(src, 'warning', 'Item invalid.') end
+
+    slot.amount = slot.amount - amount
+    if slot.amount <= 0 then inv[slotIndex] = nil end
+    saveInventory(uid)
+
+    local dropId, drop = findDropNear(coords)
+    if not drop then
+        NextDropId = NextDropId + 1
+        dropId = ('DZD-%s-%s'):format(os.time(), NextDropId)
+        drop = { id = dropId, x = coords.x, y = coords.y, z = coords.z - 0.95, items = {}, createdAt = os.time() }
+        Drops[dropId] = drop
+    end
+
+    addToDrop(drop, item.item_id, amount)
+    logAction('player_dropitem', uid, 0, item.item_id, amount, { name = GetPlayerName(src), drop = dropId })
+    pushInventory(src, 'normal')
+    pushNearbyDrops(src)
+end)
+
+RegisterNetEvent('driftzone_inventory:server:pickupDrop', function(dropId, index, toSlot)
+    local src = source
+    local uid = getUid(src)
+    if not uid then return end
+
+    dropId = tostring(dropId or '')
+    index = tonumber(index or 0) or 0
+    toSlot = tonumber(toSlot or 0) or 0
+    local drop = Drops[dropId]
+    if not drop or not drop.items or not drop.items[index] then return end
+
+    local coords = getPlayerCoords(src)
+    if not coords then return end
+    local dcoords = vector3(drop.x + 0.0, drop.y + 0.0, drop.z + 0.0)
+    if #(coords - dcoords) > (Config.DropPickupRadius or 4.0) then
+        return notify(src, 'warning', 'Esti prea departe de item.')
+    end
+
+    local slot = drop.items[index]
+    local itemId = slot.item_id
+    local amount = math.floor(tonumber(slot.amount or 1) or 1)
+    if not hasFreeSlotOrStack(uid, itemId, amount) then return notify(src, 'warning', 'Nu ai sloturi disponibile.') end
+
+    local ok, msg = addItemToUidPreferred(uid, itemId, amount, toSlot)
+    if not ok then return notify(src, 'warning', msg or 'Nu poti lua itemul.') end
+
+    table.remove(drop.items, index)
+    if #drop.items <= 0 then Drops[dropId] = nil end
+
+    logAction('player_pickupitem', 0, uid, itemId, amount, { name = GetPlayerName(src), drop = dropId })
+    pushInventory(src, 'normal')
+    pushNearbyDrops(src)
 end)
 
 AddEventHandler('playerDropped', function()
