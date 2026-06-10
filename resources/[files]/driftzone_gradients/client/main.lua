@@ -137,74 +137,86 @@ local function drawArrow(vehicle)
     )
 end
 
-local function getChameleonColorId(gradient)
-    if type(gradient) ~= 'table' then return nil end
 
-    local colorId = tonumber(gradient.colorId or gradient.chameleonId or 0) or 0
-    if colorId <= 0 then return nil end
+local function requestVehicleControl(vehicle, timeoutMs)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return false end
+    if NetworkHasControlOfEntity(vehicle) then return true end
 
-    local offset = tonumber(Config.ChameleonIdOffset or 0) or 0
-    colorId = colorId + offset
+    local timeout = GetGameTimer() + (timeoutMs or 900)
+    NetworkRequestControlOfEntity(vehicle)
 
-    if colorId < 0 then colorId = 0 end
-    return math.floor(colorId)
-end
-
-local function applyChameleonColor(vehicle, colorId, applyTo)
-    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
-    if not colorId then return end
-
-    SetVehicleModKit(vehicle, 0)
-
-    -- Chameleon NU este RGB. Trebuie sters custom RGB, altfel vezi doar culoare simpla.
-    ClearVehicleCustomPrimaryColour(vehicle)
-    ClearVehicleCustomSecondaryColour(vehicle)
-
-    local primary, secondary = GetVehicleColours(vehicle)
-    local pearl, wheel = GetVehicleExtraColours(vehicle)
-
-    primary = tonumber(primary or 0) or 0
-    secondary = tonumber(secondary or 0) or 0
-    pearl = tonumber(pearl or colorId) or colorId
-    wheel = tonumber(wheel or 0) or 0
-
-    applyTo = tostring(applyTo or 'both'):lower()
-
-    if applyTo == 'primary' then
-        primary = colorId
-    elseif applyTo == 'secondary' then
-        secondary = colorId
-    else
-        primary = colorId
-        secondary = colorId
+    while not NetworkHasControlOfEntity(vehicle) and GetGameTimer() < timeout do
+        NetworkRequestControlOfEntity(vehicle)
+        Wait(0)
     end
 
-    -- Native-ul principal pentru chameleon colors.
-    SetVehicleColours(vehicle, primary, secondary)
-    SetVehicleExtraColours(vehicle, colorId, wheel)
-
-    -- Reapel scurt dupa un frame: unele masini/add-on reseteaza modkit/paint instant.
-    Wait(0)
-    if DoesEntityExist(vehicle) then
-        SetVehicleModKit(vehicle, 0)
-        ClearVehicleCustomPrimaryColour(vehicle)
-        ClearVehicleCustomSecondaryColour(vehicle)
-        SetVehicleColours(vehicle, primary, secondary)
-        SetVehicleExtraColours(vehicle, colorId, wheel)
-    end
+    return NetworkHasControlOfEntity(vehicle)
 end
 
 local function applyGradientColors(vehicle, gradient, applyTo)
     if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
     if type(gradient) ~= 'table' then return end
 
-    local colorId = getChameleonColorId(gradient)
-    if not colorId then
-        notify('warning', 'Gradient invalid: lipseste colorId.')
-        return
+    local colorId = tonumber(gradient.colorId or gradient.colourId or gradient.color or 0) or 0
+    if colorId <= 0 then return end
+
+    requestVehicleControl(vehicle, 900)
+    SetVehicleModKit(vehicle, 0)
+
+    local currentPrimary, currentSecondary = GetVehicleColours(vehicle)
+    currentPrimary = tonumber(currentPrimary or 0) or 0
+    currentSecondary = tonumber(currentSecondary or 0) or 0
+
+    applyTo = tostring(applyTo or 'both'):lower()
+
+    -- Custom RGB blocheaza culoarea normala/chameleon, deci il curatam cand aplicam.
+    if applyTo == 'primary' then
+        ClearVehicleCustomPrimaryColour(vehicle)
+        SetVehicleColours(vehicle, colorId, currentSecondary)
+    elseif applyTo == 'secondary' then
+        ClearVehicleCustomSecondaryColour(vehicle)
+        SetVehicleColours(vehicle, currentPrimary, colorId)
+    else
+        ClearVehicleCustomPrimaryColour(vehicle)
+        ClearVehicleCustomSecondaryColour(vehicle)
+        SetVehicleColours(vehicle, colorId, colorId)
     end
 
-    applyChameleonColor(vehicle, colorId, applyTo)
+    -- Re-apel mic pentru unele addon-uri unde prima setare nu se propaga instant.
+    Wait(60)
+    if DoesEntityExist(vehicle) then
+        if applyTo == 'primary' then
+            SetVehicleColours(vehicle, colorId, currentSecondary)
+        elseif applyTo == 'secondary' then
+            SetVehicleColours(vehicle, currentPrimary, colorId)
+        else
+            SetVehicleColours(vehicle, colorId, colorId)
+        end
+        SetVehicleDirtLevel(vehicle, 0.0)
+    end
+end
+    if type(gradient) ~= 'table' then return end
+
+    SetVehicleModKit(vehicle, 0)
+
+    local sr, sg, sb = rgb(gradient.startColor, { r = 4, g = 199, b = 247 })
+    local er, eg, eb = rgb(gradient.endColor, { r = 0, g = 110, b = 255 })
+    local pr, pg, pb = rgb(gradient.pearlColor, gradient.endColor or gradient.startColor)
+
+    applyTo = tostring(applyTo or 'both'):lower()
+
+    if applyTo == 'primary' then
+        SetVehicleCustomPrimaryColour(vehicle, sr, sg, sb)
+        -- Pearl subtil pentru efect de shift, fara sa transforme masina in negru.
+        SetVehicleTyreSmokeColor(vehicle, pr, pg, pb)
+    elseif applyTo == 'secondary' then
+        SetVehicleCustomSecondaryColour(vehicle, er, eg, eb)
+        SetVehicleTyreSmokeColor(vehicle, pr, pg, pb)
+    else
+        SetVehicleCustomPrimaryColour(vehicle, sr, sg, sb)
+        SetVehicleCustomSecondaryColour(vehicle, er, eg, eb)
+        SetVehicleTyreSmokeColor(vehicle, pr, pg, pb)
+    end
 end
 
 RegisterNetEvent('driftzone_gradients:client:startSelector', function(data)

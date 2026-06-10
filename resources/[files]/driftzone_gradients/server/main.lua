@@ -356,7 +356,8 @@ RegisterNetEvent('driftzone_gradients:server:apply', function(applyTo)
         id = gradient.id,
         name = gradient.label,
         type = gradient.type,
-        colorId = gradient.colorId or gradient.chameleonId,
+        colorId = gradient.colorId,
+        originalRamp = gradient.originalRamp,
         applyTo = applyTo,
         appliedAt = os.time()
     }
