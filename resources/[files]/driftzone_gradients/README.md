@@ -1,6 +1,14 @@
 # driftzone_gradients
 
-Sistem pentru aplicarea gradientelor / chameleon colors pe vehicule.
+Sistem pentru aplicarea gradient/chameleon/monochrome colors pe masini.
+
+## Fix inclus
+
+- Nu mai selecteaza coloana `users.admin` daca nu exista.
+- Foloseste `users.admin_level` pentru verificarea adminului.
+- `Config.AdminColumnFallback = nil` by default.
+- Config-ul are fiecare gradient scris clar cu ID propriu.
+- Au fost adaugate gradiente/c culori `monochrome`.
 
 ## Comanda admin
 
@@ -8,36 +16,23 @@ Sistem pentru aplicarea gradientelor / chameleon colors pe vehicule.
 /gradient id
 ```
 
-Acces: admin 6+ si aduty yes. In modul admin poate fi aplicat pe orice masina selectata.
+Acces: admin 6+ si aduty yes.
 
-## Trigger / item inventory
+Exemplu:
 
-Pentru iteme din inventar foloseste:
-
-```lua
-TriggerEvent('driftzone_gradients:client:useGradient', gradientId)
+```txt
+/gradient 25
 ```
 
-sau server-side export:
+## Item inventory
 
-```lua
-exports.driftzone_gradients:OpenGradient(source, gradientId)
+Pentru trigger/item, itemul trebuie sa fie:
+
+```txt
+25_gradient
 ```
 
-In modul trigger/item:
-- masina trebuie sa fie personala;
-- itemul este sters doar dupa aplicare reusita;
-- item id-ul este format asa: `id_gradient`, exemplu `25_gradient`.
-
-## Salvare DB
-
-In `ownedvehicles.gradient` se salveaza JSON cu:
-- id gradient;
-- colorId;
-- nume gradient;
-- unde a fost aplicat: primary / secondary / both.
-
-Loguri in `gradient_logs`.
+pentru gradient ID 25.
 
 ## Instalare
 
@@ -48,4 +43,14 @@ ensure driftzone_inventory
 ensure driftzone_gradients
 ```
 
-Ruleaza `SQL.sql`, apoi restart la resource.
+Ruleaza:
+
+```txt
+driftzone_gradients/SQL.sql
+```
+
+Apoi:
+
+```cfg
+restart driftzone_gradients
+```

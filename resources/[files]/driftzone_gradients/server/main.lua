@@ -50,18 +50,63 @@ local function isAduty(value)
     return value == true or tonumber(value) == 1 or text == 'yes' or text == 'true'
 end
 
+local UserColumns = nil
+
+local function getUserColumns()
+    if UserColumns then return UserColumns end
+
+    UserColumns = {}
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await(('SHOW COLUMNS FROM %s'):format(cleanSql(Config.UsersTable or 'users')), {}) or {}
+    end)
+
+    if ok and type(rows) == 'table' then
+        for _, row in ipairs(rows) do
+            if row and row.Field then
+                UserColumns[tostring(row.Field)] = true
+            end
+        end
+    end
+
+    return UserColumns
+end
+
 local function getAdminData(src)
     local uid = getUid(src)
     if not uid then return nil end
     local cached = AdminCache[uid]
     if cached and cached.expires > GetGameTimer() then return cached.data end
 
+    local cols = getUserColumns()
+    local adminCol = tostring(Config.AdminColumn or 'admin_level')
+    local fallbackCol = Config.AdminColumnFallback and tostring(Config.AdminColumnFallback) or nil
+    local adutyCol = tostring(Config.AdutyColumn or 'aduty')
+
+    local selectParts = {}
+
+    if cols[adminCol] then
+        selectParts[#selectParts + 1] = ('%s AS admin_level'):format(cleanSql(adminCol))
+    else
+        selectParts[#selectParts + 1] = '0 AS admin_level'
+    end
+
+    if fallbackCol and fallbackCol ~= '' and cols[fallbackCol] then
+        selectParts[#selectParts + 1] = ('%s AS admin_fallback'):format(cleanSql(fallbackCol))
+    else
+        selectParts[#selectParts + 1] = '0 AS admin_fallback'
+    end
+
+    if cols[adutyCol] then
+        selectParts[#selectParts + 1] = ('%s AS aduty'):format(cleanSql(adutyCol))
+    else
+        selectParts[#selectParts + 1] = '0 AS aduty'
+    end
+
     local row = MySQL.single.await((
-        'SELECT %s AS admin_level, %s AS admin_fallback, %s AS aduty FROM %s WHERE %s = ? LIMIT 1'
+        'SELECT %s FROM %s WHERE %s = ? LIMIT 1'
     ):format(
-        cleanSql(Config.AdminColumn or 'admin_level'),
-        cleanSql(Config.AdminColumnFallback or 'admin'),
-        cleanSql(Config.AdutyColumn or 'aduty'),
+        table.concat(selectParts, ', '),
         cleanSql(Config.UsersTable or 'users'),
         cleanSql(Config.UsersIdColumn or 'uid')
     ), { uid })
