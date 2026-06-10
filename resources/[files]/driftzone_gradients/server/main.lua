@@ -354,8 +354,11 @@ RegisterNetEvent('driftzone_gradients:server:apply', function(applyTo)
 
     local saveData = {
         id = gradient.id,
-        colorId = gradient.colorId,
         name = gradient.label,
+        type = gradient.type,
+        startColor = gradient.startColor,
+        endColor = gradient.endColor,
+        pearlColor = gradient.pearlColor,
         applyTo = applyTo,
         appliedAt = os.time()
     }
@@ -366,7 +369,7 @@ RegisterNetEvent('driftzone_gradients:server:apply', function(applyTo)
 
     logGradient(src, uid, row, gradient, applyTo, session.mode, itemRemoved)
 
-    TriggerClientEvent('driftzone_gradients:client:applyGradient', -1, session.selectedNetId, gradient.colorId, applyTo)
+    TriggerClientEvent('driftzone_gradients:client:applyGradient', -1, session.selectedNetId, gradient, applyTo)
     TriggerClientEvent('driftzone_gradients:client:applied', src)
     notify(src, 'success', ('Gradient aplicat: %s.'):format(gradient.label or gradient.id), 5000)
 

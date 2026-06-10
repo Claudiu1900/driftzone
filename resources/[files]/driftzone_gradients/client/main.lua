@@ -137,25 +137,35 @@ local function drawArrow(vehicle)
     )
 end
 
-local function applyColor(vehicle, colorId, applyTo)
+local function rgb(c, fallback)
+    c = type(c) == 'table' and c or fallback or {}
+    return tonumber(c.r or 0) or 0, tonumber(c.g or 0) or 0, tonumber(c.b or 0) or 0
+end
+
+local function applyGradientColors(vehicle, gradient, applyTo)
     if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
+    if type(gradient) ~= 'table' then return end
+
     SetVehicleModKit(vehicle, 0)
 
-    local primary, secondary = GetVehicleColours(vehicle)
-    colorId = tonumber(colorId or 0) or 0
+    local sr, sg, sb = rgb(gradient.startColor, { r = 4, g = 199, b = 247 })
+    local er, eg, eb = rgb(gradient.endColor, { r = 0, g = 110, b = 255 })
+    local pr, pg, pb = rgb(gradient.pearlColor, gradient.endColor or gradient.startColor)
+
+    applyTo = tostring(applyTo or 'both'):lower()
 
     if applyTo == 'primary' then
-        primary = colorId
+        SetVehicleCustomPrimaryColour(vehicle, sr, sg, sb)
+        -- Pearl subtil pentru efect de shift, fara sa transforme masina in negru.
+        SetVehicleTyreSmokeColor(vehicle, pr, pg, pb)
     elseif applyTo == 'secondary' then
-        secondary = colorId
+        SetVehicleCustomSecondaryColour(vehicle, er, eg, eb)
+        SetVehicleTyreSmokeColor(vehicle, pr, pg, pb)
     else
-        primary = colorId
-        secondary = colorId
+        SetVehicleCustomPrimaryColour(vehicle, sr, sg, sb)
+        SetVehicleCustomSecondaryColour(vehicle, er, eg, eb)
+        SetVehicleTyreSmokeColor(vehicle, pr, pg, pb)
     end
-
-    ClearVehicleCustomPrimaryColour(vehicle)
-    ClearVehicleCustomSecondaryColour(vehicle)
-    SetVehicleColours(vehicle, primary, secondary)
 end
 
 RegisterNetEvent('driftzone_gradients:client:startSelector', function(data)
@@ -181,12 +191,12 @@ RegisterNetEvent('driftzone_gradients:client:openApplyMenu', function(data)
     })
 end)
 
-RegisterNetEvent('driftzone_gradients:client:applyGradient', function(netId, colorId, applyTo)
+RegisterNetEvent('driftzone_gradients:client:applyGradient', function(netId, gradient, applyTo)
     netId = tonumber(netId or 0) or 0
     if netId <= 0 then return end
     local vehicle = NetToVeh(netId)
     if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
-        applyColor(vehicle, colorId, tostring(applyTo or 'both'))
+        applyGradientColors(vehicle, gradient, tostring(applyTo or 'both'))
     end
 end)
 
