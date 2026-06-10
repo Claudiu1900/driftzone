@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CVehicleModelInfo__InitDataList>
+  <residentTxd>vehshare</residentTxd>
+  <residentAnims />
+  <InitDatas>
+
+    <Item>
+      <modelName>m3g801</modelName>
+      <txdName>m3g801</txdName>
+      <handlingId>m3g801</handlingId>
+      <gameName>m3g801</gameName>
+      <vehicleMakeName>BMW</vehicleMakeName>
+      <expressionDictName>null</expressionDictName>
+      <expressionName>null</expressionName>
+      <animConvRoofDictName>null</animConvRoofDictName>
+      <animConvRoofName>null</animConvRoofName>
+      <animConvRoofWindowsAffected />
+      <ptfxAssetName>null</ptfxAssetName>
+
+      <audioNameHash>SCHAFTER4</audioNameHash>
+      <layout>LAYOUT_STANDARD</layout>
+
+      <coverBoundOffsets>SEDAN_COVER_OFFSET_INFO</coverBoundOffsets>
+      <explosionInfo>EXPLOSION_INFO_DEFAULT</explosionInfo>
+      <scenarioLayout />
+      <cameraName>DEFAULT_SCRIPTED_CAMERA</cameraName>
+
+      <aimCameraName>CAMERA_REAR</aimCameraName>
+      <bonnetCameraName>VEHICLE_BONNET_CAMERA_STANDARD</bonnetCameraName>
+      <povCameraName>DEFAULT_POV_CAMERA</povCameraName>
+
+      <FirstPersonDriveByIKOffset x="0.000000" y="-0.050000" z="-0.050000" />
+      <FirstPersonDriveByUnarmedIKOffset x="0.000000" y="0.000000" z="0.000000" />
+      <FirstPersonProjectileDriveByIKOffset x="0.000000" y="0.000000" z="0.000000" />
+      <FirstPersonProjectileDriveByPassengerIKOffset x="0.000000" y="0.000000" z="0.000000" />
+      <FirstPersonDriveByLeftPassengerIKOffset x="0.000000" y="0.000000" z="0.000000" />
+      <FirstPersonDriveByRightPassengerIKOffset x="0.000000" y="0.000000" z="0.000000" />
+      <FirstPersonDriveByRightPassengerUnarmedIKOffset x="0.000000" y="0.000000" z="0.000000" />
+      <FirstPersonMobilePhoneOffset x="0.156000" y="0.225000" z="0.585000" />
+      <FirstPersonPassengerMobilePhoneOffset x="0.156000" y="0.225000" z="0.585000" />
+
+      <PovCameraOffset x="0.000000" y="-0.150000" z="0.650000" />
+      <PovPassengerCameraOffset x="0.000000" y="0.000000" z="0.000000" />
+
+      <vfxInfoName>VFXVEHICLEINFO_CAR</vfxInfoName>
+
+      <shouldUseCinematicViewMode value="true" />
+      <shouldCameraTransitionOnClimbUpDown value="false" />
+      <shouldCameraIgnoreExiting value="false" />
+
+      <AllowPretendOccupants value="true" />
+      <AllowJoyriding value="true" />
+      <AllowSundayDriving value="true" />
+      <AllowBodyColorMapping value="true" />
+
+      <wheelScale value="0.280000" />
+      <wheelScaleRear value="0.280000" />
+
+      <dirtLevelMin value="0.000000" />
+      <dirtLevelMax value="0.700000" />
+
+      <envEffScaleMin value="1.000000" />
+      <envEffScaleMax value="1.000000" />
+
+      <damageMapScale value="1.000000" />
+      <damageOffsetScale value="1.000000" />
+
+      <diffuseTint value="0x00FFFFFF" />
+
+      <steerWheelMult value="1.000000" />
+      <HDTextureDist value="5.000000" />
+
+      <lodDistances content="float_array">
+        500.000000
+        1000.000000
+        2000.000000
+        3000.000000
+        4000.000000
+        5000.000000
+      </lodDistances>
+
+      <minSeatHeight value="0.500000" />
+
+      <identicalModelSpawnDistance value="20" />
+
+      <maxNumOfSameColor value="5" />
+
+      <defaultBodyHealth value="1000.000000" />
+      <pretendOccupantsScale value="1.000000" />
+
+      <visibleSpawnDistScale value="1.000000" />
+
+      <trackerPathWidth value="2.000000" />
+
+      <weaponForceMult value="1.000000" />
+
+      <frequency value="100" />
+
+      <swankness>SWANKNESS_5</swankness>
+
+      <maxNum value="20" />
+
+      <flags>FLAG_AVERAGE_CAR</flags>
+
+      <type>VEHICLE_TYPE_CAR</type>
+
+      <plateType>VPT_FRONT_AND_REAR_PLATES</plateType>
+
+      <dashboardType>VDT_BMW</dashboardType>
+
+      <vehicleClass>VC_SPORTS</vehicleClass>
+
+      <wheelType>VWT_SPORT</wheelType>
+
+      <trailers />
+      <additionalTrailers />
+
+      <drivers>
+        <Item>
+          <driverName>S_M_Y_Dealer_01</driverName>
+          <npcDrivingStyle>NORMAL</npcDrivingStyle>
+        </Item>
+      </drivers>
+
+      <extraIncludes />
+      <doorsWithCollisionWhenClosed />
+      <driveableDoors />
+
+      <bumpersNeedToCollideWithMap value="true" />
+      <needsRopeTexture value="false" />
+
+      <requiredExtras />
+    </Item>
+
+  </InitDatas>
+
+  <txdRelationships>
+    <Item>
+      <parent>vehshare</parent>
+      <child>m3g801</child>
+    </Item>
+  </txdRelationships>
+
+</CVehicleModelInfo__InitDataList>
