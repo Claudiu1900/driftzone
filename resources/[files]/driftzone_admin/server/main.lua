@@ -18,15 +18,24 @@ local AdminCommands = {
     ban = true,
     tempban = true,
     unban = true,
-    givecar = true,
-    takecar = true,
-    transfercar = true,
+    giveveh = true,
+    takeveh = true,
+    transferveh = true,
     changeplate = true,
     addoutfit = true,
     cleanup = true,
     cancelcleanup = true,
-    addcar = true,
-    removecar = true
+    addveh = true,
+    removeveh = true,
+    lockveh = true,
+    unlockveh = true,
+    giveadm = true,
+    wipe = true,
+    givecash = true,
+    givedzcoins = true,
+    givevip = true,
+    removevip = true,
+    resettickets = true
 }
 
 local Cooldowns = {
@@ -763,6 +772,195 @@ end
 
 local Commands = {}
 
+
+
+local TableColumnsCache = {}
+local TableExistsCache = {}
+
+local function tableExists(tableName)
+    tableName = cleanSqlIdentifier(tableName)
+    if TableExistsCache[tableName] ~= nil then return TableExistsCache[tableName] end
+
+    local ok, row = pcall(function()
+        return MySQL.single.await('SHOW TABLES LIKE ?', { tableName })
+    end)
+
+    TableExistsCache[tableName] = ok and row ~= nil
+    return TableExistsCache[tableName]
+end
+
+local function getTableColumns(tableName)
+    tableName = cleanSqlIdentifier(tableName)
+    if TableColumnsCache[tableName] then return TableColumnsCache[tableName] end
+
+    local columns = {}
+    local ok, rows = pcall(function()
+        return MySQL.query.await(('SHOW COLUMNS FROM %s'):format(sqlName(tableName)), {}) or {}
+    end)
+
+    if ok and type(rows) == 'table' then
+        for _, row in ipairs(rows) do
+            if row.Field then columns[tostring(row.Field)] = true end
+        end
+    end
+
+    TableColumnsCache[tableName] = columns
+    return columns
+end
+
+local function updateExistingColumns(tableName, whereSql, whereParams, values)
+    tableName = cleanSqlIdentifier(tableName)
+    local cols = getTableColumns(tableName)
+    local sets = {}
+    local params = {}
+
+    for _, item in ipairs(values or {}) do
+        local col = item[1]
+        local expr = item[2]
+        local value = item[3]
+        if cols[col] then
+            sets[#sets + 1] = ('%s = %s'):format(sqlName(col), expr or '?')
+            if expr == nil or expr == '?' then
+                params[#params + 1] = value
+            elseif tostring(expr):find('@value', 1, true) then
+                params[#params + 1] = value
+            end
+        end
+    end
+
+    if #sets <= 0 then return 0, 'no compatible columns' end
+    for _, v in ipairs(whereParams or {}) do params[#params + 1] = v end
+
+    local query = ('UPDATE %s SET %s %s'):format(sqlName(tableName), table.concat(sets, ', '), whereSql or '')
+    local ok, affected = pcall(function()
+        return MySQL.update.await(query, params)
+    end)
+
+    if not ok then return 0, affected end
+    return tonumber(affected or 0) or 0, nil
+end
+
+local function userExists(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return false end
+    local row = MySQL.single.await('SELECT uid FROM users WHERE uid = ? LIMIT 1', { uid })
+    return row ~= nil
+end
+
+local function addUserMoneyColumn(uid, column, amount)
+    uid = tonumber(uid or 0) or 0
+    amount = math.floor(tonumber(amount or 0) or 0)
+    if uid <= 0 or amount <= 0 then return false, 'Suma invalida.' end
+    if not userExists(uid) then return false, 'UID-ul nu exista.' end
+
+    local cols = getTableColumns('users')
+    if not cols[column] then return false, ('Coloana users.%s nu exista.'):format(column) end
+
+    local affected = MySQL.update.await(('UPDATE `users` SET `%s` = COALESCE(`%s`, 0) + ? WHERE `uid` = ? LIMIT 1'):format(column, column), { amount, uid }) or 0
+    return affected > 0, nil
+end
+
+local function setAdminLevelByUid(uid, level)
+    uid = tonumber(uid or 0) or 0
+    level = math.floor(tonumber(level or -1) or -1)
+    if uid <= 0 then return false, 'UID invalid.' end
+    if level < 0 or level > 7 then return false, 'Gradul trebuie sa fie intre 0 si 7.' end
+    if not userExists(uid) then return false, 'UID-ul nu exista.' end
+
+    local values = {
+        { 'admin_level', '?', level },
+        { 'admin', '?', level },
+        { 'aduty', '?', 0 }
+    }
+    local affected, err = updateExistingColumns('users', 'WHERE `uid` = ? LIMIT 1', { uid }, values)
+    if affected <= 0 and err then return false, tostring(err) end
+
+    invalidateAdminCache(uid)
+    local target = getPlayerByUid(uid)
+    if target then
+        Player(target).state:set('dz_admin_level', level, true)
+        Player(target).state:set('dz_aduty', false, true)
+    end
+    return true, nil
+end
+
+local function wipeUserAccount(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return false, 'UID invalid.' end
+    if not userExists(uid) then return false, 'UID-ul nu exista.' end
+
+    local target = getPlayerByUid(uid)
+    if target then
+        DropPlayer(target, 'Contul tau a primit wipe. Reconecteaza-te pe server.')
+        Wait(700)
+    end
+
+    pcall(function()
+        MySQL.update.await('DELETE FROM `ownedvehicles` WHERE `owner_id` = ?', { uid })
+    end)
+
+    updateExistingColumns('users', 'WHERE `uid` = ? LIMIT 1', { uid }, {
+        { 'cash', '?', 0 },
+        { 'bank', '?', 0 },
+        { 'xp', '?', 0 },
+        { 'playtime', '?', 0 },
+        { 'character', '?', nil },
+        { 'dzcoins', '?', 0 },
+        { 'garage_slots', '?', Config.AdminExtra and Config.AdminExtra.defaultGarageSlots or 8 },
+        { 'vip', '?', 0 },
+        { 'viptime', '?', nil },
+        { 'outside_vehicles', '?', Config.AdminExtra and Config.AdminExtra.defaultOutsideVehicles or 2 },
+        { 'races', '?', 0 }
+    })
+
+    if tableExists('races') then
+        local cols = getTableColumns('races')
+        local uidCol = cols.uid and 'uid' or (cols.user_id and 'user_id' or (cols.owner_id and 'owner_id' or nil))
+        if uidCol then
+            updateExistingColumns('races', ('WHERE %s = ?'):format(sqlName(uidCol)), { uid }, {
+                { 'losses', '?', 0 },
+                { 'wins', '?', 0 },
+                { 'cashlost', '?', 0 },
+                { 'cashwin', '?', 0 },
+                { 'races', '?', 0 }
+            })
+        end
+    end
+
+    invalidateAdminCache(uid)
+    return true, nil
+end
+
+local function setVipByUid(uid, days)
+    uid = tonumber(uid or 0) or 0
+    days = math.floor(tonumber(days or 0) or 0)
+    if uid <= 0 then return false, 'UID invalid.' end
+    if days <= 0 then return false, 'Zile invalide.' end
+    if not userExists(uid) then return false, 'UID-ul nu exista.' end
+
+    local cols = getTableColumns('users')
+    local sets = {}
+    if cols.vip then sets[#sets + 1] = '`vip` = 1' end
+    if cols.viptime then sets[#sets + 1] = '`viptime` = DATE_ADD(GREATEST(COALESCE(`viptime`, NOW()), NOW()), INTERVAL ? DAY)' end
+    if #sets <= 0 then return false, 'Nu exista coloane vip/viptime in users.' end
+
+    local params = {}
+    if cols.viptime then params[#params + 1] = days end
+    params[#params + 1] = uid
+    local affected = MySQL.update.await(('UPDATE `users` SET %s WHERE `uid` = ? LIMIT 1'):format(table.concat(sets, ', ')), params) or 0
+    return affected > 0, nil
+end
+
+local function removeVipByUid(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return false, 'UID invalid.' end
+    if not userExists(uid) then return false, 'UID-ul nu exista.' end
+    local affected = updateExistingColumns('users', 'WHERE `uid` = ? LIMIT 1', { uid }, {
+        { 'vip', '?', 0 },
+        { 'viptime', '?', nil }
+    })
+    return true, nil
+end
 Commands.aduty = function(src, args)
     local data = requireAdmin(src, Config.Commands.aduty, false)
     if not data then return end
@@ -1350,8 +1548,8 @@ Commands.unban = function(src, args)
     notify(src, 'info', ('UID %s a fost debanat.'):format(targetUid))
 end
 
-Commands.givecar = function(src, args)
-    local data = requireAdmin(src, Config.Commands.givecar, true)
+Commands.giveveh = function(src, args)
+    local data = requireAdmin(src, Config.Commands.giveveh, true)
     if not data then return end
 
     local targetUid = tonumber(args[1])
@@ -1359,7 +1557,7 @@ Commands.givecar = function(src, args)
     local plate = sanitizePlate(args[3] or '')
 
     if not targetUid or targetUid <= 0 or model == '' then
-        notify(src, 'warning', 'Folosire: /givecar uid model plate_optional')
+        notify(src, 'warning', 'Folosire: /giveveh uid model plate_optional')
         return
     end
 
@@ -1390,15 +1588,15 @@ Commands.givecar = function(src, args)
     end
 end
 
-Commands.takecar = function(src, args)
-    local data = requireAdmin(src, Config.Commands.takecar, true)
+Commands.takeveh = function(src, args)
+    local data = requireAdmin(src, Config.Commands.takeveh, true)
     if not data then return end
 
     local targetUid = tonumber(args[1])
     local vehicleId = tonumber(args[2])
 
     if not targetUid or not vehicleId then
-        notify(src, 'warning', 'Folosire: /takecar uid id_masina')
+        notify(src, 'warning', 'Folosire: /takeveh uid id_masina')
         return
     end
 
@@ -1420,15 +1618,15 @@ Commands.takecar = function(src, args)
     notify(src, 'info', ('Ai sters masina ID %s de la UID %s.'):format(vehicleId, targetUid))
 end
 
-Commands.transfercar = function(src, args)
-    local data = requireAdmin(src, Config.Commands.transfercar, true)
+Commands.transferveh = function(src, args)
+    local data = requireAdmin(src, Config.Commands.transferveh, true)
     if not data then return end
 
     local newOwner = tonumber(args[1])
     local vehicleId = tonumber(args[2])
 
     if not newOwner or not vehicleId then
-        notify(src, 'warning', 'Folosire: /transfercar uid_nou id_masina')
+        notify(src, 'warning', 'Folosire: /transferveh uid_nou id_masina')
         return
     end
 
@@ -1487,6 +1685,161 @@ end
 
 
 
+
+
+Commands.lockveh = function(src, args)
+    local data = requireAdmin(src, Config.Commands.lockveh or 4, true)
+    if not data then return end
+
+    local sqlId = tonumber(args[1])
+    if not sqlId or sqlId <= 0 then
+        notify(src, 'warning', 'Folosire: /lockveh sql_id')
+        return
+    end
+
+    TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', sqlId, true)
+    notify(src, 'info', ('Masina SQL ID %s a fost incuiata.'):format(sqlId))
+end
+
+Commands.unlockveh = function(src, args)
+    local data = requireAdmin(src, Config.Commands.unlockveh or 4, true)
+    if not data then return end
+
+    local sqlId = tonumber(args[1])
+    if not sqlId or sqlId <= 0 then
+        notify(src, 'warning', 'Folosire: /unlockveh sql_id')
+        return
+    end
+
+    TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', sqlId, false)
+    notify(src, 'info', ('Masina SQL ID %s a fost descuiata.'):format(sqlId))
+end
+
+Commands.giveadm = function(src, args)
+    local data = requireAdmin(src, Config.Commands.giveadm or 6, true)
+    if not data then return end
+
+    local uid = tonumber(args[1])
+    local level = tonumber(args[2])
+    if not uid or level == nil then
+        notify(src, 'warning', 'Folosire: /giveadm uid grad_0_7')
+        return
+    end
+
+    local ok, err = setAdminLevelByUid(uid, level)
+    if not ok then
+        notify(src, 'warning', err or 'Nu s-a putut seta gradul.')
+        return
+    end
+
+    notify(src, 'info', ('UID %s are acum admin level %s.'):format(uid, math.floor(level)))
+    local target = getPlayerByUid(uid)
+    if target then notify(target, 'info', ('Gradul tau de staff a fost setat la %s.'):format(math.floor(level))) end
+end
+
+Commands.wipe = function(src, args)
+    local data = requireAdmin(src, Config.Commands.wipe or 6, true)
+    if not data then return end
+
+    local uid = tonumber(args[1])
+    if not uid or uid <= 0 then
+        notify(src, 'warning', 'Folosire: /wipe uid')
+        return
+    end
+
+    local ok, err = wipeUserAccount(uid)
+    if not ok then
+        notify(src, 'warning', err or 'Wipe esuat.')
+        return
+    end
+
+    notify(src, 'info', ('Wipe complet pentru UID %s.'):format(uid))
+end
+
+Commands.givecash = function(src, args)
+    local data = requireAdmin(src, Config.Commands.givecash or 7, true)
+    if not data then return end
+
+    local uid = tonumber(args[1])
+    local amount = tonumber(args[2])
+    if not uid or not amount or amount <= 0 then
+        notify(src, 'warning', 'Folosire: /givecash uid suma')
+        return
+    end
+
+    local ok, err = addUserMoneyColumn(uid, 'cash', amount)
+    if not ok then notify(src, 'warning', err or 'Nu s-au putut da banii.') return end
+    notify(src, 'info', ('Ai dat $%s la UID %s.'):format(math.floor(amount), uid))
+    local target = getPlayerByUid(uid)
+    if target then notify(target, 'info', ('Ai primit $%s.'):format(math.floor(amount))) end
+end
+
+Commands.givedzcoins = function(src, args)
+    local data = requireAdmin(src, Config.Commands.givedzcoins or 7, true)
+    if not data then return end
+
+    local uid = tonumber(args[1])
+    local amount = tonumber(args[2])
+    if not uid or not amount or amount <= 0 then
+        notify(src, 'warning', 'Folosire: /givedzcoins uid suma')
+        return
+    end
+
+    local ok, err = addUserMoneyColumn(uid, 'dzcoins', amount)
+    if not ok then notify(src, 'warning', err or 'Nu s-au putut da coins.') return end
+    notify(src, 'info', ('Ai dat %s DriftZone Coins la UID %s.'):format(math.floor(amount), uid))
+    local target = getPlayerByUid(uid)
+    if target then notify(target, 'info', ('Ai primit %s DriftZone Coins.'):format(math.floor(amount))) end
+end
+
+Commands.givevip = function(src, args)
+    local data = requireAdmin(src, Config.Commands.givevip or 7, true)
+    if not data then return end
+
+    local uid = tonumber(args[1])
+    local days = tonumber(args[2])
+    if not uid or not days or days <= 0 then
+        notify(src, 'warning', 'Folosire: /givevip uid zile')
+        return
+    end
+
+    local ok, err = setVipByUid(uid, days)
+    if not ok then notify(src, 'warning', err or 'Nu s-a putut da VIP.') return end
+    notify(src, 'info', ('Ai adaugat VIP %s zile la UID %s.'):format(math.floor(days), uid))
+    local target = getPlayerByUid(uid)
+    if target then notify(target, 'info', ('Ai primit VIP pentru %s zile.'):format(math.floor(days))) end
+end
+
+Commands.removevip = function(src, args)
+    local data = requireAdmin(src, Config.Commands.removevip or 6, true)
+    if not data then return end
+
+    local uid = tonumber(args[1])
+    if not uid or uid <= 0 then
+        notify(src, 'warning', 'Folosire: /removevip uid')
+        return
+    end
+
+    local ok, err = removeVipByUid(uid)
+    if not ok then notify(src, 'warning', err or 'Nu s-a putut scoate VIP.') return end
+    notify(src, 'info', ('VIP scos de la UID %s.'):format(uid))
+    local target = getPlayerByUid(uid)
+    if target then notify(target, 'info', 'VIP-ul tau a fost scos.') end
+end
+
+Commands.resettickets = function(src, args)
+    local data = requireAdmin(src, Config.Commands.resettickets or 6, true)
+    if not data then return end
+
+    local cols = getTableColumns('users')
+    if not cols.tickets then
+        notify(src, 'warning', 'Coloana users.tickets nu exista.')
+        return
+    end
+
+    local affected = MySQL.update.await('UPDATE `users` SET `tickets` = 0') or 0
+    notify(src, 'info', ('Tickets resetate pentru %s conturi.'):format(affected))
+end
 RegisterNetEvent('driftzone_admin:server:cleanupClientReport', function(serial, deleted)
     serial = tonumber(serial or 0) or 0
     deleted = tonumber(deleted or 0) or 0
@@ -1565,8 +1918,8 @@ Commands.cancelcleanup = function(src, args)
     notifyAll('info', ('Admin-ul %s (%s) a anulat cleanup-ul activ.'):format(getPlayerNameSafe(src), data.uid), 7000)
 end
 
-Commands.addcar = function(src, args)
-    local data = requireAdmin(src, Config.Commands.addcar or 6, true)
+Commands.addveh = function(src, args)
+    local data = requireAdmin(src, Config.Commands.addveh or 6, true)
     if not data then return end
 
     TriggerClientEvent('driftzone_admin:client:addCarPanel', src, {
@@ -1581,13 +1934,13 @@ Commands.addcar = function(src, args)
     })
 end
 
-Commands.removecar = function(src, args)
-    local data = requireAdmin(src, Config.Commands.removecar or 6, true)
+Commands.removeveh = function(src, args)
+    local data = requireAdmin(src, Config.Commands.removeveh or 6, true)
     if not data then return end
 
     local id = tonumber(args[1])
     if not id or id <= 0 then
-        notify(src, 'warning', 'Folosire: /removecar id_database')
+        notify(src, 'warning', 'Folosire: /removeveh id_database')
         return
     end
 
@@ -1693,10 +2046,10 @@ end
 
 RegisterNetEvent('driftzone_admin:server:addCarSubmit', function(payload)
     local src = source
-    local data = requireAdmin(src, Config.Commands.addcar or 6, true)
+    local data = requireAdmin(src, Config.Commands.addveh or 6, true)
     if not data then
         TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, 'Nu ai acces.')
-        logAdminCommand(src, 'addcar', { 'nui' }, 'failed', 'no access')
+        logAdminCommand(src, 'addveh', { 'nui' }, 'failed', 'no access')
         return
     end
 
@@ -1704,7 +2057,7 @@ RegisterNetEvent('driftzone_admin:server:addCarSubmit', function(payload)
     local cols, params, err, normalized = getAddCarInsert(payload)
     if err then
         TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, err)
-        logAdminCommand(src, 'addcar', payload, 'failed', err)
+        logAdminCommand(src, 'addveh', payload, 'failed', err)
         return
     end
 
@@ -1712,7 +2065,7 @@ RegisterNetEvent('driftzone_admin:server:addCarSubmit', function(payload)
     if existing then
         local msg = 'Exista deja o masina cu acest model ID.'
         TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, msg)
-        logAdminCommand(src, 'addcar', normalized, 'failed', msg)
+        logAdminCommand(src, 'addveh', normalized, 'failed', msg)
         return
     end
 
@@ -1735,12 +2088,12 @@ RegisterNetEvent('driftzone_admin:server:addCarSubmit', function(payload)
     if not ok then
         local msg = tostring(insertIdOrErr)
         TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, 'Eroare DB la adaugare masina.')
-        logAdminCommand(src, 'addcar', normalized, 'error', msg)
+        logAdminCommand(src, 'addveh', normalized, 'error', msg)
         return
     end
 
     TriggerClientEvent('driftzone_admin:client:addCarResult', src, true, ('Masina a fost adaugata cu ID %s.'):format(insertIdOrErr or '?'))
-    logAdminCommand(src, 'addcar', normalized, 'success', ('insert id %s'):format(insertIdOrErr or '?'))
+    logAdminCommand(src, 'addveh', normalized, 'success', ('insert id %s'):format(insertIdOrErr or '?'))
 end)
 
 RegisterNetEvent('driftzone_admin:server:run', function(command, args)

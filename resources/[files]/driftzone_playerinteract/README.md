@@ -47,3 +47,12 @@ ensure driftzone_playerinteract
 - Animatia zarurilor este mai lunga si cu efect 3D.
 - RETRY a fost reparat si verifica din nou cash-ul ambilor jucatori.
 - Combinatia 1 + 1 este cea mai mare combinatie la Barbut.
+
+
+## Update Barbut v4
+
+- Animatia zarurilor este simpla, fara efect 3D.
+- Banii se retrag de la ambii jucatori cand ambii apasa READY.
+- Castigatorul primeste payout-ul dupa ce zarurile finale sunt afisate.
+- CLOSE este blocat cat timp runda ruleaza.
+- Dupa runda se foloseste direct READY pentru o runda noua.

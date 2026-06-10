@@ -24,15 +24,24 @@ local AdminCommands = {
     'ban',
     'tempban',
     'unban',
-    'givecar',
-    'takecar',
-    'transfercar',
+    'giveveh',
+    'takeveh',
+    'transferveh',
     'changeplate',
     'addoutfit',
     'cleanup',
     'cancelcleanup',
-    'addcar',
-    'removecar'
+    'addveh',
+    'removeveh',
+    'lockveh',
+    'unlockveh',
+    'giveadm',
+    'wipe',
+    'givecash',
+    'givedzcoins',
+    'givevip',
+    'removevip',
+    'resettickets'
 }
 
 local function notify(type, message, duration)
@@ -350,11 +359,26 @@ local function setEntityNoclipState(entity, state)
     FreezeEntityPosition(entity, state)
     SetEntityCollision(entity, not state, not state)
     SetEntityInvincible(entity, state)
+    SetPedCanRagdoll(entity, not state)
+    SetEntityCanBeDamaged(entity, not state)
 
     if state then
-        SetEntityAlpha(entity, 120, false)
+        SetEntityVisible(entity, false, false)
+        SetLocalPlayerVisibleLocally(false)
+        SetEveryoneIgnorePlayer(PlayerId(), true)
+        SetPoliceIgnorePlayer(PlayerId(), true)
+        SetPlayerInvincible(PlayerId(), true)
+        ClearPedBloodDamage(entity)
+        RemoveAllPedWeapons(entity, true)
     else
+        SetEntityVisible(entity, true, false)
         ResetEntityAlpha(entity)
+        SetLocalPlayerVisibleLocally(true)
+        SetEveryoneIgnorePlayer(PlayerId(), false)
+        SetPoliceIgnorePlayer(PlayerId(), false)
+        SetPlayerInvincible(PlayerId(), false)
+        SetPedCanRagdoll(entity, true)
+        SetEntityCanBeDamaged(entity, true)
     end
 end
 
@@ -389,6 +413,13 @@ CreateThread(function()
         if noclip then
             local ped = PlayerPedId()
             local entity = noclipEntity or getNoclipTarget()
+
+            if entity and DoesEntityExist(entity) then
+                SetEntityVisible(entity, false, false)
+                SetEntityCollision(entity, false, false)
+                SetEntityInvincible(entity, true)
+                SetPlayerInvincible(PlayerId(), true)
+            end
 
             DisableControlAction(0, 30, true)
             DisableControlAction(0, 31, true)

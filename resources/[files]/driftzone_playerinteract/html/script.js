@@ -282,6 +282,8 @@ function barbutPayload(payload = {}) {
     barbutRetryBtn.disabled = true;
     barbutReadyBtn.classList.toggle('hidden', rolling);
     barbutReadyBtn.disabled = barbutState.myReady === true || rolling;
+    barbutCloseBtn.disabled = rolling || barbutState.closeLocked === true;
+    barbutCloseBtn.classList.toggle('disabled', barbutCloseBtn.disabled);
     barbutReadyBtn.querySelector('span').textContent = barbutState.myReady ? 'WAITING' : 'READY';
 
     if (!finished && !rolling) {
@@ -340,6 +342,10 @@ function retryBarbutGame() {
     readyBarbutGame();
 }
 function closeBarbutGame() {
+    if (barbutRolling || barbutCloseBtn.disabled) {
+        setBarbutError('Nu poti inchide cat timp runda este in desfasurare.');
+        return;
+    }
     nui('barbutClose', { sessionId: barbutState?.sessionId });
 }
 function rollBarbut(payload = {}) {
@@ -352,22 +358,19 @@ function rollBarbut(payload = {}) {
     barbutReadyBtn.disabled = true;
     barbutReadyBtn.classList.add('hidden');
     barbutRetryBtn.classList.add('hidden');
+    barbutCloseBtn.disabled = true;
+    barbutCloseBtn.classList.add('disabled');
 
     let ticks = 0;
-    const maxTicks = 74;
+    const maxTicks = 52;
     const timer = setInterval(() => {
         ticks++;
-        const slow = ticks > 52;
         const my = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
         const other = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
         renderDice(barbutMyDice, my, true);
         renderDice(barbutOtherDice, other, true);
-        barbutMyDice.classList.toggle('slow-roll', slow);
-        barbutOtherDice.classList.toggle('slow-roll', slow);
         if (ticks >= maxTicks) {
             clearInterval(timer);
-            barbutMyDice.classList.remove('slow-roll');
-            barbutOtherDice.classList.remove('slow-roll');
             setTimeout(() => {
                 renderDice(barbutMyDice, payload.myDice || [1, 1], false);
                 renderDice(barbutOtherDice, payload.otherDice || [1, 1], false);
@@ -376,14 +379,16 @@ function rollBarbut(payload = {}) {
                 setTimeout(() => {
                     barbutRolling = false;
                     barbutPayload(payload);
+                    barbutCloseBtn.disabled = false;
+                    barbutCloseBtn.classList.remove('disabled');
                     setTimeout(() => {
                         barbutMyDice.classList.remove('dice-reveal');
                         barbutOtherDice.classList.remove('dice-reveal');
                     }, 420);
-                }, 520);
-            }, 220);
+                }, 420);
+            }, 180);
         }
-    }, 78);
+    }, 72);
 }
 
 window.addEventListener('message', (event) => {
@@ -423,7 +428,7 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || e.key === '`' || e.code === 'Backquote') {
         e.preventDefault();
         if (!barbutView.classList.contains('hidden') && barbutState && barbutState.sessionId) {
-            closeBarbutGame();
+            if (!barbutRolling && !barbutCloseBtn.disabled) closeBarbutGame();
         } else {
             closeUi();
         }

@@ -860,7 +860,8 @@ local function barbutPayload(session, src)
         otherTotal = (tonumber(otherDice[1] or 0) or 0) + (tonumber(otherDice[2] or 0) or 0),
         myScoreLabel = session.scoreLabels and session.scoreLabels[src] or '',
         otherScoreLabel = session.scoreLabels and session.scoreLabels[other] or '',
-        resultText = session.resultText or ''
+        resultText = session.resultText or '',
+        closeLocked = session.closeLocked == true
     }
 end
 
@@ -871,8 +872,11 @@ local function broadcastBarbut(session, eventName)
     if playerOnline(session.b) then TriggerClientEvent(eventName, session.b, barbutPayload(session, session.b)) end
 end
 
+local refundBarbutStake = nil
+
 local function closeBarbut(session, message, statusReason)
     if not session then return end
+    refundBarbutStake(session, statusReason or 'closed')
     BarbutSessions[session.id] = nil
     if session.a then ActiveBarbutByPlayer[session.a] = nil end
     if session.b then ActiveBarbutByPlayer[session.b] = nil end
@@ -955,9 +959,23 @@ local function barbutScore(dice)
     return d1 + d2, tostring(d1 + d2)
 end
 
+refundBarbutStake = function(session, reason)
+    if not session or session.stakeResolved ~= false then return end
+    local aUid = session.uids and session.uids[session.a]
+    local bUid = session.uids and session.uids[session.b]
+    local amount = tonumber(session.amount or 0) or 0
+    if amount <= 0 then return end
+
+    if aUid then addCash(aUid, amount) end
+    if bUid then addCash(bUid, amount) end
+    session.stakeResolved = true
+    session.refundReason = tostring(reason or 'refund')
+end
+
 local function rollBarbut(session)
     if not session or session.processing then return end
     session.processing = true
+    session.closeLocked = true
     session.phase = 'rolling'
     session.round = (tonumber(session.round or 0) or 0) + 1
     local currentRound = session.round
@@ -967,9 +985,15 @@ local function rollBarbut(session)
     local amount = tonumber(session.amount or 0) or 0
     if getCash(aUid) < amount or getCash(bUid) < amount then
         session.processing = false
+        session.closeLocked = false
         closeBarbut(session, 'Partida de barbut anulata: unul dintre jucatori nu mai are banii.', 'no_cash')
         return
     end
+
+    -- Banii sunt blocati imediat cand ambii jucatori au apasat READY.
+    if not addCash(aUid, -amount) then session.processing = false; session.closeLocked = false; closeBarbut(session, 'Partida anulata: cash indisponibil.', 'take_a_failed'); return end
+    if not addCash(bUid, -amount) then addCash(aUid, amount); session.processing = false; session.closeLocked = false; closeBarbut(session, 'Partida anulata: cash indisponibil.', 'take_b_failed'); return end
+    session.stakeResolved = false
 
     local aDice = { math.random(1, 6), math.random(1, 6) }
     local bDice = { math.random(1, 6), math.random(1, 6) }
@@ -982,6 +1006,8 @@ local function rollBarbut(session)
 
     session.scoreLabels = { [session.a] = aScoreLabel, [session.b] = bScoreLabel }
 
+    local resultDelay = tonumber(Config.Barbut.resultNotifyDelayMs or 4300) or 4300
+
     if aScore == bScore then
         session.phase = 'finished'
         session.resultText = 'EGALITATE'
@@ -992,6 +1018,15 @@ local function rollBarbut(session)
         session.retry[session.b] = false
         logBarbut({ id = session.id, from_uid = aUid, from_name = getPlayerNameSafe(session.a), to_uid = bUid, to_name = getPlayerNameSafe(session.b), amount = amount, status = 'draw', reason = 'same_total', details = session })
         broadcastBarbut(session, 'driftzone_playerinteract:client:barbutRoll')
+        SetTimeout(resultDelay, function()
+            local active = BarbutSessions[session.id]
+            if not active or active.round ~= currentRound then return end
+            refundBarbutStake(active, 'draw')
+            active.closeLocked = false
+            broadcastBarbut(active)
+            if playerOnline(active.a) then notify(active.a, 'info', ('Egalitate la barbut. Suma $%s a fost returnata.'):format(amount), 5500) end
+            if playerOnline(active.b) then notify(active.b, 'info', ('Egalitate la barbut. Suma $%s a fost returnata.'):format(amount), 5500) end
+        end)
         return
     end
 
@@ -1003,16 +1038,6 @@ local function rollBarbut(session)
     local tax = math.floor(pot * ((tonumber(session.taxPercent or 10) or 10) / 100))
     local payout = pot - tax
 
-    if not addCash(aUid, -amount) then session.processing = false; closeBarbut(session, 'Partida anulata: cash indisponibil.', 'take_a_failed'); return end
-    if not addCash(bUid, -amount) then addCash(aUid, amount); session.processing = false; closeBarbut(session, 'Partida anulata: cash indisponibil.', 'take_b_failed'); return end
-    if not addCash(winnerUid, payout) then
-        addCash(aUid, amount)
-        addCash(bUid, amount)
-        session.processing = false
-        closeBarbut(session, 'Partida anulata: payout esuat.', 'payout_failed')
-        return
-    end
-
     session.phase = 'finished'
     session.resultText = ('CASTIGATOR: %s'):format(getPlayerNameSafe(winner))
     session.processing = false
@@ -1020,6 +1045,7 @@ local function rollBarbut(session)
     session.ready[session.b] = false
     session.retry[session.a] = false
     session.retry[session.b] = false
+    session.pendingPayout = { winner = winner, loser = loser, winnerUid = winnerUid, loserUid = loserUid, amount = amount, payout = payout, tax = tax }
 
     logBarbut({
         id = session.id,
@@ -1032,18 +1058,35 @@ local function rollBarbut(session)
         winner_name = getPlayerNameSafe(winner),
         tax = tax,
         status = 'finished',
-        reason = 'winner',
+        reason = 'winner_pending_payout',
         details = { aDice = aDice, bDice = bDice, aTotal = aTotal, bTotal = bTotal, aScore = aScore, bScore = bScore, payout = payout, loserUid = loserUid }
     })
 
     broadcastBarbut(session, 'driftzone_playerinteract:client:barbutRoll')
 
-    -- Notificarile apar doar dupa ce animatia s-a terminat si numerele au fost afisate.
-    SetTimeout((tonumber(Config.Barbut.resultNotifyDelayMs or 6500) or 6500), function()
+    -- Payout-ul si notificarile apar doar dupa ce UI-ul a afisat numerele finale.
+    SetTimeout(resultDelay, function()
         local active = BarbutSessions[session.id]
         if not active or active.round ~= currentRound or active.phase ~= 'finished' then return end
-        if playerOnline(winner) then notify(winner, 'success', ('Ai castigat la barbut $%s.'):format(payout), 6000) end
-        if playerOnline(loser) then notify(loser, 'warning', ('Ai pierdut la barbut $%s.'):format(amount), 6000) end
+        local pending = active.pendingPayout
+        if not pending or active.stakeResolved ~= false then return end
+
+        if not addCash(pending.winnerUid, pending.payout) then
+            refundBarbutStake(active, 'payout_failed')
+            active.closeLocked = false
+            broadcastBarbut(active)
+            if playerOnline(active.a) then notify(active.a, 'warning', 'Payout esuat. Banii au fost returnati.', 6000) end
+            if playerOnline(active.b) then notify(active.b, 'warning', 'Payout esuat. Banii au fost returnati.', 6000) end
+            return
+        end
+
+        active.stakeResolved = true
+        active.closeLocked = false
+        active.pendingPayout = nil
+        broadcastBarbut(active)
+
+        if playerOnline(pending.winner) then notify(pending.winner, 'success', ('Ai castigat la barbut $%s.'):format(pending.payout), 6000) end
+        if playerOnline(pending.loser) then notify(pending.loser, 'warning', ('Ai pierdut la barbut $%s.'):format(pending.amount), 6000) end
     end)
 end
 
@@ -1218,6 +1261,10 @@ RegisterNetEvent('driftzone_playerinteract:server:barbutClose', function(data)
     local id = tostring(data.sessionId or ActiveBarbutByPlayer[src] or '')
     local session = BarbutSessions[id]
     if session and (session.a == src or session.b == src) then
+        if session.closeLocked == true or session.phase == 'rolling' then
+            notify(src, 'warning', 'Nu poti inchide cat timp runda este in desfasurare.', 3500)
+            return
+        end
         closeBarbut(session, 'Partida de barbut a fost inchisa.', 'closed_by_player')
     end
 end)

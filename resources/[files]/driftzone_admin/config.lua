@@ -39,17 +39,27 @@ Config.Commands = {
     tempban = 4,
     unban = 5,
 
-    givecar = 6,
-    takecar = 6,
-    transfercar = 6,
+    giveveh = 6,
+    takeveh = 6,
+    transferveh = 6,
     changeplate = 6,
+
+    lockveh = 4,
+    unlockveh = 4,
+    giveadm = 6,
+    wipe = 6,
+    givecash = 7,
+    givedzcoins = 7,
+    givevip = 7,
+    removevip = 6,
+    resettickets = 6,
 
     addoutfit = 6,
 
     cleanup = 3,
     cancelcleanup = 3,
-    addcar = 6,
-    removecar = 6
+    addveh = 6,
+    removeveh = 6
 }
 
 Config.Cooldowns = {
@@ -60,7 +70,16 @@ Config.Cooldowns = {
     rwarn = 3000,
     cleanup = 3000,
     cancelcleanup = 3000,
-    removecar = 3000
+    removeveh = 3000,
+    lockveh = 1500,
+    unlockveh = 1500,
+    giveadm = 3000,
+    wipe = 5000,
+    givecash = 3000,
+    givedzcoins = 3000,
+    givevip = 3000,
+    removevip = 3000,
+    resettickets = 5000
 }
 
 Config.Tptow = {
@@ -98,4 +117,11 @@ Config.Logs = {
 
     -- Trimite in acelasi timp si catre sistemele externe de logs, daca exista.
     triggerExternalLogs = true
+}
+
+
+Config.AdminExtra = {
+    lockVehicleResource = 'driftzone_vehicleconfig',
+    defaultGarageSlots = 8,
+    defaultOutsideVehicles = 2
 }

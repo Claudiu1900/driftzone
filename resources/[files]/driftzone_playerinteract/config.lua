@@ -71,5 +71,5 @@ Config.Barbut = {
     timeoutSeconds = 15,
     taxPercent = 10,
     readyCooldownMs = 1200,
-    resultNotifyDelayMs = 6500
+    resultNotifyDelayMs = 4300
 }
