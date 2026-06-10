@@ -58,3 +58,11 @@ ADD COLUMN IF NOT EXISTS `tunable` TINYINT NOT NULL DEFAULT 1;
 - Loguri in `tunning_logs` pentru cumparari si folosire admin.
 
 Important: daca un addon nu are deloc modkit/carcols pentru piesele vizibile, meniul le poate afisa fortat, dar piesa respectiva nu are ce sa aplice in joc. Pentru addon-uri facute corect, piesele apar si se aplica.
+
+
+## Update valid mods pentru add-on
+
+- Nu mai afiseaza categoriile vizuale fortat.
+- Spoiler, bumpere, hood, roof, interior, livery etc. apar doar daca masina are modkit/carcols valid si FiveM returneaza optiuni reale prin native.
+- Daca o masina add-on nu arata nicio dotare vizibila, problema este in fisierele masinii: `carcols.meta` / `carvariations.meta` / modkit id / lipsa tuning parts. Scriptul nu mai pune optiuni fake care nu fac nimic.
+- Performance upgrades raman disponibile cu fallback, pentru ca sunt upgrade-uri GTA standard.

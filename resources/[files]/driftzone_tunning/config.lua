@@ -8,13 +8,8 @@ Config.AdminMinLevel = 6
 Config.AdminDutyRequired = true
 Config.LogsTable = 'tunning_logs'
 
--- Pentru masini add-on care au modkituri prost citite de FiveM, meniul arata si categoriile vizibile fortat.
--- Daca masina are moduri reale, foloseste count-ul real. Daca native-ul returneaza 0, foloseste fallback-ul de mai jos.
-Config.ShowAddonVisualModsEvenIfCountZero = true
-Config.DefaultAddonVisualCount = 25
-Config.DefaultWheelCount = 80
-Config.DefaultHornCount = 60
-Config.DefaultLiveryCount = 30
+-- Nu forta optiuni vizuale fake. Vizualele apar doar daca exista in modkit/carcols.
+Config.ShowOnlyValidVisualMods = true
 
 
 Config.PricePercent = {
@@ -31,45 +26,45 @@ Config.Categories = {
     { key = 'wheelColor', label = 'Wheel Color', type = 'classicColor' },
     { key = 'windowTint', label = 'Window Tint', type = 'windowTint' },
     { key = 'xenonColor', label = 'Xenon Color', type = 'xenonColor' },
-    { key = 'spoiler', label = 'Spoiler', type = 'mod', modType = 0, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'frontBumper', label = 'Front Bumper', type = 'mod', modType = 1, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'rearBumper', label = 'Rear Bumper', type = 'mod', modType = 2, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'sideSkirt', label = 'Side Skirt', type = 'mod', modType = 3, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'exhaust', label = 'Exhaust', type = 'mod', modType = 4, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'frame', label = 'Frame', type = 'mod', modType = 5, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'grille', label = 'Grille', type = 'mod', modType = 6, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'hood', label = 'Hood', type = 'mod', modType = 7, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'fender', label = 'Left Fender', type = 'mod', modType = 8, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'rightFender', label = 'Right Fender', type = 'mod', modType = 9, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'roof', label = 'Roof', type = 'mod', modType = 10, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'engine', label = 'Engine', type = 'mod', modType = 11, forceCount = 4 },
-    { key = 'brakes', label = 'Brakes', type = 'mod', modType = 12, forceCount = 3 },
-    { key = 'transmission', label = 'Transmission', type = 'mod', modType = 13, forceCount = 3 },
-    { key = 'horn', label = 'Horn', type = 'mod', modType = 14, forceAddon = true, fallbackCount = Config.DefaultHornCount },
-    { key = 'suspension', label = 'Suspension', type = 'mod', modType = 15, forceCount = 4 },
-    { key = 'armor', label = 'Armor', type = 'mod', modType = 16, forceCount = 5 },
+    { key = 'spoiler', label = 'Spoiler', type = 'mod', modType = 0 },
+    { key = 'frontBumper', label = 'Front Bumper', type = 'mod', modType = 1 },
+    { key = 'rearBumper', label = 'Rear Bumper', type = 'mod', modType = 2 },
+    { key = 'sideSkirt', label = 'Side Skirt', type = 'mod', modType = 3 },
+    { key = 'exhaust', label = 'Exhaust', type = 'mod', modType = 4 },
+    { key = 'frame', label = 'Frame', type = 'mod', modType = 5 },
+    { key = 'grille', label = 'Grille', type = 'mod', modType = 6 },
+    { key = 'hood', label = 'Hood', type = 'mod', modType = 7 },
+    { key = 'fender', label = 'Left Fender', type = 'mod', modType = 8 },
+    { key = 'rightFender', label = 'Right Fender', type = 'mod', modType = 9 },
+    { key = 'roof', label = 'Roof', type = 'mod', modType = 10 },
+    { key = 'engine', label = 'Engine', type = 'mod', modType = 11, forceCount = 4, performance = true },
+    { key = 'brakes', label = 'Brakes', type = 'mod', modType = 12, forceCount = 3, performance = true },
+    { key = 'transmission', label = 'Transmission', type = 'mod', modType = 13, forceCount = 3, performance = true },
+    { key = 'horn', label = 'Horn', type = 'mod', modType = 14 },
+    { key = 'suspension', label = 'Suspension', type = 'mod', modType = 15, forceCount = 4, performance = true },
+    { key = 'armor', label = 'Armor', type = 'mod', modType = 16, forceCount = 5, performance = true },
     { key = 'turbo', label = 'Turbo', type = 'toggle', modType = 18 },
-    { key = 'wheels', label = 'Wheels', type = 'mod', modType = 23, forceAddon = true, fallbackCount = Config.DefaultWheelCount },
-    { key = 'plateHolder', label = 'Plate Holder', type = 'mod', modType = 25, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'vanityPlates', label = 'Vanity Plates', type = 'mod', modType = 26, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'trim', label = 'Trim Design', type = 'mod', modType = 27, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'ornaments', label = 'Ornaments', type = 'mod', modType = 28, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'dashboard', label = 'Dashboard', type = 'mod', modType = 29, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'dial', label = 'Dial', type = 'mod', modType = 30, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'doorSpeaker', label = 'Door Speakers', type = 'mod', modType = 31, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'seats', label = 'Seats', type = 'mod', modType = 32, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'steeringWheel', label = 'Steering Wheel', type = 'mod', modType = 33, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'shifterLeavers', label = 'Shifter', type = 'mod', modType = 34, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'plaques', label = 'Plaques', type = 'mod', modType = 35, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'speakers', label = 'Speakers', type = 'mod', modType = 36, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'trunk', label = 'Trunk', type = 'mod', modType = 37, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'hydraulics', label = 'Hydraulics', type = 'mod', modType = 38, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'engineBlock', label = 'Engine Block', type = 'mod', modType = 39, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'airFilter', label = 'Air Filter', type = 'mod', modType = 40, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'struts', label = 'Struts', type = 'mod', modType = 41, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'archCover', label = 'Arch Cover', type = 'mod', modType = 42, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'aerials', label = 'Aerials', type = 'mod', modType = 43, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'tank', label = 'Tank', type = 'mod', modType = 45, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'windows', label = 'Windows', type = 'mod', modType = 46, forceAddon = true, fallbackCount = Config.DefaultAddonVisualCount },
-    { key = 'livery', label = 'Livery', type = 'mod', modType = 48, forceAddon = true, fallbackCount = Config.DefaultLiveryCount, nativeLivery = true }
+    { key = 'wheels', label = 'Wheels', type = 'mod', modType = 23 },
+    { key = 'plateHolder', label = 'Plate Holder', type = 'mod', modType = 25 },
+    { key = 'vanityPlates', label = 'Vanity Plates', type = 'mod', modType = 26 },
+    { key = 'trim', label = 'Trim Design', type = 'mod', modType = 27 },
+    { key = 'ornaments', label = 'Ornaments', type = 'mod', modType = 28 },
+    { key = 'dashboard', label = 'Dashboard', type = 'mod', modType = 29 },
+    { key = 'dial', label = 'Dial', type = 'mod', modType = 30 },
+    { key = 'doorSpeaker', label = 'Door Speakers', type = 'mod', modType = 31 },
+    { key = 'seats', label = 'Seats', type = 'mod', modType = 32 },
+    { key = 'steeringWheel', label = 'Steering Wheel', type = 'mod', modType = 33 },
+    { key = 'shifterLeavers', label = 'Shifter', type = 'mod', modType = 34 },
+    { key = 'plaques', label = 'Plaques', type = 'mod', modType = 35 },
+    { key = 'speakers', label = 'Speakers', type = 'mod', modType = 36 },
+    { key = 'trunk', label = 'Trunk', type = 'mod', modType = 37 },
+    { key = 'hydraulics', label = 'Hydraulics', type = 'mod', modType = 38 },
+    { key = 'engineBlock', label = 'Engine Block', type = 'mod', modType = 39 },
+    { key = 'airFilter', label = 'Air Filter', type = 'mod', modType = 40 },
+    { key = 'struts', label = 'Struts', type = 'mod', modType = 41 },
+    { key = 'archCover', label = 'Arch Cover', type = 'mod', modType = 42 },
+    { key = 'aerials', label = 'Aerials', type = 'mod', modType = 43 },
+    { key = 'tank', label = 'Tank', type = 'mod', modType = 45 },
+    { key = 'windows', label = 'Windows', type = 'mod', modType = 46 },
+    { key = 'livery', label = 'Livery', type = 'mod', modType = 48, nativeLivery = true }
 }

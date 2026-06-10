@@ -95,12 +95,29 @@ local function ensureModKit(veh, needsControl)
 end
 
 local function getNumModsFast(veh, modType)
-    if not veh or veh == 0 then return 0 end
+    if not veh or veh == 0 or not DoesEntityExist(veh) then return 0 end
 
-    SetVehicleModKit(veh, 0)
+    modType = tonumber(modType) or 0
 
-    local count = tonumber(GetNumVehicleMods(veh, tonumber(modType) or 0) or 0) or 0
-    return count
+    -- Important pentru add-on-uri: nu fortam optiuni fake.
+    -- Citim strict ce vede GTA/FiveM ca modkit valid pe vehiculul curent.
+    -- Daca aici intoarce 0, masina nu are acel mod expus corect in carcols/carvariations.
+    requestControl(veh, 250)
+
+    for _ = 1, 3 do
+        SetVehicleModKit(veh, 0)
+        Wait(0)
+    end
+
+    local ok, count = pcall(function()
+        return GetNumVehicleMods(veh, modType)
+    end)
+
+    count = tonumber(ok and count or 0) or 0
+    if count < 0 then count = 0 end
+    if count > 120 then count = 120 end
+
+    return math.floor(count)
 end
 
 local function getNativeLiveryCountSafe(veh)
@@ -125,12 +142,10 @@ local function getCategoryCount(veh, cat)
         if liveryCount > count then count = liveryCount end
     end
 
-    if count <= 0 and tonumber(cat.forceCount or 0) > 0 then
+    -- Performance upgrades pot avea fallback, deoarece sunt GTA upgrades standard.
+    -- Vizualele de add-on NU sunt fortate: apar doar daca GetNumVehicleMods/GetVehicleLiveryCount confirma ca exista.
+    if count <= 0 and cat.performance == true and tonumber(cat.forceCount or 0) > 0 then
         count = tonumber(cat.forceCount) or 0
-    end
-
-    if count <= 0 and cat.forceAddon == true and Config.ShowAddonVisualModsEvenIfCountZero == true then
-        count = tonumber(cat.fallbackCount or Config.DefaultAddonVisualCount or 25) or 25
     end
 
     if count < 0 then count = 0 end
