@@ -178,6 +178,7 @@ function renderOptions() {
     else if (activeCategory.type === 'windowTint') renderWindowTintOptions();
     else if (activeCategory.type === 'xenonColor') renderXenonOptions();
     else if (activeCategory.type === 'toggle') renderToggleOptions();
+    else if (activeCategory.type === 'extra') renderExtraOptions();
     else renderModOptions();
 }
 
@@ -262,6 +263,20 @@ function renderToggleOptions() {
     `;
 }
 
+
+function renderExtraOptions() {
+    optionsEl.innerHTML = `
+        <div class="option" onclick="preview('${activeCategory.key}', true)">
+            <b>ON</b>
+            <span>${money(getPrice(activeCategory.key))}</span>
+        </div>
+        <div class="option" onclick="preview('${activeCategory.key}', false)">
+            <b>OFF</b>
+            <span>${money(getPrice(activeCategory.key))}</span>
+        </div>
+    `;
+}
+
 function renderModOptions() {
     const count = Number(activeCategory.count || 0);
     let html = `
@@ -303,6 +318,7 @@ function valueToText(key, value) {
     if (cat.type === 'windowTint') return findNameById(windowTints, value);
     if (cat.type === 'xenonColor') return findNameById(xenonColors, value);
     if (cat.type === 'toggle') return value === true ? 'Enabled' : 'Disabled';
+    if (cat.type === 'extra') return value === true ? 'ON' : 'OFF';
     if (cat.type === 'mod') return Number(value) === -1 ? 'Stock' : `${cat.label} ${Number(value) + 1}`;
 
     return String(value);

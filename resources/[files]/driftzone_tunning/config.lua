@@ -7,7 +7,7 @@ Config.PricePercent = {
     primaryColor = 2, secondaryColor = 2, pearlescentColor = 1, wheelColor = 1, windowTint = 1, xenonColor = 2,
     spoiler = 3, frontBumper = 3, rearBumper = 3, sideSkirt = 2, exhaust = 2, frame = 2, grille = 2, hood = 3, fender = 2, rightFender = 2, roof = 3,
     engine = 30, brakes = 18, transmission = 22, suspension = 14, armor = 20, turbo = 18,
-    wheels = 5, horn = 1, plateHolder = 1, vanityPlates = 1, trim = 2, ornaments = 2, dashboard = 2, dial = 1, doorSpeaker = 2, seats = 3, steeringWheel = 2, shifterLeavers = 1, plaques = 1, speakers = 2, trunk = 2, hydraulics = 3, engineBlock = 3, airFilter = 2, struts = 2, archCover = 2, aerials = 1, tank = 2, windows = 2, livery = 4
+    wheels = 5, horn = 1, plateHolder = 1, vanityPlates = 1, trim = 2, ornaments = 2, dashboard = 2, dial = 1, doorSpeaker = 2, seats = 3, steeringWheel = 2, shifterLeavers = 1, plaques = 1, speakers = 2, trunk = 2, hydraulics = 3, engineBlock = 3, airFilter = 2, struts = 2, archCover = 2, aerials = 1, decals = 1, tank = 2, windows = 2, livery = 4, extra1 = 2, extra2 = 2, extra3 = 2, extra4 = 2, extra5 = 2, extra6 = 2, extra7 = 2, extra8 = 2, extra9 = 2, extra10 = 2, extra11 = 2, extra12 = 2, extra13 = 2, extra14 = 2
 }
 
 Config.Categories = {
@@ -55,7 +55,25 @@ Config.Categories = {
     { key = 'struts', label = 'Struts', type = 'mod', modType = 41 },
     { key = 'archCover', label = 'Arch Cover', type = 'mod', modType = 42 },
     { key = 'aerials', label = 'Aerials', type = 'mod', modType = 43 },
+    { key = 'decals', label = 'Decals', type = 'mod', modType = 44 },
     { key = 'tank', label = 'Tank', type = 'mod', modType = 45 },
     { key = 'windows', label = 'Windows', type = 'mod', modType = 46 },
-    { key = 'livery', label = 'Livery', type = 'mod', modType = 48 }
+    { key = 'livery', label = 'Livery', type = 'mod', modType = 48 },
+
+    -- Extra components pentru masini add-on. Multe masini custom nu folosesc modkit pentru spoilere/bari,
+    -- ci extras native. Acestea apar automat doar daca exista pe masina.
+    { key = 'extra1', label = 'Extra 1', type = 'extra', extraId = 1 },
+    { key = 'extra2', label = 'Extra 2', type = 'extra', extraId = 2 },
+    { key = 'extra3', label = 'Extra 3', type = 'extra', extraId = 3 },
+    { key = 'extra4', label = 'Extra 4', type = 'extra', extraId = 4 },
+    { key = 'extra5', label = 'Extra 5', type = 'extra', extraId = 5 },
+    { key = 'extra6', label = 'Extra 6', type = 'extra', extraId = 6 },
+    { key = 'extra7', label = 'Extra 7', type = 'extra', extraId = 7 },
+    { key = 'extra8', label = 'Extra 8', type = 'extra', extraId = 8 },
+    { key = 'extra9', label = 'Extra 9', type = 'extra', extraId = 9 },
+    { key = 'extra10', label = 'Extra 10', type = 'extra', extraId = 10 },
+    { key = 'extra11', label = 'Extra 11', type = 'extra', extraId = 11 },
+    { key = 'extra12', label = 'Extra 12', type = 'extra', extraId = 12 },
+    { key = 'extra13', label = 'Extra 13', type = 'extra', extraId = 13 },
+    { key = 'extra14', label = 'Extra 14', type = 'extra', extraId = 14 }
 }

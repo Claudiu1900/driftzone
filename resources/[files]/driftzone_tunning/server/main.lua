@@ -159,6 +159,30 @@ local function takeCash(uid, amount)
     return false, getCash(uid, true)
 end
 
+local function logTuning(src, uid, owned, total, changes, tuning, remainingCash)
+    local ok, err = pcall(function()
+        MySQL.insert.await([[
+            INSERT INTO `tunning_logs`
+            (`uid`, `player_name`, `vehicle_id`, `vehicle_model`, `vehicle_plate`, `paid`, `remaining_cash`, `changes`, `tuning`, `created_at`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ]], {
+            tonumber(uid or 0) or 0,
+            GetPlayerName(src) or 'Unknown',
+            tonumber(owned and owned.id or 0) or 0,
+            tostring(owned and owned.vehicle_model or ''),
+            tostring(owned and owned.vehicle_plate or ''),
+            tonumber(total or 0) or 0,
+            tonumber(remainingCash or 0) or 0,
+            json.encode(changes or {}),
+            json.encode(tuning or {})
+        })
+    end)
+
+    if not ok then
+        print('[DRIFTZONE_TUNNING] tunning_logs insert failed: ' .. tostring(err))
+    end
+end
+
 local function vehicleExists(entity)
     return entity and entity ~= 0 and DoesEntityExist(entity)
 end
@@ -376,6 +400,8 @@ local function buyTuning(src, payload)
         'UPDATE ownedvehicles SET vehicle_tunning = ? WHERE id = ? AND owner_id = ?',
         { json.encode(tuning), vehicleId, uid }
     )
+
+    logTuning(src, uid, owned, total, changes, tuning, remainingCash)
 
     local raw = json.encode(tuning)
 

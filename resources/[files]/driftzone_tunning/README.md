@@ -47,3 +47,11 @@ SQL:
 ALTER TABLE `vehiclenames`
 ADD COLUMN IF NOT EXISTS `tunable` TINYINT NOT NULL DEFAULT 1;
 ```
+
+
+## Update add-on tuning + logs
+
+- Masinile add-on primesc acum si categorii native `Extra 1` - `Extra 14`, daca acele extra-uri exista pe vehicul.
+- `Livery` foloseste fallback pe `GetVehicleLiveryCount` / `SetVehicleLivery` pentru masinile care nu folosesc modkit clasic la livery.
+- Categoriile apar doar daca vehiculul chiar are acele optiuni, ca sa nu incarce UI inutil.
+- Fiecare plata de tuning este salvata in `tunning_logs` cu UID, masina, suma, schimbari si tuning JSON.
