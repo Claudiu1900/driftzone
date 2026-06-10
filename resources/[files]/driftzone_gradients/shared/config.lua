@@ -57,5 +57,6 @@ Config.Gradients = {
     [13] = { id = 13, label = 'Kamen Rider', type = 'chameleon', colorId = 235, originalRamp = 173 },
     [14] = { id = 14, label = 'Chromatic Aberration', type = 'chameleon', colorId = 236, originalRamp = 174 },
     [15] = { id = 15, label = 'Its Christmas!', type = 'chameleon', colorId = 237, originalRamp = 175 },
-    [16] = { id = 16, label = 'Temperature', type = 'chameleon', colorId = 238, originalRamp = 176 },
+    [16] = { id = 16, label = 'Blue Monochrome', type = 'chameleon', colorId = 238, originalRamp = 176, rampTexture = 'vehicle_paint_ramps_16' },
+    [17] = { id = 17, label = 'Custom Gradient 17', type = 'chameleon', colorId = 239, originalRamp = 177, rampTexture = 'vehicle_paint_ramps_17' },
 }

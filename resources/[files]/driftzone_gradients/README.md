@@ -54,3 +54,10 @@ Export server:
 ```lua
 exports.driftzone_gradients:OpenGradient(source, 1)
 ```
+
+
+## Custom Blue Monochrome / Gradient 17
+- Gradient ID 16 foloseste `vehicle_paint_ramps_16` si label `Blue Monochrome`.
+- Gradient ID 17 foloseste `vehicle_paint_ramps_17`.
+- Daca ai editat `.ytd` local, pastreaza `stream/vehicle_paint_ramps.ytd` cu texturile `vehicle_paint_ramps_16` si `vehicle_paint_ramps_17`.
+- Comenzi test: `/gradient 16` si `/gradient 17`.

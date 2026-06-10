@@ -158,8 +158,18 @@
    <audioPrefix>none</audioPrefix>
    <audioColorHash value="2639756769" />
    <audioPrefixHash value="0" />
-   <colorName> 176 Ramp px </colorName>
-   <rampTextureName>pixels</rampTextureName>
+   <colorName> 176 Ramp Blue Monochrome </colorName>
+   <rampTextureName>vehicle_paint_ramps_16</rampTextureName>
+  </Item>
+  <Item>
+   <color value="0xFFFFFFFF" />
+   <metallicID>EVehicleModelColorMetallic_1</metallicID>
+   <audioColor>POLICE_SCANNER_COLOUR_blue</audioColor>
+   <audioPrefix>none</audioPrefix>
+   <audioColorHash value="0" />
+   <audioPrefixHash value="0" />
+   <colorName> 177 Ramp Custom Gradient 17 </colorName>
+   <rampTextureName>vehicle_paint_ramps_17</rampTextureName>
   </Item>
  </Colors>
 </CVehicleModelColorsGen9>
