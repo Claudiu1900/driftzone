@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Gradients</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="selector" class="selector hidden"></div>
+
+    <div id="panel" class="panel hidden">
+        <div class="line"></div>
+        <div class="head">
+            <span>DRIFTZONE GRADIENT</span>
+            <h1 id="gradientName">Gradient</h1>
+            <p id="plateText">Vehicle</p>
+        </div>
+        <div class="question">Seteaza culoarea Gradient pe:</div>
+        <div class="actions">
+            <button onclick="apply('primary')">Culoare Principala</button>
+            <button onclick="apply('secondary')">Culoare Secundara</button>
+            <button class="main" onclick="apply('both')">Ambele</button>
+        </div>
+        <button class="cancel" onclick="cancel()">Cancel</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

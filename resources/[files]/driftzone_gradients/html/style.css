@@ -1,0 +1,102 @@
+* { box-sizing: border-box; user-select: none; }
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+:root { --main: #04c7f7; }
+.hidden { display: none !important; }
+.selector {
+    position: fixed;
+    inset: 0;
+    cursor: default;
+    background: transparent;
+}
+.panel {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 460px;
+    transform: translate(-50%, -50%);
+    color: white;
+    padding: 28px;
+    background: linear-gradient(145deg, rgba(255,255,255,.105), rgba(255,255,255,.026)), rgba(4,9,18,.94);
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow: 0 35px 110px rgba(0,0,0,.62), 0 0 42px rgba(4,199,247,.16), inset 0 1px 0 rgba(255,255,255,.12);
+    animation: panelIn .18s ease both;
+}
+.line {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--main);
+    box-shadow: 0 0 24px var(--main);
+}
+.head span {
+    display: block;
+    color: var(--main);
+    font-size: 11px;
+    font-weight: 1000;
+    letter-spacing: 2.5px;
+}
+.head h1 {
+    margin: 9px 0 0;
+    font-size: 34px;
+    line-height: .95;
+    letter-spacing: -1px;
+}
+.head p {
+    margin: 10px 0 0;
+    color: rgba(255,255,255,.52);
+    font-size: 13px;
+    font-weight: 800;
+}
+.question {
+    margin-top: 26px;
+    color: rgba(255,255,255,.72);
+    font-size: 15px;
+    font-weight: 900;
+}
+.actions {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+button {
+    height: 52px;
+    border: 1px solid rgba(255,255,255,.12);
+    outline: none;
+    background: rgba(255,255,255,.065);
+    color: white;
+    cursor: pointer;
+    font-weight: 1000;
+    letter-spacing: .9px;
+    text-transform: uppercase;
+    transition: .14s ease;
+}
+button:hover {
+    border-color: rgba(4,199,247,.55);
+    background: rgba(4,199,247,.16);
+}
+button.main {
+    background: linear-gradient(135deg, var(--main), #95f1ff);
+    color: #001018;
+    border: none;
+}
+.cancel {
+    width: 100%;
+    margin-top: 12px;
+    height: 42px;
+    background: rgba(255,255,255,.035);
+    color: rgba(255,255,255,.58);
+}
+@keyframes panelIn {
+    from { opacity: 0; transform: translate(-50%, -48%) scale(.98); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
