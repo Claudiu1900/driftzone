@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Inventory</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main id="inventoryRoot" class="inventory-root hidden">
+        <section class="inventory-shell">
+            <div class="topbar">
+                <div class="brand">
+                    <span>DZ</span>
+                    <div>
+                        <b>Inventory</b>
+                        <small id="modeText">49 slots</small>
+                    </div>
+                </div>
+                <button class="close-btn" onclick="closeUi()">×</button>
+            </div>
+
+            <div id="grid" class="inventory-grid"></div>
+
+            <div id="givePanel" class="give-panel hidden">
+                <div>
+                    <span>Oferă către</span>
+                    <b id="targetName">Player</b>
+                </div>
+                <input id="giveAmount" type="number" min="1" value="1" autocomplete="off">
+                <button onclick="sendGive()">GIVE</button>
+            </div>
+        </section>
+
+        <div id="tooltip" class="tooltip hidden"></div>
+        <div id="contextMenu" class="context-menu hidden">
+            <button onclick="useSelected()">USE</button>
+            <button onclick="selectForGive()">GIVE</button>
+        </div>
+    </main>
+
+    <main id="addItemRoot" class="add-root hidden">
+        <section class="add-shell">
+            <div class="topbar">
+                <div class="brand">
+                    <span>DZ</span>
+                    <div>
+                        <b>Add Item</b>
+                        <small>inventory_items</small>
+                    </div>
+                </div>
+                <button class="close-btn" onclick="closeUi()">×</button>
+            </div>
+
+            <div class="form-grid">
+                <label>Item ID<input id="itemId" placeholder="water"></label>
+                <label>Item Name<input id="itemName" placeholder="Apă"></label>
+                <label class="wide">Image<input id="itemImage" placeholder="https://..." oninput="previewImage()"></label>
+                <label>Tradable<select id="itemTradable"><option value="1">1</option><option value="0">0</option></select></label>
+                <label>Stackable<select id="itemStackable"><option value="1">1</option><option value="0">0</option></select></label>
+                <label>Usable<select id="itemUsable"><option value="0">0</option><option value="1">1</option></select></label>
+                <label>Giveable<select id="itemGiveable"><option value="1">1</option><option value="0">0</option></select></label>
+                <label>Max Stack<input id="itemMaxStack" type="number" min="1" value="100"></label>
+            </div>
+
+            <div id="imagePreview" class="image-preview hidden"><img id="previewImg"></div>
+            <div id="addStatus" class="add-status">Completează itemul.</div>
+            <button class="save-btn" onclick="submitAddItem()">SAVE ITEM</button>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
