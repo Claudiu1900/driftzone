@@ -80,6 +80,15 @@ Config.Keybinds = {
         enabled = true
     },
         {
+        id = 'inventory',
+        name = 'Inventory',
+        description = 'Deschide inventarul',
+        key = 'U',
+        eventType = 'command',
+        eventName = 'inventory',
+        enabled = true
+    },
+        {
         id = 'playerinteract',
         name = 'Player Interactions',
         description = 'Deschide meniul de interactiunii cu jucatorii din apropiere',

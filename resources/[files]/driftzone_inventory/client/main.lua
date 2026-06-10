@@ -62,8 +62,6 @@ RegisterCommand(Config.Command or 'inventory', function()
     TriggerServerEvent('driftzone_inventory:server:requestOpen')
 end, false)
 
-RegisterKeyMapping(Config.Command or 'inventory', 'Open DriftZone Inventory', 'keyboard', Config.OpenKey or 'F2')
-
 RegisterNetEvent('driftzone_inventory:client:open', function(data)
     openInventory(data or {})
 end)
