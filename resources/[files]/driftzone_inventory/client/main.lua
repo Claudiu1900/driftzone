@@ -3,6 +3,8 @@ local addItemOpen = false
 local selectorOpen = false
 local pendingGive = nil
 local cursorX, cursorY = 0.5, 0.5
+local selectorTarget = nil
+local selectorTargetPed = nil
 local markerRotation = 0.0
 local nearbyDrops = {}
 
@@ -41,6 +43,8 @@ local function openSelector(data)
     inventoryOpen = false
     addItemOpen = false
     selectorOpen = true
+    selectorTarget = nil
+    selectorTargetPed = nil
     pendingGive = data or pendingGive
     setFocus(true)
     sendNui({ action = 'openSelector' })
@@ -48,6 +52,8 @@ end
 
 local function closeSelector()
     selectorOpen = false
+    selectorTarget = nil
+    selectorTargetPed = nil
     setFocus(false)
     sendNui({ action = 'closeSelector' })
 end
@@ -127,41 +133,116 @@ RegisterNUICallback('startGiveSelector', function(data, cb)
     cb({ ok = true })
 end)
 
-RegisterNUICallback('selectorMove', function(data, cb)
-    cursorX = tonumber(data and data.x or 0.5) or 0.5
-    cursorY = tonumber(data and data.y or 0.5) or 0.5
-    cb({ ok = true })
-end)
 
-RegisterNUICallback('selectorClick', function(_, cb)
-    if selectorOpen and pendingGive then
-        local target = nil
-        local bestScore = 999999.0
-        local myPed = PlayerPedId()
-        local myCoords = GetEntityCoords(myPed)
-        local maxDist = tonumber(Config.GiveSelectDistance or 6.0) or 6.0
+local function projectWorldPoint(coords)
+    local onScreen, sx, sy = World3dToScreen2d(coords.x, coords.y, coords.z)
+    if onScreen then return sx, sy end
+    return nil, nil
+end
 
-        for _, playerIndex in ipairs(GetActivePlayers()) do
-            if playerIndex ~= PlayerId() then
-                local ped = GetPlayerPed(playerIndex)
-                if ped and ped ~= 0 and DoesEntityExist(ped) and not IsEntityDead(ped) then
-                    local coords = GetEntityCoords(ped)
-                    local dist = #(myCoords - coords)
-                    if dist <= maxDist then
-                        local onScreen, sx, sy = World3dToScreen2d(coords.x, coords.y, coords.z + 0.55)
-                        if onScreen then
-                            local dx = cursorX - sx
-                            local dy = cursorY - sy
-                            local score = math.sqrt(dx * dx + dy * dy) + (dist * 0.002)
-                            if score < bestScore and score <= 0.09 then
+local function getPedScreenBox(ped)
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return nil end
+
+    local coords = GetEntityCoords(ped)
+    local points = {}
+    local offsets = Config.BodySelectionOffsets or {
+        { x = 0.00, y = 0.00, z = 0.95 },
+        { x = 0.00, y = 0.00, z = 0.72 },
+        { x = 0.00, y = 0.00, z = 0.48 },
+        { x = 0.00, y = 0.00, z = 0.22 },
+        { x = 0.00, y = 0.00, z = -0.10 }
+    }
+
+    for _, off in ipairs(offsets) do
+        local point = vector3(coords.x + (off.x or 0.0), coords.y + (off.y or 0.0), coords.z + (off.z or 0.0))
+        local sx, sy = projectWorldPoint(point)
+        if sx and sy then points[#points + 1] = { x = sx, y = sy } end
+    end
+
+    local bones = Config.BodySelectionBones or { 31086, 24818, 11816, 58271, 63931 }
+    for _, bone in ipairs(bones) do
+        local bc = GetPedBoneCoords(ped, bone, 0.0, 0.0, 0.0)
+        local sx, sy = projectWorldPoint(bc)
+        if sx and sy then points[#points + 1] = { x = sx, y = sy } end
+    end
+
+    if #points <= 0 then return nil end
+
+    local minX, maxX = 1.0, 0.0
+    local minY, maxY = 1.0, 0.0
+    for _, p in ipairs(points) do
+        if p.x < minX then minX = p.x end
+        if p.x > maxX then maxX = p.x end
+        if p.y < minY then minY = p.y end
+        if p.y > maxY then maxY = p.y end
+    end
+
+    local padX = tonumber(Config.BodySelectionPaddingX or 0.035) or 0.035
+    local padY = tonumber(Config.BodySelectionPaddingY or 0.050) or 0.050
+    local width = math.max(maxX - minX, tonumber(Config.BodySelectionMinWidth or 0.050) or 0.050)
+    local centerX = (minX + maxX) / 2.0
+    minX = centerX - (width / 2.0)
+    maxX = centerX + (width / 2.0)
+
+    return {
+        minX = minX - padX,
+        maxX = maxX + padX,
+        minY = minY - padY,
+        maxY = maxY + padY,
+        centerX = centerX,
+        centerY = (minY + maxY) / 2.0
+    }
+end
+
+local function findPlayerFromCursor()
+    local myPed = PlayerPedId()
+    local myCoords = GetEntityCoords(myPed)
+    local bestTarget = nil
+    local bestPed = nil
+    local bestScore = 999999.0
+    local radius = tonumber(Config.SelectionScreenRadius or 0.075) or 0.075
+    local maxDist = tonumber(Config.GiveSelectDistance or Config.MaxSelectDistance or 6.0) or 6.0
+
+    for _, playerIndex in ipairs(GetActivePlayers()) do
+        if playerIndex ~= PlayerId() then
+            local ped = GetPlayerPed(playerIndex)
+            if ped and ped ~= 0 and DoesEntityExist(ped) and not IsEntityDead(ped) then
+                local coords = GetEntityCoords(ped)
+                local dist = #(myCoords - coords)
+                if dist <= maxDist then
+                    local box = getPedScreenBox(ped)
+                    if box then
+                        local insideBox = cursorX >= box.minX and cursorX <= box.maxX and cursorY >= box.minY and cursorY <= box.maxY
+                        local dx = cursorX - box.centerX
+                        local dy = cursorY - box.centerY
+                        local screenDist = math.sqrt((dx * dx) + (dy * dy))
+                        if insideBox or screenDist <= radius then
+                            local score = screenDist + (dist * 0.002)
+                            if score < bestScore then
                                 bestScore = score
-                                target = GetPlayerServerId(playerIndex)
+                                bestTarget = GetPlayerServerId(playerIndex)
+                                bestPed = ped
                             end
                         end
                     end
                 end
             end
         end
+    end
+
+    return bestTarget, bestPed
+end
+
+RegisterNUICallback('selectorMove', function(data, cb)
+    cursorX = tonumber(data and data.x or 0.5) or 0.5
+    cursorY = tonumber(data and data.y or 0.5) or 0.5
+    selectorTarget, selectorTargetPed = findPlayerFromCursor()
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('selectorClick', function(_, cb)
+    if selectorOpen and pendingGive then
+        local target = selectorTarget
 
         if target and target > 0 then
             TriggerServerEvent('driftzone_inventory:server:giveSelected', target, pendingGive.slot, pendingGive.amount)
@@ -212,6 +293,43 @@ CreateThread(function()
             Wait(0)
         else
             Wait(600)
+        end
+    end
+end)
+
+
+CreateThread(function()
+    while true do
+        if selectorOpen and selectorTargetPed and DoesEntityExist(selectorTargetPed) then
+            local myPed = PlayerPedId()
+            local pcoords = GetEntityCoords(myPed)
+            local tcoords = GetEntityCoords(selectorTargetPed)
+            local maxDist = tonumber(Config.GiveSelectDistance or Config.MaxSelectDistance or 6.0) or 6.0
+
+            if #(pcoords - tcoords) <= maxDist + 0.2 then
+                markerRotation = (markerRotation + 2.2) % 360.0
+                DrawMarker(
+                    Config.Marker and Config.Marker.type or 25,
+                    tcoords.x, tcoords.y, tcoords.z - 0.96 + (Config.Marker and Config.Marker.zOffset or 0.035),
+                    0.0, 0.0, 0.0,
+                    0.0, 0.0, markerRotation,
+                    Config.Marker and Config.Marker.radius or 1.05,
+                    Config.Marker and Config.Marker.radius or 1.05,
+                    Config.Marker and Config.Marker.height or 0.035,
+                    Config.Marker and Config.Marker.r or 4,
+                    Config.Marker and Config.Marker.g or 199,
+                    Config.Marker and Config.Marker.b or 247,
+                    Config.Marker and Config.Marker.a or 190,
+                    false, false, 2, false, nil, nil, false
+                )
+                Wait(0)
+            else
+                selectorTarget = nil
+                selectorTargetPed = nil
+                Wait(100)
+            end
+        else
+            Wait(selectorOpen and 80 or 500)
         end
     end
 end)

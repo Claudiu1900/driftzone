@@ -162,3 +162,22 @@ body.is-dragging * {
     background: var(--main);
     color: #00131c;
 }
+
+
+/* selector exact like playerinteract: no crosshair UI, normal cursor */
+.selector-root {
+    cursor: default !important;
+    background: transparent !important;
+}
+.selector-dot {
+    display: none !important;
+}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type=number] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}

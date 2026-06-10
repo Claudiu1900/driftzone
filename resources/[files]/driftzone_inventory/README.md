@@ -45,3 +45,9 @@ restart driftzone_inventory
 - Inventarul se deschide pe tasta `I`.
 - Drag & drop este optimizat cu event delegation + requestAnimationFrame.
 - Pentru iteme stackable cu mai mult de 1 bucata, DROP si GIVE deschid selector de cantitate cu slider, input, MIN si MAX.
+
+
+## Update selector give
+- GIVE nu mai deschide inventarul la jucatorul care primeste itemul.
+- Selectorul de player este curat: fara crosshair, fara UI extra, doar cursor normal si cercul albastru sub player cand treci cu mouse-ul peste el.
+- Inputul de cantitate nu mai afiseaza sagetile native + / -.

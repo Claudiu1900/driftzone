@@ -734,7 +734,6 @@ RegisterNetEvent('driftzone_inventory:server:giveSelected', function(targetServe
     notify(src, 'success', ('Ai oferit %sx %s.'):format(amount, item.item_name))
     notify(targetServerId, 'info', ('Ai primit %sx %s.'):format(amount, item.item_name))
     pushInventory(src, 'give', { serverId = targetServerId, name = GetPlayerName(targetServerId), uid = toUid })
-    pushInventory(targetServerId, 'normal')
 end)
 
 RegisterNetEvent('driftzone_inventory:server:useItem', function(slotIndex)
