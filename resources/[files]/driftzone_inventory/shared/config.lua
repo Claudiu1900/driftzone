@@ -39,3 +39,6 @@ Config.DropMergeRadius = 4.0
 Config.DropShowRadius = 4.0
 Config.DropPickupRadius = 4.0
 Config.DropMarkerRadius = 35.0
+
+Config.GradientResource = 'driftzone_gradients'
+Config.GradientItemSuffix = '_gradient'

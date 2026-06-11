@@ -51,3 +51,18 @@ restart driftzone_inventory
 - GIVE nu mai deschide inventarul la jucatorul care primeste itemul.
 - Selectorul de player este curat: fara crosshair, fara UI extra, doar cursor normal si cercul albastru sub player cand treci cu mouse-ul peste el.
 - Inputul de cantitate nu mai afiseaza sagetile native + / -.
+
+
+## Gradient items
+
+In `/additem` ai campuri noi:
+- `Gradient Item` = 1 daca itemul trebuie sa deschida meniul de gradient;
+- `Gradient ID` = ID-ul gradientului din `driftzone_gradients`.
+
+Cand `Gradient Item = 1`, itemul devine automat:
+- item_id: `ID_gradient`, de exemplu `16_gradient`;
+- usable: 1;
+- giveable: 1;
+- stackable: 1.
+
+Cand dai USE pe item, inventarul deschide `driftzone_gradients`. Itemul este sters de `driftzone_gradients` doar dupa ce gradientul a fost aplicat cu succes pe masina.

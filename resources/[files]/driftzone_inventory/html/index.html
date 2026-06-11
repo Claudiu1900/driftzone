@@ -53,6 +53,8 @@
                 <label>Usable<select id="itemUsable"><option value="0">0</option><option value="1">1</option></select></label>
                 <label>Giveable<select id="itemGiveable"><option value="1">1</option><option value="0">0</option></select></label>
                 <label>Max Stack<input id="itemMaxStack" type="number" min="1" value="100"></label>
+                <label>Gradient Item<select id="itemIsGradient" onchange="toggleGradientItem()"><option value="0">0</option><option value="1">1</option></select></label>
+                <label>Gradient ID<input id="itemGradientId" type="number" min="0" value="0" oninput="syncGradientItemId()"></label>
             </div>
             <div id="imagePreview" class="image-preview hidden"><img id="previewImg"></div>
             <div id="addStatus" class="add-status">Completează itemul.</div>

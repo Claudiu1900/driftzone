@@ -25,6 +25,8 @@ const itemStackable = document.getElementById('itemStackable');
 const itemUsable = document.getElementById('itemUsable');
 const itemGiveable = document.getElementById('itemGiveable');
 const itemMaxStack = document.getElementById('itemMaxStack');
+const itemIsGradient = document.getElementById('itemIsGradient');
+const itemGradientId = document.getElementById('itemGradientId');
 const imagePreview = document.getElementById('imagePreview');
 const previewImg = document.getElementById('previewImg');
 const addStatus = document.getElementById('addStatus');
@@ -364,6 +366,8 @@ function openAddItem() {
     itemUsable.value = '0';
     itemGiveable.value = '1';
     itemMaxStack.value = '100';
+    if (itemIsGradient) itemIsGradient.value = '0';
+    if (itemGradientId) itemGradientId.value = '0';
     hide(imagePreview);
     addStatus.textContent = 'Completează itemul.';
     addStatus.className = 'add-status';
@@ -377,6 +381,27 @@ function previewImage() {
     show(imagePreview);
 }
 
+
+function syncGradientItemId() {
+    if (!itemIsGradient || !itemGradientId || !itemId) return;
+    if (Number(itemIsGradient.value || 0) !== 1) return;
+    const gid = Math.max(0, Math.floor(Number(itemGradientId.value || 0)));
+    if (gid > 0) itemId.value = `${gid}_gradient`;
+}
+
+function toggleGradientItem() {
+    if (!itemIsGradient) return;
+    const enabled = Number(itemIsGradient.value || 0) === 1;
+    if (enabled) {
+        itemUsable.value = '1';
+        itemGiveable.value = '1';
+        itemStackable.value = '1';
+        if (!itemGradientId.value || Number(itemGradientId.value) <= 0) itemGradientId.value = '1';
+        syncGradientItemId();
+        if (!itemName.value.trim()) itemName.value = `Gradient ${itemGradientId.value}`;
+    }
+}
+
 function submitAddItem() {
     nui('submitAddItem', {
         item_id: itemId.value.trim(),
@@ -386,7 +411,9 @@ function submitAddItem() {
         stackable: Number(itemStackable.value || 1),
         usable: Number(itemUsable.value || 0),
         giveable: Number(itemGiveable.value || 1),
-        max_stack: Number(itemMaxStack.value || 100)
+        max_stack: Number(itemMaxStack.value || 100),
+        is_gradient: Number(itemIsGradient ? itemIsGradient.value || 0 : 0),
+        gradient_id: Number(itemGradientId ? itemGradientId.value || 0 : 0)
     });
 }
 

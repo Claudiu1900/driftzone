@@ -181,7 +181,9 @@ local function loadItems(force)
                 stackable = tonumber(row.stackable or 1) == 1,
                 usable = tonumber(row.usable or 0) == 1,
                 giveable = tonumber(row.giveable or 1) == 1,
-                max_stack = math.max(1, tonumber(row.max_stack or Config.ItemDefaults.max_stack or 100) or 100)
+                max_stack = math.max(1, tonumber(row.max_stack or Config.ItemDefaults.max_stack or 100) or 100),
+                is_gradient = (tonumber(row.is_gradient or 0) == 1) or (itemId:match('^%d+_gradient$') ~= nil),
+                gradient_id = tonumber(row.gradient_id or itemId:match('^(%d+)_gradient$') or 0) or 0
             }
         end
     end
@@ -213,7 +215,9 @@ local function hydrateInventory(inv)
                 stackable = meta.stackable,
                 usable = meta.usable,
                 giveable = meta.giveable,
-                max_stack = meta.max_stack
+                max_stack = meta.max_stack,
+                is_gradient = meta.is_gradient,
+                gradient_id = meta.gradient_id
             }
         else
             out[i] = nil
@@ -663,6 +667,19 @@ RegisterNetEvent('driftzone_inventory:server:addItemSubmit', function(data)
     local usable = tonumber(data.usable or 0) == 1 and 1 or 0
     local giveable = tonumber(data.giveable or 1) == 1 and 1 or 0
     local maxStack = math.max(1, math.floor(tonumber(data.max_stack or 100) or 100))
+    local isGradient = tonumber(data.is_gradient or 0) == 1 and 1 or 0
+    local gradientId = math.max(0, math.floor(tonumber(data.gradient_id or 0) or 0))
+
+    if isGradient == 1 then
+        if gradientId <= 0 then
+            return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Trebuie sa pui ID-ul gradientului.')
+        end
+        itemId = tostring(gradientId) .. tostring(Config.GradientItemSuffix or '_gradient')
+        if name == '' then name = ('Gradient %s'):format(gradientId) end
+        usable = 1
+        giveable = 1
+        stackable = 1
+    end
 
     if itemId == '' or not itemId:match('^[a-z0-9_%-]+$') then
         return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Item ID invalid.')
@@ -672,8 +689,8 @@ RegisterNetEvent('driftzone_inventory:server:addItemSubmit', function(data)
         return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Item Name obligatoriu.')
     end
 
-    MySQL.update.await(('INSERT INTO %s (item_id, item_name, image, tradable, stackable, usable, giveable, max_stack, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE item_name = VALUES(item_name), image = VALUES(image), tradable = VALUES(tradable), stackable = VALUES(stackable), usable = VALUES(usable), giveable = VALUES(giveable), max_stack = VALUES(max_stack), updated_at = NOW()'):format(sqlName(Config.ItemsTable)), {
-        itemId, name, image, tradable, stackable, usable, giveable, maxStack
+    MySQL.update.await(('INSERT INTO %s (item_id, item_name, image, tradable, stackable, usable, giveable, max_stack, is_gradient, gradient_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE item_name = VALUES(item_name), image = VALUES(image), tradable = VALUES(tradable), stackable = VALUES(stackable), usable = VALUES(usable), giveable = VALUES(giveable), max_stack = VALUES(max_stack), is_gradient = VALUES(is_gradient), gradient_id = VALUES(gradient_id), updated_at = NOW()'):format(sqlName(Config.ItemsTable)), {
+        itemId, name, image, tradable, stackable, usable, giveable, maxStack, isGradient, gradientId
     })
 
     ItemsCache = nil
@@ -747,6 +764,30 @@ RegisterNetEvent('driftzone_inventory:server:useItem', function(slotIndex)
     if not slot then return end
     local item = getItem(slot.item_id)
     if not item or not item.usable then return notify(src, 'warning', 'Acest item nu se poate folosi.') end
+
+    if item.is_gradient and (tonumber(item.gradient_id or 0) or 0) > 0 then
+        local gradientId = tonumber(item.gradient_id or 0) or 0
+        local gradientRes = tostring(Config.GradientResource or 'driftzone_gradients')
+
+        if GetResourceState(gradientRes) ~= 'started' then
+            return notify(src, 'warning', 'Sistemul de gradient nu este pornit.')
+        end
+
+        TriggerClientEvent('driftzone_inventory:client:closeForGradient', src)
+
+        local ok, result = pcall(function()
+            return exports[gradientRes]:OpenGradient(src, gradientId)
+        end)
+
+        if ok and result == true then
+            TriggerEvent('driftzone_inventory:server:itemUsed', src, uid, item.item_id, slotIndex, { gradient_id = gradientId })
+            return
+        end
+
+        TriggerClientEvent('driftzone_gradients:client:useGradient', src, gradientId)
+        TriggerEvent('driftzone_inventory:server:itemUsed', src, uid, item.item_id, slotIndex, { gradient_id = gradientId, fallback = true })
+        return
+    end
 
     TriggerEvent('driftzone_inventory:server:itemUsed', src, uid, item.item_id, slotIndex)
     TriggerClientEvent('driftzone_inventory:client:itemUsed', src, item.item_id)
@@ -853,7 +894,18 @@ exports('HasSpaceForItem', function(uid, itemId, amount)
     return hasFreeSlotOrStack(uid, itemId, amount)
 end)
 
+
+local function ensureGradientItemColumns()
+    pcall(function()
+        MySQL.update.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS `is_gradient` TINYINT NOT NULL DEFAULT 0'):format(sqlName(Config.ItemsTable)), {})
+    end)
+    pcall(function()
+        MySQL.update.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS `gradient_id` INT NOT NULL DEFAULT 0'):format(sqlName(Config.ItemsTable)), {})
+    end)
+end
+
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
+    ensureGradientItemColumns()
     print('[DRIFTZONE_INVENTORY] Loaded.')
 end)

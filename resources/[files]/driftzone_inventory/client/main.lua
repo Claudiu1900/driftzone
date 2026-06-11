@@ -87,6 +87,11 @@ RegisterNetEvent('driftzone_inventory:client:updateDropped', function(data)
     sendNui({ action = 'updateDropped', data = { dropped = data and data.dropped or {} } })
 end)
 
+
+RegisterNetEvent('driftzone_inventory:client:closeForGradient', function()
+    closeAll()
+end)
+
 RegisterNetEvent('driftzone_inventory:client:openGiveToPlayer', function(targetServerId)
     TriggerServerEvent('driftzone_inventory:server:startGiveToPlayer', tonumber(targetServerId or 0) or 0)
 end)
