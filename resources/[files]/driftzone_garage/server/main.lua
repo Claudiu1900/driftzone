@@ -108,11 +108,25 @@ local function normalizeTuning(raw)
     return raw
 end
 
+local function normalizeGradient(raw)
+    if type(raw) == 'table' then
+        local ok, encoded = pcall(json.encode, raw)
+        if ok and encoded and encoded ~= '' then return encoded end
+        return ''
+    end
+
+    raw = tostring(raw or '')
+    if raw == '' or raw == 'null' or raw == 'nil' or raw == '{}' then return '' end
+
+    return raw
+end
+
 local function setGarageVehicleState(entity, data)
     if not vehicleExists(entity) then return end
 
     local state = Entity(entity).state
     local tuningRaw = normalizeTuning(data.tuning or '{}')
+    local gradientRaw = normalizeGradient(data.gradient or '')
 
     state:set('dz_garage_vehicle', true, true)
     state:set('dz_garage_owner_uid', tonumber(data.ownerUid) or 0, true)
@@ -128,6 +142,11 @@ local function setGarageVehicleState(entity, data)
     state:set('dz_garage_tuning', tuningRaw, true)
     state:set('vehicleTunning', tuningRaw, true)
     state:set('dz_vehicle_tunning', tuningRaw, true)
+
+    -- Gradient/chameleon salvat in ownedvehicles.gradient, disponibil pentru orice client/resource.
+    state:set('dz_garage_gradient', gradientRaw, true)
+    state:set('vehicleGradient', gradientRaw, true)
+    state:set('dz_vehicle_gradient', gradientRaw, true)
 end
 
 local function getPlayerVehicles(uid)
@@ -137,6 +156,7 @@ local function getPlayerVehicles(uid)
         SELECT
             ov.id, ov.owner_id, ov.vehicle_model, ov.vehicle_plate, ov.vehicle_tunning,
             ov.vehicle_fuel, ov.vehicle_engine, ov.vehicle_body, COALESCE(ov.vip, 0) AS vip,
+            ov.gradient,
             vn.vehicle_name, vn.vehicle_image, vn.image
         FROM ownedvehicles ov
         LEFT JOIN vehiclenames vn ON vn.vehicle_model = ov.vehicle_model
@@ -160,7 +180,8 @@ local function getPlayerVehicles(uid)
                 plate = tostring(row.vehicle_plate or 'DRIFT'),
                 image = tostring(image or ''),
                 spawned = isVehicleSpawned(row.id),
-                vip = isVipVehicle
+                vip = isVipVehicle,
+                gradient = normalizeGradient(row.gradient or '')
             }
         end
     end
@@ -244,6 +265,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId)
     local ok, err = pcall(function()
         local rows = MySQL.query.await([[
             SELECT ov.id, ov.owner_id, ov.vehicle_model, ov.vehicle_plate, ov.vehicle_tunning,
+                   ov.gradient,
                    ov.vehicle_fuel, ov.vehicle_engine, ov.vehicle_body, COALESCE(ov.vip, 0) AS vip,
                    vn.vehicle_name
             FROM ownedvehicles ov
@@ -281,6 +303,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId)
         local plate = tostring(row.vehicle_plate or randomPlate()):upper():gsub('%s+', ''):sub(1, 8)
         local vehicleName = tostring(row.vehicle_name or model)
         local tuningRaw = normalizeTuning(row.vehicle_tunning or '{}')
+        local gradientRaw = normalizeGradient(row.gradient or '')
 
         local entity = CreateVehicle(hash, spawn.x, spawn.y, spawn.z, spawn.h, true, true)
 
@@ -319,7 +342,8 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId)
             plate = plate,
             name = vehicleName,
             vip = isVipVehicle,
-            tuning = tuningRaw
+            tuning = tuningRaw,
+            gradient = gradientRaw
         }
 
         setGarageVehicleState(entity, {
@@ -330,7 +354,8 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId)
             name = vehicleName,
             plate = plate,
             vip = isVipVehicle,
-            tuning = tuningRaw
+            tuning = tuningRaw,
+            gradient = gradientRaw
         })
 
         TriggerClientEvent('driftzone_garage:client:spawnedSuccess', src)
@@ -344,6 +369,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId)
             name = vehicleName,
             plate = plate,
             tuning = tuningRaw,
+            gradient = gradientRaw,
             forceTuning = true
         })
 
@@ -352,6 +378,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId)
                 TriggerClientEvent('driftzone_garage:client:forceTuning', src, netId, {
                     id = vehicleId,
                     tuning = tuningRaw,
+                    gradient = gradientRaw,
                     plate = plate
                 })
             end
@@ -362,6 +389,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId)
                 TriggerClientEvent('driftzone_garage:client:forceTuning', src, netId, {
                     id = vehicleId,
                     tuning = tuningRaw,
+                    gradient = gradientRaw,
                     plate = plate
                 })
             end

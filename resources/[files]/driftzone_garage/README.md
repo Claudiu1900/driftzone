@@ -123,3 +123,15 @@ Compatibil:
 TriggerEvent('driftzone_garage:client:block', 'Garaj indisponibil.')
 TriggerEvent('driftzone_garage:client:unblock')
 ```
+
+## Gradient / Chameleon la spawn
+
+La fiecare masina scoasa din garaj, resource-ul citeste `ownedvehicles.gradient`, il pune in statebag si il reaplica dupa tuning. Gradientul se aplica dupa `vehicle_tunning`, ca tuning-ul sa nu suprascrie chameleon-ul.
+
+Necesita coloana:
+
+```sql
+ALTER TABLE `ownedvehicles` ADD COLUMN IF NOT EXISTS `gradient` LONGTEXT NULL;
+```
+
+Asigura-te ca `driftzone_gradients` este pornit inainte sau macar ca fisierele lui chameleon/meta sunt incarcate pe server.

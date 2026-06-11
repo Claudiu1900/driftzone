@@ -339,6 +339,53 @@ local function applyForcedGarageTuning(entity, tuningRaw)
     return true
 end
 
+
+local function decodeGradient(raw)
+    if type(raw) == 'table' then return raw end
+    local text = tostring(raw or '')
+    if text == '' or text == 'null' or text == 'nil' or text == '{}' then return nil end
+    local ok, decoded = pcall(json.decode, text)
+    if ok and type(decoded) == 'table' then return decoded end
+    return nil
+end
+
+local function applyGarageGradient(entity, gradientRaw)
+    if not DoesEntityExist(entity) then return false end
+
+    local gradient = decodeGradient(gradientRaw)
+    if not gradient then return false end
+
+    local colorId = tonumber(gradient.colorId or gradient.colourId or gradient.color or 0) or 0
+    if colorId <= 0 then return false end
+
+    local applyTo = tostring(gradient.applyTo or gradient.appliedTo or 'both'):lower()
+    if applyTo ~= 'primary' and applyTo ~= 'secondary' and applyTo ~= 'both' then
+        applyTo = 'both'
+    end
+
+    requestControl(entity, 1500)
+    SetVehicleModKit(entity, 0)
+
+    local primary, secondary = GetVehicleColours(entity)
+    primary = tonumber(primary or 0) or 0
+    secondary = tonumber(secondary or 0) or 0
+
+    if applyTo == 'primary' then
+        ClearVehicleCustomPrimaryColour(entity)
+        SetVehicleColours(entity, colorId, secondary)
+    elseif applyTo == 'secondary' then
+        ClearVehicleCustomSecondaryColour(entity)
+        SetVehicleColours(entity, primary, colorId)
+    else
+        ClearVehicleCustomPrimaryColour(entity)
+        ClearVehicleCustomSecondaryColour(entity)
+        SetVehicleColours(entity, colorId, colorId)
+    end
+
+    SetVehicleDirtLevel(entity, 0.0)
+    return true
+end
+
 local function forceGarageTuningByNetId(netId, data)
     data = data or {}
 
@@ -346,12 +393,17 @@ local function forceGarageTuningByNetId(netId, data)
 
     if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
 
-    local tuningRaw = data.tuning or Entity(entity).state.dz_garage_tuning or Entity(entity).state.vehicleTunning or '{}'
+    local state = Entity(entity).state
+    local tuningRaw = data.tuning or state.dz_garage_tuning or state.vehicleTunning or '{}'
+    local gradientRaw = data.gradient or state.dz_garage_gradient or state.vehicleGradient or state.gradient or nil
 
     -- Reaplica direct + trimite si catre driftzone_tunning, ca ambele sisteme sa fie sincronizate.
     applyForcedGarageTuning(entity, tuningRaw)
     TriggerEvent('client:tunning:applyVehicle', netId, tostring(tuningRaw))
     TriggerEvent('driftzone_tunning:client:applyVehicle', netId, tostring(tuningRaw))
+
+    -- Gradientul se aplica dupa tuning, ca vopseaua salvata din tuning sa nu il suprascrie.
+    applyGarageGradient(entity, gradientRaw)
 
     if data.plate then
         SetVehicleNumberPlateText(entity, tostring(data.plate):sub(1, 8))
@@ -359,6 +411,28 @@ local function forceGarageTuningByNetId(netId, data)
 
     return true
 end
+
+
+
+AddStateBagChangeHandler('dz_garage_gradient', nil, function(bagName, key, value, reserved, replicated)
+    if not value or value == '' or value == '{}' then return end
+
+    CreateThread(function()
+        local entity = GetEntityFromStateBagName(bagName)
+        local timeout = GetGameTimer() + 5000
+
+        while (not entity or entity == 0 or not DoesEntityExist(entity)) and GetGameTimer() < timeout do
+            Wait(100)
+            entity = GetEntityFromStateBagName(bagName)
+        end
+
+        if entity and entity ~= 0 and DoesEntityExist(entity) then
+            -- Delay mic ca tuning-ul de spawn sa fie aplicat primul.
+            Wait(250)
+            applyGarageGradient(entity, value)
+        end
+    end)
+end)
 
 
 local function prepareVehicleByNetId(netId, data)
