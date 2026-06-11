@@ -66,13 +66,30 @@ local function loadModel(model)
     return hash
 end
 
-local function setVehicleWhite(vehicle)
+local function setVehicleShowroomStock(vehicle)
     if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
 
+    SetVehicleModKit(vehicle, 0)
     SetVehicleCustomPrimaryColour(vehicle, 255, 255, 255)
     SetVehicleCustomSecondaryColour(vehicle, 255, 255, 255)
     SetVehicleColours(vehicle, 111, 111)
     SetVehicleExtraColours(vehicle, 111, 111)
+    SetVehicleWindowTint(vehicle, 0)
+    ToggleVehicleMod(vehicle, 18, false)
+    ToggleVehicleMod(vehicle, 22, false)
+
+    for modType = 0, 49 do
+        pcall(function() SetVehicleMod(vehicle, modType, -1, false) end)
+    end
+
+    pcall(function() SetVehicleLivery(vehicle, -1) end)
+
+    for extraId = 0, 20 do
+        if DoesExtraExist(vehicle, extraId) then
+            -- 0 = enabled. Showroom preview/test drive pleaca pe stock enabled.
+            SetVehicleExtra(vehicle, extraId, 0)
+        end
+    end
 end
 
 local function deleteEntitySafe(entity)
@@ -183,7 +200,7 @@ local function setupPreviewVehicle(vehicle, heading)
     SetVehicleDoorsLocked(vehicle, 2)
     SetVehicleEngineOn(vehicle, false, true, true)
     SetVehicleDirtLevel(vehicle, 0.0)
-    setVehicleWhite(vehicle)
+    setVehicleShowroomStock(vehicle)
     FreezeEntityPosition(vehicle, true)
     SetEntityInvincible(vehicle, true)
     SetVehicleOnGroundProperly(vehicle)
@@ -386,7 +403,7 @@ local function startTestDrive(data)
     SetVehicleFixed(testVehicle)
     SetVehicleDeformationFixed(testVehicle)
     SetVehicleDirtLevel(testVehicle, 0.0)
-    setVehicleWhite(testVehicle)
+    setVehicleShowroomStock(testVehicle)
     SetVehicleEngineHealth(testVehicle, 1000.0)
     SetVehicleBodyHealth(testVehicle, 1000.0)
     SetVehiclePetrolTankHealth(testVehicle, 1000.0)

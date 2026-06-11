@@ -9,6 +9,13 @@
     <div id="root" class="root hidden">
         <div class="top-glow"></div>
 
+        <div class="top-modes">
+            <button class="mode-btn active" data-mode="DRIFT" onclick="selectMode('DRIFT')">DRIFT</button>
+            <button class="mode-btn" data-mode="HS" onclick="selectMode('HS')">HS</button>
+            <button class="mode-btn premium" data-mode="PREMIUM" onclick="selectMode('PREMIUM')">PREMIUM</button>
+            <button class="mode-btn custom" data-mode="CUSTOM" onclick="selectMode('CUSTOM')">CUSTOM</button>
+        </div>
+
         <div class="left-info">
             <div class="brand-row">
                 <div class="logo">DZ</div>
@@ -24,6 +31,10 @@
                 <p id="selectedCategory">Category</p>
 
                 <div id="selectedPrice" class="price">$0</div>
+                <div class="wallet-row">
+                    <span id="walletCash">Cash: $0</span>
+                    <span id="walletCoins">DZC: 0</span>
+                </div>
 
                 <div class="actions">
                     <button id="buyBtn" class="buy-btn" onclick="buySelected()">BUY VEHICLE</button>
@@ -37,19 +48,12 @@
         </div>
 
         <div class="right-categories">
-            <button class="cat active" data-cat="all" onclick="selectCategory('all')">TOATE CATEGORIILE</button>
-            <button class="cat" data-cat="1" onclick="selectCategory(1)">STARTER</button>
-            <button class="cat" data-cat="2" onclick="selectCategory(2)">STREET CLASS</button>
-            <button class="cat" data-cat="3" onclick="selectCategory(3)">JDM LEGENDS</button>
-            <button class="cat" data-cat="4" onclick="selectCategory(4)">PRO DRIFT</button>
-            <button class="cat" data-cat="5" onclick="selectCategory(5)">ELITE CLASS</button>
-            <button class="cat vip" data-cat="vip" onclick="selectCategory('vip')">VIP</button>
-            <button class="cat limited" data-cat="6" onclick="selectCategory(6)">LIMITED EDITION</button>
+            <div id="subcategories" class="subcategories"></div>
         </div>
 
         <div class="bottom-list">
             <div class="list-head">
-                <b id="listTitle">TOATE CATEGORIILE</b>
+                <b id="listTitle">DRIFT • ALL</b>
                 <span id="vehicleCount">0 vehicles</span>
             </div>
 

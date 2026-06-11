@@ -1,88 +1,67 @@
-# driftzone_showroom
+# driftzone_showroom FINAL
 
-FiveM showroom pentru DriftZone.
+Showroom FiveM pentru DriftZone, optimizat si refacut pe categorii noi.
+
+## Ce are nou
+
+- Preview-ul masinii este fortat pe stock tuning:
+  - primary color alb;
+  - secondary color alb;
+  - toate modurile vizuale sunt pe stock `-1`;
+  - livery pe stock;
+  - extra-urile masinii sunt puse pe varianta stock/enabled.
+- Cand cumperi masina, `ownedvehicles.vehicle_tunning` primeste tuning stock cu ambele culori.
+- Pret cu cash sau cu DriftZone Coins.
+- Daca `vehiclenames.dzcoins_price` este peste `0`, masina se cumpara cu `users.dzcoins`.
+- Daca `dzcoins_price = 0`, masina se cumpara cu `users.cash`.
+- Categorii noi:
+  - `DRIFT`: ALL, Starter, Drifter, JDM Legends
+  - `HS`: ALL, Starter, Racer, Legend
+  - `PREMIUM`: ALL, Drift, HS
+  - `CUSTOM`: ALL
+- Cache server-side pentru lista de masini.
+- UI-ul nu re-randeaza inutil preview-ul daca selectezi acelasi model.
+
+## Coloane noi in vehiclenames
+
+Ruleaza `SQL.sql`.
+
+```sql
+ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `showroom_section` VARCHAR(24) NOT NULL DEFAULT 'DRIFT';
+ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `showroom_subcategory` VARCHAR(32) NOT NULL DEFAULT 'starter';
+ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `dzcoins_price` INT NOT NULL DEFAULT 0;
+ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `apear` TINYINT NOT NULL DEFAULT 1;
+```
+
+## Exemple categorii
+
+```sql
+UPDATE vehiclenames SET showroom_section='DRIFT', showroom_subcategory='starter' WHERE vehicle_model='sultan';
+UPDATE vehiclenames SET showroom_section='DRIFT', showroom_subcategory='drifter' WHERE vehicle_model='elegy';
+UPDATE vehiclenames SET showroom_section='DRIFT', showroom_subcategory='jdm_legends' WHERE vehicle_model='skyline';
+
+UPDATE vehiclenames SET showroom_section='HS', showroom_subcategory='starter' WHERE vehicle_model='comet2';
+UPDATE vehiclenames SET showroom_section='HS', showroom_subcategory='racer' WHERE vehicle_model='italigto';
+UPDATE vehiclenames SET showroom_section='HS', showroom_subcategory='legend' WHERE vehicle_model='zentorno';
+
+UPDATE vehiclenames SET showroom_section='PREMIUM', showroom_subcategory='drift', dzcoins_price=2500 WHERE vehicle_model='vipdrift';
+UPDATE vehiclenames SET showroom_section='PREMIUM', showroom_subcategory='hs', dzcoins_price=3500 WHERE vehicle_model='viphs';
+
+UPDATE vehiclenames SET showroom_section='CUSTOM', showroom_subcategory='all' WHERE vehicle_model='customcar';
+```
 
 ## Server.cfg
 
 ```cfg
 ensure oxmysql
 ensure driftzone_auth
-ensure driftzone_notifications
 ensure driftzone_interactions
 ensure driftzone_garage
 ensure driftzone_showroom
 ```
 
-## Comenzi
+## Restart
 
-```txt
-/showroom
-/sr
-```
-
-## Interacțiune
-
-Apare pe hartă la coordonatele din `config.lua` și se deschide cu `E` prin `driftzone_interactions`.
-
-## Rotire mașină preview
-
-În showroom, ține click în zona mașinii și mișcă mouse-ul stânga/dreapta.
-
-## Bază de date
-
-Folosește `users.cash`, nu `money`.
-
-Showroom-ul citește mașinile din `vehiclenames`.
-Acceptă coloane:
-
-- `vehicle_model`
-- `vehicle_name`
-- `price` sau `vehicle_price`
-- `image` sau `vehicle_image`
-- `category`
-- `selling`
-
-Când cumperi, inserează în `ownedvehicles`.
-
-
-FIX inclus: showroom-ul citeste pretul corect din `vehiclenames.price` daca `vehicle_price` este 0, sau din `vehicle_price` daca acela este folosit. Preview/test drive seteaza primary si secondary pe alb.
-
-
-## Update optimizare preview
-
-- Fix pentru bugul în care prima mașină rămânea în showroom după schimbarea selecției.
-- Preview-ul are `request id`, deci dacă schimbi rapid mașinile, modelul vechi nu mai poate apărea după modelul nou.
-- La închidere se șterge forțat mașina de preview și camera.
-- UI-ul nu mai re-randează toată lista la fiecare click; schimbă doar cardul activ.
-- Rotirea mașinii este throttled prin `requestAnimationFrame`, deci trimite mai puține NUI callbacks.
-- Serverul cache-uiește lista de mașini 30 secunde ca să reducă query-urile MySQL.
-
-
-## Update VIP
-
-- Adaugă coloana `vehiclenames.vip`.
-- `0` = mașină normală.
-- `1` = mașină VIP.
-- Mașinile VIP apar și în categoria lor normală, dar au badge `VIP`.
-- Categoria `VIP` este penultima și listează toate mașinile VIP.
-- La cumpărare verifică `users.vip`; dacă nu este `1`, jucătorul primește mesaj că are nevoie de VIP.
-
-## Fix extra preview vehicle
-
-Preview-ul nu se mai creează și din client și din UI în același timp. Acum UI-ul trimite un singur `preview`, iar clientul curăță toate preview-urile locale înainte să creeze mașina nouă.
-
-
-## Update apear showroom
-
-Am adaugat filtrul `vehiclenames.apear`:
-
-- `apear = 1` masina apare in showroom;
-- `apear = 0` masina nu apare deloc in showroom si nu poate fi cumparata prin request direct;
-- daca vechea tabela nu are coloana, ruleaza `SQL.sql`.
-
-Exemplu:
-
-```sql
-UPDATE vehiclenames SET apear = 0 WHERE vehicle_model = 'modelul_masinii';
-UPDATE vehiclenames SET apear = 1 WHERE vehicle_model = 'modelul_masinii';
+```cfg
+restart driftzone_showroom
 ```

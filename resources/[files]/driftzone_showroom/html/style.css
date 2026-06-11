@@ -371,3 +371,82 @@ button:hover {
     z-index: 3;
     box-shadow: 0 0 18px rgba(255, 209, 96, 0.35);
 }
+
+/* DZ Showroom final: top modes + subcategories */
+.top-modes {
+    position: absolute;
+    left: 50%;
+    top: 32px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 24px;
+    border: 1px solid var(--line);
+    background: linear-gradient(145deg, rgba(4,199,247,0.12), rgba(255,255,255,0.025)), var(--panel);
+    box-shadow: 0 0 38px rgba(4,199,247,0.15), 0 18px 45px rgba(0,0,0,.35);
+    z-index: 9;
+}
+.mode-btn {
+    width: 124px;
+    height: 44px;
+    border-radius: 16px;
+    background: rgba(255,255,255,.065);
+    border: 1px solid rgba(255,255,255,.10);
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: 1px;
+}
+.mode-btn.active,
+.mode-btn:hover {
+    background: rgba(4,199,247,.20);
+    border-color: var(--main);
+    color: white;
+}
+.mode-btn.premium.active,
+.mode-btn.premium:hover {
+    background: rgba(255,204,80,.18);
+    border-color: rgba(255,204,80,.72);
+}
+.mode-btn.custom.active,
+.mode-btn.custom:hover {
+    background: rgba(188,94,255,.18);
+    border-color: rgba(188,94,255,.72);
+}
+.subcategories { display: flex; flex-direction: column; gap: 9px; }
+.wallet-row {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.wallet-row span {
+    padding: 7px 10px;
+    border-radius: 11px;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.10);
+    color: rgba(255,255,255,.75);
+    font-size: 12px;
+    font-weight: 900;
+}
+.coin-badge {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    z-index: 3;
+    padding: 5px 8px;
+    border-radius: 10px;
+    background: rgba(4,199,247,.82);
+    color: #00131c;
+    font-size: 10px;
+    font-weight: 1000;
+    letter-spacing: .8px;
+}
+.vip-badge + .coin-badge { top: 42px; }
+.vehicle-price { color: var(--main); }
+@media (max-width: 1360px) {
+    .top-modes { top: 18px; }
+    .mode-btn { width: 104px; }
+    .left-info { top: 92px; }
+    .right-categories { top: 92px; }
+}
