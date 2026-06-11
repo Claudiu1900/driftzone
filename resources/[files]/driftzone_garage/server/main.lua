@@ -1,6 +1,7 @@
 local ActiveVehicles = {}
 local SpawnCooldowns = {}
 local SpawnLocks = {}
+local VehicleSpawnLocks = {}
 local GarageBlocked = {}
 
 local function notify(src, notifyType, message, duration)
@@ -58,6 +59,56 @@ local function vehicleExists(entity)
     return entity and entity ~= 0 and DoesEntityExist(entity)
 end
 
+
+local function getServerVehiclesSafe()
+    local ok, vehicles = pcall(GetAllVehicles)
+    if ok and type(vehicles) == 'table' then return vehicles end
+    return {}
+end
+
+local function getGarageVehicleIdFromEntity(entity)
+    if not vehicleExists(entity) then return 0 end
+    local state = Entity(entity).state
+    return tonumber(state.dz_garage_db_id or state.vehicleDbId or state.ownedVehicleId or 0) or 0
+end
+
+local function findExistingGarageVehicle(vehicleId)
+    vehicleId = tonumber(vehicleId or 0) or 0
+    if vehicleId <= 0 then return 0 end
+
+    local data = ActiveVehicles[vehicleId]
+    if data and vehicleExists(data.entity) then return data.entity end
+
+    for _, entity in ipairs(getServerVehiclesSafe()) do
+        if vehicleExists(entity) and getGarageVehicleIdFromEntity(entity) == vehicleId then
+            return entity
+        end
+    end
+
+    return 0
+end
+
+local function updateActiveVehicleOwner(vehicleId, uid, ownerSrc)
+    vehicleId = tonumber(vehicleId or 0) or 0
+    uid = tonumber(uid or 0) or 0
+    if vehicleId <= 0 or uid <= 0 then return end
+
+    local data = ActiveVehicles[vehicleId]
+    local entity = data and data.entity or findExistingGarageVehicle(vehicleId)
+
+    if vehicleExists(entity) then
+        ActiveVehicles[vehicleId] = ActiveVehicles[vehicleId] or { entity = entity, netId = NetworkGetNetworkIdFromEntity(entity) }
+        ActiveVehicles[vehicleId].entity = entity
+        ActiveVehicles[vehicleId].netId = NetworkGetNetworkIdFromEntity(entity)
+        ActiveVehicles[vehicleId].ownerUid = uid
+        ActiveVehicles[vehicleId].ownerSrc = ownerSrc or ActiveVehicles[vehicleId].ownerSrc
+
+        local state = Entity(entity).state
+        state:set('dz_garage_owner_uid', uid, true)
+        if ownerSrc then state:set('dz_garage_owner_name', getPlayerNameSafe(ownerSrc), true) end
+    end
+end
+
 local function hasVipValue(value)
     if value == nil then return false end
     local text = tostring(value):lower():gsub('^%s+', ''):gsub('%s+$', '')
@@ -82,17 +133,43 @@ end
 local function cleanupVehicle(vehicleId)
     vehicleId = tonumber(vehicleId)
     if not vehicleId then return end
+
     local data = ActiveVehicles[vehicleId]
-    if data and vehicleExists(data.entity) then DeleteEntity(data.entity) end
+    local deleted = {}
+
+    if data and vehicleExists(data.entity) then
+        deleted[data.entity] = true
+        DeleteEntity(data.entity)
+    end
+
+    -- Siguranta anti-duplicate: sterge orice entitate ramasa cu acelasi SQL ID.
+    for _, entity in ipairs(getServerVehiclesSafe()) do
+        if vehicleExists(entity) and not deleted[entity] and getGarageVehicleIdFromEntity(entity) == vehicleId then
+            DeleteEntity(entity)
+        end
+    end
+
     ActiveVehicles[vehicleId] = nil
 end
 
 local function isVehicleSpawned(vehicleId)
     vehicleId = tonumber(vehicleId)
+    if not vehicleId then return false end
+
     local data = ActiveVehicles[vehicleId]
-    if not data then return false end
-    if not vehicleExists(data.entity) then ActiveVehicles[vehicleId] = nil return false end
-    return true
+    if data and vehicleExists(data.entity) then return true end
+
+    if data and not vehicleExists(data.entity) then ActiveVehicles[vehicleId] = nil end
+
+    local entity = findExistingGarageVehicle(vehicleId)
+    return vehicleExists(entity)
+end
+
+local function getCurrentVehicleOwner(vehicleId)
+    vehicleId = tonumber(vehicleId or 0) or 0
+    if vehicleId <= 0 then return nil end
+    local row = MySQL.single.await('SELECT owner_id FROM ownedvehicles WHERE id = ? LIMIT 1', { vehicleId })
+    return row and tonumber(row.owner_id or 0) or nil
 end
 
 local function normalizeTuning(raw)
@@ -172,6 +249,11 @@ local function getPlayerVehicles(uid)
         if (not isVipVehicle) or hasVip then
             local model = tostring(row.vehicle_model or ''):lower()
             local image = row.vehicle_image or row.image or ''
+
+            -- Daca masina a fost data prin trade cat timp era spawnata, actualizam owner-ul in statebag.
+            if isVehicleSpawned(row.id) then
+                updateActiveVehicleOwner(row.id, uid)
+            end
 
             list[#list + 1] = {
                 id = tonumber(row.id),
@@ -253,14 +335,23 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId)
     vehicleId = tonumber(vehicleId)
     if not vehicleId or vehicleId <= 0 then notify(src, 'warning', 'Vehicul invalid.') return end
 
-    if SpawnLocks[src] then
-        notify(src, 'warning', 'Ai deja o masina in curs de spawn.')
+    if SpawnLocks[src] or VehicleSpawnLocks[vehicleId] then
+        notify(src, 'warning', 'Ai deja aceasta masina in curs de spawn.')
+        return
+    end
+
+    -- Verificare inainte de cooldown, ca spam-ul pe o masina deja scoasa sa nu consume cooldown.
+    if isVehicleSpawned(vehicleId) then
+        updateActiveVehicleOwner(vehicleId, uid, src)
+        notify(src, 'warning', 'Acest vehicul este deja spawnat.')
+        refreshGarageList(src)
         return
     end
 
     if not checkSpawnCooldown(src) then return end
 
     SpawnLocks[src] = true
+    VehicleSpawnLocks[vehicleId] = src
 
     local ok, err = pcall(function()
         local rows = MySQL.query.await([[
@@ -419,6 +510,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId)
     end)
 
     SpawnLocks[src] = nil
+    VehicleSpawnLocks[vehicleId] = nil
 
     if not ok then
         print(('[DRIFTZONE_GARAGE] spawn error src=%s vehicleId=%s: %s'):format(src, vehicleId, tostring(err)))
@@ -459,18 +551,25 @@ RegisterNetEvent('driftzone_garage:server:despawn', function(vehicleId)
     if not vehicleId or vehicleId <= 0 then notify(src, 'warning', 'Vehicul invalid.') return end
 
     local data = ActiveVehicles[vehicleId]
+    local entity = data and data.entity or findExistingGarageVehicle(vehicleId)
 
-    if not data or not vehicleExists(data.entity) then
+    if not vehicleExists(entity) then
         ActiveVehicles[vehicleId] = nil
         notify(src, 'warning', 'Vehiculul nu este spawnat.')
         refreshGarageList(src)
         return
     end
 
-    if tonumber(data.ownerUid) ~= tonumber(uid) then notify(src, 'warning', 'Nu poti despawna masina altcuiva.') return end
+    local currentOwner = getCurrentVehicleOwner(vehicleId)
+    if tonumber(currentOwner or 0) ~= tonumber(uid) then
+        notify(src, 'warning', 'Nu poti despawna masina altcuiva.')
+        return
+    end
 
-    pcall(function() exports.driftzone_vs:UnregisterVehicle(data.entity) end)
-    pcall(function() TriggerEvent('vs:unregisterVehicle', data.entity) end)
+    updateActiveVehicleOwner(vehicleId, uid, src)
+
+    pcall(function() exports.driftzone_vs:UnregisterVehicle(entity) end)
+    pcall(function() TriggerEvent('vs:unregisterVehicle', entity) end)
 
     cleanupVehicle(vehicleId)
 
@@ -493,7 +592,13 @@ RegisterNetEvent('driftzone_garage:server:parkCurrent', function(netId)
     local ownerUid = tonumber(state.dz_garage_owner_uid or 0)
     local vehicleId = tonumber(state.dz_garage_db_id or 0)
 
-    if ownerUid ~= tonumber(uid) or vehicleId <= 0 then notify(src, 'warning', 'Acest vehicul nu iti apartine.') return end
+    local currentOwner = getCurrentVehicleOwner(vehicleId)
+    if vehicleId <= 0 or tonumber(currentOwner or ownerUid or 0) ~= tonumber(uid) then
+        notify(src, 'warning', 'Acest vehicul nu iti apartine.')
+        return
+    end
+
+    updateActiveVehicleOwner(vehicleId, uid, src)
 
     pcall(function() exports.driftzone_vs:UnregisterVehicle(entity) end)
     pcall(function() TriggerEvent('vs:unregisterVehicle', entity) end)

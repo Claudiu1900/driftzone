@@ -22,6 +22,7 @@ let renderQueued = false;
 let searchTimer = null;
 let lastSelectedCard = null;
 let actionLockedUntil = 0;
+let pendingVehicleActions = new Set();
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -62,6 +63,7 @@ function prepareVehicles(list) {
         veh._id = id;
         veh._vip = veh.vip === true;
         veh._spawned = veh.spawned === true;
+        veh._pending = pendingVehicleActions.has(id);
         veh._name = String(veh.name || 'Vehicle');
         veh._model = String(veh.model || 'model');
         veh._plate = String(veh.plate || 'DRIFT');
@@ -85,8 +87,10 @@ function setVisible(state) {
 function open(data) {
     const payload = normalizeOpenData(data);
 
+    pendingVehicleActions.clear();
     prepareVehicles(payload.vehicles);
     hasVip = payload.hasVip;
+    pendingVehicleActions.clear();
     activeTab = 'owned';
     selectedVehicleId = null;
     lastSelectedCard = null;
@@ -124,6 +128,7 @@ function closeGarage() {
 function updateVehicles(data) {
     const payload = normalizeOpenData(data);
 
+    pendingVehicleActions.clear();
     prepareVehicles(payload.vehicles);
     hasVip = payload.hasVip;
 
@@ -206,7 +211,7 @@ function createVehicleHtml(veh) {
             <div class="vehicle-info">
                 <div class="vehicle-name">${escapeHtml(veh._name)}</div>
                 <div class="vehicle-meta">${escapeHtml(veh._model)} • Plate: ${escapeHtml(veh._plate)}</div>
-                <div class="status ${veh._spawned ? '' : 'off'}">${veh._spawned ? '● Spawned' : '● Despawned'}</div>
+                <div class="status ${veh._spawned ? '' : 'off'} ${veh._pending ? 'pending' : ''}">${veh._pending ? '● Se proceseaza...' : (veh._spawned ? '● Spawned' : '● Despawned')}</div>
             </div>
         </div>
     `;
@@ -214,7 +219,7 @@ function createVehicleHtml(veh) {
 
 function renderVehicles(force = false) {
     const search = String(searchInput.value || '').trim().toLowerCase();
-    const renderKey = `${activeTab}|${search}|${vehicles.length}|${vehicles.map(v => `${v._id}:${v._spawned ? 1 : 0}:${v._vip ? 1 : 0}`).join(',')}`;
+    const renderKey = `${activeTab}|${search}|${vehicles.length}|${vehicles.map(v => `${v._id}:${v._spawned ? 1 : 0}:${v._vip ? 1 : 0}:${v._pending ? 1 : 0}`).join(',')}`;
 
     if (!force && renderKey === lastRenderedKey) {
         return;
@@ -260,7 +265,14 @@ function updateBottomBar(veh) {
     selectedName.textContent = veh._name;
     selectedMeta.textContent = `${veh._model} • Plate: ${veh._plate}${veh._vip ? ' • VIP' : ''}`;
 
-    actionButton.textContent = veh._spawned ? 'Despawn' : 'Spawn';
+    if (veh._pending) {
+        actionButton.textContent = veh._spawned ? 'Se despawneaza...' : 'Se spawneaza...';
+        actionButton.disabled = true;
+    } else {
+        actionButton.textContent = veh._spawned ? 'Despawn' : 'Spawn';
+        actionButton.disabled = false;
+    }
+
     actionButton.classList.toggle('spawn', !veh._spawned);
     actionButton.classList.toggle('despawn', veh._spawned);
 
@@ -286,24 +298,33 @@ function selectVehicle(id) {
 
 function runSelectedAction() {
     const veh = getVehicleById(selectedVehicleId);
-    if (!veh) return;
+    if (!veh || veh._pending || pendingVehicleActions.has(veh._id)) return;
 
     const now = Date.now();
 
     if (actionLockedUntil > now) return;
 
-    actionLockedUntil = now + 3000;
-    actionButton.disabled = true;
+    actionLockedUntil = now + 650;
+    pendingVehicleActions.add(veh._id);
+    veh._pending = true;
+    updateBottomBar(veh);
+    lastRenderedKey = '';
+    renderVehicles(true);
 
+    const actionName = veh._spawned ? 'despawn' : 'spawn';
+    nui(actionName, { id: veh._id });
+
+    // Fallback daca serverul nu trimite update din cauza unei erori/timeout.
     setTimeout(() => {
-        actionButton.disabled = false;
-    }, 3000);
-
-    if (veh._spawned) {
-        nui('despawn', { id: veh._id });
-    } else {
-        nui('spawn', { id: veh._id });
-    }
+        if (pendingVehicleActions.has(veh._id)) {
+            pendingVehicleActions.delete(veh._id);
+            const current = getVehicleById(veh._id);
+            if (current) current._pending = false;
+            if (Number(selectedVehicleId || 0) === veh._id) updateBottomBar(current);
+            lastRenderedKey = '';
+            renderVehicles(true);
+        }
+    }, 9000);
 }
 
 vehiclesGrid.addEventListener('click', (event) => {

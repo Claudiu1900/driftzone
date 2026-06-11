@@ -82,3 +82,4 @@ p { margin: 7px 0 0; color: rgba(255,255,255,0.78); font-size: 15px; text-shadow
         transition: none !important;
     }
 }
+.status.pending { color: var(--main); text-shadow: 0 0 12px rgba(4,199,247,0.65); }

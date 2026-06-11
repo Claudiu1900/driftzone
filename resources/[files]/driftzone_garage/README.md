@@ -135,3 +135,12 @@ ALTER TABLE `ownedvehicles` ADD COLUMN IF NOT EXISTS `gradient` LONGTEXT NULL;
 ```
 
 Asigura-te ca `driftzone_gradients` este pornit inainte sau macar ca fisierele lui chameleon/meta sunt incarcate pe server.
+
+
+## Update final
+
+- Meniul nu afiseaza ID-ul de spawn/SQL la masina.
+- Spawn-ul are lock pe jucator si pe masina, deci acelasi vehicul nu se mai poate spawna de doua ori chiar daca apesi de multe ori cat se incarca.
+- Despawn/parcare verifica owner-ul curent din `ownedvehicles`, deci daca masina a fost data prin trade cat timp era spawnata, noul owner o poate despawna.
+- Garajul aplica in continuare `ownedvehicles.gradient` la fiecare spawn.
+- Scanarile client-side au fost rarite pentru mai putin load.

@@ -638,7 +638,7 @@ CreateThread(function()
             else
                 for entity, _ in pairs(ownedVehicleBlips) do removeBlip(entity) end
             end
-            Wait(1250)
+            Wait(2200)
         end
     end
 end)
@@ -648,7 +648,7 @@ CreateThread(function()
         for entity, _ in pairs(protectedVehicles) do
             if DoesEntityExist(entity) then softMaintain(entity) else protectedVehicles[entity] = nil end
         end
-        Wait(garageOpened and 3500 or 2200)
+        Wait(garageOpened and 4000 or 3000)
     end
 end)
 
