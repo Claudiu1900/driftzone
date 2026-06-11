@@ -5,6 +5,7 @@ local OpenPlayers = {}
 local GiveSessions = {}
 local Drops = {}
 local NextDropId = 0
+local ensureGradientItemColumns
 
 local function sqlName(name)
     return ('`%s`'):format(tostring(name or ''):gsub('`', ''))
@@ -939,7 +940,7 @@ local function ensureColumn(tableName, columnName, definition)
     return true
 end
 
-local function ensureGradientItemColumns()
+ensureGradientItemColumns = function()
     ensureColumn(Config.ItemsTable, 'is_gradient', 'TINYINT NOT NULL DEFAULT 0')
     ensureColumn(Config.ItemsTable, 'gradient_id', 'INT NOT NULL DEFAULT 0')
 end
