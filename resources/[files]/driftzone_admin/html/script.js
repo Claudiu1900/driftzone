@@ -1,189 +1,72 @@
 'use strict';
-
-const panel = document.getElementById('coordsPanel');
-const coordsInput = document.getElementById('coordsInput');
-const xInput = document.getElementById('xInput');
-const yInput = document.getElementById('yInput');
-const zInput = document.getElementById('zInput');
-const headingInput = document.getElementById('headingInput');
-const dimensionInput = document.getElementById('dimensionInput');
-const statusEl = document.getElementById('status');
-const addCarPanel = document.getElementById('addCarPanel');
-const carModelInput = document.getElementById('carModelInput');
-const carNameInput = document.getElementById('carNameInput');
-const carPriceInput = document.getElementById('carPriceInput');
-const carCategoryInput = document.getElementById('carCategoryInput');
-const carVipInput = document.getElementById('carVipInput');
-const carApearInput = document.getElementById('carApearInput');
-const carSellingInput = document.getElementById('carSellingInput');
-const carTradebleInput = document.getElementById('carTradebleInput');
-const carTypeInput = document.getElementById('carTypeInput');
-const carImageInput = document.getElementById('carImageInput');
-const carImagePreview = document.getElementById('carImagePreview');
-const imagePreviewBox = document.getElementById('imagePreviewBox');
-const addCarStatus = document.getElementById('addCarStatus');
-
+const panels = ['coordsPanel','addVehPanel','configVehPanel','ownedVehPanel'].map(id => document.getElementById(id));
+const $ = (id) => document.getElementById(id);
 let currentCoords = '';
+let configVehicles = [];
+let ownedVehicles = [];
+let ownedUid = 0;
 
-function nui(name, data = {}) {
-    fetch(`https://${GetParentResourceName()}/${name}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json; charset=UTF-8'
-        },
-        body: JSON.stringify(data)
-    }).catch(() => {});
-}
+const SUBS = {
+    DRIFT: ['starter', 'drifter', 'jdm_legends'],
+    HS: ['starter', 'racer', 'legend'],
+    PREMIUM: ['drift', 'hs'],
+    CUSTOM: ['all']
+};
+function nui(name, data = {}) { fetch(`https://${GetParentResourceName()}/${name}`, { method:'POST', headers:{'Content-Type':'application/json; charset=UTF-8'}, body:JSON.stringify(data)}).catch(()=>{}); }
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+function closePanels(){panels.forEach(p=>p.classList.add('hidden'));}
+function closeAll(){closePanels();nui('closePanel');}
+function showPanel(id){closePanels();$(id).classList.remove('hidden');}
+function num(v){return Number(v||0).toLocaleString('ro-RO');}
+function money(row){return Number(row.dzcoins_price||0)>0 ? `${num(row.dzcoins_price)} DZC` : `$${num(row.price||0)}`;}
+function bool(v){return Number(v||0)===1 || v===true;}
 
-async function copyText(text) {
-    try {
-        await navigator.clipboard.writeText(text);
-        statusEl.textContent = 'Coordonatele au fost copiate.';
-        return true;
-    } catch (e) {
-        try {
-            coordsInput.focus();
-            coordsInput.select();
-            document.execCommand('copy');
-            statusEl.textContent = 'Coordonatele au fost copiate.';
-            return true;
-        } catch (err) {
-            statusEl.textContent = 'Auto-copy blocat. Apasa COPY.';
-            return false;
-        }
-    }
-}
+async function copyText(text){ try{await navigator.clipboard.writeText(text); $('status').textContent='Coordonatele au fost copiate.';}catch(e){$('coordsInput').select();document.execCommand('copy');} }
+function showCoords(data={}){currentCoords=String(data.coords||'');$('coordsInput').value=currentCoords;$('xInput').value=Number(data.x||0).toFixed(6);$('yInput').value=Number(data.y||0).toFixed(6);$('zInput').value=Number(data.z||0).toFixed(6);$('headingInput').value=Number(data.heading||0).toFixed(2);$('dimensionInput').value=Number(data.dimension||0);showPanel('coordsPanel');setTimeout(()=>copyText(currentCoords),100);}
+function copyCoords(){copyText(currentCoords);}
 
-function showCoords(data) {
-    const payload = data || {};
+function syncSubcategories(value){ const sec = value || $('carSectionInput').value || 'DRIFT'; const sel=$('carSubcategoryInput'); sel.innerHTML=(SUBS[sec]||['all']).map(s=>`<option value="${s}">${s}</option>`).join(''); }
+function showAddVeh(){showPanel('addVehPanel');$('addCarStatus').textContent='Completeaza campurile.';$('addCarStatus').className='status';$('carModelInput').value='';$('carNameInput').value='';$('carPriceInput').value='0';$('carDzcoinsInput').value='0';$('carCategoryInput').value='1';$('carSectionInput').value='DRIFT';syncSubcategories('DRIFT');$('carVipInput').value='0';$('carApearInput').value='1';$('carSellingInput').value='1';$('carTradebleInput').value='1';$('carTunableInput').value='1';$('carTypeInput').value='drift';$('carImageInput').value='';$('imagePreviewBox').classList.add('hidden');setTimeout(()=>$('carModelInput').focus(),60);}
+function previewCarImage(){const url=String($('carImageInput').value||'').trim(); if(!url){$('imagePreviewBox').classList.add('hidden');return;} $('carImagePreview').src=url;$('imagePreviewBox').classList.remove('hidden');}
+function vehPayload(prefix='car'){return {model:$(`${prefix}ModelInput`).value.trim(),name:$(`${prefix}NameInput`).value.trim(),price:Number($(`${prefix}PriceInput`).value||0),dzcoins_price:Number($(`${prefix}DzcoinsInput`).value||0),category:Number($(`${prefix}CategoryInput`).value||1),showroom_section:$(`${prefix}SectionInput`).value,showroom_subcategory:$(`${prefix}SubcategoryInput`).value,vip:Number($(`${prefix}VipInput`).value||0),apear:Number($(`${prefix}ApearInput`).value||1),selling:Number($(`${prefix}SellingInput`).value||1),tradeble:Number($(`${prefix}TradebleInput`).value||1),tunable:Number($(`${prefix}TunableInput`).value||1),type:$(`${prefix}TypeInput`).value,image:$(`${prefix}ImageInput`).value.trim()};}
+function submitAddCar(){const p=vehPayload('car'); if(!p.model||!p.name){$('addCarStatus').textContent='Model si nume obligatorii.';$('addCarStatus').className='status error';return;} $('addCarStatus').textContent='Se salveaza...';nui('submitAddCar',p);}
+function addVehResult(data){$('addCarStatus').textContent=data.message||'Result';$('addCarStatus').className='status '+(data.ok?'success':'error');}
 
-    currentCoords = String(payload.coords || '');
+function showConfigVeh(data={}){configVehicles=Array.isArray(data.vehicles)?data.vehicles:[];showPanel('configVehPanel');renderConfigVeh();}
+function getConfigFilter(){return String($('configSearch').value||'').toLowerCase().trim();}
+function renderConfigVeh(){const q=getConfigFilter();const list=configVehicles.filter(v=>!q||`${v.id} ${v.model} ${v.name} ${v.plate||''} ${v.showroom_section} ${v.showroom_subcategory}`.toLowerCase().includes(q));$('configList').innerHTML=list.map(v=>configCard(v)).join('')||'<div class="empty">Nu exista masini.</div>';}
+function configCard(v){const id=Number(v.id||0);return `<div class="veh-config-card" data-id="${id}">
+ <div class="card-head"><b>#${id} ${esc(v.name)}</b><span>${esc(v.model)} • ${money(v)}</span></div>
+ <div class="grid four compact">
+  <div><label>MODEL</label><input id="cfg${id}ModelInput" value="${esc(v.model)}"></div><div><label>NAME</label><input id="cfg${id}NameInput" value="${esc(v.name)}"></div><div><label>CASH</label><input id="cfg${id}PriceInput" type="number" value="${Number(v.price||0)}"></div><div><label>DZC</label><input id="cfg${id}DzcoinsInput" type="number" value="${Number(v.dzcoins_price||0)}"></div>
+ </div>
+ <div class="grid five compact">
+  <div><label>SECTION</label><select id="cfg${id}SectionInput" onchange="syncConfigSub(${id})">${['DRIFT','HS','PREMIUM','CUSTOM'].map(s=>`<option ${String(v.showroom_section||'').toUpperCase()===s?'selected':''}>${s}</option>`).join('')}</select></div>
+  <div><label>SUB</label><select id="cfg${id}SubcategoryInput"></select></div><div><label>CAT NR</label><input id="cfg${id}CategoryInput" type="number" value="${Number(v.category||1)}"></div><div><label>TYPE</label><select id="cfg${id}TypeInput">${['drift','hs','premium','custom'].map(s=>`<option value="${s}" ${String(v.type||'')===s?'selected':''}>${s}</option>`).join('')}</select></div><div><label>IMAGE</label><input id="cfg${id}ImageInput" value="${esc(v.image)}"></div>
+ </div>
+ <div class="grid five compact">
+  ${select01(`cfg${id}VipInput`,'VIP',v.vip)}${select01(`cfg${id}ApearInput`,'APEAR',v.apear)}${select01(`cfg${id}SellingInput`,'SELLING',v.selling)}${select01(`cfg${id}TradebleInput`,'TRADE',v.tradeble)}${select01(`cfg${id}TunableInput`,'TUNABLE',v.tunable)}
+ </div>
+ <div class="buttons right"><button onclick="saveConfigVeh(${id})">EDIT / SAVE</button><button class="danger" onclick="deleteConfigVeh(${id})">DELETE</button></div>
+ </div>`;}
+function select01(id,label,val){return `<div><label>${label}</label><select id="${id}"><option value="1" ${bool(val)?'selected':''}>1</option><option value="0" ${!bool(val)?'selected':''}>0</option></select></div>`;}
+function syncConfigSub(id){const sec=$(`cfg${id}SectionInput`).value;const sel=$(`cfg${id}SubcategoryInput`);const old=(configVehicles.find(v=>Number(v.id)===id)||{}).showroom_subcategory;sel.innerHTML=(SUBS[sec]||['all']).map(s=>`<option value="${s}" ${old===s?'selected':''}>${s}</option>`).join('');}
+function hydrateConfigSubs(){configVehicles.forEach(v=>{const id=Number(v.id||0); if($(`cfg${id}SubcategoryInput`)) syncConfigSub(id);});}
+const oldRenderConfigVeh = renderConfigVeh; renderConfigVeh=function(){oldRenderConfigVeh();setTimeout(hydrateConfigSubs,0);};
+function cfgPayload(id){return {model:$(`cfg${id}ModelInput`).value.trim(),name:$(`cfg${id}NameInput`).value.trim(),price:Number($(`cfg${id}PriceInput`).value||0),dzcoins_price:Number($(`cfg${id}DzcoinsInput`).value||0),category:Number($(`cfg${id}CategoryInput`).value||1),showroom_section:$(`cfg${id}SectionInput`).value,showroom_subcategory:$(`cfg${id}SubcategoryInput`).value,vip:Number($(`cfg${id}VipInput`).value||0),apear:Number($(`cfg${id}ApearInput`).value||1),selling:Number($(`cfg${id}SellingInput`).value||1),tradeble:Number($(`cfg${id}TradebleInput`).value||1),tunable:Number($(`cfg${id}TunableInput`).value||1),type:$(`cfg${id}TypeInput`).value,image:$(`cfg${id}ImageInput`).value.trim()};}
+function saveConfigVeh(id){nui('configVehSave',{id,payload:cfgPayload(id)});$('configStatus').textContent='Se salveaza...';}
+function deleteConfigVeh(id){if(!confirm(`Stergi masina din vehiclenames ID ${id}?`))return;nui('configVehDelete',{id});$('configStatus').textContent='Se sterge...';}
 
-    coordsInput.value = currentCoords;
-    xInput.value = Number(payload.x || 0).toFixed(6);
-    yInput.value = Number(payload.y || 0).toFixed(6);
-    zInput.value = Number(payload.z || 0).toFixed(6);
-    headingInput.value = Number(payload.heading || 0).toFixed(2);
-    dimensionInput.value = Number(payload.dimension || 0);
+function showOwnedVehs(data={}){ownedUid=Number(data.uid||0);ownedVehicles=Array.isArray(data.vehicles)?data.vehicles:[];$('ownedTitle').textContent=`VEHS UID ${ownedUid}`;showPanel('ownedVehPanel');renderOwnedVehs();}
+function renderOwnedVehs(){const q=String($('ownedSearch').value||'').toLowerCase().trim();const list=ownedVehicles.filter(v=>!q||`${v.id} ${v.name} ${v.model} ${v.plate} ${v.gradient}`.toLowerCase().includes(q));$('ownedList').innerHTML=list.map(v=>ownedCard(v)).join('')||'<div class="empty">UID-ul nu are masini.</div>';}
+function ownedCard(v){const spawned=bool(v.spawned);const img=String(v.image||'').length>5?`<img src="${esc(v.image)}" onerror="this.style.display='none'">`:'<div class="noimg">DZ</div>';return `<div class="owned-card">
+ <div class="owned-img">${img}</div><div class="owned-info"><b>${esc(v.name)}</b><span>Model: ${esc(v.model)}</span><span>Plate: ${esc(v.plate)}</span><span>SQL ID: ${Number(v.id||0)} • Gradient: ${Number(v.gradient||0)>0?Number(v.gradient):'none'}</span><span>${spawned?`Spawned • Net ID: ${Number(v.netId||0)} • VS ID: ${Number(v.vsId||0)}`:'Not spawned'}</span></div>
+ <div class="owned-actions"><button onclick="ownedAction('spawn',${v.id})">${spawned?'BRING':'SPAWN'}</button>${spawned?`<button onclick="ownedAction('goto',${v.id})">GO TO</button><button onclick="ownedAction('bring',${v.id})">BRING</button>`:''}<button onclick="transferOwned(${v.id})">TRANSFER</button><button class="danger" onclick="takeOwned(${v.id})">TAKE</button></div>
+ </div>`;}
+function ownedAction(action,id,extra={}){nui('ownedVehAction',{action,uid:ownedUid,vehicleId:id,extra});$('ownedStatus').textContent='Se executa...';}
+function takeOwned(id){if(!confirm(`Esti sigur ca stergi masina SQL ID ${id}?`))return;ownedAction('take',id);}
+function transferOwned(id){const target=prompt('UID nou owner:');if(!target)return;ownedAction('transfer',id,{targetUid:Number(target)});}
+function panelResult(data){const el = $('configVehPanel').classList.contains('hidden') ? $('ownedStatus') : $('configStatus');el.textContent=data.message||'';el.className='status '+(data.ok?'success':'error');}
 
-    panel.classList.remove('hidden');
-
-    setTimeout(() => {
-        copyText(currentCoords);
-    }, 120);
-}
-
-function copyCoords() {
-    copyText(currentCoords);
-}
-
-function closePanel() {
-    panel.classList.add('hidden');
-    nui('closeCoords');
-}
-
-
-function showAddCar(data = {}) {
-    if (panel) panel.classList.add('hidden');
-    addCarPanel.classList.remove('hidden');
-    addCarStatus.textContent = 'Completeaza campurile obligatorii.';
-    addCarStatus.classList.remove('error', 'success');
-
-    carModelInput.value = '';
-    carNameInput.value = '';
-    carPriceInput.value = '';
-    carCategoryInput.value = '1';
-    carVipInput.value = '0';
-    carApearInput.value = '1';
-    carSellingInput.value = '1';
-    carTradebleInput.value = '1';
-    carTypeInput.value = 'drift';
-    carImageInput.value = '';
-    imagePreviewBox.classList.add('hidden');
-
-    setTimeout(() => carModelInput.focus(), 80);
-}
-
-function closeAddCarPanel() {
-    addCarPanel.classList.add('hidden');
-    nui('closeAddCar');
-}
-
-function previewCarImage() {
-    const url = String(carImageInput.value || '').trim();
-    if (!url || !/^https?:\/\//i.test(url)) {
-        imagePreviewBox.classList.add('hidden');
-        carImagePreview.src = '';
-        return;
-    }
-
-    carImagePreview.src = url;
-    imagePreviewBox.classList.remove('hidden');
-}
-
-function submitAddCar() {
-    const payload = {
-        model: carModelInput.value.trim(),
-        name: carNameInput.value.trim(),
-        price: Number(carPriceInput.value || 0),
-        category: Number(carCategoryInput.value || 1),
-        vip: Number(carVipInput.value || 0),
-        apear: Number(carApearInput.value || 1),
-        selling: Number(carSellingInput.value || 1),
-        tradeble: Number(carTradebleInput.value || 1),
-        type: carTypeInput.value,
-        image: carImageInput.value.trim()
-    };
-
-    if (!payload.model || !payload.name) {
-        addCarStatus.textContent = 'Car Model ID si Car Name sunt obligatorii.';
-        addCarStatus.classList.add('error');
-        return;
-    }
-
-    addCarStatus.textContent = 'Se adauga masina...';
-    addCarStatus.classList.remove('error', 'success');
-
-    nui('submitAddCar', payload);
-}
-
-function addCarResult(data = {}) {
-    addCarStatus.textContent = data.message || (data.ok ? 'Masina adaugata.' : 'Eroare.');
-    addCarStatus.classList.toggle('success', data.ok === true);
-    addCarStatus.classList.toggle('error', data.ok !== true);
-
-    if (data.ok === true) {
-        carModelInput.value = '';
-        carNameInput.value = '';
-        carPriceInput.value = '';
-        carImageInput.value = '';
-        imagePreviewBox.classList.add('hidden');
-    }
-}
-
-
-window.addEventListener('message', (event) => {
-    const data = event.data || {};
-
-    if (data.action === 'coords') {
-        showCoords(data.data || {});
-    }
-
-    if (data.action === 'addCar') {
-        showAddCar(data.data || {});
-    }
-
-    if (data.action === 'addCarResult') {
-        addCarResult(data);
-    }
-});
-
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-        if (!addCarPanel.classList.contains('hidden')) {
-            closeAddCarPanel();
-        } else {
-            closePanel();
-        }
-    }
-});
+window.addEventListener('message', (event)=>{const data=event.data||{}; if(data.action==='coords')showCoords(data.data||{}); if(data.action==='addVeh')showAddVeh(data.data||{}); if(data.action==='addVehResult'||data.action==='addCarResult')addVehResult(data); if(data.action==='configVeh')showConfigVeh(data.data||{}); if(data.action==='ownedVehs')showOwnedVehs(data.data||{}); if(data.action==='panelResult')panelResult(data);});
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closeAll();});

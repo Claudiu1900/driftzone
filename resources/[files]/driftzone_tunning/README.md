@@ -66,3 +66,14 @@ Important: daca un addon nu are deloc modkit/carcols pentru piesele vizibile, me
 - Spoiler, bumpere, hood, roof, interior, livery etc. apar doar daca masina are modkit/carcols valid si FiveM returneaza optiuni reale prin native.
 - Daca o masina add-on nu arata nicio dotare vizibila, problema este in fisierele masinii: `carcols.meta` / `carvariations.meta` / modkit id / lipsa tuning parts. Scriptul nu mai pune optiuni fake care nu fac nimic.
 - Performance upgrades raman disponibile cu fallback, pentru ca sunt upgrade-uri GTA standard.
+
+## Update extras + valid tuning
+
+- Toate tuning-urile vizuale apar doar daca FiveM/GTA le vede ca optiuni reale pe masina curenta.
+- Extra-urile apar automat daca exista pe vehicul (`DoesExtraExist`).
+- Extra-urile 0-20 sunt scanate din `Config.ExtraIds`.
+- Armor a fost scos complet din meniu si din config.
+- Extra-urile salvate sunt puse in `ownedvehicles.vehicle_tunning` ca `extra_1`, `extra_2`, etc.
+- Sistemul ramane optimizat: nu afiseaza optiuni fake care nu se pot aplica.
+
+Daca o masina add-on nu arata anumite piese, masina nu are modkit/carcols/carvariations corect pentru acele piese.

@@ -177,7 +177,7 @@ function renderOptions() {
     else if (activeCategory.type === 'classicColor') renderClassicColorOptions();
     else if (activeCategory.type === 'windowTint') renderWindowTintOptions();
     else if (activeCategory.type === 'xenonColor') renderXenonOptions();
-    else if (activeCategory.type === 'toggle') renderToggleOptions();
+    else if (activeCategory.type === 'toggle' || activeCategory.type === 'extra') renderToggleOptions();
     else renderModOptions();
 }
 
@@ -302,7 +302,7 @@ function valueToText(key, value) {
     if (cat.type === 'classicColor') return findNameById(classicColors, value);
     if (cat.type === 'windowTint') return findNameById(windowTints, value);
     if (cat.type === 'xenonColor') return findNameById(xenonColors, value);
-    if (cat.type === 'toggle') return value === true ? 'Enabled' : 'Disabled';
+    if (cat.type === 'toggle' || cat.type === 'extra') return value === true ? 'Enabled' : 'Disabled';
     if (cat.type === 'mod') return Number(value) === -1 ? 'Stock' : `${cat.label} ${Number(value) + 1}`;
 
     return String(value);

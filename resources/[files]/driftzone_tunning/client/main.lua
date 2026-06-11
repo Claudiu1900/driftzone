@@ -132,6 +132,58 @@ local function getNativeLiveryCountSafe(veh)
     return count
 end
 
+
+local function extraExistsSafe(veh, extraId)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then return false end
+    local ok, exists = pcall(function()
+        return DoesExtraExist(veh, tonumber(extraId) or -1)
+    end)
+    return ok and exists == true
+end
+
+local function isExtraOnSafe(veh, extraId)
+    if not extraExistsSafe(veh, extraId) then return false end
+    local ok, disabled = pcall(function()
+        return IsVehicleExtraTurnedOn(veh, tonumber(extraId) or -1)
+    end)
+    return ok and disabled == true
+end
+
+local function setExtraSafe(veh, extraId, state)
+    if not extraExistsSafe(veh, extraId) then return end
+    SetVehicleExtra(veh, tonumber(extraId) or -1, state == true and 0 or 1)
+end
+
+local function appendValidExtras(veh, out)
+    local added = {}
+    local ids = Config.ExtraIds or {}
+
+    for i = 1, #ids do
+        local extraId = tonumber(ids[i])
+        if extraId and not added[extraId] and extraExistsSafe(veh, extraId) then
+            added[extraId] = true
+            out[#out + 1] = {
+                key = ('extra_%s'):format(extraId),
+                label = ('Extra %s'):format(extraId),
+                type = 'extra',
+                extraId = extraId,
+                count = 2
+            }
+        end
+    end
+end
+
+local function applyExtraTuningData(veh, data)
+    if not DoesEntityExist(veh) or type(data) ~= 'table' then return end
+
+    for key, value in pairs(data) do
+        local extraId = tostring(key or ''):match('^extra_(%d+)$')
+        if extraId then
+            setExtraSafe(veh, tonumber(extraId), value == true)
+        end
+    end
+end
+
 local function getCategoryCount(veh, cat)
     if not cat or cat.type ~= 'mod' then return 0 end
 
@@ -216,6 +268,11 @@ local function applyOneUnsafe(veh, key, value, category)
         return
     end
 
+    if category.type == 'extra' then
+        setExtraSafe(veh, tonumber(category.extraId) or -1, value == true)
+        return
+    end
+
     if category.type == 'mod' then
         local modValue = tonumber(value) or -1
         local modType = tonumber(category.modType) or 0
@@ -286,6 +343,8 @@ local function applyTuningToVehicle(veh, tuning)
             applyOneUnsafe(veh, cat.key, data[cat.key], cat)
         end
     end
+
+    applyExtraTuningData(veh, data)
 end
 
 local function rebuildCategoryMap(categories)
@@ -337,6 +396,8 @@ local function buildAvailableCategories(veh, categories)
         end
     end
 
+    appendValidExtras(veh, out)
+
     rebuildCategoryMap(out)
     return out
 end
@@ -374,6 +435,8 @@ local function captureCurrentTuning(veh, categories)
                 captured[cat.key] = tonumber(GetVehicleXenonLightsColor(veh) or 0) or 0
             elseif cat.type == 'toggle' then
                 captured[cat.key] = IsToggleModOn(veh, tonumber(cat.modType) or 18) == true
+            elseif cat.type == 'extra' then
+                captured[cat.key] = isExtraOnSafe(veh, tonumber(cat.extraId) or -1)
             elseif cat.type == 'mod' then
                 local value = tonumber(GetVehicleMod(veh, tonumber(cat.modType) or 0) or -1) or -1
                 if cat.nativeLivery == true then
@@ -395,6 +458,9 @@ end
 local function itemPrice(key)
     local base = tonumber(currentData and currentData.vehiclePrice or 0) or 0
     local percent = tonumber((currentData and currentData.pricePercent or Config.PricePercent or {})[key] or 1) or 1
+    if tostring(key or ''):match('^extra_%d+$') then
+        percent = tonumber(Config.ExtraPricePercent or percent) or percent
+    end
 
     return math.max(1, math.ceil(base * percent / 100))
 end
@@ -434,10 +500,15 @@ local function openTunning(payload)
     availableCategories = buildAvailableCategories(veh, currentData.categories or Config.Categories or {})
     currentData.categories = availableCategories
 
-    originalTuning = type(currentData.savedTuning) == 'table' and currentData.savedTuning or {}
-    if currentData.adminMode == true and not tableHasData(originalTuning) then
-        originalTuning = captureCurrentTuning(veh, availableCategories)
+    local capturedNow = captureCurrentTuning(veh, availableCategories)
+    originalTuning = capturedNow or {}
+
+    if type(currentData.savedTuning) == 'table' then
+        for k, v in pairs(currentData.savedTuning) do
+            originalTuning[k] = v
+        end
     end
+
     currentTuning = deepCopy(originalTuning)
     pendingChanges = {}
 

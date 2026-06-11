@@ -59,7 +59,9 @@ Config.Commands = {
     cleanup = 3,
     cancelcleanup = 3,
     addveh = 6,
-    removeveh = 6
+    removeveh = 6,
+    configveh = 6,
+    vehs = 6
 }
 
 Config.Cooldowns = {
@@ -79,7 +81,9 @@ Config.Cooldowns = {
     givedzcoins = 3000,
     givevip = 3000,
     removevip = 3000,
-    resettickets = 5000
+    resettickets = 5000,
+    configveh = 2000,
+    vehs = 2000
 }
 
 Config.Tptow = {

@@ -15,9 +15,15 @@ Config.ShowOnlyValidVisualMods = true
 Config.PricePercent = {
     primaryColor = 2, secondaryColor = 2, pearlescentColor = 1, wheelColor = 1, windowTint = 1, xenonColor = 2,
     spoiler = 3, frontBumper = 3, rearBumper = 3, sideSkirt = 2, exhaust = 2, frame = 2, grille = 2, hood = 3, fender = 2, rightFender = 2, roof = 3,
-    engine = 30, brakes = 18, transmission = 22, suspension = 14, armor = 20, turbo = 18,
+    engine = 30, brakes = 18, transmission = 22, suspension = 14, turbo = 18,
     wheels = 5, horn = 1, plateHolder = 1, vanityPlates = 1, trim = 2, ornaments = 2, dashboard = 2, dial = 1, doorSpeaker = 2, seats = 3, steeringWheel = 2, shifterLeavers = 1, plaques = 1, speakers = 2, trunk = 2, hydraulics = 3, engineBlock = 3, airFilter = 2, struts = 2, archCover = 2, aerials = 1, tank = 2, windows = 2, livery = 4
 }
+
+
+-- Extra-uri: se vor afisa automat doar extra-urile care exista pe masina curenta.
+-- Nu sunt fake; daca DoesExtraExist intoarce true, apar in meniu si se pot aplica.
+Config.ExtraIds = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 }
+Config.ExtraPricePercent = 1
 
 Config.Categories = {
     { key = 'primaryColor', label = 'Primary Color', type = 'color' },
@@ -42,7 +48,6 @@ Config.Categories = {
     { key = 'transmission', label = 'Transmission', type = 'mod', modType = 13, forceCount = 3, performance = true },
     { key = 'horn', label = 'Horn', type = 'mod', modType = 14 },
     { key = 'suspension', label = 'Suspension', type = 'mod', modType = 15, forceCount = 4, performance = true },
-    { key = 'armor', label = 'Armor', type = 'mod', modType = 16, forceCount = 5, performance = true },
     { key = 'turbo', label = 'Turbo', type = 'toggle', modType = 18 },
     { key = 'wheels', label = 'Wheels', type = 'mod', modType = 23 },
     { key = 'plateHolder', label = 'Plate Holder', type = 'mod', modType = 25 },

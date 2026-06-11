@@ -35,7 +35,9 @@ local AdminCommands = {
     givedzcoins = true,
     givevip = true,
     removevip = true,
-    resettickets = true
+    resettickets = true,
+    configveh = true,
+    vehs = true
 }
 
 local Cooldowns = {
@@ -207,6 +209,7 @@ local function parseBoolInt(value, default)
     return 0
 end
 
+
 local function getAddCarInsert(payload)
     local cols = loadVehicleNameColumns()
     local insertCols = {}
@@ -222,47 +225,47 @@ local function getAddCarInsert(payload)
     local model = sanitizeVehicleModel(payload.model or payload.vehicle_model or payload.carModel)
     local name = trim(payload.name or payload.vehicle_name or payload.carName)
     local price = math.max(0, math.floor(tonumber(payload.price or 0) or 0))
-    local category = math.floor(tonumber(payload.category or 1) or 1)
+    local dzcoinsPrice = math.max(0, math.floor(tonumber(payload.dzcoins_price or payload.dzcoinsPrice or 0) or 0))
+    local category = math.max(1, math.floor(tonumber(payload.category or 1) or 1))
     local vip = parseBoolInt(payload.vip, 0)
     local apear = parseBoolInt(payload.apear, 1)
     local selling = parseBoolInt(payload.selling, 1)
     local tradeble = parseBoolInt(payload.tradeble or payload.tradable, 1)
+    local tunable = parseBoolInt(payload.tunable, 1)
     local vehType = normalizeSelectValue(payload.type, 'drift')
     local image = trim(payload.image or '')
+    local section = trim(payload.showroom_section or payload.section or 'DRIFT'):upper()
+    local subcategory = trim(payload.showroom_subcategory or payload.subcategory or 'starter'):lower():gsub('%s+', '_')
 
     if model == '' or name == '' then
-        return nil, nil, 'Car Model ID si Car Name sunt obligatorii.'
+        return nil, nil, 'Vehicle Model si Vehicle Name sunt obligatorii.'
     end
 
-    if category < 1 or category > 6 then
-        return nil, nil, 'Categoria trebuie sa fie intre 1 si 6.'
-    end
-
-    if vehType ~= 'drift' and vehType ~= 'hs' then
-        vehType = 'drift'
+    local validSection = { DRIFT = true, HS = true, PREMIUM = true, CUSTOM = true }
+    if not validSection[section] then section = 'DRIFT' end
+    if subcategory == '' then subcategory = 'all' end
+    if category < 1 or category > 99 then category = 1 end
+    if vehType ~= 'drift' and vehType ~= 'hs' and vehType ~= 'premium' and vehType ~= 'custom' then
+        vehType = section:lower()
     end
 
     add('vehicle_model', model)
     add('vehicle_name', name)
 
-    if cols.price then
-        add('price', price)
-    elseif cols.vehicle_price then
-        add('vehicle_price', price)
-    end
-
+    if cols.price then add('price', price) elseif cols.vehicle_price then add('vehicle_price', price) end
+    add('dzcoins_price', dzcoinsPrice)
     add('category', category)
+    add('showroom_section', section)
+    add('showroom_subcategory', subcategory)
     add('vip', vip)
     add('apear', apear)
     add('selling', selling)
     add('tradeble', tradeble)
+    add('tradable', tradeble)
+    add('tunable', tunable)
     add('type', vehType)
 
-    if cols.image then
-        add('image', image)
-    elseif cols.vehicle_image then
-        add('vehicle_image', image)
-    end
+    if cols.image then add('image', image) elseif cols.vehicle_image then add('vehicle_image', image) end
 
     if #insertCols <= 0 then
         return nil, nil, 'Tabela vehiclenames nu are coloane compatibile.'
@@ -272,11 +275,15 @@ local function getAddCarInsert(payload)
         model = model,
         name = name,
         price = price,
+        dzcoins_price = dzcoinsPrice,
         category = category,
+        showroom_section = section,
+        showroom_subcategory = subcategory,
         vip = vip,
         apear = apear,
         selling = selling,
         tradeble = tradeble,
+        tunable = tunable,
         type = vehType,
         image = image
     }
@@ -1923,13 +1930,12 @@ Commands.addveh = function(src, args)
     if not data then return end
 
     TriggerClientEvent('driftzone_admin:client:addCarPanel', src, {
-        categories = {
-            { value = 1, label = '1 - STARTER' },
-            { value = 2, label = '2 - STREET CLASS' },
-            { value = 3, label = '3 - JDM LEGENDS' },
-            { value = 4, label = '4 - PRO DRIFT' },
-            { value = 5, label = '5 - ELITE CLASS' },
-            { value = 6, label = '6 - LIMITED EDITION' }
+        sections = { 'DRIFT', 'HS', 'PREMIUM', 'CUSTOM' },
+        subcategories = {
+            DRIFT = { 'starter', 'drifter', 'jdm_legends' },
+            HS = { 'starter', 'racer', 'legend' },
+            PREMIUM = { 'drift', 'hs' },
+            CUSTOM = { 'all' }
         }
     })
 end
@@ -1958,6 +1964,202 @@ Commands.removeveh = function(src, args)
     else
         notify(src, 'warning', 'Nu s-a putut sterge masina.')
     end
+end
+
+
+local function getVehicleImageSelect(cols)
+    if cols.vehicle_image and cols.image then return "COALESCE(NULLIF(vn.vehicle_image, ''), NULLIF(vn.image, ''), '') AS image" end
+    if cols.vehicle_image then return "COALESCE(vn.vehicle_image, '') AS image" end
+    if cols.image then return "COALESCE(vn.image, '') AS image" end
+    return "'' AS image"
+end
+
+local function getPriceSelect(cols)
+    if cols.price then return 'COALESCE(vn.price, 0) AS price' end
+    if cols.vehicle_price then return 'COALESCE(vn.vehicle_price, 0) AS price' end
+    return '0 AS price'
+end
+
+local function getAllVehiclenames()
+    local cols = loadVehicleNameColumns()
+    local selectParts = {
+        cols.id and 'vn.id AS id' or '0 AS id',
+        'vn.vehicle_model AS model',
+        cols.vehicle_name and "COALESCE(vn.vehicle_name, vn.vehicle_model) AS name" or 'vn.vehicle_model AS name',
+        getPriceSelect(cols),
+        cols.dzcoins_price and 'COALESCE(vn.dzcoins_price, 0) AS dzcoins_price' or '0 AS dzcoins_price',
+        cols.category and 'COALESCE(vn.category, 1) AS category' or '1 AS category',
+        cols.showroom_section and "COALESCE(vn.showroom_section, '') AS showroom_section" or "'' AS showroom_section",
+        cols.showroom_subcategory and "COALESCE(vn.showroom_subcategory, '') AS showroom_subcategory" or "'' AS showroom_subcategory",
+        cols.vip and 'COALESCE(vn.vip, 0) AS vip' or '0 AS vip',
+        cols.apear and 'COALESCE(vn.apear, 1) AS apear' or '1 AS apear',
+        cols.selling and 'COALESCE(vn.selling, 1) AS selling' or '1 AS selling',
+        cols.tradeble and 'COALESCE(vn.tradeble, 1) AS tradeble' or (cols.tradable and 'COALESCE(vn.tradable, 1) AS tradeble' or '1 AS tradeble'),
+        cols.tunable and 'COALESCE(vn.tunable, 1) AS tunable' or '1 AS tunable',
+        cols.type and "COALESCE(vn.type, '') AS type" or "'' AS type",
+        getVehicleImageSelect(cols)
+    }
+    local rows = MySQL.query.await(('SELECT %s FROM `vehiclenames` vn ORDER BY name ASC'):format(table.concat(selectParts, ', ')), {}) or {}
+    return rows
+end
+
+local function updateVehiclename(id, payload)
+    id = tonumber(id or 0) or 0
+    if id <= 0 then return false, 'ID invalid.' end
+    local cols = loadVehicleNameColumns()
+    local sets = {}
+    local params = {}
+    local function set(col, value)
+        if cols[col] then sets[#sets + 1] = ('%s = ?'):format(sqlName(col)); params[#params + 1] = value end
+    end
+    local model = sanitizeVehicleModel(payload.model or payload.vehicle_model)
+    local name = trim(payload.name or payload.vehicle_name)
+    local section = trim(payload.showroom_section or payload.section or 'DRIFT'):upper()
+    local subcat = trim(payload.showroom_subcategory or payload.subcategory or 'starter'):lower():gsub('%s+', '_')
+    if model == '' or name == '' then return false, 'Model si nume obligatorii.' end
+    set('vehicle_model', model)
+    set('vehicle_name', name)
+    if cols.price then set('price', math.max(0, math.floor(tonumber(payload.price or 0) or 0))) elseif cols.vehicle_price then set('vehicle_price', math.max(0, math.floor(tonumber(payload.price or 0) or 0))) end
+    set('dzcoins_price', math.max(0, math.floor(tonumber(payload.dzcoins_price or 0) or 0)))
+    set('category', math.max(1, math.floor(tonumber(payload.category or 1) or 1)))
+    set('showroom_section', section)
+    set('showroom_subcategory', subcat)
+    set('vip', parseBoolInt(payload.vip, 0))
+    set('apear', parseBoolInt(payload.apear, 1))
+    set('selling', parseBoolInt(payload.selling, 1))
+    set('tradeble', parseBoolInt(payload.tradeble or payload.tradable, 1))
+    set('tradable', parseBoolInt(payload.tradeble or payload.tradable, 1))
+    set('tunable', parseBoolInt(payload.tunable, 1))
+    set('type', normalizeSelectValue(payload.type, section:lower()))
+    if cols.image then set('image', trim(payload.image or '')) elseif cols.vehicle_image then set('vehicle_image', trim(payload.image or '')) end
+    if #sets <= 0 then return false, 'Nu exista coloane compatibile.' end
+    params[#params + 1] = id
+    local affected = MySQL.update.await(('UPDATE `vehiclenames` SET %s WHERE `id` = ? LIMIT 1'):format(table.concat(sets, ', ')), params) or 0
+    resetVehicleNameColumns()
+    return affected > 0, affected > 0 and nil or 'Nu s-a modificat nimic.'
+end
+
+local function deleteVehiclename(id)
+    id = tonumber(id or 0) or 0
+    if id <= 0 then return false, 'ID invalid.' end
+    local affected = MySQL.update.await('DELETE FROM `vehiclenames` WHERE `id` = ? LIMIT 1', { id }) or 0
+    resetVehicleNameColumns()
+    return affected > 0, affected > 0 and nil or 'Masina nu exista.'
+end
+
+local function findSpawnedOwnedVehicle(vehicleId)
+    vehicleId = tonumber(vehicleId or 0) or 0
+    if vehicleId <= 0 then return nil end
+    local vehicles = GetAllVehicles()
+    for _, entity in ipairs(vehicles) do
+        if entity and entity ~= 0 and DoesEntityExist(entity) then
+            local s = Entity(entity).state
+            local sid = tonumber(s.dz_garage_db_id or s.vehicleDbId or s.ownedVehicleId or s.dz_vs_sql_id or s.sqlVehicleId or 0) or 0
+            if sid == vehicleId then return entity end
+        end
+    end
+    return nil
+end
+
+local function getSpawnInfo(vehicleId)
+    local entity = findSpawnedOwnedVehicle(vehicleId)
+    if not entity then return nil end
+    local s = Entity(entity).state
+    return {
+        spawned = true,
+        entity = entity,
+        netId = NetworkGetNetworkIdFromEntity(entity) or 0,
+        vsId = tonumber(s.dz_vs_id or s.vs_id or s.vsId or s.dz_vehicle_server_id or 0) or 0
+    }
+end
+
+local function getOwnedVehiclesForUid(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return {} end
+    local vc = loadVehicleNameColumns()
+    local imgExpr = getVehicleImageSelect(vc)
+    local rows = MySQL.query.await(([[
+        SELECT ov.id, ov.owner_id, ov.vehicle_model AS model, ov.vehicle_plate AS plate, ov.vehicle_tunning, ov.gradient,
+               COALESCE(vn.vehicle_name, ov.vehicle_model) AS name,
+               %s
+        FROM ownedvehicles ov
+        LEFT JOIN vehiclenames vn ON vn.vehicle_model = ov.vehicle_model
+        WHERE ov.owner_id = ?
+        ORDER BY ov.id DESC
+    ]]):format(imgExpr), { uid }) or {}
+    local list = {}
+    for _, row in ipairs(rows) do
+        local spawn = getSpawnInfo(row.id)
+        list[#list + 1] = {
+            id = tonumber(row.id) or 0,
+            owner_id = tonumber(row.owner_id) or uid,
+            model = tostring(row.model or ''),
+            name = tostring(row.name or row.model or 'Vehicle'),
+            plate = tostring(row.plate or ''),
+            image = tostring(row.image or ''),
+            gradient = tonumber(row.gradient or 0) or 0,
+            spawned = spawn ~= nil,
+            netId = spawn and spawn.netId or 0,
+            entity = spawn and spawn.entity or 0,
+            vsId = spawn and spawn.vsId or 0
+        }
+    end
+    return list
+end
+
+local function openConfigVeh(src)
+    TriggerClientEvent('driftzone_admin:client:configVehPanel', src, { vehicles = getAllVehiclenames() })
+end
+
+local function openOwnedVehs(src, uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then notify(src, 'warning', 'UID invalid.') return end
+    TriggerClientEvent('driftzone_admin:client:ownedVehsPanel', src, { uid = uid, vehicles = getOwnedVehiclesForUid(uid) })
+end
+
+local function refreshOwnedVehs(src, uid)
+    openOwnedVehs(src, uid)
+end
+
+local function setOwnedVehicleState(entity, row, ownerUid, spawnedBy)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return end
+    local s = Entity(entity).state
+    s:set('dz_garage_vehicle', true, true)
+    s:set('dz_garage_db_id', tonumber(row.id) or 0, true)
+    s:set('vehicleDbId', tonumber(row.id) or 0, true)
+    s:set('ownedVehicleId', tonumber(row.id) or 0, true)
+    s:set('dz_garage_owner_uid', tonumber(ownerUid or row.owner_id or 0) or 0, true)
+    s:set('dz_garage_model', tostring(row.vehicle_model or row.model or ''), true)
+    s:set('dz_garage_name', tostring(row.vehicle_name or row.name or row.vehicle_model or 'Vehicle'), true)
+    s:set('dz_garage_plate', tostring(row.vehicle_plate or row.plate or ''), true)
+    s:set('dz_admin_spawned', true, true)
+    s:set('dz_admin_spawned_by', tostring(spawnedBy or ''), true)
+end
+
+local function bringEntityToAdmin(src, entity)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
+    local ped = GetPlayerPed(src)
+    if not ped or ped == 0 then return false end
+    local coords = GetEntityCoords(ped)
+    local heading = GetEntityHeading(ped)
+    local rad = math.rad(heading)
+    SetEntityCoords(entity, coords.x + -math.sin(rad) * 5.0, coords.y + math.cos(rad) * 5.0, coords.z + 0.65, false, false, false, false)
+    SetEntityHeading(entity, heading)
+    return true
+end
+
+Commands.configveh = function(src, args)
+    local data = requireAdmin(src, Config.Commands.configveh or 6, true)
+    if not data then return end
+    openConfigVeh(src)
+end
+
+Commands.vehs = function(src, args)
+    local data = requireAdmin(src, Config.Commands.vehs or 6, true)
+    if not data then return end
+    local uid = tonumber(args[1])
+    if not uid or uid <= 0 then notify(src, 'warning', 'Folosire: /vehs uid') return end
+    openOwnedVehs(src, uid)
 end
 
 Commands.addoutfit = function(src, args)
@@ -2096,6 +2298,139 @@ RegisterNetEvent('driftzone_admin:server:addCarSubmit', function(payload)
     logAdminCommand(src, 'addveh', normalized, 'success', ('insert id %s'):format(insertIdOrErr or '?'))
 end)
 
+
+
+RegisterNetEvent('driftzone_admin:server:configVehSave', function(id, payload)
+    local src = source
+    local data = requireAdmin(src, Config.Commands.configveh or 6, true)
+    if not data then return end
+    local ok, err = updateVehiclename(id, payload or {})
+    if not ok then
+        TriggerClientEvent('driftzone_admin:client:adminPanelResult', src, false, err or 'Nu s-a putut salva masina.')
+        return
+    end
+    TriggerClientEvent('driftzone_admin:client:adminPanelResult', src, true, 'Masina a fost salvata.')
+    openConfigVeh(src)
+end)
+
+RegisterNetEvent('driftzone_admin:server:configVehDelete', function(id)
+    local src = source
+    local data = requireAdmin(src, Config.Commands.configveh or 6, true)
+    if not data then return end
+    local ok, err = deleteVehiclename(id)
+    if not ok then
+        TriggerClientEvent('driftzone_admin:client:adminPanelResult', src, false, err or 'Nu s-a putut sterge masina.')
+        return
+    end
+    TriggerClientEvent('driftzone_admin:client:adminPanelResult', src, true, 'Masina a fost stearsa din vehiclenames.')
+    openConfigVeh(src)
+end)
+
+RegisterNetEvent('driftzone_admin:server:ownedVehAction', function(action, uid, vehicleId, extra)
+    local src = source
+    local admin = requireAdmin(src, Config.Commands.vehs or 6, true)
+    if not admin then return end
+    action = tostring(action or ''):lower()
+    uid = tonumber(uid or 0) or 0
+    vehicleId = tonumber(vehicleId or 0) or 0
+    extra = type(extra) == 'table' and extra or {}
+    if uid <= 0 or vehicleId <= 0 then return notify(src, 'warning', 'Date invalide.') end
+    local row = getOwnedVehicle(vehicleId)
+    if not row then notify(src, 'warning', 'Masina nu exista.') refreshOwnedVehs(src, uid) return end
+
+    if action == 'take' then
+        MySQL.update.await('DELETE FROM ownedvehicles WHERE id = ? LIMIT 1', { vehicleId })
+        local ent = findSpawnedOwnedVehicle(vehicleId)
+        if ent then DeleteEntity(ent) end
+        notify(src, 'info', ('Masina SQL ID %s a fost stearsa.'):format(vehicleId))
+        refreshOwnedVehs(src, uid)
+        return
+    end
+
+    if action == 'transfer' then
+        local newUid = tonumber(extra.targetUid or 0) or 0
+        if newUid <= 0 or not userExists(newUid) then notify(src, 'warning', 'UID destinatar invalid.') return end
+        MySQL.update.await('UPDATE ownedvehicles SET owner_id = ? WHERE id = ? LIMIT 1', { newUid, vehicleId })
+        local ent = findSpawnedOwnedVehicle(vehicleId)
+        if ent then Entity(ent).state:set('dz_garage_owner_uid', newUid, true) end
+        notify(src, 'info', ('Masina SQL ID %s a fost transferata la UID %s.'):format(vehicleId, newUid))
+        openOwnedVehs(src, newUid)
+        return
+    end
+
+    if action == 'spawn' then
+        local ent = findSpawnedOwnedVehicle(vehicleId)
+        if ent then
+            bringEntityToAdmin(src, ent)
+            notify(src, 'info', 'Masina era deja spawnata, ti-am adus-o la tine.')
+            refreshOwnedVehs(src, uid)
+            return
+        end
+        TriggerClientEvent('driftzone_admin:client:spawnOwnedVehicle', src, {
+            uid = tonumber(row.owner_id) or uid,
+            vehicleId = tonumber(row.id) or vehicleId,
+            model = tostring(row.vehicle_model or ''),
+            name = tostring(row.vehicle_name or row.vehicle_model or 'Vehicle'),
+            plate = tostring(row.vehicle_plate or '')
+        })
+        notify(src, 'info', 'Se spawneaza masina...')
+        return
+    end
+
+    if action == 'goto' then
+        local ent = findSpawnedOwnedVehicle(vehicleId)
+        if not ent then notify(src, 'warning', 'Masina nu este spawnata.') return end
+        local coords = GetEntityCoords(ent)
+        local ped = GetPlayerPed(src)
+        SetEntityCoords(ped, coords.x + 2.0, coords.y, coords.z + 0.5, false, false, false, false)
+        return
+    end
+
+    if action == 'bring' then
+        local ent = findSpawnedOwnedVehicle(vehicleId)
+        if not ent then notify(src, 'warning', 'Masina nu este spawnata.') return end
+        if bringEntityToAdmin(src, ent) then notify(src, 'info', 'Masina a fost adusa la tine.') end
+        refreshOwnedVehs(src, uid)
+        return
+    end
+end)
+
+RegisterNetEvent('driftzone_admin:server:ownedVehSpawnResult', function(success, data, netId)
+    local src = source
+    local admin = getAdminData(src)
+    if not admin or admin.level < (Config.Commands.vehs or 6) or not admin.aduty then return end
+    data = type(data) == 'table' and data or {}
+    netId = tonumber(netId or 0) or 0
+    if not success or netId <= 0 then notify(src, 'warning', 'Nu s-a putut spawna masina.') return end
+    local entity = NetworkGetEntityFromNetworkId(netId)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then notify(src, 'warning', 'Masina spawnata nu a fost gasita pe server.') return end
+    local row = getOwnedVehicle(data.vehicleId)
+    if row then setOwnedVehicleState(entity, row, data.uid, admin.username) end
+    pcall(function()
+        exports.driftzone_vs:RegisterVehicle(entity, {
+            source = 'admin_owned',
+            sqlVehicleId = tonumber(data.vehicleId) or 0,
+            ownerId = tonumber(data.uid) or 0,
+            ownerName = ('UID %s'):format(tonumber(data.uid) or 0),
+            spawnedBy = admin.username,
+            model = tostring(data.model or ''),
+            plate = tostring(data.plate or '')
+        })
+    end)
+    pcall(function()
+        TriggerEvent('vs:registerVehicle', entity, {
+            source = 'admin_owned',
+            sqlVehicleId = tonumber(data.vehicleId) or 0,
+            ownerId = tonumber(data.uid) or 0,
+            ownerName = ('UID %s'):format(tonumber(data.uid) or 0),
+            spawnedBy = admin.username,
+            model = tostring(data.model or ''),
+            plate = tostring(data.plate or '')
+        })
+    end)
+    notify(src, 'info', ('Masina SQL ID %s a fost spawnata.'):format(data.vehicleId or '?'))
+    refreshOwnedVehs(src, tonumber(data.uid or 0) or 0)
+end)
 RegisterNetEvent('driftzone_admin:server:run', function(command, args)
     local src = source
     runAdminCommand(src, command, args or {})
@@ -2256,26 +2591,29 @@ AddEventHandler('onResourceStart', function(resource)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             ]])
         end)
-    end)
 
+        local vehicleAlters = {
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `price` INT NOT NULL DEFAULT 0',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `dzcoins_price` INT NOT NULL DEFAULT 0',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `showroom_section` VARCHAR(24) NOT NULL DEFAULT "DRIFT"',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `showroom_subcategory` VARCHAR(40) NOT NULL DEFAULT "starter"',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `apear` TINYINT NOT NULL DEFAULT 1',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `vip` TINYINT NOT NULL DEFAULT 0',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `selling` TINYINT NOT NULL DEFAULT 1',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `tradeble` TINYINT NOT NULL DEFAULT 1',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `tradable` TINYINT NOT NULL DEFAULT 1',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `tunable` TINYINT NOT NULL DEFAULT 1',
+            'ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `type` VARCHAR(20) NOT NULL DEFAULT "drift"',
+            'ALTER TABLE `ownedvehicles` ADD COLUMN IF NOT EXISTS `gradient` INT NOT NULL DEFAULT 0'
+        }
 
-        pcall(function()
-            MySQL.update.await('ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `apear` TINYINT NOT NULL DEFAULT 1')
-        end)
-
-        pcall(function()
-            MySQL.update.await('ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `vip` TINYINT NOT NULL DEFAULT 0')
-        end)
-
-        pcall(function()
-            MySQL.update.await('ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `selling` TINYINT NOT NULL DEFAULT 1')
-        end)
-
-        pcall(function()
-            MySQL.update.await('ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `type` VARCHAR(20) NOT NULL DEFAULT "drift"')
-        end)
+        for _, query in ipairs(vehicleAlters) do
+            pcall(function() MySQL.update.await(query) end)
+        end
 
         resetVehicleNameColumns()
+    end)
 
     print('[DRIFTZONE_ADMIN] Server-side loaded.')
 end)

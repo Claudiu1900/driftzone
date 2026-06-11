@@ -288,8 +288,17 @@ local function cleanTuningObject(value)
     for i = 1, #(Config.Categories or {}) do
         local category = Config.Categories[i]
 
-        if tuning[category.key] ~= nil then
+        if category and category.key and tuning[category.key] ~= nil then
             clean[category.key] = tuning[category.key]
+        end
+    end
+
+    -- Extra-urile sunt generate client-side doar daca exista pe masina.
+    -- Le pastram in JSON ca sa fie reaplicate la spawn/tuning apply.
+    for key, val in pairs(tuning) do
+        local extraId = tostring(key or ''):match('^extra_(%d+)$')
+        if extraId then
+            clean[key] = val == true
         end
     end
 
@@ -311,6 +320,9 @@ local function calculatePrice(basePrice, changes)
             used[item.key] = true
 
             local percent = tonumber((Config.PricePercent or {})[item.key] or 1) or 1
+            if tostring(item.key or ''):match('^extra_%d+$') then
+                percent = tonumber(Config.ExtraPricePercent or percent) or percent
+            end
             total = total + math.max(1, math.ceil(basePrice * (percent / 100)))
         end
     end
