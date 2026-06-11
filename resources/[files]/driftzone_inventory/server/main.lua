@@ -689,13 +689,22 @@ RegisterNetEvent('driftzone_inventory:server:addItemSubmit', function(data)
         return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Item Name obligatoriu.')
     end
 
-    MySQL.update.await(('INSERT INTO %s (item_id, item_name, image, tradable, stackable, usable, giveable, max_stack, is_gradient, gradient_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE item_name = VALUES(item_name), image = VALUES(image), tradable = VALUES(tradable), stackable = VALUES(stackable), usable = VALUES(usable), giveable = VALUES(giveable), max_stack = VALUES(max_stack), is_gradient = VALUES(is_gradient), gradient_id = VALUES(gradient_id), updated_at = NOW()'):format(sqlName(Config.ItemsTable)), {
-        itemId, name, image, tradable, stackable, usable, giveable, maxStack, isGradient, gradientId
-    })
+    ensureGradientItemColumns()
+
+    local okSave, errSave = pcall(function()
+        MySQL.update.await(('INSERT INTO %s (item_id, item_name, image, tradable, stackable, usable, giveable, max_stack, is_gradient, gradient_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE item_name = VALUES(item_name), image = VALUES(image), tradable = VALUES(tradable), stackable = VALUES(stackable), usable = VALUES(usable), giveable = VALUES(giveable), max_stack = VALUES(max_stack), is_gradient = VALUES(is_gradient), gradient_id = VALUES(gradient_id), updated_at = NOW()'):format(sqlName(Config.ItemsTable)), {
+            itemId, name, image, tradable, stackable, usable, giveable, maxStack, isGradient, gradientId
+        })
+    end)
+
+    if not okSave then
+        print('[DRIFTZONE_INVENTORY] additem save error: ' .. tostring(errSave))
+        return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Eroare SQL la salvare. Verifica consola.')
+    end
 
     ItemsCache = nil
     logAction('admin_additem', admin.uid, 0, itemId, 0, data)
-    TriggerClientEvent('driftzone_inventory:client:addItemResult', src, true, 'Item salvat cu succes.')
+    TriggerClientEvent('driftzone_inventory:client:addItemResult', src, true, 'Item salvat cu succes: ' .. itemId)
 end)
 
 RegisterNetEvent('driftzone_inventory:server:startGiveToPlayer', function(targetServerId)
@@ -895,13 +904,44 @@ exports('HasSpaceForItem', function(uid, itemId, amount)
 end)
 
 
+local function tableNameRaw(name)
+    return tostring(name or ''):gsub('`', '')
+end
+
+local function columnExists(tableName, columnName)
+    local row = MySQL.single.await([[
+        SELECT COUNT(*) AS total
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+        LIMIT 1
+    ]], { tableNameRaw(tableName), tostring(columnName or '') })
+
+    return row and tonumber(row.total or 0) and tonumber(row.total or 0) > 0
+end
+
+local function ensureColumn(tableName, columnName, definition)
+    tableName = tableNameRaw(tableName)
+    columnName = tostring(columnName or '')
+    if tableName == '' or columnName == '' then return false end
+
+    local okExists, exists = pcall(function() return columnExists(tableName, columnName) end)
+    if okExists and exists then return true end
+
+    local okAlter, err = pcall(function()
+        MySQL.update.await(('ALTER TABLE %s ADD COLUMN `%s` %s'):format(sqlName(tableName), columnName:gsub('`', ''), tostring(definition or 'TEXT NULL')), {})
+    end)
+
+    if not okAlter then
+        print(('[DRIFTZONE_INVENTORY] Nu pot adauga coloana %s.%s: %s'):format(tableName, columnName, tostring(err)))
+        return false
+    end
+
+    return true
+end
+
 local function ensureGradientItemColumns()
-    pcall(function()
-        MySQL.update.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS `is_gradient` TINYINT NOT NULL DEFAULT 0'):format(sqlName(Config.ItemsTable)), {})
-    end)
-    pcall(function()
-        MySQL.update.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS `gradient_id` INT NOT NULL DEFAULT 0'):format(sqlName(Config.ItemsTable)), {})
-    end)
+    ensureColumn(Config.ItemsTable, 'is_gradient', 'TINYINT NOT NULL DEFAULT 0')
+    ensureColumn(Config.ItemsTable, 'gradient_id', 'INT NOT NULL DEFAULT 0')
 end
 
 AddEventHandler('onResourceStart', function(res)

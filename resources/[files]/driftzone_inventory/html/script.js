@@ -403,6 +403,30 @@ function toggleGradientItem() {
 }
 
 function submitAddItem() {
+    if (addStatus) {
+        addStatus.textContent = 'Se salveaza itemul...';
+        addStatus.className = 'add-status';
+    }
+
+    const isGradient = Number(itemIsGradient ? itemIsGradient.value || 0 : 0);
+    const gradientId = Math.max(0, Math.floor(Number(itemGradientId ? itemGradientId.value || 0 : 0)));
+
+    if (isGradient === 1) {
+        if (gradientId <= 0) {
+            if (addStatus) {
+                addStatus.textContent = 'Pune Gradient ID mai mare decat 0.';
+                addStatus.className = 'add-status error';
+            }
+            return;
+        }
+        itemId.value = `${gradientId}_gradient`;
+        itemUsable.value = '1';
+        itemGiveable.value = '1';
+        itemStackable.value = '1';
+        itemMaxStack.value = '1';
+        if (!itemName.value.trim()) itemName.value = `Gradient ${gradientId}`;
+    }
+
     nui('submitAddItem', {
         item_id: itemId.value.trim(),
         item_name: itemName.value.trim(),
@@ -412,8 +436,8 @@ function submitAddItem() {
         usable: Number(itemUsable.value || 0),
         giveable: Number(itemGiveable.value || 1),
         max_stack: Number(itemMaxStack.value || 100),
-        is_gradient: Number(itemIsGradient ? itemIsGradient.value || 0 : 0),
-        gradient_id: Number(itemGradientId ? itemGradientId.value || 0 : 0)
+        is_gradient: isGradient,
+        gradient_id: gradientId
     });
 }
 
@@ -496,3 +520,5 @@ window.dropSelected = dropSelected;
 window.closeUi = closeUi;
 window.previewImage = previewImage;
 window.submitAddItem = submitAddItem;
+window.syncGradientItemId = syncGradientItemId;
+window.toggleGradientItem = toggleGradientItem;
