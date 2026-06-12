@@ -19,39 +19,11 @@ Acces: `admin_level 6+` si `aduty yes`.
 - Caracterul este dus sus si ascuns, ca sa nu mai intre in POV/screenshot.
 - UI in stanga cu rotate, auto rotate, FOV, zoom, camera height, look height, lights, doors, reset.
 - Poti scrie alt model in UI si apesi `LOAD` fara sa inchizi meniul.
-- Screenshot prin `screenshot-basic`, cu download in browser.
+- Screenshot integrat direct in resource, cu download in browser.
 
-## Instalare screenshot-basic
+## Screenshot integrat
 
-Resource-ul este aici:
-
-```txt
-https://github.com/citizenfx/screenshot-basic
-```
-
-Pe VPS/Linux:
-
-```bash
-cd /home/container/resources
-mkdir -p "[local]"
-cd "[local]"
-git clone https://github.com/citizenfx/screenshot-basic.git screenshot-basic
-```
-
-In `server.cfg`:
-
-```cfg
-ensure screenshot-basic
-ensure oxmysql
-ensure driftzone_auth
-ensure driftzone_vehicless
-```
-
-Daca nu ai `git` pe host, descarci ZIP-ul de pe GitHub, il extragi si folderul final trebuie sa fie exact:
-
-```txt
-resources/[local]/screenshot-basic
-```
+Nu mai ai nevoie de `screenshot-basic`. Sistemul de screenshot este inclus in `driftzone_vehicless` si descarca poza prin browser in Downloads / folderul ales de client.
 
 ## Config util
 

@@ -225,7 +225,7 @@ local function updateUi()
         autoRotate = currentSettings.autoRotate == true,
         lights = currentSettings.lights == true,
         doors = currentSettings.doors == true,
-        screenshotReady = GetResourceState(Config.Studio.screenshotResource or 'screenshot-basic') == 'started'
+        screenshotReady = true
     })
 end
 
@@ -318,28 +318,30 @@ end)
 RegisterNUICallback('screenshot', function(_, cb)
     if not open then cb({ ok = false }) return end
 
-    local res = Config.Studio.screenshotResource or 'screenshot-basic'
-    if GetResourceState(res) ~= 'started' then
-        notify('warning', 'Lipseste screenshot-basic. Instaleaza resource-ul si pune ensure screenshot-basic in server.cfg.')
-        cb({ ok = false, error = 'screenshot-basic not started' })
-        return
-    end
-
     setFocus(false)
     sendNui({ action = 'prepareShot' })
 
-    SetTimeout(Config.Studio.screenshotDelayMs or 180, function()
-        exports[res]:requestScreenshot(function(data)
-            setFocus(true)
-            sendNui({
-                action = 'downloadScreenshot',
-                image = data,
-                filename = ('driftzone_%s_%s.png'):format(tostring(currentModel or 'vehicle'), tostring(os.time()))
-            })
-            sendNui({ action = 'shotDone' })
-            notify('success', 'Screenshot salvat in Downloads / folderul ales de browser.', 4500)
-        end)
+    SetTimeout(Config.Studio.screenshotDelayMs or 220, function()
+        sendNui({
+            action = 'captureInternal',
+            encoding = Config.Studio.screenshotEncoding or 'png',
+            quality = Config.Studio.screenshotQuality or 0.95,
+            filename = ('driftzone_%s_%s.png'):format(tostring(currentModel or 'vehicle'), tostring(os.time()))
+        })
     end)
+
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('shotResult', function(data, cb)
+    setFocus(open == true)
+    sendNui({ action = 'shotDone' })
+
+    if data and data.ok == true then
+        notify('success', 'Screenshot salvat in Downloads / folderul ales de browser.', 4500)
+    else
+        notify('warning', 'Nu am putut face screenshot intern. Verifica NUI/game build.', 6500)
+    end
 
     cb({ ok = true })
 end)

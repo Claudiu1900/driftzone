@@ -28,4 +28,3 @@ client_scripts {
 }
 
 dependency 'oxmysql'
--- Optional pentru screenshot: ensure screenshot-basic in server.cfg.

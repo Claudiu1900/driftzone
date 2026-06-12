@@ -56,6 +56,7 @@ Config.Studio = {
 
     autoRotateSpeed = 0.18,
     modelLoadTimeoutMs = 9000,
-    screenshotDelayMs = 180,
-    screenshotResource = 'screenshot-basic'
+    screenshotDelayMs = 220,
+    screenshotEncoding = 'png',
+    screenshotQuality = 0.95
 }
