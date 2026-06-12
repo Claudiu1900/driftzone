@@ -288,7 +288,7 @@ local function cleanTuningObject(value)
     for i = 1, #(Config.Categories or {}) do
         local category = Config.Categories[i]
 
-        if category and category.key and tuning[category.key] ~= nil then
+        if category and category.key and tuning[category.key] ~= nil and category.previewOnly ~= true and category.type ~= 'gradientPreview' then
             clean[category.key] = tuning[category.key]
         end
     end
@@ -319,11 +319,21 @@ local function calculatePrice(basePrice, changes)
         if item and item.key and not used[item.key] then
             used[item.key] = true
 
-            local percent = tonumber((Config.PricePercent or {})[item.key] or 1) or 1
-            if tostring(item.key or ''):match('^extra_%d+$') then
-                percent = tonumber(Config.ExtraPricePercent or percent) or percent
+            local cfgCat = nil
+            for _, cat in ipairs(Config.Categories or {}) do
+                if cat and cat.key == item.key then
+                    cfgCat = cat
+                    break
+                end
             end
-            total = total + math.max(1, math.ceil(basePrice * (percent / 100)))
+
+            if not (cfgCat and (cfgCat.previewOnly == true or cfgCat.type == 'gradientPreview')) then
+                local percent = tonumber((Config.PricePercent or {})[item.key] or 1) or 1
+                if tostring(item.key or ''):match('^extra_%d+$') then
+                    percent = tonumber(Config.ExtraPricePercent or percent) or percent
+                end
+                total = total + math.max(1, math.ceil(basePrice * (percent / 100)))
+            end
         end
     end
 

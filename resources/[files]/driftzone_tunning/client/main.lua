@@ -19,9 +19,7 @@ local function notify(t, msg, d)
 end
 
 local function sendNui(data)
-    if nuiReady then
-        SendNUIMessage(data)
-    end
+    SendNUIMessage(data)
 end
 
 local function deepCopy(value)
@@ -99,16 +97,8 @@ local function getNumModsFast(veh, modType)
 
     modType = tonumber(modType) or 0
 
-    -- Important pentru add-on-uri: nu fortam optiuni fake.
-    -- Citim strict ce vede GTA/FiveM ca modkit valid pe vehiculul curent.
-    -- Daca aici intoarce 0, masina nu are acel mod expus corect in carcols/carvariations.
-    requestControl(veh, 250)
-
-    for _ = 1, 3 do
-        SetVehicleModKit(veh, 0)
-        Wait(0)
-    end
-
+    -- Rapid: buildAvailableCategories face deja requestControl + SetVehicleModKit o singura data.
+    -- Nu mai asteptam pe fiecare categorie, ca meniul sa se deschida instant.
     local ok, count = pcall(function()
         return GetNumVehicleMods(veh, modType)
     end)
@@ -285,6 +275,32 @@ local function parseHex(hex)
     }
 end
 
+
+local function getGradientPreviewById(id)
+    id = tonumber(id or 0) or 0
+    for _, item in ipairs(Config.GradientPreviewColors or {}) do
+        if tonumber(item.id or 0) == id then return item end
+    end
+    return nil
+end
+
+local function getGradientPreviewOptions()
+    local out = {}
+    for _, item in ipairs(Config.GradientPreviewColors or {}) do
+        local id = tonumber(item.id or 0) or 0
+        local colorId = tonumber(item.colorId or item.colourId or 0) or 0
+        if id > 0 and colorId > 0 then
+            out[#out + 1] = {
+                value = id,
+                label = tostring(item.label or ('Gradient ' .. id)),
+                colorId = colorId,
+                previewOnly = true
+            }
+        end
+    end
+    return out
+end
+
 local function applyOneUnsafe(veh, key, value, category)
     if not DoesEntityExist(veh) or not category then return end
 
@@ -301,6 +317,30 @@ local function applyOneUnsafe(veh, key, value, category)
             SetVehicleCustomSecondaryColour(veh, tonumber(value.r or 0), tonumber(value.g or 0), tonumber(value.b or 0))
         end
 
+        return
+    end
+
+
+    if category.type == 'gradientPreview' then
+        local gradient = getGradientPreviewById(value)
+        if not gradient then return end
+
+        local colorId = tonumber(gradient.colorId or 0) or 0
+        if colorId <= 0 then return end
+
+        ClearVehicleCustomPrimaryColour(veh)
+        ClearVehicleCustomSecondaryColour(veh)
+        local primary, secondary = GetVehicleColours(veh)
+        primary = tonumber(primary or 0) or 0
+        secondary = tonumber(secondary or 0) or 0
+
+        local applyTo = tostring(category.applyTo or 'primary'):lower()
+        if applyTo == 'secondary' then
+            SetVehicleColours(veh, primary, colorId)
+        else
+            SetVehicleColours(veh, colorId, secondary)
+        end
+        SetVehicleDirtLevel(veh, 0.0)
         return
     end
 
@@ -460,7 +500,13 @@ local function buildAvailableCategories(veh, categories)
     for i = 1, #(categories or {}) do
         local cat = categories[i]
 
-        if cat.type == 'mod' or cat.type == 'wheel' then
+        if cat.type == 'gradientPreview' then
+            local copy = {}
+            for k, v in pairs(cat) do copy[k] = v end
+            copy.options = getGradientPreviewOptions()
+            copy.count = #copy.options
+            if copy.count > 0 then out[#out + 1] = copy end
+        elseif cat.type == 'mod' or cat.type == 'wheel' then
             local count = getCategoryCount(veh, cat)
 
             if count > 0 then
@@ -511,7 +557,9 @@ local function captureCurrentTuning(veh, categories)
     for i = 1, #(categories or {}) do
         local cat = categories[i]
         if cat and cat.key then
-            if cat.type == 'color' then
+            if cat.type == 'gradientPreview' then
+                -- Preview only: nu se captureaza si nu se salveaza.
+            elseif cat.type == 'color' then
                 local r, g, b = 0, 0, 0
                 if cat.key == 'primaryColor' then
                     r, g, b = GetVehicleCustomPrimaryColour(veh)
@@ -631,6 +679,12 @@ RegisterNetEvent('driftzone_tunning:client:open', openTunning)
 RegisterNetEvent('driftzone_tunning:client:paid', function(data)
     originalTuning = data and data.tuning or currentTuning
     currentTuning = data and data.tuning or currentTuning
+
+    local veh = getVehicle()
+    if veh ~= 0 and DoesEntityExist(veh) then
+        applyTuningToVehicle(veh, currentTuning or {})
+    end
+
     closeTunning(true)
 end)
 
@@ -712,6 +766,13 @@ RegisterNUICallback('preview', function(data, cb)
 
     if veh ~= 0 and cat then
         local value = data.value
+
+        if cat.previewOnly == true or cat.type == 'gradientPreview' then
+            applyOne(veh, key, value, cat)
+            cb({ ok = true })
+            return
+        end
+
         currentTuning[key] = value
 
         local found = false

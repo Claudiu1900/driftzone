@@ -41,3 +41,14 @@ Daca o masina add-on nu afiseaza o piesa, inseamna ca masina nu expune acea pies
 
 - UI-ul vechi a fost pus inapoi.
 - Backend-ul ramane cel optimizat: add-on tuning, extras 0-25, wheels fix cu WheelType, fara chameleon si fara armor.
+
+## Update gradient preview + instant open
+
+- Adaugate categorii noi in tunning:
+  - `Primary Gradient Color`
+  - `Secondary Gradient Color`
+- Gradientele sunt doar preview: nu se adauga in cos, nu se cumpara si nu se salveaza in `ownedvehicles.vehicle_tunning`.
+- Daca apesi Pay dupa un preview de gradient, masina revine la tuning-ul cumparat/salvat, fara sa pastreze preview-ul de gradient.
+- Meniul se deschide mult mai rapid: scanarea modkit-ului nu mai face request/wait pe fiecare categorie.
+- UI vechi pastrat.
+- Fixurile pentru add-on tuning, wheels si extras raman active.

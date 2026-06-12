@@ -178,6 +178,7 @@ function renderOptions() {
     else if (activeCategory.type === 'windowTint') renderWindowTintOptions();
     else if (activeCategory.type === 'xenonColor') renderXenonOptions();
     else if (activeCategory.type === 'toggle' || activeCategory.type === 'extra') renderToggleOptions();
+    else if (activeCategory.type === 'gradientPreview') renderGradientPreviewOptions();
     else renderModOptions();
 }
 
@@ -262,6 +263,22 @@ function renderToggleOptions() {
     `;
 }
 
+
+function renderGradientPreviewOptions() {
+    const opts = Array.isArray(activeCategory.options) ? activeCategory.options : [];
+    if (opts.length <= 0) {
+        optionsEl.innerHTML = '<div class="option"><b>No gradients</b><span>Preview only</span></div>';
+        return;
+    }
+
+    optionsEl.innerHTML = opts.map((item) => `
+        <div class="option gradient-preview-option" onclick="preview('${activeCategory.key}', ${Number(item.value || item.id || 0)})">
+            <b>${escapeHtml(item.label || ('Gradient ' + (item.value || item.id || '')))}</b>
+            <span>PREVIEW ONLY</span>
+        </div>
+    `).join('');
+}
+
 function renderModOptions() {
     const count = Number(activeCategory.count || 0);
     let html = `
@@ -271,13 +288,23 @@ function renderModOptions() {
         </div>
     `;
 
-    for (let i = 0; i < count; i++) {
-        html += `
-            <div class="option" onclick="preview('${activeCategory.key}', ${i})">
-                <b>${escapeHtml(activeCategory.label)} ${i + 1}</b>
+    const opts = Array.isArray(activeCategory.options) ? activeCategory.options : [];
+    if (opts.length > 0) {
+        html = opts.map((item) => `
+            <div class="option" onclick="preview('${activeCategory.key}', ${Number(item.value)})">
+                <b>${escapeHtml(item.label || valueToText(activeCategory.key, item.value))}</b>
                 <span>${money(getPrice(activeCategory.key))}</span>
             </div>
-        `;
+        `).join('');
+    } else {
+        for (let i = 0; i < count; i++) {
+            html += `
+                <div class="option" onclick="preview('${activeCategory.key}', ${i})">
+                    <b>${escapeHtml(activeCategory.label)} ${i + 1}</b>
+                    <span>${money(getPrice(activeCategory.key))}</span>
+                </div>
+            `;
+        }
     }
 
     optionsEl.innerHTML = html;
@@ -303,6 +330,11 @@ function valueToText(key, value) {
     if (cat.type === 'windowTint') return findNameById(windowTints, value);
     if (cat.type === 'xenonColor') return findNameById(xenonColors, value);
     if (cat.type === 'toggle' || cat.type === 'extra') return value === true ? 'Enabled' : 'Disabled';
+    if (cat.type === 'gradientPreview') {
+        const opts = Array.isArray(cat.options) ? cat.options : [];
+        const found = opts.find((item) => Number(item.value || item.id || 0) === Number(value));
+        return found ? (found.label || ('Gradient ' + value)) : ('Gradient ' + value);
+    }
     if (cat.type === 'mod' || cat.type === 'wheel') return Number(value) === -1 ? 'Stock' : `${cat.label} ${Number(value) + 1}`;
 
     return String(value);
@@ -320,6 +352,19 @@ function preview(key, value) {
     if (!activeCategory) return;
 
     const variantLabel = valueToText(key, value);
+
+    if (activeCategory.previewOnly === true || activeCategory.type === 'gradientPreview') {
+        queuedPreview = { key, value, variantLabel };
+        if (previewTimer) return;
+        previewTimer = setTimeout(() => {
+            const payload = queuedPreview;
+            queuedPreview = null;
+            previewTimer = null;
+            if (payload) sendPreview(payload.key, payload.value, payload.variantLabel);
+        }, 25);
+        return;
+    }
+
     const existing = cart.find((item) => item.key === key);
 
     if (existing) {

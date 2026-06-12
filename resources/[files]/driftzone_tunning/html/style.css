@@ -485,3 +485,13 @@ p {
     from { opacity: 0; transform: translateY(24px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+
+.gradient-preview-option {
+    border-color: rgba(4,199,247,0.34);
+    background: linear-gradient(135deg, rgba(4,199,247,0.18), rgba(255,255,255,0.055));
+}
+.gradient-preview-option span {
+    color: var(--main);
+    font-weight: 1000;
+}

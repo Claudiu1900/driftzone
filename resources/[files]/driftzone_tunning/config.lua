@@ -13,8 +13,32 @@ Config.ShowOnlyValidVisualMods = true
 Config.ExtraIds = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 }
 Config.ExtraPricePercent = 1
 
+
+
+-- Gradient preview colors din driftzone_gradients. Sunt doar PREVIEW in tunning:
+-- nu se adauga in cos, nu se cumpara si nu se salveaza in vehicle_tunning.
+Config.GradientPreviewColors = {
+    { id = 1, label = 'Monochrome', colorId = 223 },
+    { id = 2, label = 'Night & Day', colorId = 224 },
+    { id = 3, label = 'The Verlierer', colorId = 225 },
+    { id = 4, label = 'Sprunk Extreme', colorId = 226 },
+    { id = 5, label = 'Vice City', colorId = 227 },
+    { id = 6, label = 'Synthwave Nights', colorId = 228 },
+    { id = 7, label = 'Four Seasons', colorId = 229 },
+    { id = 8, label = 'Maisonette 9 Throwback', colorId = 230 },
+    { id = 9, label = 'Bubblegum', colorId = 231 },
+    { id = 10, label = 'Full Rainbow', colorId = 232 },
+    { id = 11, label = 'Sunset', colorId = 233 },
+    { id = 12, label = 'The Seven', colorId = 234 },
+    { id = 13, label = 'Kamen Rider', colorId = 235 },
+    { id = 14, label = 'Chromatic Aberration', colorId = 236 },
+    { id = 15, label = 'Its Christmas!', colorId = 237 },
+    { id = 16, label = 'Blue Monochrome', colorId = 238 },
+    { id = 17, label = 'Custom Gradient 17', colorId = 239 }
+}
+
 Config.PricePercent = {
-    primaryColor = 2, secondaryColor = 2, pearlescentColor = 1, wheelColor = 1,
+    primaryColor = 2, secondaryColor = 2, primaryGradientColor = 0, secondaryGradientColor = 0, pearlescentColor = 1, wheelColor = 1,
     windowTint = 1, xenonColor = 2, plateIndex = 1, dashboardColor = 1, interiorColor = 1,
     spoiler = 3, frontBumper = 3, rearBumper = 3, sideSkirt = 2, exhaust = 2, frame = 2,
     grille = 2, hood = 3, fender = 2, rightFender = 2, roof = 3,
@@ -31,6 +55,8 @@ Config.PricePercent = {
 Config.Categories = {
     { key = 'primaryColor', label = 'Primary Color', type = 'color', group = 'Colors' },
     { key = 'secondaryColor', label = 'Secondary Color', type = 'color', group = 'Colors' },
+    { key = 'primaryGradientColor', label = 'Primary Gradient Color', type = 'gradientPreview', applyTo = 'primary', previewOnly = true, group = 'Gradient Preview' },
+    { key = 'secondaryGradientColor', label = 'Secondary Gradient Color', type = 'gradientPreview', applyTo = 'secondary', previewOnly = true, group = 'Gradient Preview' },
     { key = 'pearlescentColor', label = 'Pearlescent', type = 'classicColor', group = 'Colors' },
     { key = 'wheelColor', label = 'Wheel Color', type = 'classicColor', group = 'Colors' },
     { key = 'dashboardColor', label = 'Dashboard Color', type = 'vehicleColor', target = 'dashboard', group = 'Colors' },
