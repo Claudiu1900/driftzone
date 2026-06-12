@@ -25,3 +25,11 @@ Config.Label = {
     maxScale = 0.38,
     lineGap = 0.023
 }
+-- Auto DV pentru masini abandonate in tabela VS.
+-- Daca vehiculul nu are niciun jucator inauntru pentru X minute, se sterge singur.
+Config.AbandonedAutoDV = {
+    enabled = true,
+    minutes = 30,
+    checkIntervalSeconds = 60,
+    printLog = true
+}

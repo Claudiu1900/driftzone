@@ -42,3 +42,5 @@ Config.DropMarkerRadius = 35.0
 
 Config.GradientResource = 'driftzone_gradients'
 Config.GradientItemSuffix = '_gradient'
+
+Config.TakeGradientItemId = 'takegradient'

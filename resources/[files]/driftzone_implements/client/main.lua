@@ -73,6 +73,12 @@ local function safeCall(fn)
     return pcall(fn)
 end
 
+
+local function resetAdutyServer()
+    TriggerServerEvent('driftzone_implements:server:resetAdutyOnJoin')
+end
+
+
 local function getPed()
     local ped = PlayerPedId()
 
@@ -370,6 +376,7 @@ end)
 
 AddEventHandler('playerSpawned', function()
     loaded = true
+    resetAdutyServer()
 
     SetTimeout(500, function()
         local ped = getPed()
@@ -403,6 +410,7 @@ end)
 CreateThread(function()
     Wait(1000)
     loaded = true
+    resetAdutyServer()
 
     local ped = getPed()
 

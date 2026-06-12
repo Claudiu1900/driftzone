@@ -184,7 +184,8 @@ local function loadItems(force)
                 giveable = tonumber(row.giveable or 1) == 1,
                 max_stack = math.max(1, tonumber(row.max_stack or Config.ItemDefaults.max_stack or 100) or 100),
                 is_gradient = (tonumber(row.is_gradient or 0) == 1) or (itemId:match('^%d+_gradient$') ~= nil),
-                gradient_id = tonumber(row.gradient_id or itemId:match('^(%d+)_gradient$') or 0) or 0
+                gradient_id = tonumber(row.gradient_id or itemId:match('^(%d+)_gradient$') or 0) or 0,
+                is_take_gradient = itemId == tostring(Config.TakeGradientItemId or 'takegradient')
             }
         end
     end
@@ -218,7 +219,8 @@ local function hydrateInventory(inv)
                 giveable = meta.giveable,
                 max_stack = meta.max_stack,
                 is_gradient = meta.is_gradient,
-                gradient_id = meta.gradient_id
+                gradient_id = meta.gradient_id,
+                is_take_gradient = meta.is_take_gradient
             }
         else
             out[i] = nil
@@ -774,6 +776,34 @@ RegisterNetEvent('driftzone_inventory:server:useItem', function(slotIndex)
     if not slot then return end
     local item = getItem(slot.item_id)
     if not item or not item.usable then return notify(src, 'warning', 'Acest item nu se poate folosi.') end
+
+    if item.item_id == tostring(Config.TakeGradientItemId or 'takegradient') or item.is_take_gradient then
+        local gradientRes = tostring(Config.GradientResource or 'driftzone_gradients')
+
+        if GetResourceState(gradientRes) ~= 'started' then
+            return notify(src, 'warning', 'Sistemul de gradient nu este pornit.')
+        end
+
+        TriggerClientEvent('driftzone_inventory:client:closeForGradient', src)
+
+        -- Itemul NU este scos de inventar aici.
+        -- driftzone_gradients il scoate doar dupa ce gradientul a fost scos cu succes si returneaza itemul ID_gradient.
+        local ok, result = pcall(function()
+            if exports[gradientRes] and exports[gradientRes].OpenTakeGradient then
+                return exports[gradientRes]:OpenTakeGradient(src)
+            end
+            return false
+        end)
+
+        if ok and result == true then
+            TriggerEvent('driftzone_inventory:server:itemUsed', src, uid, item.item_id, slotIndex, { take_gradient = true })
+            return
+        end
+
+        TriggerEvent('driftzone_gradients:server:useTakeGradient')
+        TriggerEvent('driftzone_inventory:server:itemUsed', src, uid, item.item_id, slotIndex, { take_gradient = true, fallback = true })
+        return
+    end
 
     if item.is_gradient and (tonumber(item.gradient_id or 0) or 0) > 0 then
         local gradientId = tonumber(item.gradient_id or 0) or 0

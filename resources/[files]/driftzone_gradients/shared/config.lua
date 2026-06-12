@@ -60,3 +60,11 @@ Config.Gradients = {
     [16] = { id = 16, label = 'Blue Monochrome', type = 'chameleon', colorId = 238, originalRamp = 176, rampTexture = 'vehicle_paint_ramps_16' },
     [17] = { id = 17, label = 'Custom Gradient 17', type = 'chameleon', colorId = 239, originalRamp = 177, rampTexture = 'vehicle_paint_ramps_17' },
 }
+
+-- Item/comanda pentru scoaterea gradientului.
+Config.TakeGradientCommand = 'takegradient'
+Config.TakeGradientItem = 'takegradient'
+
+-- Culoare fallback cand scoti gradientul si nu exista culoarea veche salvata.
+Config.RemoveDefaultPrimaryColor = 0
+Config.RemoveDefaultSecondaryColor = 0

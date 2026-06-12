@@ -45,3 +45,16 @@ VALUES
 ('repairkit', 'Repair Kit', '', 1, 1, 1, 1, 10, 0, 0),
 ('1_gradient', 'Gradient 1', '', 1, 1, 1, 1, 1, 1, 1)
 ON DUPLICATE KEY UPDATE `item_name` = VALUES(`item_name`);
+
+
+-- Item pentru scoaterea gradientului de pe masina.
+INSERT INTO `inventory_items`
+(`item_id`, `item_name`, `image`, `tradable`, `stackable`, `usable`, `giveable`, `max_stack`, `is_gradient`, `gradient_id`, `created_at`, `updated_at`)
+VALUES
+('takegradient', 'Scoate Gradient', '', 1, 1, 1, 1, 100, 0, 0, NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+    item_name = VALUES(item_name),
+    usable = 1,
+    giveable = 1,
+    stackable = 1,
+    updated_at = NOW();

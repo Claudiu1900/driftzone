@@ -12,16 +12,12 @@
     <div id="panel" class="panel hidden">
         <div class="line"></div>
         <div class="head">
-            <span>DRIFTZONE GRADIENT</span>
+            <span id="modeText">DRIFTZONE GRADIENT</span>
             <h1 id="gradientName">Gradient</h1>
             <p id="plateText">Vehicle</p>
         </div>
-        <div class="question">Seteaza culoarea Gradient pe:</div>
-        <div class="actions">
-            <button onclick="apply('primary')">Culoare Principala</button>
-            <button onclick="apply('secondary')">Culoare Secundara</button>
-            <button class="main" onclick="apply('both')">Ambele</button>
-        </div>
+        <div id="question" class="question">Seteaza culoarea Gradient pe:</div>
+        <div id="actions" class="actions"></div>
         <button class="cancel" onclick="cancel()">Cancel</button>
     </div>
 

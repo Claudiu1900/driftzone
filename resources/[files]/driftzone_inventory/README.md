@@ -66,3 +66,12 @@ Cand `Gradient Item = 1`, itemul devine automat:
 - stackable: 1.
 
 Cand dai USE pe item, inventarul deschide `driftzone_gradients`. Itemul este sters de `driftzone_gradients` doar dupa ce gradientul a fost aplicat cu succes pe masina.
+
+
+## Update takegradient
+
+- Itemul `takegradient` este compatibil cu `driftzone_gradients`.
+- Cand dai USE pe `takegradient`, inventarul se inchide si deschide selectorul de scos gradient.
+- Inventarul nu sterge itemul direct; `driftzone_gradients` sterge `takegradient` doar dupa ce scoaterea gradientului a reusit.
+- Dupa scoatere, `driftzone_gradients` da inapoi itemul gradientului, de exemplu `17_gradient`.
+- Pentru asta trebuie sa ai pornit `driftzone_gradients` cu functia de remove/takegradient.

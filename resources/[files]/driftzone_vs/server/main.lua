@@ -145,6 +145,60 @@ local function getNetId(entity)
     return tonumber(NetworkGetNetworkIdFromEntity(entity) or 0) or 0
 end
 
+
+local function nowSeconds()
+    return os.time()
+end
+
+local function getAbandonedSeconds()
+    local cfg = Config.AbandonedAutoDV or {}
+    local minutes = tonumber(cfg.minutes or cfg.timeMinutes or 30) or 30
+    if minutes < 1 then minutes = 1 end
+    return math.floor(minutes * 60)
+end
+
+local function getAbandonedCheckInterval()
+    local cfg = Config.AbandonedAutoDV or {}
+    local seconds = tonumber(cfg.checkIntervalSeconds or cfg.checkInterval or 60) or 60
+    if seconds < 10 then seconds = 10 end
+    return math.floor(seconds * 1000)
+end
+
+local function hasPlayerInsideVehicle(entity)
+    if not entityExists(entity) then return false end
+
+    for _, id in ipairs(GetPlayers()) do
+        local player = tonumber(id)
+        if player then
+            local ped = GetPlayerPed(player)
+            if ped and ped ~= 0 then
+                local ok, veh = pcall(function()
+                    return GetVehiclePedIsIn(ped, false)
+                end)
+                if ok and veh and veh == entity then
+                    return true
+                end
+            end
+        end
+    end
+
+    local okDriver, driver = pcall(function()
+        return GetPedInVehicleSeat(entity, -1)
+    end)
+
+    if okDriver and driver and driver ~= 0 then
+        return true
+    end
+
+    return false
+end
+
+local function touchVehicleActivity(data)
+    if not data then return end
+    data.lastActivityAt = nowSeconds()
+    data.wasOccupied = true
+end
+
 local function setState(data)
     if not data or not entityExists(data.entity) then return end
 
@@ -258,7 +312,8 @@ local function buildPayload(data)
         health = getHealth(data.entity),
         maxHealth = Config.MaxHealth or 1000.0,
 
-        bucket = GetEntityRoutingBucket(data.entity) or 0
+        bucket = GetEntityRoutingBucket(data.entity) or 0,
+        abandonedSeconds = math.max(0, nowSeconds() - tonumber(data.lastActivityAt or nowSeconds()))
     }
 end
 
@@ -395,7 +450,10 @@ local function registerVehicle(entity, rawData)
         source = tostring(rawData.source or 'unknown'),
 
         model = model,
-        plate = plate
+        plate = plate,
+
+        lastActivityAt = nowSeconds(),
+        wasOccupied = false
     }
 
     Vehicles[spawnId] = data
@@ -466,6 +524,13 @@ local function teleportVehicleToPlayer(src, entity)
     SetEntityRoutingBucket(entity, GetPlayerRoutingBucket(src))
     SetEntityCoords(entity, x, y, z, false, false, false, false)
 
+    for _, data in pairs(Vehicles) do
+        if data and data.entity == entity then
+            touchVehicleActivity(data)
+            break
+        end
+    end
+
     markDirty()
     DbDirty = true
 
@@ -486,10 +551,13 @@ local function fixVehicle(src, entity)
     return true
 end
 
-local function deleteVehicle(data)
+local function deleteVehicle(data, reason)
     if not data or not entityExists(data.entity) then return false end
 
     local spawnId = data.spawnId
+    local model = tostring(data.model or 'unknown')
+    local plate = tostring(data.plate or 'N/A')
+    local sqlVehicleId = tonumber(data.sqlVehicleId or 0) or 0
 
     DeleteEntity(data.entity)
 
@@ -498,7 +566,42 @@ local function deleteVehicle(data)
     markDirty()
     sendVsDataWatchers()
 
+    if reason then
+        print(('[DRIFTZONE_VS] Auto DV #%s | SQL %s | %s | %s | %s'):format(spawnId, sqlVehicleId, model, plate, tostring(reason)))
+    end
+
     return true
+end
+
+
+local function scanAbandonedVehicles()
+    local cfg = Config.AbandonedAutoDV or {}
+    if cfg.enabled == false then return end
+
+    local limit = getAbandonedSeconds()
+    local current = nowSeconds()
+    local changed = false
+
+    for spawnId, data in pairs(Vehicles) do
+        if data and entityExists(data.entity) then
+            if hasPlayerInsideVehicle(data.entity) then
+                touchVehicleActivity(data)
+            else
+                local last = tonumber(data.lastActivityAt or current) or current
+                local idle = current - last
+
+                if idle >= limit then
+                    deleteVehicle(data, ('abandoned %s seconds'):format(idle))
+                    changed = true
+                end
+            end
+        end
+    end
+
+    if changed then
+        markDirty()
+        sendVsDataWatchers()
+    end
 end
 
 local function runCommand(src, command, args)
@@ -652,6 +755,9 @@ CreateThread(function()
         for _, data in pairs(Vehicles) do
             if data and entityExists(data.entity) then
                 setState(data)
+                if hasPlayerInsideVehicle(data.entity) then
+                    touchVehicleActivity(data)
+                end
             end
         end
 
@@ -671,5 +777,15 @@ CreateThread(function()
         end
 
         Wait(Config.UpdateInterval or 1000)
+    end
+end)
+
+
+CreateThread(function()
+    Wait(2500)
+
+    while true do
+        scanAbandonedVehicles()
+        Wait(getAbandonedCheckInterval())
     end
 end)

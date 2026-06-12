@@ -4,6 +4,7 @@ local selectedVehicle = nil
 local cursorX = 0.5
 local cursorY = 0.5
 local currentGradient = nil
+local selectorMode = 'apply'
 local markerRot = 0.0
 
 local function notify(typ, msg, duration)
@@ -32,6 +33,7 @@ local function stopSelector(sendCancel)
     selecting = false
     selectedVehicle = nil
     currentGradient = nil
+    selectorMode = 'apply'
     setFocus(false)
     sendNui({ action = 'close' })
     if sendCancel then
@@ -204,9 +206,42 @@ local function applyGradientColors(vehicle, gradient, applyTo)
     end
 end
 
+local function removeGradientColors(vehicle, applyTo)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
+
+    requestVehicleControl(vehicle, 900)
+    SetVehicleModKit(vehicle, 0)
+
+    local defaultPrimary = tonumber(Config.RemoveDefaultPrimaryColor or 0) or 0
+    local defaultSecondary = tonumber(Config.RemoveDefaultSecondaryColor or 0) or 0
+    local currentPrimary, currentSecondary = GetVehicleColours(vehicle)
+
+    currentPrimary = tonumber(currentPrimary or defaultPrimary) or defaultPrimary
+    currentSecondary = tonumber(currentSecondary or defaultSecondary) or defaultSecondary
+    applyTo = tostring(applyTo or 'both'):lower()
+
+    if applyTo == 'primary' then
+        ClearVehicleCustomPrimaryColour(vehicle)
+        SetVehicleColours(vehicle, defaultPrimary, currentSecondary)
+    elseif applyTo == 'secondary' then
+        ClearVehicleCustomSecondaryColour(vehicle)
+        SetVehicleColours(vehicle, currentPrimary, defaultSecondary)
+    else
+        ClearVehicleCustomPrimaryColour(vehicle)
+        ClearVehicleCustomSecondaryColour(vehicle)
+        SetVehicleColours(vehicle, defaultPrimary, defaultSecondary)
+    end
+
+    SetVehicleDirtLevel(vehicle, 0.0)
+end
+
 RegisterNetEvent('driftzone_gradients:client:startSelector', function(data)
+    selectorMode = tostring(data and data.mode or 'apply'):lower()
     currentGradient = data and data.gradient or nil
-    if not currentGradient then return notify('warning', 'Gradient invalid.') end
+
+    if selectorMode ~= 'remove' and not currentGradient then
+        return notify('warning', 'Gradient invalid.')
+    end
 
     CreateThread(function()
         waitUiReady(1500)
@@ -214,19 +249,37 @@ RegisterNetEvent('driftzone_gradients:client:startSelector', function(data)
         selectedVehicle = nil
         cursorX, cursorY = 0.5, 0.5
         setFocus(true)
-        sendNui({ action = 'selector', mainColor = (data and data.mainColor) or Config.MainColor })
-        notify('info', 'Selecteaza masina pe care vrei sa aplici gradientul.', 3500)
+        sendNui({ action = 'selector', mainColor = (data and data.mainColor) or Config.MainColor, mode = selectorMode })
+        if selectorMode == 'remove' then
+            notify('info', 'Selecteaza masina de pe care vrei sa scoti gradientul.', 3500)
+        else
+            notify('info', 'Selecteaza masina pe care vrei sa aplici gradientul.', 3500)
+        end
     end)
 end)
 
 RegisterNetEvent('driftzone_gradients:client:openApplyMenu', function(data)
     selecting = false
+    selectorMode = 'apply'
     setFocus(true)
     sendNui({
         action = 'applyMenu',
         mainColor = Config.MainColor,
         gradient = data and data.gradient or currentGradient,
         plate = data and data.plate or ''
+    })
+end)
+
+RegisterNetEvent('driftzone_gradients:client:openRemoveMenu', function(data)
+    selecting = false
+    selectorMode = 'remove'
+    setFocus(true)
+    sendNui({
+        action = 'removeMenu',
+        mainColor = Config.MainColor,
+        gradient = data and data.gradient or {},
+        plate = data and data.plate or '',
+        parts = data and data.parts or {}
     })
 end)
 
@@ -237,6 +290,16 @@ RegisterNetEvent('driftzone_gradients:client:applyGradient', function(netId, gra
     local vehicle = NetToVeh(netId)
     if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
         applyGradientColors(vehicle, gradient, tostring(applyTo or 'both'))
+    end
+end)
+
+RegisterNetEvent('driftzone_gradients:client:removeGradient', function(netId, applyTo)
+    netId = tonumber(netId or 0) or 0
+    if netId <= 0 then return end
+
+    local vehicle = NetToVeh(netId)
+    if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
+        removeGradientColors(vehicle, tostring(applyTo or 'both'))
     end
 end)
 
@@ -277,6 +340,11 @@ RegisterNUICallback('apply', function(data, cb)
     cb({ ok = true })
 end)
 
+RegisterNUICallback('remove', function(data, cb)
+    TriggerServerEvent('driftzone_gradients:server:remove', data and data.applyTo or 'both')
+    cb({ ok = true })
+end)
+
 CreateThread(function()
     while true do
         if selecting then
@@ -299,6 +367,14 @@ exports('UseGradient', function(gradientId)
     TriggerServerEvent('driftzone_gradients:server:useGradient', gradientId)
 end)
 
+exports('UseTakeGradient', function()
+    TriggerServerEvent('driftzone_gradients:server:useTakeGradient')
+end)
+
 RegisterNetEvent('driftzone_gradients:client:useGradient', function(gradientId)
     TriggerServerEvent('driftzone_gradients:server:useGradient', gradientId)
+end)
+
+RegisterNetEvent('driftzone_gradients:client:useTakeGradient', function()
+    TriggerServerEvent('driftzone_gradients:server:useTakeGradient')
 end)

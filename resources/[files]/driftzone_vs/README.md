@@ -1,37 +1,39 @@
 # DriftZone VS Optimized
 
-## Ce am optimizat
+## Ce include
 
-Nu am schimbat refresh rate-ul din config si nu am schimbat comenzile.
+- `/vs`, `/dv`, `/gotoveh`, `/bringveh`, `/fixveh` raman la fel.
+- Masinile inregistrate in tabela `vs` se verifica automat.
+- Daca o masina sta fara niciun jucator in ea mai mult decat timpul setat in config, isi ia DV singura.
+- Cand un jucator urca in masina, timer-ul se reseteaza.
+- Cand masina este adusa cu `/bringveh`, timer-ul se reseteaza ca sa nu fie stearsa imediat.
+- Se sterge si din tabela `vs` cand isi ia auto DV.
 
-### Client
-- cache pentru NetID -> entity;
-- distanta calculata cu squared distance pana trece de limita;
-- nu mai creeaza tabelul `lines` la fiecare frame;
-- coordonatele playerului se iau o singura data pe frame;
-- sterge cache-ul cand opresti VS.
+## Config
 
-### Server
-- payload cache pentru vehicle list;
-- trimite update doar la adminii care au `/vs` activ, nu la tot serverul;
-- cache scurt pentru admin data;
-- curata watchers la playerDropped;
-- DB upsert separat la intervalul existent `Config.UpdateInterval`;
-- pastreaza statebag update si tabela `vs`.
+In `config.lua`:
 
-## Comenzi
-
-```txt
-/vs
-/dv
-/gotoveh
-/bringveh
-/fixveh
+```lua
+Config.AbandonedAutoDV = {
+    enabled = true,
+    minutes = 30,
+    checkIntervalSeconds = 60,
+    printLog = true
+}
 ```
+
+`minutes` = dupa cate minute fara jucator in masina isi ia DV.
 
 ## Instalare
 
+Inlocuieste folderul:
+
+```txt
+resources/driftzone_vs
+```
+
+Apoi:
+
 ```cfg
-ensure oxmysql
-ensure driftzone_vs
+restart driftzone_vs
 ```
