@@ -315,34 +315,81 @@ RegisterNUICallback('control', function(data, cb)
     cb({ ok = true })
 end)
 
+local takingShot = false
+local shotToken = 0
+
+local function finishScreenshot(ok, message)
+    takingShot = false
+    setFocus(open == true)
+    sendNui({ action = 'shotDone' })
+
+    if ok then
+        notify('success', message or 'Screenshot salvat in Downloads / folderul ales de browser.', 5000)
+    else
+        notify('warning', message or 'Nu am putut face screenshot. Incearca din nou.', 6500)
+    end
+end
+
 RegisterNUICallback('screenshot', function(_, cb)
     if not open then cb({ ok = false }) return end
+    if takingShot then cb({ ok = false }) return end
 
-    setFocus(false)
+    takingShot = true
+    shotToken = shotToken + 1
+    local myToken = shotToken
+    local fileName = ('driftzone_%s_%s.png'):format(tostring(currentModel or 'vehicle'), tostring(os.time()))
+
     sendNui({ action = 'prepareShot' })
 
-    SetTimeout(Config.Studio.screenshotDelayMs or 220, function()
-        sendNui({
-            action = 'captureInternal',
-            encoding = Config.Studio.screenshotEncoding or 'png',
-            quality = Config.Studio.screenshotQuality or 0.95,
-            filename = ('driftzone_%s_%s.png'):format(tostring(currentModel or 'vehicle'), tostring(os.time()))
-        })
+    -- Safety timeout: daca NUI/export-ul nu raspunde, cursorul revine singur.
+    SetTimeout(Config.Studio.screenshotFailTimeoutMs or 9000, function()
+        if takingShot and shotToken == myToken then
+            finishScreenshot(false, 'Screenshot-ul nu a raspuns. Verifica consola F8 pentru erori.')
+        end
+    end)
+
+    SetTimeout(Config.Studio.screenshotDelayMs or 350, function()
+        if not open or not takingShot or shotToken ~= myToken then return end
+
+        local okExport = false
+        local okCall, err = pcall(function()
+            exports[GetCurrentResourceName()]:requestScreenshot({
+                encoding = Config.Studio.screenshotEncoding or 'png',
+                quality = Config.Studio.screenshotQuality or 0.95
+            }, function(image)
+                if not takingShot or shotToken ~= myToken then return end
+                if type(image) ~= 'string' or image == '' then
+                    finishScreenshot(false, 'Screenshot gol. Incearca din nou.')
+                    return
+                end
+
+                sendNui({
+                    action = 'downloadScreenshot',
+                    image = image,
+                    filename = fileName
+                })
+
+                -- Dam putin timp NUI-ului sa porneasca download-ul, apoi restauram cursorul.
+                SetTimeout(250, function()
+                    if takingShot and shotToken == myToken then
+                        finishScreenshot(true, 'Screenshot facut. Verifica Downloads.')
+                    end
+                end)
+            end)
+            okExport = true
+        end)
+
+        if not okCall or not okExport then
+            finishScreenshot(false, 'Screenshot intern indisponibil: ' .. tostring(err or 'export missing'))
+        end
     end)
 
     cb({ ok = true })
 end)
 
 RegisterNUICallback('shotResult', function(data, cb)
-    setFocus(open == true)
-    sendNui({ action = 'shotDone' })
-
-    if data and data.ok == true then
-        notify('success', 'Screenshot salvat in Downloads / folderul ales de browser.', 4500)
-    else
-        notify('warning', 'Nu am putut face screenshot intern. Verifica NUI/game build.', 6500)
-    end
-
+    -- Compatibilitate cu versiuni vechi de UI.
+    finishScreenshot(data and data.ok == true, data and data.error or nil)
     cb({ ok = true })
 end)
 

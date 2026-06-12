@@ -11,7 +11,8 @@ ui_page 'html/index.html'
 files {
     'html/index.html',
     'html/style.css',
-    'html/script.js'
+    'html/script.js',
+    'dist/screenshot.js'
 }
 
 shared_scripts {
@@ -24,7 +25,12 @@ server_scripts {
 }
 
 client_scripts {
+    'client/screenshot_client.js',
     'client/main.lua'
 }
 
 dependency 'oxmysql'
+dependency 'yarn'
+dependency 'webpack'
+
+webpack_config 'ui.config.js'

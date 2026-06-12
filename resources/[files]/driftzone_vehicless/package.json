@@ -1,0 +1,11 @@
+{
+  "name": "driftzone-vehicless",
+  "version": "1.0.1",
+  "private": true,
+  "dependencies": {
+    "@citizenfx/three": "^0.100.0",
+    "ts-loader": "^5.3.3",
+    "typescript": "3.2.2",
+    "webpack": "4.28.4"
+  }
+}
