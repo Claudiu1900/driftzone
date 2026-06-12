@@ -132,6 +132,59 @@ local function getNativeLiveryCountSafe(veh)
     return count
 end
 
+local function getWheelTypeSafe(veh)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then return 0 end
+    local ok, result = pcall(function() return GetVehicleWheelType(veh) end)
+    return tonumber(ok and result or 0) or 0
+end
+
+local function getModLabelSafe(veh, modType, index, fallback)
+    if index == -1 then return 'Stock' end
+    local label = nil
+    pcall(function()
+        label = GetModTextLabel(veh, tonumber(modType) or 0, tonumber(index) or 0)
+    end)
+    local text = nil
+    if label and label ~= '' and label ~= 'NULL' then
+        pcall(function() text = GetLabelText(label) end)
+    end
+    if not text or text == '' or text == 'NULL' then
+        text = fallback or ('Option ' .. tostring((tonumber(index) or 0) + 1))
+    end
+    return tostring(text)
+end
+
+local function buildModOptions(veh, cat, count)
+    local opts = { { value = -1, label = 'Stock' } }
+    local modType = tonumber(cat.modType) or 0
+
+    if cat.type == 'wheel' then
+        local oldWheelType = getWheelTypeSafe(veh)
+        SetVehicleWheelType(veh, tonumber(cat.wheelType) or 0)
+        for i = 0, math.max(0, (tonumber(count) or 0) - 1) do
+            opts[#opts + 1] = { value = i, label = getModLabelSafe(veh, modType, i, ('Wheel ' .. tostring(i + 1))) }
+        end
+        SetVehicleWheelType(veh, oldWheelType)
+        return opts
+    end
+
+    if cat.nativeLivery == true then
+        for i = 0, math.max(0, (tonumber(count) or 0) - 1) do
+            local label = nil
+            pcall(function() label = GetLiveryName(veh, i) end)
+            local text = nil
+            if label and label ~= '' and label ~= 'NULL' then pcall(function() text = GetLabelText(label) end) end
+            if not text or text == '' or text == 'NULL' then text = getModLabelSafe(veh, modType, i, ('Livery ' .. tostring(i + 1))) end
+            opts[#opts + 1] = { value = i, label = text }
+        end
+        return opts
+    end
+
+    for i = 0, math.max(0, (tonumber(count) or 0) - 1) do
+        opts[#opts + 1] = { value = i, label = getModLabelSafe(veh, modType, i, ((cat.label or 'Option') .. ' ' .. tostring(i + 1))) }
+    end
+    return opts
+end
 
 local function extraExistsSafe(veh, extraId)
     if not veh or veh == 0 or not DoesEntityExist(veh) then return false end
@@ -185,7 +238,19 @@ local function applyExtraTuningData(veh, data)
 end
 
 local function getCategoryCount(veh, cat)
-    if not cat or cat.type ~= 'mod' then return 0 end
+    if not cat then return 0 end
+
+    if cat.type == 'wheel' then
+        local oldWheelType = getWheelTypeSafe(veh)
+        SetVehicleWheelType(veh, tonumber(cat.wheelType) or 0)
+        local count = getNumModsFast(veh, cat.modType or 23)
+        SetVehicleWheelType(veh, oldWheelType)
+        if count < 0 then count = 0 end
+        if count > 180 then count = 180 end
+        return math.floor(count)
+    end
+
+    if cat.type ~= 'mod' then return 0 end
 
     local count = getNumModsFast(veh, cat.modType)
 
@@ -252,6 +317,20 @@ local function applyOneUnsafe(veh, key, value, category)
         return
     end
 
+    if category.type == 'vehicleColor' then
+        if category.target == 'dashboard' then
+            SetVehicleDashboardColour(veh, tonumber(value) or 0)
+        elseif category.target == 'interior' then
+            SetVehicleInteriorColour(veh, tonumber(value) or 0)
+        end
+        return
+    end
+
+    if category.type == 'plateIndex' then
+        SetVehicleNumberPlateTextIndex(veh, tonumber(value) or 0)
+        return
+    end
+
     if category.type == 'windowTint' then
         SetVehicleWindowTint(veh, tonumber(value) or 0)
         return
@@ -270,6 +349,17 @@ local function applyOneUnsafe(veh, key, value, category)
 
     if category.type == 'extra' then
         setExtraSafe(veh, tonumber(category.extraId) or -1, value == true)
+        return
+    end
+
+    if category.type == 'wheel' then
+        local modValue = tonumber(value) or -1
+        local wheelType = tonumber(category.wheelType) or 0
+        SetVehicleWheelType(veh, wheelType)
+        SetVehicleMod(veh, 23, modValue, false)
+        if IsThisModelABike(GetEntityModel(veh)) then
+            SetVehicleMod(veh, 24, modValue, false)
+        end
         return
     end
 
@@ -311,6 +401,9 @@ local function resetVehicle(veh)
     SetVehicleWindowTint(veh, 0)
     ToggleVehicleMod(veh, 18, false)
     ToggleVehicleMod(veh, 22, false)
+    SetVehicleWheelType(veh, 0)
+    SetVehicleMod(veh, 23, -1, false)
+    if IsThisModelABike(GetEntityModel(veh)) then SetVehicleMod(veh, 24, -1, false) end
 
     for i = 1, #Config.Categories do
         local cat = Config.Categories[i]
@@ -367,7 +460,7 @@ local function buildAvailableCategories(veh, categories)
     for i = 1, #(categories or {}) do
         local cat = categories[i]
 
-        if cat.type == 'mod' then
+        if cat.type == 'mod' or cat.type == 'wheel' then
             local count = getCategoryCount(veh, cat)
 
             if count > 0 then
@@ -378,7 +471,8 @@ local function buildAvailableCategories(veh, categories)
                 end
 
                 copy.count = count
-                copy.realCount = getNumModsFast(veh, cat.modType)
+                copy.realCount = cat.type == 'wheel' and count or getNumModsFast(veh, cat.modType)
+                copy.options = buildModOptions(veh, cat, count)
                 if cat.nativeLivery == true then
                     copy.nativeLiveryCount = getNativeLiveryCountSafe(veh)
                 end
@@ -391,7 +485,7 @@ local function buildAvailableCategories(veh, categories)
                 copy[k] = v
             end
 
-            copy.count = cat.type == 'toggle' and 2 or 0
+            copy.count = (cat.type == 'toggle' or cat.type == 'extra') and 2 or 0
             out[#out + 1] = copy
         end
     end
@@ -429,6 +523,11 @@ local function captureCurrentTuning(veh, categories)
                 local pearl, wheel = GetVehicleExtraColours(veh)
                 if cat.key == 'pearlescentColor' then captured[cat.key] = tonumber(pearl or 0) or 0 end
                 if cat.key == 'wheelColor' then captured[cat.key] = tonumber(wheel or 0) or 0 end
+            elseif cat.type == 'vehicleColor' then
+                if cat.target == 'dashboard' then captured[cat.key] = tonumber(GetVehicleDashboardColour(veh) or 0) or 0 end
+                if cat.target == 'interior' then captured[cat.key] = tonumber(GetVehicleInteriorColour(veh) or 0) or 0 end
+            elseif cat.type == 'plateIndex' then
+                captured[cat.key] = tonumber(GetVehicleNumberPlateTextIndex(veh) or 0) or 0
             elseif cat.type == 'windowTint' then
                 captured[cat.key] = tonumber(GetVehicleWindowTint(veh) or 0) or 0
             elseif cat.type == 'xenonColor' then
@@ -437,6 +536,11 @@ local function captureCurrentTuning(veh, categories)
                 captured[cat.key] = IsToggleModOn(veh, tonumber(cat.modType) or 18) == true
             elseif cat.type == 'extra' then
                 captured[cat.key] = isExtraOnSafe(veh, tonumber(cat.extraId) or -1)
+            elseif cat.type == 'wheel' then
+                local currentWheelType = getWheelTypeSafe(veh)
+                if currentWheelType == (tonumber(cat.wheelType) or 0) then
+                    captured[cat.key] = tonumber(GetVehicleMod(veh, 23) or -1) or -1
+                end
             elseif cat.type == 'mod' then
                 local value = tonumber(GetVehicleMod(veh, tonumber(cat.modType) or 0) or -1) or -1
                 if cat.nativeLivery == true then
@@ -608,6 +712,23 @@ RegisterNUICallback('preview', function(data, cb)
 
     if veh ~= 0 and cat then
         local value = data.value
+
+        if cat.type == 'wheel' then
+            for k in pairs(currentTuning) do
+                if tostring(k):match('^wheels_') and k ~= key then
+                    currentTuning[k] = nil
+                end
+            end
+            local filtered = {}
+            for i = 1, #pendingChanges do
+                local item = pendingChanges[i]
+                if not tostring(item.key or ''):match('^wheels_') or item.key == key then
+                    filtered[#filtered + 1] = item
+                end
+            end
+            pendingChanges = filtered
+        end
+
         currentTuning[key] = value
 
         local found = false

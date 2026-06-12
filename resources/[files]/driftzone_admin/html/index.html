@@ -67,6 +67,20 @@
         <div id="ownedStatus" class="status"></div>
     </div>
 
+
+
+    <div id="confirmModal" class="confirm-modal hidden">
+        <div class="confirm-box">
+            <div id="confirmTitle" class="confirm-title">Confirmare</div>
+            <div id="confirmMessage" class="confirm-message">Esti sigur?</div>
+            <input id="confirmInput" class="confirm-input hidden" placeholder="UID">
+            <div class="confirm-actions">
+                <button id="confirmCancel" class="ghost" onclick="confirmModalCancel()">RENUNTA</button>
+                <button id="confirmOk" class="danger" onclick="confirmModalOk()">CONFIRMA</button>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>

@@ -728,6 +728,32 @@ local function logAdminCommand(src, command, args, status, message)
     log('admin_command_logs', payload)
 end
 
+
+local function logVehiclePanelAction(src, action, status, details)
+    local adminData = nil
+    pcall(function() adminData = getAdminData(src) end)
+    local payload = {
+        admin_uid = adminData and adminData.uid or getUid(src) or 0,
+        admin_name = adminData and adminData.username or getPlayerNameSafe(src),
+        admin_level = adminData and adminData.level or 0,
+        action = tostring(action or ''),
+        status = tostring(status or 'unknown'),
+        details = details or {},
+        created_at = os.date('%Y-%m-%d %H:%M:%S')
+    }
+    pcall(function()
+        MySQL.insert.await('INSERT INTO `admin_vehicle_logs` (`admin_uid`, `admin_name`, `admin_level`, `action`, `status`, `details`) VALUES (?, ?, ?, ?, ?, ?)', {
+            payload.admin_uid,
+            payload.admin_name,
+            payload.admin_level,
+            payload.action,
+            payload.status,
+            jsonSafe(payload.details)
+        })
+    end)
+    log('admin_vehicle_logs', payload)
+end
+
 local function sanitizePlate(value)
     return tostring(value or '')
         :upper()
@@ -2260,6 +2286,7 @@ RegisterNetEvent('driftzone_admin:server:addCarSubmit', function(payload)
     if err then
         TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, err)
         logAdminCommand(src, 'addveh', payload, 'failed', err)
+        logVehiclePanelAction(src, 'addveh', 'failed', { error = err, payload = payload })
         return
     end
 
@@ -2268,6 +2295,7 @@ RegisterNetEvent('driftzone_admin:server:addCarSubmit', function(payload)
         local msg = 'Exista deja o masina cu acest model ID.'
         TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, msg)
         logAdminCommand(src, 'addveh', normalized, 'failed', msg)
+        logVehiclePanelAction(src, 'addveh', 'failed', { error = msg, payload = normalized })
         return
     end
 
@@ -2291,11 +2319,13 @@ RegisterNetEvent('driftzone_admin:server:addCarSubmit', function(payload)
         local msg = tostring(insertIdOrErr)
         TriggerClientEvent('driftzone_admin:client:addCarResult', src, false, 'Eroare DB la adaugare masina.')
         logAdminCommand(src, 'addveh', normalized, 'error', msg)
+        logVehiclePanelAction(src, 'addveh', 'error', { error = msg, payload = normalized })
         return
     end
 
     TriggerClientEvent('driftzone_admin:client:addCarResult', src, true, ('Masina a fost adaugata cu ID %s.'):format(insertIdOrErr or '?'))
     logAdminCommand(src, 'addveh', normalized, 'success', ('insert id %s'):format(insertIdOrErr or '?'))
+    logVehiclePanelAction(src, 'addveh', 'success', { insertId = insertIdOrErr, payload = normalized })
 end)
 
 
@@ -2307,9 +2337,13 @@ RegisterNetEvent('driftzone_admin:server:configVehSave', function(id, payload)
     local ok, err = updateVehiclename(id, payload or {})
     if not ok then
         TriggerClientEvent('driftzone_admin:client:adminPanelResult', src, false, err or 'Nu s-a putut salva masina.')
+        logAdminCommand(src, 'configveh_save', { id = id, payload = payload }, 'failed', err or 'save failed')
+        logVehiclePanelAction(src, 'configveh_save', 'failed', { id = id, error = err, payload = payload })
         return
     end
     TriggerClientEvent('driftzone_admin:client:adminPanelResult', src, true, 'Masina a fost salvata.')
+    logAdminCommand(src, 'configveh_save', { id = id, payload = payload }, 'success', 'vehicle config saved')
+    logVehiclePanelAction(src, 'configveh_save', 'success', { id = id, payload = payload })
     openConfigVeh(src)
 end)
 
@@ -2320,9 +2354,13 @@ RegisterNetEvent('driftzone_admin:server:configVehDelete', function(id)
     local ok, err = deleteVehiclename(id)
     if not ok then
         TriggerClientEvent('driftzone_admin:client:adminPanelResult', src, false, err or 'Nu s-a putut sterge masina.')
+        logAdminCommand(src, 'configveh_delete', { id = id }, 'failed', err or 'delete failed')
+        logVehiclePanelAction(src, 'configveh_delete', 'failed', { id = id, error = err })
         return
     end
     TriggerClientEvent('driftzone_admin:client:adminPanelResult', src, true, 'Masina a fost stearsa din vehiclenames.')
+    logAdminCommand(src, 'configveh_delete', { id = id }, 'success', 'vehicle config deleted')
+    logVehiclePanelAction(src, 'configveh_delete', 'success', { id = id })
     openConfigVeh(src)
 end)
 
@@ -2343,6 +2381,8 @@ RegisterNetEvent('driftzone_admin:server:ownedVehAction', function(action, uid, 
         local ent = findSpawnedOwnedVehicle(vehicleId)
         if ent then DeleteEntity(ent) end
         notify(src, 'info', ('Masina SQL ID %s a fost stearsa.'):format(vehicleId))
+        logAdminCommand(src, 'vehs_take', { uid, vehicleId }, 'success', 'owned vehicle deleted')
+        logVehiclePanelAction(src, 'vehs_take', 'success', { uid = uid, vehicleId = vehicleId, model = row.vehicle_model, plate = row.vehicle_plate })
         refreshOwnedVehs(src, uid)
         return
     end
@@ -2354,6 +2394,8 @@ RegisterNetEvent('driftzone_admin:server:ownedVehAction', function(action, uid, 
         local ent = findSpawnedOwnedVehicle(vehicleId)
         if ent then Entity(ent).state:set('dz_garage_owner_uid', newUid, true) end
         notify(src, 'info', ('Masina SQL ID %s a fost transferata la UID %s.'):format(vehicleId, newUid))
+        logAdminCommand(src, 'vehs_transfer', { uid, vehicleId, newUid }, 'success', 'owned vehicle transferred')
+        logVehiclePanelAction(src, 'vehs_transfer', 'success', { oldUid = uid, newUid = newUid, vehicleId = vehicleId, model = row.vehicle_model, plate = row.vehicle_plate })
         openOwnedVehs(src, newUid)
         return
     end
@@ -2363,6 +2405,8 @@ RegisterNetEvent('driftzone_admin:server:ownedVehAction', function(action, uid, 
         if ent then
             bringEntityToAdmin(src, ent)
             notify(src, 'info', 'Masina era deja spawnata, ti-am adus-o la tine.')
+            logAdminCommand(src, 'vehs_spawn', { uid, vehicleId }, 'success', 'already spawned, brought to admin')
+            logVehiclePanelAction(src, 'vehs_spawn_bring_existing', 'success', { uid = uid, vehicleId = vehicleId, model = row.vehicle_model, plate = row.vehicle_plate })
             refreshOwnedVehs(src, uid)
             return
         end
@@ -2374,6 +2418,7 @@ RegisterNetEvent('driftzone_admin:server:ownedVehAction', function(action, uid, 
             plate = tostring(row.vehicle_plate or '')
         })
         notify(src, 'info', 'Se spawneaza masina...')
+        logVehiclePanelAction(src, 'vehs_spawn_request', 'pending', { uid = uid, vehicleId = vehicleId, model = row.vehicle_model, plate = row.vehicle_plate })
         return
     end
 
@@ -2383,6 +2428,8 @@ RegisterNetEvent('driftzone_admin:server:ownedVehAction', function(action, uid, 
         local coords = GetEntityCoords(ent)
         local ped = GetPlayerPed(src)
         SetEntityCoords(ped, coords.x + 2.0, coords.y, coords.z + 0.5, false, false, false, false)
+        logAdminCommand(src, 'vehs_goto', { uid, vehicleId }, 'success', 'teleported to spawned vehicle')
+        logVehiclePanelAction(src, 'vehs_goto', 'success', { uid = uid, vehicleId = vehicleId })
         return
     end
 
@@ -2390,6 +2437,8 @@ RegisterNetEvent('driftzone_admin:server:ownedVehAction', function(action, uid, 
         local ent = findSpawnedOwnedVehicle(vehicleId)
         if not ent then notify(src, 'warning', 'Masina nu este spawnata.') return end
         if bringEntityToAdmin(src, ent) then notify(src, 'info', 'Masina a fost adusa la tine.') end
+        logAdminCommand(src, 'vehs_bring', { uid, vehicleId }, 'success', 'brought spawned vehicle')
+        logVehiclePanelAction(src, 'vehs_bring', 'success', { uid = uid, vehicleId = vehicleId })
         refreshOwnedVehs(src, uid)
         return
     end
@@ -2401,9 +2450,23 @@ RegisterNetEvent('driftzone_admin:server:ownedVehSpawnResult', function(success,
     if not admin or admin.level < (Config.Commands.vehs or 6) or not admin.aduty then return end
     data = type(data) == 'table' and data or {}
     netId = tonumber(netId or 0) or 0
-    if not success or netId <= 0 then notify(src, 'warning', 'Nu s-a putut spawna masina.') return end
-    local entity = NetworkGetEntityFromNetworkId(netId)
-    if not entity or entity == 0 or not DoesEntityExist(entity) then notify(src, 'warning', 'Masina spawnata nu a fost gasita pe server.') return end
+    if not success or netId <= 0 then
+        notify(src, 'warning', 'Nu s-a putut spawna masina.')
+        logVehiclePanelAction(src, 'vehs_spawn_result', 'failed', { data = data, netId = netId, reason = 'client reported failure' })
+        return
+    end
+    local entity = 0
+    local timeout = GetGameTimer() + 6500
+    while GetGameTimer() < timeout do
+        entity = NetworkGetEntityFromNetworkId(netId)
+        if entity and entity ~= 0 and DoesEntityExist(entity) then break end
+        Wait(100)
+    end
+    if not entity or entity == 0 or not DoesEntityExist(entity) then
+        notify(src, 'warning', 'Masina a fost creata, dar serverul nu a primit entity-ul la timp.')
+        logVehiclePanelAction(src, 'vehs_spawn_result', 'failed', { data = data, netId = netId, reason = 'server entity timeout' })
+        return
+    end
     local row = getOwnedVehicle(data.vehicleId)
     if row then setOwnedVehicleState(entity, row, data.uid, admin.username) end
     pcall(function()
@@ -2429,6 +2492,8 @@ RegisterNetEvent('driftzone_admin:server:ownedVehSpawnResult', function(success,
         })
     end)
     notify(src, 'info', ('Masina SQL ID %s a fost spawnata.'):format(data.vehicleId or '?'))
+    logAdminCommand(src, 'vehs_spawn', { data.uid, data.vehicleId }, 'success', ('spawned netId %s'):format(netId))
+    logVehiclePanelAction(src, 'vehs_spawn_result', 'success', { uid = data.uid, vehicleId = data.vehicleId, model = data.model, plate = data.plate, netId = netId })
     refreshOwnedVehs(src, tonumber(data.uid or 0) or 0)
 end)
 RegisterNetEvent('driftzone_admin:server:run', function(command, args)
@@ -2586,6 +2651,27 @@ AddEventHandler('onResourceStart', function(resource)
                     PRIMARY KEY (`id`),
                     KEY `idx_admin_uid` (`admin_uid`),
                     KEY `idx_command` (`command`),
+                    KEY `idx_status` (`status`),
+                    KEY `idx_created_at` (`created_at`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ]])
+        end)
+
+
+        pcall(function()
+            MySQL.update.await([[
+                CREATE TABLE IF NOT EXISTS `admin_vehicle_logs` (
+                    `id` INT NOT NULL AUTO_INCREMENT,
+                    `admin_uid` INT NULL DEFAULT NULL,
+                    `admin_name` VARCHAR(64) NOT NULL DEFAULT '',
+                    `admin_level` INT NOT NULL DEFAULT 0,
+                    `action` VARCHAR(64) NOT NULL DEFAULT '',
+                    `status` VARCHAR(32) NOT NULL DEFAULT 'unknown',
+                    `details` LONGTEXT NULL,
+                    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (`id`),
+                    KEY `idx_admin_uid` (`admin_uid`),
+                    KEY `idx_action` (`action`),
                     KEY `idx_status` (`status`),
                     KEY `idx_created_at` (`created_at`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4

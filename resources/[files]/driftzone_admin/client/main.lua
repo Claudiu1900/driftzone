@@ -227,7 +227,16 @@ RegisterNetEvent('driftzone_admin:client:spawnOwnedVehicle', function(data)
     SetVehicleEngineHealth(veh, 1000.0)
     SetVehicleBodyHealth(veh, 1000.0)
     local netId = VehToNet(veh)
-    if netId and netId > 0 then SetNetworkIdCanMigrate(netId, true) end
+    local netTimeout = GetGameTimer() + 5000
+    while (not netId or netId == 0 or not NetworkDoesNetworkIdExist(netId)) and GetGameTimer() < netTimeout do
+        Wait(50)
+        netId = VehToNet(veh)
+    end
+    if netId and netId > 0 then
+        SetNetworkIdCanMigrate(netId, true)
+        SetNetworkIdExistsOnAllMachines(netId, true)
+    end
+    Wait(350)
     TriggerServerEvent('driftzone_admin:server:ownedVehSpawnResult', true, data, netId or 0)
 end)
 

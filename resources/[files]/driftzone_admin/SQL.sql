@@ -34,3 +34,20 @@ ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `type` VARCHAR(20) NOT NULL 
 ALTER TABLE `vehiclenames` ADD COLUMN IF NOT EXISTS `image` TEXT NULL;
 
 ALTER TABLE `ownedvehicles` ADD COLUMN IF NOT EXISTS `gradient` INT NOT NULL DEFAULT 0;
+
+
+CREATE TABLE IF NOT EXISTS `admin_vehicle_logs` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `admin_uid` INT NULL DEFAULT NULL,
+  `admin_name` VARCHAR(64) NOT NULL DEFAULT '',
+  `admin_level` INT NOT NULL DEFAULT 0,
+  `action` VARCHAR(64) NOT NULL DEFAULT '',
+  `status` VARCHAR(32) NOT NULL DEFAULT 'unknown',
+  `details` LONGTEXT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_admin_uid` (`admin_uid`),
+  KEY `idx_action` (`action`),
+  KEY `idx_status` (`status`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

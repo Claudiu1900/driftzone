@@ -5,6 +5,7 @@ let currentCoords = '';
 let configVehicles = [];
 let ownedVehicles = [];
 let ownedUid = 0;
+let modalCallback = null;
 
 const SUBS = {
     DRIFT: ['starter', 'drifter', 'jdm_legends'],
@@ -15,11 +16,36 @@ const SUBS = {
 function nui(name, data = {}) { fetch(`https://${GetParentResourceName()}/${name}`, { method:'POST', headers:{'Content-Type':'application/json; charset=UTF-8'}, body:JSON.stringify(data)}).catch(()=>{}); }
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
 function closePanels(){panels.forEach(p=>p.classList.add('hidden'));}
-function closeAll(){closePanels();nui('closePanel');}
+function closeAll(){hideModal();closePanels();nui('closePanel');}
 function showPanel(id){closePanels();$(id).classList.remove('hidden');}
 function num(v){return Number(v||0).toLocaleString('ro-RO');}
 function money(row){return Number(row.dzcoins_price||0)>0 ? `${num(row.dzcoins_price)} DZC` : `$${num(row.price||0)}`;}
 function bool(v){return Number(v||0)===1 || v===true;}
+
+function showModal(title, message, options = {}) {
+    const modal = $('confirmModal');
+    if (!modal) return;
+    $('confirmTitle').textContent = title || 'Confirmare';
+    $('confirmMessage').textContent = message || 'Esti sigur?';
+    const input = $('confirmInput');
+    input.value = '';
+    input.placeholder = options.placeholder || '';
+    input.classList.toggle('hidden', options.input !== true);
+    $('confirmOk').textContent = options.okText || 'CONFIRMA';
+    $('confirmCancel').textContent = options.cancelText || 'RENUNTA';
+    modalCallback = typeof options.onConfirm === 'function' ? options.onConfirm : null;
+    modal.classList.remove('hidden');
+    setTimeout(() => { if (options.input === true) input.focus(); else $('confirmOk').focus(); }, 60);
+}
+function hideModal(){ const modal=$('confirmModal'); if(modal) modal.classList.add('hidden'); modalCallback=null; }
+function confirmModalOk(){
+    const input = $('confirmInput');
+    const value = input ? input.value.trim() : '';
+    const fn = modalCallback;
+    hideModal();
+    if (fn) fn(value);
+}
+function confirmModalCancel(){ hideModal(); }
 
 async function copyText(text){ try{await navigator.clipboard.writeText(text); $('status').textContent='Coordonatele au fost copiate.';}catch(e){$('coordsInput').select();document.execCommand('copy');} }
 function showCoords(data={}){currentCoords=String(data.coords||'');$('coordsInput').value=currentCoords;$('xInput').value=Number(data.x||0).toFixed(6);$('yInput').value=Number(data.y||0).toFixed(6);$('zInput').value=Number(data.z||0).toFixed(6);$('headingInput').value=Number(data.heading||0).toFixed(2);$('dimensionInput').value=Number(data.dimension||0);showPanel('coordsPanel');setTimeout(()=>copyText(currentCoords),100);}
@@ -55,7 +81,7 @@ function hydrateConfigSubs(){configVehicles.forEach(v=>{const id=Number(v.id||0)
 const oldRenderConfigVeh = renderConfigVeh; renderConfigVeh=function(){oldRenderConfigVeh();setTimeout(hydrateConfigSubs,0);};
 function cfgPayload(id){return {model:$(`cfg${id}ModelInput`).value.trim(),name:$(`cfg${id}NameInput`).value.trim(),price:Number($(`cfg${id}PriceInput`).value||0),dzcoins_price:Number($(`cfg${id}DzcoinsInput`).value||0),category:Number($(`cfg${id}CategoryInput`).value||1),showroom_section:$(`cfg${id}SectionInput`).value,showroom_subcategory:$(`cfg${id}SubcategoryInput`).value,vip:Number($(`cfg${id}VipInput`).value||0),apear:Number($(`cfg${id}ApearInput`).value||1),selling:Number($(`cfg${id}SellingInput`).value||1),tradeble:Number($(`cfg${id}TradebleInput`).value||1),tunable:Number($(`cfg${id}TunableInput`).value||1),type:$(`cfg${id}TypeInput`).value,image:$(`cfg${id}ImageInput`).value.trim()};}
 function saveConfigVeh(id){nui('configVehSave',{id,payload:cfgPayload(id)});$('configStatus').textContent='Se salveaza...';}
-function deleteConfigVeh(id){if(!confirm(`Stergi masina din vehiclenames ID ${id}?`))return;nui('configVehDelete',{id});$('configStatus').textContent='Se sterge...';}
+function deleteConfigVeh(id){showModal('Stergere vehiclenames', `Stergi masina din vehiclenames ID ${id}?`, { okText:'STERGE', onConfirm:()=>{nui('configVehDelete',{id});$('configStatus').textContent='Se sterge...';} });}
 
 function showOwnedVehs(data={}){ownedUid=Number(data.uid||0);ownedVehicles=Array.isArray(data.vehicles)?data.vehicles:[];$('ownedTitle').textContent=`VEHS UID ${ownedUid}`;showPanel('ownedVehPanel');renderOwnedVehs();}
 function renderOwnedVehs(){const q=String($('ownedSearch').value||'').toLowerCase().trim();const list=ownedVehicles.filter(v=>!q||`${v.id} ${v.name} ${v.model} ${v.plate} ${v.gradient}`.toLowerCase().includes(q));$('ownedList').innerHTML=list.map(v=>ownedCard(v)).join('')||'<div class="empty">UID-ul nu are masini.</div>';}
@@ -64,8 +90,8 @@ function ownedCard(v){const spawned=bool(v.spawned);const img=String(v.image||''
  <div class="owned-actions"><button onclick="ownedAction('spawn',${v.id})">${spawned?'BRING':'SPAWN'}</button>${spawned?`<button onclick="ownedAction('goto',${v.id})">GO TO</button><button onclick="ownedAction('bring',${v.id})">BRING</button>`:''}<button onclick="transferOwned(${v.id})">TRANSFER</button><button class="danger" onclick="takeOwned(${v.id})">TAKE</button></div>
  </div>`;}
 function ownedAction(action,id,extra={}){nui('ownedVehAction',{action,uid:ownedUid,vehicleId:id,extra});$('ownedStatus').textContent='Se executa...';}
-function takeOwned(id){if(!confirm(`Esti sigur ca stergi masina SQL ID ${id}?`))return;ownedAction('take',id);}
-function transferOwned(id){const target=prompt('UID nou owner:');if(!target)return;ownedAction('transfer',id,{targetUid:Number(target)});}
+function takeOwned(id){showModal('Stergere masina', `Esti sigur ca stergi masina SQL ID ${id}?`, { okText:'STERGE', onConfirm:()=>ownedAction('take',id) });}
+function transferOwned(id){showModal('Transfer masina', `Introdu UID-ul noului owner pentru masina SQL ID ${id}.`, { input:true, placeholder:'UID nou owner', okText:'TRANSFERA', onConfirm:(target)=>{const uid=Number(target); if(!uid||uid<=0){$('ownedStatus').textContent='UID invalid.';$('ownedStatus').className='status error';return;} ownedAction('transfer',id,{targetUid:uid});} });}
 function panelResult(data){const el = $('configVehPanel').classList.contains('hidden') ? $('ownedStatus') : $('configStatus');el.textContent=data.message||'';el.className='status '+(data.ok?'success':'error');}
 
 window.addEventListener('message', (event)=>{const data=event.data||{}; if(data.action==='coords')showCoords(data.data||{}); if(data.action==='addVeh')showAddVeh(data.data||{}); if(data.action==='addVehResult'||data.action==='addCarResult')addVehResult(data); if(data.action==='configVeh')showConfigVeh(data.data||{}); if(data.action==='ownedVehs')showOwnedVehs(data.data||{}); if(data.action==='panelResult')panelResult(data);});
