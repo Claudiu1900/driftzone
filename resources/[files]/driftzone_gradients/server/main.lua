@@ -530,8 +530,9 @@ RegisterNetEvent('driftzone_gradients:server:remove', function(applyTo)
         return notify(src, 'warning', 'Selectia a expirat.')
     end
 
-    applyTo = tostring(applyTo or 'both'):lower()
-    if applyTo ~= 'primary' and applyTo ~= 'secondary' and applyTo ~= 'both' then applyTo = 'both' end
+    -- Scoaterea gradientului este mereu completa: primary + secondary.
+    -- UI-ul nu mai arata optiuni separate pentru primary/secondary.
+    applyTo = 'both'
 
     local uid = getUid(src)
     local vdata = getVehicleStateData(session.selectedNetId)

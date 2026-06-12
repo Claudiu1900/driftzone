@@ -64,14 +64,12 @@ function renderRemoveMenu(data) {
     modeText.textContent = 'DRIFTZONE REMOVE GRADIENT';
     gradientName.textContent = 'Scoate gradient';
     plateText.textContent = data.plate ? `Plate ${data.plate}` : 'Vehicle selected';
-    question.textContent = 'Scoate gradientul de pe:';
+    question.textContent = 'Scoate gradientul complet de pe masina:';
 
     const parts = data.parts || {};
-    if (parts.primary) button('Culoare Principala', 'primary', false);
-    if (parts.secondary) button('Culoare Secundara', 'secondary', false);
-    if (parts.both) button('Ambele', 'both', true);
-
-    if (!parts.primary && !parts.secondary && !parts.both) {
+    if (parts.primary || parts.secondary || parts.both) {
+        button('Scoate gradient', 'both', true);
+    } else {
         const empty = document.createElement('div');
         empty.className = 'empty';
         empty.textContent = 'Masina nu are gradient disponibil.';

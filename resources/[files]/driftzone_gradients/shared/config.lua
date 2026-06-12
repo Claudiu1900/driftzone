@@ -28,7 +28,7 @@ Config.VehicleScreenPaddingY = 0.075
 Config.Marker = {
     enabled = true,
     type = 2,
-    zOffset = 2.15,
+    zOffset = 0.65,
     size = 0.38,
     r = 4,
     g = 199,
@@ -58,7 +58,7 @@ Config.Gradients = {
     [14] = { id = 14, label = 'Chromatic Aberration', type = 'chameleon', colorId = 236, originalRamp = 174 },
     [15] = { id = 15, label = 'Its Christmas!', type = 'chameleon', colorId = 237, originalRamp = 175 },
     [16] = { id = 16, label = 'Blue Monochrome', type = 'chameleon', colorId = 238, originalRamp = 176, rampTexture = 'vehicle_paint_ramps_16' },
-    [17] = { id = 17, label = 'Custom Gradient 17', type = 'chameleon', colorId = 239, originalRamp = 177, rampTexture = 'vehicle_paint_ramps_17' },
+    [17] = { id = 17, label = 'Purple Monochrome', type = 'chameleon', colorId = 239, originalRamp = 177, rampTexture = 'vehicle_paint_ramps_17' },
 }
 
 -- Item/comanda pentru scoaterea gradientului.

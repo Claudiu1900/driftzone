@@ -2,21 +2,16 @@
 
 Sistem DriftZone pentru aplicarea si scoaterea vopselelor chameleon/gradient reale pe vehicule.
 
-## Nou
+## Update nou
 
-- Item/comanda `takegradient` pentru scoaterea gradientului.
-- Cand folosesti `takegradient`, selectezi masina exact ca la aplicare.
-- Dupa selectare apare UI cu `Scoate gradient`.
-- Apar doar partile care au gradient:
-  - `Culoare Principala` doar daca primary are gradient;
-  - `Culoare Secundara` doar daca secondary are gradient;
-  - `Ambele` doar daca exista pe ambele.
-- La confirmare:
-  - scoate itemul `takegradient` din inventar;
-  - sterge gradientul de pe masina;
-  - da inapoi itemul gradientului, de exemplu `17_gradient`;
-  - actualizeaza `ownedvehicles.gradient`;
-  - adauga log in `gradient_logs` cu `mode = remove`.
+- `takegradient` nu mai intreaba primary / secondary / ambele.
+- Cand folosesti itemul/comanda `takegradient`, selectezi masina si apare un singur buton: `Scoate gradient`.
+- Scoate automat gradientul complet de pe masina, adica primary + secondary.
+- Daca masina are acelasi gradient pe ambele culori, primesti inapoi un singur item, de exemplu `17_gradient`.
+- Daca masina are gradient diferit pe primary si secondary, primesti inapoi ambele iteme.
+- Sageata/markerul de selectie este coborat mai aproape de masina.
+- Scoate itemul `takegradient` doar dupa confirmare si dupa ce masina are gradient valid.
+- Actualizeaza `ownedvehicles.gradient` si adauga log in `gradient_logs` cu `mode = remove`.
 
 ## Comenzi
 
@@ -26,8 +21,6 @@ Sistem DriftZone pentru aplicarea si scoaterea vopselelor chameleon/gradient rea
 ```
 
 ## Trigger / export pentru inventory
-
-Daca vrei sa porneasca direct cand folosesti itemul din inventory:
 
 ```lua
 TriggerServerEvent('driftzone_gradients:server:useTakeGradient')
@@ -39,7 +32,7 @@ sau server-side:
 exports.driftzone_gradients:OpenTakeGradient(source)
 ```
 
-Pentru gradient normal ramane:
+Pentru gradient normal:
 
 ```lua
 exports.driftzone_gradients:OpenGradient(source, 17)
