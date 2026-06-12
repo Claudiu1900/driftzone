@@ -2,11 +2,16 @@ local open = false
 local studioVehicle = 0
 local studioCam = nil
 local currentModel = nil
+local playerWasVisible = true
+local playerWasFrozen = false
+
 local currentSettings = {
     heading = 45.0,
+    cameraHeading = 45.0,
     fov = 47.0,
     distance = 7.2,
     height = 1.15,
+    lookHeight = 0.65,
     autoRotate = false,
     lights = true,
     doors = false
@@ -32,6 +37,41 @@ local function clamp(value, min, max)
     return value
 end
 
+local function cleanModel(value)
+    return tostring(value or ''):lower():gsub('%s+', ''):gsub('[^%w_%-]', '')
+end
+
+local function placePlayerOutOfView()
+    local ped = PlayerPedId()
+    local c = Config.Studio.coords
+    local offset = Config.Studio.playerOffset or { x = 0.0, y = 0.0, z = 22.0 }
+    playerWasVisible = IsEntityVisible(ped)
+    playerWasFrozen = IsEntityPositionFrozen and IsEntityPositionFrozen(ped) or false
+
+    SetEntityCoords(ped, c.x + (offset.x or 0.0), c.y + (offset.y or 0.0), c.z + (offset.z or 22.0), false, false, false, false)
+    FreezeEntityPosition(ped, true)
+    SetEntityCollision(ped, false, false)
+
+    if Config.Studio.hidePlayer ~= false then
+        SetEntityVisible(ped, false, false)
+    end
+end
+
+local function restorePlayer()
+    local ped = PlayerPedId()
+    FreezeEntityPosition(ped, false)
+    SetEntityCollision(ped, true, true)
+    SetEntityVisible(ped, true, false)
+end
+
+local function deleteCurrentVehicle()
+    if studioVehicle and studioVehicle ~= 0 and DoesEntityExist(studioVehicle) then
+        SetEntityAsMissionEntity(studioVehicle, true, true)
+        DeleteEntity(studioVehicle)
+        studioVehicle = 0
+    end
+end
+
 local function destroyStudio()
     open = false
     currentModel = nil
@@ -42,13 +82,8 @@ local function destroyStudio()
         studioCam = nil
     end
 
-    if studioVehicle and studioVehicle ~= 0 and DoesEntityExist(studioVehicle) then
-        SetEntityAsMissionEntity(studioVehicle, true, true)
-        DeleteEntity(studioVehicle)
-        studioVehicle = 0
-    end
-
-    FreezeEntityPosition(PlayerPedId(), false)
+    deleteCurrentVehicle()
+    restorePlayer()
     setFocus(false)
     sendNui({ action = 'close' })
 end
@@ -58,18 +93,19 @@ local function updateCamera()
     if not studioCam then return end
 
     local coords = GetEntityCoords(studioVehicle)
-    local heading = GetEntityHeading(studioVehicle)
-    local rad = math.rad(heading)
+    local cameraHeading = tonumber(currentSettings.cameraHeading or Config.Studio.cameraHeading or Config.Studio.heading or 45.0) or 45.0
+    local rad = math.rad(cameraHeading)
     local dist = currentSettings.distance or Config.Studio.defaultDistance
     local height = currentSettings.height or Config.Studio.defaultHeight
+    local lookHeight = currentSettings.lookHeight or Config.Studio.defaultLookHeight or 0.65
 
-    -- Camera in fata masinii.
+    -- Camera ramane fixa. Nu mai urmareste rotatia masinii.
     local camX = coords.x + -math.sin(rad) * dist
     local camY = coords.y + math.cos(rad) * dist
     local camZ = coords.z + height
 
     SetCamCoord(studioCam, camX, camY, camZ)
-    PointCamAtCoord(studioCam, coords.x, coords.y, coords.z + 0.65)
+    PointCamAtCoord(studioCam, coords.x, coords.y, coords.z + lookHeight)
     SetCamFov(studioCam, currentSettings.fov or Config.Studio.defaultFov)
 end
 
@@ -112,9 +148,27 @@ local function applyVehicleLook()
     end
 end
 
-local function spawnStudioVehicle(modelName)
-    modelName = tostring(modelName or ''):lower()
+local function resetSettings(fullReset)
+    local s = Config.Studio
+    currentSettings.heading = s.heading or 45.0
+    currentSettings.cameraHeading = s.cameraHeading or s.heading or 45.0
+    currentSettings.fov = s.defaultFov or 47.0
+    currentSettings.distance = s.defaultDistance or 7.2
+    currentSettings.height = s.defaultHeight or 1.15
+    currentSettings.lookHeight = s.defaultLookHeight or 0.65
+    currentSettings.autoRotate = false
+    currentSettings.lights = true
+    currentSettings.doors = false
+end
+
+local function spawnStudioVehicle(modelName, keepView)
+    modelName = cleanModel(modelName)
     local hash = joaat(modelName)
+
+    if modelName == '' then
+        notify('warning', 'Scrie modelul masinii.')
+        return false
+    end
 
     if not IsModelInCdimage(hash) or not IsModelAVehicle(hash) then
         notify('warning', 'Model invalid: ' .. modelName)
@@ -122,7 +176,7 @@ local function spawnStudioVehicle(modelName)
     end
 
     RequestModel(hash)
-    local timeout = GetGameTimer() + 9000
+    local timeout = GetGameTimer() + (Config.Studio.modelLoadTimeoutMs or 9000)
     while not HasModelLoaded(hash) do
         Wait(0)
         if GetGameTimer() > timeout then
@@ -131,14 +185,10 @@ local function spawnStudioVehicle(modelName)
         end
     end
 
-    if studioVehicle ~= 0 and DoesEntityExist(studioVehicle) then
-        SetEntityAsMissionEntity(studioVehicle, true, true)
-        DeleteEntity(studioVehicle)
-        studioVehicle = 0
-    end
+    deleteCurrentVehicle()
 
     local c = Config.Studio.coords
-    studioVehicle = CreateVehicle(hash, c.x, c.y, c.z, Config.Studio.heading or 45.0, false, false)
+    studioVehicle = CreateVehicle(hash, c.x, c.y, c.z, currentSettings.heading or Config.Studio.heading or 45.0, false, false)
     SetModelAsNoLongerNeeded(hash)
 
     if not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle) then
@@ -147,13 +197,7 @@ local function spawnStudioVehicle(modelName)
     end
 
     currentModel = modelName
-    currentSettings.heading = Config.Studio.heading or 45.0
-    currentSettings.fov = Config.Studio.defaultFov or 47.0
-    currentSettings.distance = Config.Studio.defaultDistance or 7.2
-    currentSettings.height = Config.Studio.defaultHeight or 1.15
-    currentSettings.autoRotate = false
-    currentSettings.lights = true
-    currentSettings.doors = false
+    if not keepView then resetSettings(true) end
 
     SetEntityAsMissionEntity(studioVehicle, true, true)
     SetVehicleOnGroundProperly(studioVehicle)
@@ -164,7 +208,7 @@ local function spawnStudioVehicle(modelName)
     end
 
     SetCamActive(studioCam, true)
-    RenderScriptCams(true, true, 400, true, true)
+    RenderScriptCams(true, true, 300, true, true)
     updateCamera()
 
     return true
@@ -193,15 +237,16 @@ RegisterNetEvent('driftzone_vehicless:client:openStudio', function(data)
     data = data or {}
     local model = data.model or ''
 
-    local ok = spawnStudioVehicle(model)
-    if not ok then return end
-
-    local ped = PlayerPedId()
-    local c = Config.Studio.coords
-    SetEntityCoords(ped, c.x + 0.0, c.y - 3.0, c.z + 1.0, false, false, false, false)
-    FreezeEntityPosition(ped, true)
-
     open = true
+    resetSettings(true)
+    placePlayerOutOfView()
+
+    local ok = spawnStudioVehicle(model, true)
+    if not ok then
+        destroyStudio()
+        return
+    end
+
     setFocus(true)
     sendNui({ action = 'open', model = model, mainColor = data.mainColor or '#04c7f7' })
     updateUi()
@@ -210,6 +255,20 @@ end)
 RegisterNUICallback('close', function(_, cb)
     destroyStudio()
     cb({ ok = true })
+end)
+
+RegisterNUICallback('loadModel', function(data, cb)
+    data = data or {}
+    if not open then cb({ ok = false }) return end
+
+    local model = cleanModel(data.model)
+    local ok = spawnStudioVehicle(model, data.keepView ~= false)
+    if ok then
+        sendNui({ action = 'open', model = model, mainColor = Config.MainColor or '#04c7f7' })
+        updateUi()
+    end
+
+    cb({ ok = ok })
 end)
 
 RegisterNUICallback('control', function(data, cb)
@@ -235,6 +294,10 @@ RegisterNUICallback('control', function(data, cb)
         currentSettings.height = clamp((currentSettings.height or s.defaultHeight) - (s.heightStep or 0.12), s.minHeight or -0.2, s.maxHeight or 4.5)
     elseif action == 'height_up' then
         currentSettings.height = clamp((currentSettings.height or s.defaultHeight) + (s.heightStep or 0.12), s.minHeight or -0.2, s.maxHeight or 4.5)
+    elseif action == 'look_down' then
+        currentSettings.lookHeight = clamp((currentSettings.lookHeight or s.defaultLookHeight or 0.65) - (s.lookHeightStep or 0.10), s.minLookHeight or -0.4, s.maxLookHeight or 2.8)
+    elseif action == 'look_up' then
+        currentSettings.lookHeight = clamp((currentSettings.lookHeight or s.defaultLookHeight or 0.65) + (s.lookHeightStep or 0.10), s.minLookHeight or -0.4, s.maxLookHeight or 2.8)
     elseif action == 'auto_rotate' then
         currentSettings.autoRotate = not currentSettings.autoRotate
     elseif action == 'lights' then
@@ -242,13 +305,7 @@ RegisterNUICallback('control', function(data, cb)
     elseif action == 'doors' then
         currentSettings.doors = not currentSettings.doors
     elseif action == 'reset' then
-        currentSettings.heading = s.heading or 45.0
-        currentSettings.fov = s.defaultFov or 47.0
-        currentSettings.distance = s.defaultDistance or 7.2
-        currentSettings.height = s.defaultHeight or 1.15
-        currentSettings.autoRotate = false
-        currentSettings.lights = true
-        currentSettings.doors = false
+        resetSettings(true)
     end
 
     currentSettings.heading = currentSettings.heading % 360.0
@@ -263,7 +320,7 @@ RegisterNUICallback('screenshot', function(_, cb)
 
     local res = Config.Studio.screenshotResource or 'screenshot-basic'
     if GetResourceState(res) ~= 'started' then
-        notify('warning', 'Lipseste resource-ul screenshot-basic. Pune ensure screenshot-basic in server.cfg.')
+        notify('warning', 'Lipseste screenshot-basic. Instaleaza resource-ul si pune ensure screenshot-basic in server.cfg.')
         cb({ ok = false, error = 'screenshot-basic not started' })
         return
     end
@@ -293,9 +350,12 @@ CreateThread(function()
             if currentSettings.autoRotate then
                 currentSettings.heading = ((currentSettings.heading or 0.0) + (Config.Studio.autoRotateSpeed or 0.18)) % 360.0
                 SetEntityHeading(studioVehicle, currentSettings.heading)
+                -- Camera ramane fixa si se uita spre centru. Nu se roteste odata cu masina.
                 updateCamera()
                 if GetGameTimer() % 350 < 20 then updateUi() end
             end
+            local ped = PlayerPedId()
+            if Config.Studio.hidePlayer ~= false then SetEntityVisible(ped, false, false) end
             DisableControlAction(0, 200, true)
             DisableControlAction(0, 322, true)
             DisableControlAction(0, 24, true)

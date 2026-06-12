@@ -18,6 +18,14 @@
                 </div>
             </div>
 
+            <div class="load-box">
+                <label>LOAD VEHICLE</label>
+                <div class="load-row">
+                    <input id="modelInput" placeholder="ex: s15, rmodm4, supra" spellcheck="false">
+                    <button onclick="loadModel()">LOAD</button>
+                </div>
+            </div>
+
             <div class="stats">
                 <div><label>ROTATION</label><b id="rotationValue">45°</b></div>
                 <div><label>FOV</label><b id="fovValue">47</b></div>
@@ -26,7 +34,7 @@
             </div>
 
             <div class="group">
-                <div class="group-title">ROTATE</div>
+                <div class="group-title">ROTATE VEHICLE ONLY</div>
                 <div class="row two">
                     <button onclick="control('rotate_left')">⟲ LEFT</button>
                     <button onclick="control('rotate_right')">RIGHT ⟳</button>
@@ -45,8 +53,12 @@
                     <button onclick="control('distance_up')">ZOOM OUT</button>
                 </div>
                 <div class="row two">
-                    <button onclick="control('height_down')">LOWER</button>
-                    <button onclick="control('height_up')">HIGHER</button>
+                    <button onclick="control('height_down')">CAM LOW</button>
+                    <button onclick="control('height_up')">CAM HIGH</button>
+                </div>
+                <div class="row two">
+                    <button onclick="control('look_down')">LOOK LOW</button>
+                    <button onclick="control('look_up')">LOOK HIGH</button>
                 </div>
             </div>
 

@@ -162,3 +162,29 @@ button.active {
     from { opacity: 0; transform: translateY(-48%) translateX(-10px); }
     to { opacity: 1; transform: translateY(-50%) translateX(0); }
 }
+.load-box {
+    padding: 12px;
+    margin: 0 0 12px;
+    border: 1px solid rgba(255,255,255,.09);
+    background: rgba(255,255,255,.04);
+}
+.load-row {
+    display: grid;
+    grid-template-columns: 1fr 78px;
+    gap: 8px;
+    margin-top: 7px;
+}
+.load-row input {
+    height: 38px;
+    border: 1px solid rgba(255,255,255,.12);
+    outline: none;
+    background: rgba(0,0,0,.25);
+    color: white;
+    padding: 0 10px;
+    font-weight: 900;
+    letter-spacing: .5px;
+}
+.load-row input:focus {
+    border-color: rgba(4,199,247,.55);
+    box-shadow: 0 0 18px rgba(4,199,247,.12);
+}

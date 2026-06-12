@@ -2,6 +2,7 @@
 
 const root = document.getElementById('root');
 const modelName = document.getElementById('modelName');
+const modelInput = document.getElementById('modelInput');
 const rotationValue = document.getElementById('rotationValue');
 const fovValue = document.getElementById('fovValue');
 const distanceValue = document.getElementById('distanceValue');
@@ -24,10 +25,31 @@ function show() { root.classList.remove('hidden'); }
 function hide() { root.classList.add('hidden'); }
 function control(action) { nui('control', { action }); }
 function closePanel() { nui('close'); hide(); }
+
+function cleanModel(value) {
+    return String(value || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9_\-]/g, '');
+}
+
+function loadModel() {
+    const model = cleanModel(modelInput.value);
+    if (!model) {
+        hint.textContent = 'Scrie modelul masinii.';
+        return;
+    }
+    hint.textContent = `Se incarca ${model.toUpperCase()}...`;
+    nui('loadModel', { model, keepView: true });
+}
+
 function screenshot() {
     shotBtn.disabled = true;
     shotBtn.textContent = 'CAPTURING...';
     nui('screenshot');
+    setTimeout(() => {
+        if (shotBtn.disabled) {
+            shotBtn.disabled = false;
+            shotBtn.textContent = 'SCREENSHOT';
+        }
+    }, 5000);
 }
 
 function downloadImage(dataUrl, filename) {
@@ -42,7 +64,9 @@ function downloadImage(dataUrl, filename) {
 }
 
 function updateState(data = {}) {
-    modelName.textContent = String(data.model || 'Vehicle').toUpperCase();
+    const model = String(data.model || 'Vehicle').toUpperCase();
+    modelName.textContent = model;
+    modelInput.value = String(data.model || '').toLowerCase();
     rotationValue.textContent = `${Number(data.heading || 0).toFixed(1)}°`;
     fovValue.textContent = Number(data.fov || 0).toFixed(1);
     distanceValue.textContent = Number(data.distance || 0).toFixed(1);
@@ -53,7 +77,7 @@ function updateState(data = {}) {
     lightsBtn.classList.toggle('active', !!data.lights);
     doorsBtn.textContent = data.doors ? 'DOORS ON' : 'DOORS OFF';
     doorsBtn.classList.toggle('active', !!data.doors);
-    hint.textContent = data.screenshotReady ? 'Screenshot-ul se salvează în Downloads sau în folderul ales de browser.' : 'Pentru screenshot pornește resource-ul screenshot-basic.';
+    hint.textContent = data.screenshotReady ? 'Screenshot-ul se salvează în Downloads sau în folderul ales de browser.' : 'Pentru screenshot instalează și pornește screenshot-basic.';
 }
 
 window.addEventListener('message', (event) => {
@@ -61,19 +85,18 @@ window.addEventListener('message', (event) => {
 
     if (data.action === 'open') {
         document.documentElement.style.setProperty('--main', data.mainColor || '#04c7f7');
-        modelName.textContent = String(data.model || 'Vehicle').toUpperCase();
+        const model = String(data.model || 'Vehicle');
+        modelName.textContent = model.toUpperCase();
+        modelInput.value = model.toLowerCase();
         show();
+        setTimeout(() => modelInput.select(), 120);
     }
 
     if (data.action === 'state') updateState(data);
 
-    if (data.action === 'prepareShot') {
-        root.classList.add('shooting');
-    }
+    if (data.action === 'prepareShot') root.classList.add('shooting');
 
-    if (data.action === 'downloadScreenshot') {
-        downloadImage(data.image, data.filename);
-    }
+    if (data.action === 'downloadScreenshot') downloadImage(data.image, data.filename);
 
     if (data.action === 'shotDone') {
         root.classList.remove('shooting');
@@ -86,6 +109,7 @@ window.addEventListener('message', (event) => {
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || e.key === 'Backspace') closePanel();
+    if (e.key === 'Enter' && document.activeElement === modelInput) loadModel();
     if (e.key === 'ArrowLeft') control('rotate_left');
     if (e.key === 'ArrowRight') control('rotate_right');
     if (e.key === 'ArrowUp') control('fov_up');
