@@ -1,15 +1,28 @@
 Config = {}
 
+-- Commanda: /vehss model
 Config.Command = 'vehss'
+Config.CloseCommand = 'vehssclose'
+
+-- Daca ai notify custom, lasa asa. Semnatura folosita: TriggerEvent(event, type, duration, text)
 Config.NotifyEvent = 'client:notify'
-Config.AuthResource = 'driftzone_auth'
+Config.ChatFallback = true
 Config.MainColor = '#04c7f7'
+
+-- Auth/admin. Resource-ul NU mai are dependency hard pe oxmysql/driftzone_auth,
+-- deci comanda nu mai moare daca lipseste un resource. Doar iti da mesaj in joc.
+Config.AuthResource = 'driftzone_auth'
+Config.RequireLogin = true
+Config.UseDatabase = true
+Config.OxmysqlResource = 'oxmysql'
+Config.AllowAceFallback = true -- ace: driftzone.vehicless sau command.vehss
 
 Config.UsersTable = 'users'
 Config.UsersIdColumn = 'uid'
 Config.AdminColumn = 'admin_level'
 Config.AdminColumnFallback = 'admin'
 Config.AdutyColumn = 'aduty'
+Config.UsernameColumn = 'username'
 
 Config.AdminLevel = 6
 Config.RequireAduty = true
@@ -20,12 +33,14 @@ Config.Studio = {
     -- Rotatia initiala a masinii.
     heading = 45.0,
 
-    -- Camera ramane fixa pe aceasta directie. Nu se mai roteste cand rotesti masina.
+    -- Camera ramane fixa pe aceasta directie. Nu se roteste cu masina.
     cameraHeading = 45.0,
 
-    -- Playerul este dus sus si ascuns ca sa nu intre in poza/camera.
+    -- Playerul este dus langa studio doar ca sa se incarce zona, apoi revine exact unde era.
     hidePlayer = true,
+    freezePlayer = true,
     playerOffset = { x = 0.0, y = 0.0, z = 24.0 },
+    restorePlayerPosition = true,
 
     plate = 'DRIFTZ',
     freezeVehicle = true,
@@ -56,8 +71,10 @@ Config.Studio = {
 
     autoRotateSpeed = 0.18,
     modelLoadTimeoutMs = 9000,
-    screenshotDelayMs = 350,
-    screenshotFailTimeoutMs = 9000,
+
+    -- Screenshot integrat in NUI. Nu foloseste screenshot-basic, yarn sau webpack.
+    screenshotDelayMs = 450,
+    screenshotFailTimeoutMs = 10000,
     screenshotEncoding = 'png',
     screenshotQuality = 0.95
 }
