@@ -537,10 +537,10 @@ local function captureCurrentTuning(veh, categories)
             elseif cat.type == 'extra' then
                 captured[cat.key] = isExtraOnSafe(veh, tonumber(cat.extraId) or -1)
             elseif cat.type == 'wheel' then
-                local currentWheelType = getWheelTypeSafe(veh)
-                if currentWheelType == (tonumber(cat.wheelType) or 0) then
-                    captured[cat.key] = tonumber(GetVehicleMod(veh, 23) or -1) or -1
-                end
+                local oldWheelType = getWheelTypeSafe(veh)
+                SetVehicleWheelType(veh, tonumber(cat.wheelType) or 0)
+                captured[cat.key] = tonumber(GetVehicleMod(veh, 23) or -1) or -1
+                SetVehicleWheelType(veh, oldWheelType)
             elseif cat.type == 'mod' then
                 local value = tonumber(GetVehicleMod(veh, tonumber(cat.modType) or 0) or -1) or -1
                 if cat.nativeLivery == true then
@@ -712,23 +712,6 @@ RegisterNUICallback('preview', function(data, cb)
 
     if veh ~= 0 and cat then
         local value = data.value
-
-        if cat.type == 'wheel' then
-            for k in pairs(currentTuning) do
-                if tostring(k):match('^wheels_') and k ~= key then
-                    currentTuning[k] = nil
-                end
-            end
-            local filtered = {}
-            for i = 1, #pendingChanges do
-                local item = pendingChanges[i]
-                if not tostring(item.key or ''):match('^wheels_') or item.key == key then
-                    filtered[#filtered + 1] = item
-                end
-            end
-            pendingChanges = filtered
-        end
-
         currentTuning[key] = value
 
         local found = false

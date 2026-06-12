@@ -35,3 +35,9 @@ restart driftzone_tunning
 ```
 
 Daca o masina add-on nu afiseaza o piesa, inseamna ca masina nu expune acea piesa corect in `carcols.meta` / `carvariations.meta` / modkit. Scriptul nu inventeaza optiuni care nu se pot aplica.
+
+
+## Update UI vechi
+
+- UI-ul vechi a fost pus inapoi.
+- Backend-ul ramane cel optimizat: add-on tuning, extras 0-25, wheels fix cu WheelType, fara chameleon si fara armor.
