@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Vehicless - vehicle photo studio, no hard screenshot-basic dependency, fixed server Lua package nil'
-version '6.0.0'
+description 'DriftZone Vehicless - vehicle photo studio, no hard screenshot-basic dependency, bundled with built screenshot-basic support'
+version '7.0.0'
 
 ui_page 'html/index.html'
 

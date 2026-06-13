@@ -73,3 +73,19 @@ Config.Screenshot.overwriteSameModel = false -- model.png, model_2.png, model_3.
 
 - Reparat eroarea server/main.lua: attempt to index a nil value (global 'package').
 - Directory-ul screenshots se creeaza fara package.config, compatibil Linux si Windows.
+
+
+## IMPORTANT pentru screenshot
+
+Daca primesti `Could not find dependency yarn for resource screenshot-basic`, inseamna ca folosesti folderul vechi `screenshot-basic`.
+In pachetul v7 ai un folder `screenshot-basic` deja build-uit, fara dependency pe `yarn` sau `webpack`.
+
+Sterge folderul vechi `screenshot-basic` si pune folderul `screenshot-basic` din acest zip.
+Server.cfg corect:
+
+```cfg
+ensure screenshot-basic
+ensure driftzone_vehicless
+```
+
+Nu adauga `ensure yarn` sau `ensure webpack` pentru pachetul acesta.
