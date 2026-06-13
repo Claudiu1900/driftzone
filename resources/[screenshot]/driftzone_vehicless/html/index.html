@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Vehicless</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main id="root" class="root hidden">
+        <section class="panel">
+            <div class="accent"></div>
+
+            <div class="head">
+                <div class="logo">DZ</div>
+                <div>
+                    <span>DRIFTZONE STUDIO</span>
+                    <h1 id="modelName">Vehicle</h1>
+                </div>
+            </div>
+
+            <div class="load-box">
+                <label>LOAD VEHICLE</label>
+                <div class="load-row">
+                    <input id="modelInput" placeholder="ex: s15, rmodm4, supra" spellcheck="false" autocomplete="off">
+                    <button type="button" onclick="loadModel()">LOAD</button>
+                </div>
+            </div>
+
+            <div class="stats">
+                <div><label>ROTATION</label><b id="rotationValue">45°</b></div>
+                <div><label>FOV</label><b id="fovValue">47</b></div>
+                <div><label>DISTANCE</label><b id="distanceValue">7.2</b></div>
+                <div><label>HEIGHT</label><b id="heightValue">1.1</b></div>
+            </div>
+
+            <div class="group">
+                <div class="group-title">ROTATE VEHICLE ONLY</div>
+                <div class="row two">
+                    <button type="button" onclick="control('rotate_left')">⟲ LEFT</button>
+                    <button type="button" onclick="control('rotate_right')">RIGHT ⟳</button>
+                </div>
+                <button id="autoBtn" type="button" class="wide ghost" onclick="control('auto_rotate')">AUTO ROTATE OFF</button>
+            </div>
+
+            <div class="group">
+                <div class="group-title">CAMERA</div>
+                <div class="row two">
+                    <button type="button" onclick="control('fov_down')">FOV -</button>
+                    <button type="button" onclick="control('fov_up')">FOV +</button>
+                </div>
+                <div class="row two">
+                    <button type="button" onclick="control('distance_down')">ZOOM IN</button>
+                    <button type="button" onclick="control('distance_up')">ZOOM OUT</button>
+                </div>
+                <div class="row two">
+                    <button type="button" onclick="control('height_down')">CAM LOW</button>
+                    <button type="button" onclick="control('height_up')">CAM HIGH</button>
+                </div>
+                <div class="row two">
+                    <button type="button" onclick="control('look_down')">LOOK LOW</button>
+                    <button type="button" onclick="control('look_up')">LOOK HIGH</button>
+                </div>
+            </div>
+
+            <div class="group">
+                <div class="group-title">DETAILS</div>
+                <div class="row two">
+                    <button id="lightsBtn" type="button" onclick="control('lights')">LIGHTS ON</button>
+                    <button id="doorsBtn" type="button" onclick="control('doors')">DOORS OFF</button>
+                </div>
+                <button type="button" class="wide ghost" onclick="control('reset')">RESET VIEW</button>
+            </div>
+
+            <div class="bottom">
+                <button id="shotBtn" type="button" class="screenshot" onclick="screenshot()">SCREENSHOT</button>
+                <button type="button" class="close" onclick="closePanel()">CLOSE</button>
+            </div>
+
+            <p id="hint" class="hint">Screenshot-ul se salveaza pe server in screenshots/.</p>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
