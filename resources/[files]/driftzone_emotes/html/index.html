@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.5.2/css/all.css">
+    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.5.2/css/sharp-thin.css">
+    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.5.2/css/sharp-solid.css">
+    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.5.2/css/sharp-regular.css">
+    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.5.2/css/sharp-light.css">
+    <script src="nui://game/ui/jquery.js" type="text/javascript"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.js" integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk=" crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.js" integrity="sha256-xH4q8N0pEzrZMaRmd7gQVcTZiFei+HfRTBPJ1OGXC0k=" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="textUI">
+        <div id="TUKeyDiv"><div id="TUKeyDivInside"></div></div>
+        <div id="TUTDiv">
+            <div id="TUDiv"></div>
+            <h4 id="textUIH4"></h4>
+        </div>
+    </div>
+    <div id="mainContainer">
+        <div id="mainContainerInsideEffect"></div>
+        <div id="mainContainerLeft">
+            <div id="mainContainerLeftInside">
+                <div id="mainContainerLeftInsideTop"></div>
+                <div id="mainContainerLeftInsideTop2">
+                    <i class="fa-solid fa-person-skiing"></i>
+                    <h4 class="title"></h4>
+                </div>
+                <div id="mainContainerLeftInsideDesc" class="description"></div>
+                <div id="mainContainerLeftInsideInputDiv">
+                    <input class="searchInput search_placeholder" type="text">
+                    <div class="interface-selector-container">
+                        <button class="interface-toggle-button" id="interfaceToggleButton"><i class="fa-solid fa-swap"></i></button>
+                        <div class="interface-dropdown-menu" id="interfaceDropdownMenu">
+                            <a href="#" data-interface="1" class="modern"></a>
+                            <a href="#" data-interface="2" class="compact"></a>
+                        </div>
+                    </div>
+                </div>
+                <div id="mainContainerLeftInsideCategoriesDiv"></div>
+            </div>
+        </div>
+        <div id="mainContainerRight">
+            <div class="mainContainerRightTop">
+                <h4 id="mainContainerRightTopTitle"></h4>
+                <div id="mainContainerRightTopNumber"><h4></h4></div>
+            </div>
+            <div id="mainContainerRightAnimations" class="mainContainerRightAnimations"></div>
+            <div class="mainContainerRightTop" id="mainContainerRightTopQuickTitle">
+                <h4 id="mainContainerRightTopTitle" class="quick_animations"></h4>
+            </div>
+            <div id="mainContainerRightQuickAnimations" class="mainContainerRightQuickAnimations">
+                <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot1" data-slot="1"></div>
+                <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot2" data-slot="2"></div>
+                <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot3" data-slot="3"></div>
+                <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot4" data-slot="4"></div>
+                <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot5" data-slot="5"></div>
+                <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot6" data-slot="6"></div>
+                <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot7" data-slot="7"></div>
+            </div>
+        </div>
+    </div>
+    <div id="mainContainer2" style="display: none;">
+        <div id="mainContainer2Effect"></div>
+        <div id="mainContainer2Top">
+            <div id="mainContainer2TopInside">
+                <h4 class="title"></h4>
+                <i class="fa-solid fa-child-reaching"></i>
+            </div>
+            <div style="width: 25.5vh; height: fit-content; display: flex; align-items: center; justify-content: flex-end;"><span class="description"></span></div>
+            <div id="mainContainerLeftInsideInputDiv" style="width: 25.5vh; height: 4vh;">
+                <input class="searchInput search_placeholder" type="text">
+                <div class="interface-selector-container">
+                    <button class="interface-toggle-button" id="interfaceToggleButton"><i class="fa-solid fa-swap"></i></button>
+                    <div class="interface-dropdown-menu" id="interfaceDropdownMenu">
+                        <a href="#" data-interface="1" class="modern"></a>
+                        <a href="#" data-interface="2" class="compact"></a>
+                        <a href="#" data-interface="3" class="show_categories" id="show_hide_categories"></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="mainContainer2Bottom">
+            <div id="mainContainer2BottomRight2"></div>
+            <div id="mainContainer2BottomLeft">
+                <div id="mainContainer2BottomLeftInside" class="mainContainer2BottomLeftInside">
+                    <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot1" data-slot="1"></div>
+                    <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot2" data-slot="2"></div>
+                    <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot3" data-slot="3"></div>
+                    <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot4" data-slot="4"></div>
+                    <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot5" data-slot="5"></div>
+                    <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot6" data-slot="6"></div>
+                    <div id="mainContainerRightAnimationDiv" class="mainContainerRightAnimationDiv-Slot7" data-slot="7"></div>
+                </div>
+            </div>
+            <div id="mainContainer2BottomCenter">
+                <div id="mainContainer2BottomCenterDiv"><span class="quick"></span><h4 class="animations"></h4></div>
+            </div>
+            <div id="mainContainer2BottomRight">
+                <div id="mainContainer2BottomRightInside"></div>
+            </div>
+        </div>
+    </div>
+    <div id="animPosInfoDiv">
+        <div id="APIDKeyDiv">
+            <div id="APIDKeyDivLeft"><span>Up</span></div>
+            <div id="APIDKeyDivRight"><span id="key-arrowup">Arrow Up</span></div>
+        </div>
+        <div id="APIDKeyDiv">
+            <div id="APIDKeyDivLeft"><span>Down</span></div>
+            <div id="APIDKeyDivRight"><span id="key-arrowdown">Arrow Down</span></div>
+        </div>
+        <div id="APIDKeyDiv">
+            <div id="APIDKeyDivLeft"><span>Forward</span></div>
+            <div id="APIDKeyDivRight"><span id="key-w">W</span></div>
+        </div>
+        <div id="APIDKeyDiv">
+            <div id="APIDKeyDivLeft"><span>Backward</span></div>
+            <div id="APIDKeyDivRight"><span id="key-a">S</span></div>
+        </div>
+        <div id="APIDKeyDiv">
+            <div id="APIDKeyDivLeft"><span>Left</span></div>
+            <div id="APIDKeyDivRight"><span id="key-s">S</span></div>
+        </div>
+        <div id="APIDKeyDiv">
+            <div id="APIDKeyDivLeft"><span>Right</span></div>
+            <div id="APIDKeyDivRight"><span id="key-d">D</span></div>
+        </div>
+        <div id="APIDKeyDiv">
+            <div id="APIDKeyDivLeft"><span>Slower</span></div>
+            <div id="APIDKeyDivRight"><span id="key-shift">Shift</span></div>
+        </div>
+        <div id="APIDKeyDiv">
+            <div id="APIDKeyDivLeft"><span>Confirm</span></div>
+            <div id="APIDKeyDivRight"><span id="key-e">E</span></div>
+        </div>
+    </div>
+    <div id="gangInfoDiv">
+        <div id="APIDKeyDiv">
+            <div id="APIDKeyDivLeft"><span>Open Props Menu</span></div>
+            <div id="APIDKeyDivRight"><span id="keyg-o">O</span></div>
+        </div>
+        <div id="APIDKeyDiv">
+            <div id="APIDKeyDivLeft"><span>Show/Hide UI</span></div>
+            <div id="APIDKeyDivRight"><span id="keyg-i">I</span></div>
+        </div>
+    </div>
+    <div id="propMenuContainer"></div>
+    <div class="keybind-menu" id="keybindMenu" style="display: none;">
+        <div class="keybind-header">
+            <span class="keybind-title" id="keybindTitle"></span>
+        </div>
+        <div class="keybind-body">
+            <div class="keybind-keys" id="keybindKeys"></div>
+            <div class="keybind-buttons">
+                <button class="add-key update_key" id="addKeyBtn"></button>
+                <button class="save-key save"></button>
+                <button class="cancel-key cancel" id="cancelKeyBtn"></button>
+            </div>
+        </div>
+    </div>
+    <script src="index.js"></script>
+</body>
+</html>

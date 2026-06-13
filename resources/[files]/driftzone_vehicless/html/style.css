@@ -1,0 +1,184 @@
+* { box-sizing: border-box; user-select: none; }
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+:root { --main: #04c7f7; }
+.hidden { display: none !important; }
+.root {
+    position: fixed;
+    inset: 0;
+    color: #fff;
+    pointer-events: none;
+}
+.panel {
+    pointer-events: auto;
+    position: fixed;
+    left: 28px;
+    top: 50%;
+    width: 358px;
+    transform: translateY(-50%);
+    padding: 20px;
+    overflow: hidden;
+    background: linear-gradient(145deg, rgba(255,255,255,.095), rgba(255,255,255,.025)), rgba(3,7,14,.90);
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow: 0 30px 100px rgba(0,0,0,.62), 0 0 42px rgba(4,199,247,.12), inset 0 1px 0 rgba(255,255,255,.11);
+    animation: in .20s ease both;
+}
+.accent {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--main);
+    box-shadow: 0 0 25px var(--main);
+}
+.head {
+    display: flex;
+    gap: 13px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.logo {
+    width: 50px;
+    height: 50px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(4,199,247,.45);
+    background: rgba(4,199,247,.12);
+    color: var(--main);
+    font-weight: 1000;
+    font-size: 18px;
+    box-shadow: inset 0 0 20px rgba(4,199,247,.10);
+}
+.head span {
+    color: var(--main);
+    font-size: 10px;
+    font-weight: 1000;
+    letter-spacing: 2.2px;
+}
+h1 {
+    margin: 4px 0 0;
+    max-width: 245px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 24px;
+    letter-spacing: -0.7px;
+}
+.stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.stats div, .group, .load-box {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.09);
+}
+.stats div { padding: 10px; }
+label {
+    display: block;
+    color: rgba(255,255,255,.45);
+    font-size: 9px;
+    font-weight: 1000;
+    letter-spacing: 1.4px;
+}
+b { display: block; margin-top: 4px; font-size: 15px; }
+.group {
+    padding: 12px;
+    margin-top: 10px;
+}
+.group-title {
+    margin-bottom: 8px;
+    color: rgba(255,255,255,.52);
+    font-size: 10px;
+    font-weight: 1000;
+    letter-spacing: 1.8px;
+}
+.row {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.two { grid-template-columns: repeat(2, 1fr); }
+button {
+    height: 38px;
+    border: 1px solid rgba(255,255,255,.12);
+    outline: none;
+    background: rgba(255,255,255,.065);
+    color: white;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 1000;
+    letter-spacing: .8px;
+    transition: .14s ease;
+}
+button:hover {
+    border-color: rgba(4,199,247,.55);
+    background: rgba(4,199,247,.18);
+}
+button.active {
+    border-color: var(--main);
+    background: rgba(4,199,247,.22);
+}
+.wide { width: 100%; }
+.ghost { color: rgba(255,255,255,.82); }
+.bottom {
+    display: grid;
+    grid-template-columns: 1fr 95px;
+    gap: 9px;
+    margin-top: 12px;
+}
+.clean {
+    height: 48px;
+    border: none;
+    background: linear-gradient(135deg, var(--main), #98f1ff);
+    color: #00111a;
+}
+.close {
+    height: 48px;
+    background: rgba(255,70,95,.12);
+    border-color: rgba(255,70,95,.35);
+}
+.hint {
+    margin: 11px 0 0;
+    color: rgba(255,255,255,.50);
+    font-size: 11px;
+    line-height: 1.35;
+    font-weight: 760;
+}
+@keyframes in {
+    from { opacity: 0; transform: translateY(-48%) translateX(-10px); }
+    to { opacity: 1; transform: translateY(-50%) translateX(0); }
+}
+.load-box {
+    padding: 12px;
+    margin: 0 0 12px;
+}
+.load-row {
+    display: grid;
+    grid-template-columns: 1fr 78px;
+    gap: 8px;
+    margin-top: 7px;
+}
+.load-row input {
+    height: 38px;
+    border: 1px solid rgba(255,255,255,.12);
+    outline: none;
+    background: rgba(0,0,0,.25);
+    color: white;
+    padding: 0 10px;
+    font-weight: 900;
+    letter-spacing: .5px;
+}
+.load-row input:focus {
+    border-color: rgba(4,199,247,.55);
+    box-shadow: 0 0 18px rgba(4,199,247,.12);
+}
