@@ -1,28 +1,18 @@
-# driftzone_vehicless v9
+# driftzone_vehicless v11
 
-Fix pentru screenshot:
-- fara requestClientScreenshot pe server;
-- fara HTTP upload din screenshot-basic;
-- foloseste `exports['screenshot-basic']:requestScreenshot` pe client;
-- upload pe server in chunk-uri mici, cu delay, ca sa nu dea `Reliable network event size overflow`.
-
-## server.cfg
-
-```cfg
-ensure screenshot-basic
-ensure driftzone_vehicless
-```
-
-Nu porni `yarn` si `webpack`; screenshot-basic din pachet este client-only si are dist-ul inclus.
-
-## Salvare poze
-
-```txt
-driftzone_vehicless/screenshots/model_name.jpg
-```
+Resource FiveM pentru studio poze masini.
 
 ## Comanda
+/vehss model
 
-```txt
-/vehss s15
-```
+## Screenshot
+Foloseste folderul `screenshot-basic` inclus in zip, fara yarn si fara webpack.
+Pozele se salveaza in:
+
+screenshots/model.jpg
+
+## Instalare
+ensure screenshot-basic
+ensure driftzone_vehicless
+
+Nu porni yarn/webpack.

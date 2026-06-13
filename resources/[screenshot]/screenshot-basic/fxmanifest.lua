@@ -3,8 +3,7 @@ game 'gta5'
 lua54 'yes'
 
 -- DriftZone fixed screenshot-basic
--- Nu foloseste yarn/webpack si nu foloseste export JS.
--- Exporturile requestScreenshot/requestScreenshotUpload sunt facute in Lua, deci FiveM le vede sigur.
+-- Fara yarn/webpack. Exporturile requestScreenshot/requestScreenshotUpload sunt in Lua.
 
 client_script 'client.lua'
 

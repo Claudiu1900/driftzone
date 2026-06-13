@@ -446,8 +446,8 @@ RegisterNUICallback('screenshot', function(_, cb)
                     return
                 end
 
-                local chunkSize = Config.Screenshot.chunkSize or 12000
-                local delay = Config.Screenshot.chunkDelayMs or 45
+                local chunkSize = Config.Screenshot.chunkSize or 4000
+                local delay = Config.Screenshot.chunkDelayMs or 40
                 local total = math.ceil(#data / chunkSize)
 
                 TriggerServerEvent('driftzone_vehicless:server:beginScreenshotUpload', currentModel, myToken, total, options.encoding)
@@ -478,7 +478,7 @@ RegisterNUICallback('screenshot', function(_, cb)
             takingShot = false
             sendNui({ action = 'shotDone' })
             if open then setFocus(true) end
-            notify('warning', 'Screenshot timeout. Verifica screenshot-basic si consola F8.', 7500)
+            notify('warning', 'Screenshot timeout: screenshot-basic nu a returnat poza. Verifica F8 pentru [screenshot-basic] timeout.', 9000)
         end
     end)
 

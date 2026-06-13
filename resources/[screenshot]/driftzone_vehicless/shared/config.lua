@@ -36,12 +36,12 @@ Config.Screenshot = {
 
     -- upload client -> server pe bucati mici, fara crash/overflow
     chunkSize = 4000,
-    chunkDelayMs = 75,
+    chunkDelayMs = 40,
     maxChunks = 2200,
     maxDataLength = 9000000,
 
     -- timeout mare pentru masini/rezolutii mai grele
-    timeoutMs = 180000
+    timeoutMs = 90000
 }
 
 Config.Studio = {
