@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Vehicless - vehicle photo studio with safe client screenshot upload'
-version '9.0.0'
+description 'DriftZone Vehicless - vehicle photo studio with fixed Lua screenshot export'
+version '10.0.0'
 
 ui_page 'html/index.html'
 

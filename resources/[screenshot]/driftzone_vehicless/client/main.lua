@@ -469,7 +469,7 @@ RegisterNUICallback('screenshot', function(_, cb)
             takingShot = false
             sendNui({ action = 'shotDone' })
             if open then setFocus(true) end
-            notify('warning', 'Nu pot apela export-ul screenshot-basic: ' .. tostring(errCall), 9000)
+            notify('warning', 'Nu pot apela export-ul screenshot-basic: ' .. tostring(errCall) .. '. Sterge folderul screenshot-basic vechi si pune folderul din zip-ul v10.', 12000)
         end
     end)
 

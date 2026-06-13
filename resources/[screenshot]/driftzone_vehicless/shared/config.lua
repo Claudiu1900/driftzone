@@ -29,19 +29,19 @@ Config.Screenshot = {
     -- JPG e pus intentionat ca sa nu mai umple Reliable Network Queue.
     -- Daca pui png, poza devine mult mai mare si upload-ul dureaza mai mult.
     encoding = 'jpg',
-    quality = 0.82,
+    quality = 0.58,
 
     -- timp pentru ascunderea UI-ului inainte de poza
     prepareDelayMs = 550,
 
     -- upload client -> server pe bucati mici, fara crash/overflow
-    chunkSize = 12000,
-    chunkDelayMs = 45,
-    maxChunks = 900,
-    maxDataLength = 12000000,
+    chunkSize = 4000,
+    chunkDelayMs = 75,
+    maxChunks = 2200,
+    maxDataLength = 9000000,
 
     -- timeout mare pentru masini/rezolutii mai grele
-    timeoutMs = 90000
+    timeoutMs = 180000
 }
 
 Config.Studio = {

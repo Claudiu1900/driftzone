@@ -320,5 +320,5 @@ end)
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     ensureScreenshotDir()
-    print('[DRIFTZONE_VEHICLESS] Loaded v9. Screenshot uses client requestScreenshot + slow chunk upload. No requestClientScreenshot.')
+    print('[DRIFTZONE_VEHICLESS] Loaded v10. Screenshot uses screenshot-basic Lua export + slow safe upload.')
 end)

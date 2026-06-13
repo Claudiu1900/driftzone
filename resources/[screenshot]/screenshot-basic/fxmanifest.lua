@@ -1,10 +1,12 @@
 fx_version 'cerulean'
 game 'gta5'
+lua54 'yes'
 
--- DriftZone build: client-only screenshot-basic.
--- No yarn/webpack dependency. dist/ui.html and dist/client.js are already built.
+-- DriftZone fixed screenshot-basic
+-- Nu foloseste yarn/webpack si nu foloseste export JS.
+-- Exporturile requestScreenshot/requestScreenshotUpload sunt facute in Lua, deci FiveM le vede sigur.
 
-client_script 'dist/client.js'
+client_script 'client.lua'
 
 files {
     'dist/ui.html'
