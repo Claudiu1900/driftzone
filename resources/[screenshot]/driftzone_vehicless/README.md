@@ -1,8 +1,8 @@
-# driftzone_vehicless v5
+# driftzone_vehicless v6
 
 Resource FiveM pentru studio poze masini.
 
-## Ce a fost reparat in v5
+## Ce a fost reparat in v6
 
 - Am scos `dependency 'screenshot-basic'` din `fxmanifest.lua`, deci `driftzone_vehicless` porneste chiar daca `screenshot-basic` nu porneste.
 - Nu mai exista `screenshotChunk`, deci nu mai iei kick/crash de la `Reliable network event size overflow`.
@@ -67,3 +67,9 @@ In `shared/config.lua`:
 Config.Screenshot.overwriteSameModel = true -- model.png mereu
 Config.Screenshot.overwriteSameModel = false -- model.png, model_2.png, model_3.png
 ```
+
+
+## Fix v6
+
+- Reparat eroarea server/main.lua: attempt to index a nil value (global 'package').
+- Directory-ul screenshots se creeaza fara package.config, compatibil Linux si Windows.

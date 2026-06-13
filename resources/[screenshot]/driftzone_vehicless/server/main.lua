@@ -78,9 +78,12 @@ local function ensureScreenshotDir()
     local resourceDir = normalizePath(getResourceDir())
     local fullDir = resourceDir .. '/' .. dirName
 
-    local sep = package.config:sub(1, 1)
-    if sep == '\\' then
-        os.execute(('mkdir "%s" >NUL 2>NUL'):format(fullDir))
+    -- FiveM server Lua nu are globalul `package`, deci nu folosim package.config.
+    -- Detectam Windows dupa forma path-ului: C:/...
+    local isWindows = fullDir:match('^%a:/') ~= nil
+
+    if isWindows then
+        os.execute(('mkdir "%s" >NUL 2>&1'):format(fullDir:gsub('/', '\\')))
     else
         os.execute(('mkdir -p "%s" >/dev/null 2>&1'):format(fullDir))
     end
