@@ -1,4 +1,5 @@
 local ScreenshotBusy = {}
+local UploadSessions = {}
 
 local function cleanText(value)
     return tostring(value or ''):gsub('[\r\n]', ' ')
@@ -65,21 +66,14 @@ local function hasAccess(src)
     return false
 end
 
-local function getResourceDir()
-    return GetResourcePath(GetCurrentResourceName())
-end
-
 local function normalizePath(path)
     return tostring(path or ''):gsub('\\', '/')
 end
 
 local function ensureScreenshotDir()
     local dirName = Config.Screenshot.directory or 'screenshots'
-    local resourceDir = normalizePath(getResourceDir())
+    local resourceDir = normalizePath(GetResourcePath(GetCurrentResourceName()))
     local fullDir = resourceDir .. '/' .. dirName
-
-    -- FiveM server Lua nu are globalul `package`, deci nu folosim package.config.
-    -- Detectam Windows dupa forma path-ului: C:/...
     local isWindows = fullDir:match('^%a:/') ~= nil
 
     if isWindows then
@@ -88,7 +82,7 @@ local function ensureScreenshotDir()
         os.execute(('mkdir -p "%s" >/dev/null 2>&1'):format(fullDir))
     end
 
-    return fullDir
+    return fullDir, dirName
 end
 
 local function fileExists(path)
@@ -97,30 +91,131 @@ local function fileExists(path)
     return false
 end
 
-local function buildFilePath(model)
-    local dir = ensureScreenshotDir()
-    local base = cleanFileName(model)
-    local ext = Config.Screenshot.encoding or 'png'
-    if ext == 'jpg' or ext == 'jpeg' then ext = 'jpg' else ext = 'png' end
+local function getExtension(ext)
+    ext = tostring(ext or Config.Screenshot.encoding or 'jpg'):lower()
+    if ext == 'jpeg' then return 'jpg' end
+    if ext ~= 'png' and ext ~= 'webp' and ext ~= 'jpg' then return 'jpg' end
+    return ext
+end
 
-    local path = ('%s/%s.%s'):format(dir, base, ext)
-    local fileName = ('%s.%s'):format(base, ext)
+local function buildRelativeFile(model, ext)
+    local _, dirName = ensureScreenshotDir()
+    local base = cleanFileName(model)
+    ext = getExtension(ext)
+
+    local relative = ('%s/%s.%s'):format(dirName, base, ext)
+    local absolute = normalizePath(GetResourcePath(GetCurrentResourceName())) .. '/' .. relative
+    local displayName = ('%s.%s'):format(base, ext)
 
     if Config.Screenshot.overwriteSameModel ~= false then
-        return path, fileName
+        return relative, absolute, displayName
     end
 
-    if not fileExists(path) then return path, fileName end
+    if not fileExists(absolute) then return relative, absolute, displayName end
 
     for i = 2, 9999 do
-        local p = ('%s/%s_%d.%s'):format(dir, base, i, ext)
-        local f = ('%s_%d.%s'):format(base, i, ext)
-        if not fileExists(p) then
-            return p, f
+        local rel = ('%s/%s_%d.%s'):format(dirName, base, i, ext)
+        local abs = normalizePath(GetResourcePath(GetCurrentResourceName())) .. '/' .. rel
+        local dis = ('%s_%d.%s'):format(base, i, ext)
+        if not fileExists(abs) then
+            return rel, abs, dis
         end
     end
 
-    return path, fileName
+    return relative, absolute, displayName
+end
+
+local b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+local b64map = {}
+for i = 1, #b64chars do
+    b64map[b64chars:sub(i, i)] = i - 1
+end
+
+local function base64Decode(data)
+    data = tostring(data or '')
+    data = data:gsub('^data:image/%w+;base64,', '')
+    data = data:gsub('%s+', '')
+
+    local out = {}
+    local buffer = 0
+    local bits = 0
+
+    for i = 1, #data do
+        local c = data:sub(i, i)
+        if c == '=' then break end
+
+        local value = b64map[c]
+        if value then
+            buffer = (buffer << 6) | value
+            bits = bits + 6
+
+            if bits >= 8 then
+                bits = bits - 8
+                local byte = (buffer >> bits) & 0xFF
+                out[#out + 1] = string.char(byte)
+                if bits > 0 then
+                    buffer = buffer & ((1 << bits) - 1)
+                else
+                    buffer = 0
+                end
+            end
+        end
+    end
+
+    return table.concat(out)
+end
+
+local function clearSession(src, reason)
+    local session = UploadSessions[src]
+    if session and reason then
+        print(('[DRIFTZONE_VEHICLESS] Upload cleared for %s: %s'):format(GetPlayerName(src) or src, cleanText(reason)))
+    end
+    UploadSessions[src] = nil
+    ScreenshotBusy[src] = nil
+end
+
+local function finishUpload(src, token)
+    local session = UploadSessions[src]
+    if not session or session.token ~= token then return end
+
+    local chunks = {}
+    for i = 1, session.total do
+        if not session.chunks[i] then
+            return
+        end
+        chunks[#chunks + 1] = session.chunks[i]
+    end
+
+    local dataUri = table.concat(chunks)
+    local maxLen = tonumber(Config.Screenshot.maxDataLength or 12000000) or 12000000
+    if #dataUri > maxLen then
+        clearSession(src, 'data too large')
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot prea mare. Scade quality sau foloseste jpg.', token)
+        return
+    end
+
+    local ext = getExtension(session.ext)
+    local relativePath, absolutePath, displayName = buildRelativeFile(session.model, ext)
+    local raw = base64Decode(dataUri)
+
+    if not raw or #raw < 1000 then
+        clearSession(src, 'decoded image too small')
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot invalid/gol. Verifica screenshot-basic.', token)
+        return
+    end
+
+    ensureScreenshotDir()
+    local ok = SaveResourceFile(GetCurrentResourceName(), relativePath, raw, #raw)
+
+    if ok then
+        print(('[DRIFTZONE_VEHICLESS] Screenshot saved: %s (%d bytes)'):format(absolutePath, #raw))
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, true, 'Screenshot salvat: screenshots/' .. displayName, token)
+    else
+        print(('[DRIFTZONE_VEHICLESS] SaveResourceFile failed: %s'):format(relativePath))
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Nu am putut scrie fisierul in screenshots.', token)
+    end
+
+    clearSession(src)
 end
 
 RegisterNetEvent('driftzone_vehicless:server:requestOpen', function(model)
@@ -143,12 +238,19 @@ RegisterNetEvent('driftzone_vehicless:server:requestOpen', function(model)
     })
 end)
 
-RegisterNetEvent('driftzone_vehicless:server:takeScreenshot', function(model, token)
+RegisterNetEvent('driftzone_vehicless:server:beginScreenshotUpload', function(model, token, totalChunks, ext)
     local src = source
     model = cleanModel(model)
+    token = tonumber(token)
+    totalChunks = tonumber(totalChunks)
 
-    if model == '' then
-        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Model invalid pentru screenshot.', token)
+    if model == '' or not token or not totalChunks then
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Upload screenshot invalid.', token)
+        return
+    end
+
+    if not hasAccess(src) then
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Nu ai acces la screenshot.', token)
         return
     end
 
@@ -157,69 +259,66 @@ RegisterNetEvent('driftzone_vehicless:server:takeScreenshot', function(model, to
         return
     end
 
-    local resourceName = Config.Screenshot.resource or 'screenshot-basic'
-    if GetResourceState(resourceName) ~= 'started' then
-        local state = GetResourceState(resourceName)
-        print(('[DRIFTZONE_VEHICLESS] Screenshot resource "%s" is not started. Current state: %s. Resource-ul driftzone porneste fara dependency, dar screenshot-ul real are nevoie de screenshot-basic functional.'):format(resourceName, tostring(state)))
-        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Resource-ul porneste, dar screenshot-basic nu este pornit. Pune yarn + webpack sau foloseste artifacts noi, apoi ensure screenshot-basic.', token)
+    local maxChunks = tonumber(Config.Screenshot.maxChunks or 900) or 900
+    if totalChunks < 1 or totalChunks > maxChunks then
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot prea mare pentru upload.', token)
         return
     end
 
-    local filePath, fileName = buildFilePath(model)
     ScreenshotBusy[src] = true
-    local finished = false
+    UploadSessions[src] = {
+        token = token,
+        model = model,
+        ext = getExtension(ext),
+        total = totalChunks,
+        received = 0,
+        chunks = {},
+        started = GetGameTimer()
+    }
 
-    SetTimeout(Config.Screenshot.timeoutMs or 20000, function()
-        if finished then return end
-        finished = true
-        ScreenshotBusy[src] = nil
-        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot timeout. Verifica consola server/client pentru screenshot-basic.', token)
-    end)
-
-    local okCall, callErr = pcall(function()
-        exports[resourceName]:requestClientScreenshot(src, {
-            fileName = filePath,
-            encoding = Config.Screenshot.encoding or 'png',
-            quality = Config.Screenshot.quality or 0.95
-        }, function(err, data)
-            if finished then return end
-            finished = true
-            ScreenshotBusy[src] = nil
-
-            if err then
-                print(('[DRIFTZONE_VEHICLESS] screenshot-basic error for %s: %s'):format(GetPlayerName(src) or src, cleanText(err)))
-                TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot-basic eroare: ' .. cleanText(err), token)
-                return
-            end
-
-            SetTimeout(250, function()
-                if fileExists(filePath) then
-                    print(('[DRIFTZONE_VEHICLESS] Screenshot saved: %s'):format(filePath))
-                    TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, true, 'Screenshot salvat: screenshots/' .. fileName, token)
-                else
-                    print(('[DRIFTZONE_VEHICLESS] screenshot-basic finished, but file missing: %s | data: %s'):format(filePath, cleanText(data)))
-                    TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot facut, dar fisierul nu a fost gasit pe server.', token)
-                end
-            end)
-        end)
-    end)
-
-    if not okCall then
-        if not finished then
-            finished = true
-            ScreenshotBusy[src] = nil
-            print(('[DRIFTZONE_VEHICLESS] requestClientScreenshot failed: %s'):format(cleanText(callErr)))
-            TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'requestClientScreenshot a esuat. Verifica screenshot-basic.', token)
+    SetTimeout(Config.Screenshot.timeoutMs or 90000, function()
+        local session = UploadSessions[src]
+        if session and session.token == token then
+            clearSession(src, 'timeout')
+            TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Upload screenshot timeout.', token)
         end
+    end)
+end)
+
+RegisterNetEvent('driftzone_vehicless:server:screenshotChunk', function(token, index, chunk)
+    local src = source
+    token = tonumber(token)
+    index = tonumber(index)
+    chunk = tostring(chunk or '')
+
+    local session = UploadSessions[src]
+    if not session or session.token ~= token then return end
+    if not index or index < 1 or index > session.total then return end
+
+    local maxChunk = tonumber(Config.Screenshot.chunkSize or 12000) or 12000
+    if #chunk > maxChunk + 2048 then
+        clearSession(src, 'chunk too large')
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Chunk screenshot prea mare.', token)
+        return
+    end
+
+    if not session.chunks[index] then
+        session.received = session.received + 1
+    end
+
+    session.chunks[index] = chunk
+
+    if session.received >= session.total then
+        finishUpload(src, token)
     end
 end)
 
 AddEventHandler('playerDropped', function()
-    ScreenshotBusy[source] = nil
+    clearSession(source)
 end)
 
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     ensureScreenshotDir()
-    print('[DRIFTZONE_VEHICLESS] Loaded. No hard screenshot-basic dependency. Screenshot uses screenshot-basic only if it is started.')
+    print('[DRIFTZONE_VEHICLESS] Loaded v9. Screenshot uses client requestScreenshot + slow chunk upload. No requestClientScreenshot.')
 end)

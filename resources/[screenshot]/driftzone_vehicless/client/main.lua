@@ -408,17 +408,77 @@ RegisterNUICallback('screenshot', function(_, cb)
     sendNui({ action = 'prepareShot' })
     setFocus(false)
 
-    SetTimeout(Config.Screenshot.prepareDelayMs or 450, function()
+    SetTimeout(Config.Screenshot.prepareDelayMs or 550, function()
         if not open or not takingShot or shotToken ~= myToken then return end
-        TriggerServerEvent('driftzone_vehicless:server:takeScreenshot', currentModel, myToken)
+
+        local resourceName = Config.Screenshot.resource or 'screenshot-basic'
+        if GetResourceState(resourceName) ~= 'started' then
+            takingShot = false
+            sendNui({ action = 'shotDone' })
+            if open then setFocus(true) end
+            notify('warning', 'screenshot-basic nu este pornit. Pune ensure screenshot-basic inainte de driftzone_vehicless.', 7500)
+            return
+        end
+
+        local options = {
+            encoding = Config.Screenshot.encoding or 'jpg',
+            quality = Config.Screenshot.quality or 0.82
+        }
+
+        local okCall, errCall = pcall(function()
+            exports[resourceName]:requestScreenshot(options, function(data)
+                if not open or not takingShot or shotToken ~= myToken then return end
+
+                if type(data) ~= 'string' or data == '' or not data:find('base64,', 1, true) then
+                    takingShot = false
+                    sendNui({ action = 'shotDone' })
+                    if open then setFocus(true) end
+                    notify('warning', 'Screenshot-basic a returnat date invalide.', 7500)
+                    return
+                end
+
+                local maxLen = Config.Screenshot.maxDataLength or 12000000
+                if #data > maxLen then
+                    takingShot = false
+                    sendNui({ action = 'shotDone' })
+                    if open then setFocus(true) end
+                    notify('warning', 'Poza este prea mare. Lasa encoding jpg si quality mai mic in config.', 8500)
+                    return
+                end
+
+                local chunkSize = Config.Screenshot.chunkSize or 12000
+                local delay = Config.Screenshot.chunkDelayMs or 45
+                local total = math.ceil(#data / chunkSize)
+
+                TriggerServerEvent('driftzone_vehicless:server:beginScreenshotUpload', currentModel, myToken, total, options.encoding)
+
+                CreateThread(function()
+                    for i = 1, total do
+                        if not takingShot or shotToken ~= myToken then return end
+                        local from = ((i - 1) * chunkSize) + 1
+                        local to = i * chunkSize
+                        local chunk = data:sub(from, to)
+                        TriggerServerEvent('driftzone_vehicless:server:screenshotChunk', myToken, i, chunk)
+                        Wait(delay)
+                    end
+                end)
+            end)
+        end)
+
+        if not okCall then
+            takingShot = false
+            sendNui({ action = 'shotDone' })
+            if open then setFocus(true) end
+            notify('warning', 'Nu pot apela export-ul screenshot-basic: ' .. tostring(errCall), 9000)
+        end
     end)
 
-    SetTimeout((Config.Screenshot.timeoutMs or 20000) + 1500, function()
+    SetTimeout((Config.Screenshot.timeoutMs or 90000) + 2500, function()
         if takingShot and shotToken == myToken then
             takingShot = false
             sendNui({ action = 'shotDone' })
             if open then setFocus(true) end
-            notify('warning', 'Screenshot timeout. Verifica daca screenshot-basic este pornit in server.cfg.', 6500)
+            notify('warning', 'Screenshot timeout. Verifica screenshot-basic si consola F8.', 7500)
         end
     end)
 
@@ -433,9 +493,9 @@ RegisterNetEvent('driftzone_vehicless:client:screenshotDone', function(ok, messa
     if open then setFocus(true) end
 
     if ok then
-        notify('success', message or 'Screenshot salvat.', 5000)
+        notify('success', message or 'Screenshot salvat.', 5500)
     else
-        notify('warning', message or 'Nu am putut salva screenshot-ul.', 7000)
+        notify('warning', message or 'Nu am putut salva screenshot-ul.', 8000)
     end
 end)
 

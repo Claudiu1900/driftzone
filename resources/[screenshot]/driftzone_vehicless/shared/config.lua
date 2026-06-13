@@ -23,17 +23,25 @@ Config.Screenshot = {
     resource = 'screenshot-basic',
     directory = 'screenshots',
 
-    -- true = mereu model.png. false = model.png, model_2.png, model_3.png
+    -- true = mereu model_name.jpg. false = model_name.jpg, model_name_2.jpg, model_name_3.jpg
     overwriteSameModel = true,
 
-    encoding = 'png',
-    quality = 0.95,
+    -- JPG e pus intentionat ca sa nu mai umple Reliable Network Queue.
+    -- Daca pui png, poza devine mult mai mare si upload-ul dureaza mai mult.
+    encoding = 'jpg',
+    quality = 0.82,
 
     -- timp pentru ascunderea UI-ului inainte de poza
-    prepareDelayMs = 450,
+    prepareDelayMs = 550,
 
-    -- daca screenshot-basic nu raspunde, nu ramane blocat
-    timeoutMs = 20000
+    -- upload client -> server pe bucati mici, fara crash/overflow
+    chunkSize = 12000,
+    chunkDelayMs = 45,
+    maxChunks = 900,
+    maxDataLength = 12000000,
+
+    -- timeout mare pentru masini/rezolutii mai grele
+    timeoutMs = 90000
 }
 
 Config.Studio = {

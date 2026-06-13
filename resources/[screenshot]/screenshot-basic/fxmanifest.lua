@@ -1,11 +1,10 @@
-fx_version 'bodacious'
-game 'common'
+fx_version 'cerulean'
+game 'gta5'
 
--- Built version for servers without the yarn/webpack builder resources.
--- The original source files are kept in this folder, but this manifest runs dist directly.
+-- DriftZone build: client-only screenshot-basic.
+-- No yarn/webpack dependency. dist/ui.html and dist/client.js are already built.
 
 client_script 'dist/client.js'
-server_script 'dist/server.js'
 
 files {
     'dist/ui.html'
