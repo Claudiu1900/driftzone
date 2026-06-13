@@ -213,10 +213,106 @@ local Base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
 
 local function sanitizeFileName(value)
     local name = tostring(value or ''):lower():gsub('%s+', '_'):gsub('[^%w_%-%.]', '')
-    if name == '' then name = 'driftzone_vehicle_' .. tostring(os.time()) .. '.png' end
+    name = name:gsub('%.%.', ''):gsub('^%.+', '')
+    if name == '' then name = 'vehicle.png' end
     if not name:find('%.png$') then name = name .. '.png' end
     return name
 end
+
+local function getScreenshotFolder()
+    local folder = tostring(Config.ScreenshotServerFolder or 'screenshots'):gsub('^/+', ''):gsub('/+$', '')
+    folder = folder:gsub('%.%.', '')
+    if folder == '' then folder = 'screenshots' end
+    return folder
+end
+
+local function fileExists(path)
+    local f = io.open(path, 'rb')
+    if f then f:close() return true end
+    return false
+end
+
+local function buildScreenshotPath(modelOrFile)
+    local folder = getScreenshotFolder()
+    local file = sanitizeFileName(modelOrFile)
+    local resourcePath = GetResourcePath(GetCurrentResourceName()) or ''
+
+    if Config.ScreenshotOverwriteSameModel ~= false then
+        return folder .. '/' .. file, resourcePath .. '/' .. folder .. '/' .. file
+    end
+
+    local base = file:gsub('%.png$', '')
+    local relative = folder .. '/' .. file
+    local absolute = resourcePath .. '/' .. relative
+    local i = 2
+    while fileExists(absolute) do
+        relative = ('%s/%s_%s.png'):format(folder, base, i)
+        absolute = resourcePath .. '/' .. relative
+        i = i + 1
+        if i > 9999 then break end
+    end
+
+    return relative, absolute
+end
+
+RegisterNetEvent('driftzone_vehicless:server:requestScreenshot', function(token, filename, model)
+    local src = source
+    token = tonumber(token or 0) or 0
+    if token <= 0 then return end
+    if not requireAdmin(src) then return end
+
+    local safeModel = cleanModel(model or filename or 'vehicle')
+    if safeModel == '' then safeModel = sanitizeFileName(filename or 'vehicle.png'):gsub('%.png$', '') end
+    if safeModel == '' then safeModel = 'vehicle' end
+
+    local relativePath, absolutePath = buildScreenshotPath(safeModel .. '.png')
+    if Config.ScreenshotOverwriteSameModel ~= false then
+        pcall(function() os.remove(absolutePath) end)
+    end
+
+    local screenshotBasic = Config.ScreenshotBasicResource or 'screenshot-basic'
+
+    if Config.UseScreenshotBasic ~= false and screenshotBasic ~= '' and GetResourceState(screenshotBasic) == 'started' then
+        local okCall, errCall = pcall(function()
+            exports[screenshotBasic]:requestClientScreenshot(src, {
+                fileName = absolutePath,
+                encoding = Config.Studio.screenshotEncoding or 'png',
+                quality = Config.Studio.screenshotQuality or 0.95
+            }, function(err, data)
+                if err then
+                    print(('[DRIFTZONE_VEHICLESS] screenshot-basic error for %s: %s'):format(GetPlayerName(src) or src, tostring(err)))
+                    if Config.InternalFallbackOnScreenshotBasicError ~= false then
+                        TriggerClientEvent('driftzone_vehicless:client:captureInternal', src, {
+                            token = token,
+                            filename = sanitizeFileName(safeModel .. '.png')
+                        })
+                    else
+                        TriggerClientEvent('driftzone_vehicless:client:screenshotSaved', src, { ok = false, token = token, error = tostring(err) })
+                    end
+                    return
+                end
+
+                print(('[DRIFTZONE_VEHICLESS] Screenshot saved: %s'):format(tostring(data or absolutePath)))
+                TriggerClientEvent('driftzone_vehicless:client:screenshotSaved', src, {
+                    ok = true,
+                    token = token,
+                    file = relativePath,
+                    message = 'Screenshot salvat pe server: ' .. relativePath
+                })
+            end)
+        end)
+
+        if okCall then return end
+
+        print(('[DRIFTZONE_VEHICLESS] screenshot-basic call failed: %s'):format(tostring(errCall)))
+    end
+
+    -- Fallback intern: nu depinde de screenshot-basic, dar daca NUI-ul tau nu suporta game-view hook, va da eroare in F8.
+    TriggerClientEvent('driftzone_vehicless:client:captureInternal', src, {
+        token = token,
+        filename = sanitizeFileName(safeModel .. '.png')
+    })
+end)
 
 local function screenshotKey(src, token)
     return tostring(src) .. ':' .. tostring(token)
@@ -339,11 +435,7 @@ RegisterNetEvent('driftzone_vehicless:server:screenshotFinish', function(token)
         return
     end
 
-    local folder = tostring(Config.ScreenshotServerFolder or 'screenshots'):gsub('^/+', ''):gsub('/+$', '')
-    folder = folder:gsub('%.%.', '')
-    if folder == '' then folder = 'screenshots' end
-
-    local relativePath = folder .. '/' .. upload.filename
+    local relativePath = buildScreenshotPath(upload.model ~= '' and (upload.model .. '.png') or upload.filename)
     local ok = SaveResourceFile(GetCurrentResourceName(), relativePath, bytes, #bytes)
     ScreenshotUploads[key] = nil
 

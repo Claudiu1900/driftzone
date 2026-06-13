@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'DriftZone Vehicless - local FiveM vehicle photo studio'
-version '2.0.0-fixed'
+version '2.1.0-white-server-screenshot'
 
 ui_page 'html/index.html'
 

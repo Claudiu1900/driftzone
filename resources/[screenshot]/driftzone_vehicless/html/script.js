@@ -156,6 +156,52 @@ function bindBuffer(gl, location, data) {
     return buffer;
 }
 
+async function nextFrame() {
+    await new Promise(resolve => requestAnimationFrame(resolve));
+}
+
+function encodePixelsToDataUrl(pixels, width, height, encoding, quality) {
+    // WebGL readPixels citeste de jos in sus; canvas 2D vrea de sus in jos.
+    const flipped = new Uint8ClampedArray(width * height * 4);
+    const rowSize = width * 4;
+
+    for (let y = 0; y < height; y++) {
+        const src = (height - 1 - y) * rowSize;
+        const dst = y * rowSize;
+        flipped.set(pixels.subarray(src, src + rowSize), dst);
+    }
+
+    const out = document.createElement('canvas');
+    out.width = width;
+    out.height = height;
+
+    const ctx = out.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D indisponibil');
+    ctx.putImageData(new ImageData(flipped, width, height), 0, 0);
+
+    const enc = String(encoding || 'png').toLowerCase();
+    const mime = enc === 'jpg' || enc === 'jpeg' ? 'image/jpeg' : enc === 'webp' ? 'image/webp' : 'image/png';
+    return out.toDataURL(mime, Number(quality || 0.95));
+}
+
+function isProbablyBlack(pixels) {
+    // Daca aproape tot bufferul este 0, captura este neagra si nu o salvam fals ca succes.
+    if (!pixels || pixels.length < 4000) return true;
+
+    let nonBlack = 0;
+    const step = Math.max(4, Math.floor(pixels.length / 12000) * 4);
+    for (let i = 0; i < pixels.length; i += step) {
+        const r = pixels[i] || 0;
+        const g = pixels[i + 1] || 0;
+        const b = pixels[i + 2] || 0;
+        const a = pixels[i + 3] || 0;
+        if (a > 0 && (r + g + b) > 15) nonBlack++;
+        if (nonBlack > 40) return false;
+    }
+
+    return true;
+}
+
 async function captureGameView(options = {}) {
     const width = Math.max(1, window.innerWidth || 1280);
     const height = Math.max(1, window.innerHeight || 720);
@@ -163,7 +209,7 @@ async function captureGameView(options = {}) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    canvas.style.cssText = 'position:fixed;left:-99999px;top:-99999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+    canvas.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;opacity:0;pointer-events:none;z-index:-1;';
     document.body.appendChild(canvas);
 
     const gl = canvas.getContext('webgl', {
@@ -172,7 +218,6 @@ async function captureGameView(options = {}) {
         stencil: false,
         alpha: false,
         preserveDrawingBuffer: true,
-        desynchronized: true,
         failIfMajorPerformanceCaveat: false
     });
 
@@ -184,9 +229,10 @@ async function captureGameView(options = {}) {
     let program;
     let vertexBuffer;
     let texBuffer;
+    let texture;
 
     try {
-        createGameTexture(gl);
+        texture = createGameTexture(gl);
         program = createProgram(gl);
         gl.useProgram(program);
 
@@ -197,15 +243,31 @@ async function captureGameView(options = {}) {
         vertexBuffer = bindBuffer(gl, posLocation, [-1, -1, 1, -1, -1, 1, 1, 1]);
         texBuffer = bindBuffer(gl, texLocation, [0, 1, 1, 1, 0, 0, 1, 0]);
 
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.uniform1i(samplerLocation, 0);
         gl.viewport(0, 0, width, height);
+
+        // Lasam cateva frame-uri pentru ca texture hook-ul FiveM sa primeasca backbufferul real.
+        for (let i = 0; i < 4; i++) {
+            gl.clearColor(0, 0, 0, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            gl.finish();
+            await nextFrame();
+        }
+
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.finish();
 
-        const encoding = String(options.encoding || 'png').toLowerCase();
-        const mime = encoding === 'jpg' || encoding === 'jpeg' ? 'image/jpeg' : encoding === 'webp' ? 'image/webp' : 'image/png';
-        const quality = Number(options.quality || 0.95);
-        const dataUrl = canvas.toDataURL(mime, quality);
+        const raw = new Uint8Array(width * height * 4);
+        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, raw);
+
+        if (isProbablyBlack(raw)) {
+            throw new Error('captura neagra - foloseste/pornește screenshot-basic sau update la artifacts');
+        }
+
+        const dataUrl = encodePixelsToDataUrl(new Uint8ClampedArray(raw.buffer), width, height, options.encoding || 'png', options.quality || 0.95);
 
         if (!dataUrl || dataUrl.length < 1000) {
             throw new Error('screenshot gol');
@@ -215,6 +277,7 @@ async function captureGameView(options = {}) {
     } finally {
         try { if (vertexBuffer) gl.deleteBuffer(vertexBuffer); } catch (e) {}
         try { if (texBuffer) gl.deleteBuffer(texBuffer); } catch (e) {}
+        try { if (texture) gl.deleteTexture(texture); } catch (e) {}
         try { if (program) gl.deleteProgram(program); } catch (e) {}
         canvas.remove();
     }

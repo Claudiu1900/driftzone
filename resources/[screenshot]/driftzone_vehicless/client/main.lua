@@ -188,6 +188,17 @@ local function applyVehicleLook()
     SetVehRadioStation(studioVehicle, 'OFF')
     SetVehicleNumberPlateText(studioVehicle, Config.Studio.plate or 'DRIFTZ')
 
+    -- Masina apare mereu alba pe ambele culori.
+    -- Folosesc custom RGB ca sa nu conteze ce index de culoare are masina.
+    if Config.Studio.forceWhiteColor ~= false then
+        SetVehicleColours(studioVehicle, 111, 111)
+        SetVehicleExtraColours(studioVehicle, 111, 111)
+        SetVehicleCustomPrimaryColour(studioVehicle, 255, 255, 255)
+        SetVehicleCustomSecondaryColour(studioVehicle, 255, 255, 255)
+        SetVehicleWheelType(studioVehicle, 0)
+        SetVehicleTyreSmokeColor(studioVehicle, 255, 255, 255)
+    end
+
     if Config.Studio.invincibleVehicle ~= false then
         SetEntityInvincible(studioVehicle, true)
         SetVehicleCanBreak(studioVehicle, false)
@@ -442,7 +453,8 @@ RegisterNUICallback('screenshot', function(_, cb)
     shotToken = shotToken + 1
     local myToken = shotToken
     local safeModel = cleanModel(currentModel or 'vehicle')
-    local fileName = ('driftzone_%s_%s.png'):format(safeModel ~= '' and safeModel or 'vehicle', tostring(GetCloudTimeAsInt()))
+    if safeModel == '' then safeModel = 'vehicle' end
+    local fileName = safeModel .. '.png'
 
     sendNui({ action = 'prepareShot' })
     setFocus(false)
@@ -456,16 +468,26 @@ RegisterNUICallback('screenshot', function(_, cb)
     SetTimeout(Config.Studio.screenshotDelayMs or 450, function()
         if not open or not takingShot or shotToken ~= myToken then return end
 
-        sendNui({
-            action = 'captureInternal',
-            filename = fileName,
-            encoding = Config.Studio.screenshotEncoding or 'png',
-            quality = Config.Studio.screenshotQuality or 0.95,
-            token = myToken
-        })
+        -- Prima varianta: serverul foloseste screenshot-basic daca este pornit.
+        -- Daca nu exista/da eroare, serverul cere fallback intern in NUI.
+        TriggerServerEvent('driftzone_vehicless:server:requestScreenshot', myToken, fileName, safeModel)
     end)
 
     cb({ ok = true })
+end)
+
+RegisterNetEvent('driftzone_vehicless:client:captureInternal', function(data)
+    data = data or {}
+    local token = tonumber(data.token or 0)
+    if not takingShot or token ~= shotToken then return end
+
+    sendNui({
+        action = 'captureInternal',
+        filename = data.filename or ((cleanModel(currentModel or 'vehicle') or 'vehicle') .. '.png'),
+        encoding = Config.Studio.screenshotEncoding or 'png',
+        quality = Config.Studio.screenshotQuality or 0.95,
+        token = token
+    })
 end)
 
 RegisterNUICallback('shotUploadStart', function(data, cb)
