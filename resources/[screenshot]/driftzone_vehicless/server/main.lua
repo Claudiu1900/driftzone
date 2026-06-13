@@ -313,6 +313,67 @@ RegisterNetEvent('driftzone_vehicless:server:screenshotChunk', function(token, i
     end
 end)
 
+
+RegisterNetEvent('driftzone_vehicless:server:saveScreenshotData', function(model, token, ext, dataUri)
+    local src = source
+    model = cleanModel(model)
+    token = tonumber(token)
+    ext = getExtension(ext)
+    dataUri = tostring(dataUri or '')
+
+    if model == '' or not token then
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Date screenshot invalide.', token)
+        return
+    end
+
+    if not hasAccess(src) then
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Nu ai acces la screenshot.', token)
+        return
+    end
+
+    if ScreenshotBusy[src] then
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Asteapta, se salveaza deja un screenshot.', token)
+        return
+    end
+
+    ScreenshotBusy[src] = true
+
+    local maxLen = tonumber(Config.Screenshot.maxDataLength or 9000000) or 9000000
+    if #dataUri < 1000 or not dataUri:find('base64,', 1, true) then
+        clearSession(src, 'invalid latent image')
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot invalid/gol.', token)
+        return
+    end
+
+    if #dataUri > maxLen then
+        clearSession(src, 'latent image too large')
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot prea mare. Scade quality in config.', token)
+        return
+    end
+
+    local relativePath, absolutePath, displayName = buildRelativeFile(model, ext)
+    local raw = base64Decode(dataUri)
+
+    if not raw or #raw < 1000 then
+        clearSession(src, 'decoded latent image too small')
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot decodat invalid/gol.', token)
+        return
+    end
+
+    ensureScreenshotDir()
+    local ok = SaveResourceFile(GetCurrentResourceName(), relativePath, raw, #raw)
+
+    if ok then
+        print(('[DRIFTZONE_VEHICLESS] Screenshot saved: %s (%d bytes)'):format(absolutePath, #raw))
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, true, 'Screenshot salvat: screenshots/' .. displayName, token)
+    else
+        print(('[DRIFTZONE_VEHICLESS] SaveResourceFile failed: %s'):format(relativePath))
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Nu am putut scrie fisierul in screenshots.', token)
+    end
+
+    clearSession(src)
+end)
+
 AddEventHandler('playerDropped', function()
     clearSession(source)
 end)
@@ -320,5 +381,5 @@ end)
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     ensureScreenshotDir()
-    print('[DRIFTZONE_VEHICLESS] Loaded v10. Screenshot uses screenshot-basic Lua export + slow safe upload.')
+    print('[DRIFTZONE_VEHICLESS] Loaded v12 final. Screenshot uses screenshot-basic Lua export + latent upload.')
 end)

@@ -2,8 +2,8 @@ fx_version 'cerulean'
 game 'gta5'
 lua54 'yes'
 
--- DriftZone fixed screenshot-basic
--- Fara yarn/webpack. Exporturile requestScreenshot/requestScreenshotUpload sunt in Lua.
+-- Built standalone screenshot-basic for DriftZone.
+-- No yarn / webpack dependency required.
 
 client_script 'client.lua'
 

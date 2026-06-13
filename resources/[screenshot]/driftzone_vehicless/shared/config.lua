@@ -34,13 +34,11 @@ Config.Screenshot = {
     -- timp pentru ascunderea UI-ului inainte de poza
     prepareDelayMs = 550,
 
-    -- upload client -> server pe bucati mici, fara crash/overflow
-    chunkSize = 4000,
-    chunkDelayMs = 40,
-    maxChunks = 2200,
+    -- upload client -> server prin latent event, fara crash Reliable network event size overflow
+    latentBps = 85000,
     maxDataLength = 9000000,
 
-    -- timeout mare pentru masini/rezolutii mai grele
+    -- timeout pentru captura/upload
     timeoutMs = 90000
 }
 

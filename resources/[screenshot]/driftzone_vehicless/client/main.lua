@@ -408,7 +408,7 @@ RegisterNUICallback('screenshot', function(_, cb)
     sendNui({ action = 'prepareShot' })
     setFocus(false)
 
-    SetTimeout(Config.Screenshot.prepareDelayMs or 550, function()
+    SetTimeout(Config.Screenshot.prepareDelayMs or 650, function()
         if not open or not takingShot or shotToken ~= myToken then return end
 
         local resourceName = Config.Screenshot.resource or 'screenshot-basic'
@@ -416,13 +416,13 @@ RegisterNUICallback('screenshot', function(_, cb)
             takingShot = false
             sendNui({ action = 'shotDone' })
             if open then setFocus(true) end
-            notify('warning', 'screenshot-basic nu este pornit. Pune ensure screenshot-basic inainte de driftzone_vehicless.', 7500)
+            notify('warning', 'screenshot-basic nu este pornit. Pune ensure screenshot-basic inainte de driftzone_vehicless.', 9000)
             return
         end
 
         local options = {
             encoding = Config.Screenshot.encoding or 'jpg',
-            quality = Config.Screenshot.quality or 0.82
+            quality = Config.Screenshot.quality or 0.55
         }
 
         local okCall, errCall = pcall(function()
@@ -433,35 +433,23 @@ RegisterNUICallback('screenshot', function(_, cb)
                     takingShot = false
                     sendNui({ action = 'shotDone' })
                     if open then setFocus(true) end
-                    notify('warning', 'Screenshot-basic a returnat date invalide.', 7500)
+                    notify('warning', 'Screenshot-basic nu a returnat imagine. Verifica F8 pentru timeout/erori screenshot-basic.', 10000)
                     return
                 end
 
-                local maxLen = Config.Screenshot.maxDataLength or 12000000
+                local maxLen = tonumber(Config.Screenshot.maxDataLength or 9000000) or 9000000
                 if #data > maxLen then
                     takingShot = false
                     sendNui({ action = 'shotDone' })
                     if open then setFocus(true) end
-                    notify('warning', 'Poza este prea mare. Lasa encoding jpg si quality mai mic in config.', 8500)
+                    notify('warning', ('Poza este prea mare (%d bytes). Scade quality in config.'):format(#data), 10000)
                     return
                 end
 
-                local chunkSize = Config.Screenshot.chunkSize or 4000
-                local delay = Config.Screenshot.chunkDelayMs or 40
-                local total = math.ceil(#data / chunkSize)
-
-                TriggerServerEvent('driftzone_vehicless:server:beginScreenshotUpload', currentModel, myToken, total, options.encoding)
-
-                CreateThread(function()
-                    for i = 1, total do
-                        if not takingShot or shotToken ~= myToken then return end
-                        local from = ((i - 1) * chunkSize) + 1
-                        local to = i * chunkSize
-                        local chunk = data:sub(from, to)
-                        TriggerServerEvent('driftzone_vehicless:server:screenshotChunk', myToken, i, chunk)
-                        Wait(delay)
-                    end
-                end)
+                -- FINAL FIX: trimitem poza prin latent event, nu prin multe chunk-uri.
+                -- Asta evita Reliable network event size overflow si nu mai ramane blocat pe CAPTURING.
+                local bps = tonumber(Config.Screenshot.latentBps or 85000) or 85000
+                TriggerLatentServerEvent('driftzone_vehicless:server:saveScreenshotData', bps, currentModel, myToken, options.encoding, data)
             end)
         end)
 
@@ -469,16 +457,16 @@ RegisterNUICallback('screenshot', function(_, cb)
             takingShot = false
             sendNui({ action = 'shotDone' })
             if open then setFocus(true) end
-            notify('warning', 'Nu pot apela export-ul screenshot-basic: ' .. tostring(errCall) .. '. Sterge folderul screenshot-basic vechi si pune folderul din zip-ul v10.', 12000)
+            notify('warning', 'Nu pot apela export-ul screenshot-basic: ' .. tostring(errCall) .. '. Sterge folderul vechi si pune screenshot-basic din zip.', 12000)
         end
     end)
 
-    SetTimeout((Config.Screenshot.timeoutMs or 90000) + 2500, function()
+    SetTimeout(Config.Screenshot.timeoutMs or 90000, function()
         if takingShot and shotToken == myToken then
             takingShot = false
             sendNui({ action = 'shotDone' })
             if open then setFocus(true) end
-            notify('warning', 'Screenshot timeout: screenshot-basic nu a returnat poza. Verifica F8 pentru [screenshot-basic] timeout.', 9000)
+            notify('warning', 'Screenshot timeout. Daca ramane asa, ai inca folder screenshot-basic vechi sau UI-ul screenshot-basic nu porneste.', 11000)
         end
     end)
 
