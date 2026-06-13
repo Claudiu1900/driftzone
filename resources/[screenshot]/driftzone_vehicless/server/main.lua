@@ -156,7 +156,9 @@ RegisterNetEvent('driftzone_vehicless:server:takeScreenshot', function(model, to
 
     local resourceName = Config.Screenshot.resource or 'screenshot-basic'
     if GetResourceState(resourceName) ~= 'started' then
-        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Porneste screenshot-basic in server.cfg inainte de driftzone_vehicless.', token)
+        local state = GetResourceState(resourceName)
+        print(('[DRIFTZONE_VEHICLESS] Screenshot resource "%s" is not started. Current state: %s. Resource-ul driftzone porneste fara dependency, dar screenshot-ul real are nevoie de screenshot-basic functional.'):format(resourceName, tostring(state)))
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Resource-ul porneste, dar screenshot-basic nu este pornit. Pune yarn + webpack sau foloseste artifacts noi, apoi ensure screenshot-basic.', token)
         return
     end
 
@@ -216,5 +218,5 @@ end)
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     ensureScreenshotDir()
-    print('[DRIFTZONE_VEHICLESS] Loaded. Screenshot mode: screenshot-basic fileName. No screenshotChunk events.')
+    print('[DRIFTZONE_VEHICLESS] Loaded. No hard screenshot-basic dependency. Screenshot uses screenshot-basic only if it is started.')
 end)

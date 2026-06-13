@@ -1,31 +1,50 @@
-# driftzone_vehicless v4
+# driftzone_vehicless v5
 
-Fix pentru crash-ul:
+Resource FiveM pentru studio poze masini.
 
-```txt
-Reliable network event size overflow:
-driftzone_vehicless:server:screenshotChunk
-```
+## Ce a fost reparat in v5
 
-Resource-ul NU mai trimite poza prin event-uri net pe bucati. Asta era cauza crash-ului.
+- Am scos `dependency 'screenshot-basic'` din `fxmanifest.lua`, deci `driftzone_vehicless` porneste chiar daca `screenshot-basic` nu porneste.
+- Nu mai exista `screenshotChunk`, deci nu mai iei kick/crash de la `Reliable network event size overflow`.
+- Daca `screenshot-basic` este pornit corect, pozele se salveaza server-side in `screenshots/model.png`.
+- Daca `screenshot-basic` lipseste sau nu porneste, comanda `/vehss` merge, UI-ul merge, masina se spawneaza, dar butonul de screenshot iti spune exact ce lipseste.
+- Masina se spawneaza alb/alb.
+- Screenshot-ul se numeste dupa model: `s15.png`, `rmodm4.png`, etc.
 
-## Instalare
-
-1. Sterge folderul vechi `driftzone_vehicless`.
-2. Pune folderul nou `driftzone_vehicless`.
-3. In `server.cfg` pune exact in ordinea asta:
+## Instalare minima
 
 ```cfg
+ensure driftzone_vehicless
+```
+
+Cu asta porneste comanda si studioul, fara sa mai blocheze serverul din cauza la `yarn`.
+
+## Pentru screenshot functional
+
+Ai nevoie de `screenshot-basic` pornit corect. Daca iti apare:
+
+```txt
+Could not find dependency yarn for resource screenshot-basic
+```
+
+nu este problema din `driftzone_vehicless`, este problema din `screenshot-basic`: ai pus doar source-ul, dar lipsesc builder-ele `yarn` si `webpack`.
+
+Server.cfg corect cand ai `screenshot-basic` reparat:
+
+```cfg
+ensure yarn
+ensure webpack
 ensure screenshot-basic
 ensure driftzone_vehicless
 ```
 
-Nu pune `yarn`, `webpack` sau alte build-uri pentru acest resource.
+Pe artifacts noi, `yarn` si `webpack` pot fi deja in system_resources. Daca tot iti zice ca lipsesc, ai artifact/server-data incomplet.
 
-## Comanda
+## Comenzi
 
 ```txt
-/vehss model_name
+/vehss model
+/vehssclose
 ```
 
 Exemplu:
@@ -34,39 +53,17 @@ Exemplu:
 /vehss s15
 ```
 
-Close fortat daca se blocheaza UI-ul:
+## Unde se salveaza pozele
 
 ```txt
-/vehssclose
+resources/.../driftzone_vehicless/screenshots/model.png
 ```
 
-## Screenshot-uri
+## Config
 
-Pozele se salveaza pe server in:
-
-```txt
-driftzone_vehicless/screenshots/
-```
-
-Numele fisierului este modelul masinii:
-
-```txt
-s15.png
-rmodm4.png
-supra.png
-```
-
-Daca vrei sa nu suprascrie aceeasi masina, modifica in `shared/config.lua`:
+In `shared/config.lua`:
 
 ```lua
-Config.Screenshot.overwriteSameModel = false
+Config.Screenshot.overwriteSameModel = true -- model.png mereu
+Config.Screenshot.overwriteSameModel = false -- model.png, model_2.png, model_3.png
 ```
-
-## Alte fix-uri
-
-- masina spawneaza primary alb si secondary alb;
-- camera ramane fixa;
-- se roteste doar masina;
-- playerul revine la pozitia lui dupa close;
-- nu mai exista event `screenshotChunk`;
-- nu mai exista salvare prin NUI base64, deci nu mai apare network event overflow.

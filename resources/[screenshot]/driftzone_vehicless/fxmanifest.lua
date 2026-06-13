@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Vehicless - vehicle photo studio with screenshot-basic server saving'
-version '4.0.0'
+description 'DriftZone Vehicless - vehicle photo studio, no hard screenshot-basic dependency'
+version '5.0.0'
 
 ui_page 'html/index.html'
 
@@ -18,4 +18,3 @@ shared_script 'shared/config.lua'
 server_script 'server/main.lua'
 client_script 'client/main.lua'
 
-dependency 'screenshot-basic'
