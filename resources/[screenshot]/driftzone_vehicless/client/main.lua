@@ -2,9 +2,10 @@ local open = false
 local studioVehicle = 0
 local studioCam = nil
 local currentModel = nil
-local playerState = nil
 local takingShot = false
 local shotToken = 0
+
+local savedPed = nil
 
 local currentSettings = {
     heading = 45.0,
@@ -18,29 +19,31 @@ local currentSettings = {
     doors = false
 }
 
-local function notify(typ, msg, duration)
-    typ = typ or 'info'
-    msg = tostring(msg or '')
-    duration = duration or 5000
-
-    if Config.NotifyEvent and Config.NotifyEvent ~= '' then
-        TriggerEvent(Config.NotifyEvent, typ, duration, msg)
-    end
-
-    if Config.ChatFallback == true then
+local function chat(msg)
+    if Config.ChatFallback ~= false then
         TriggerEvent('chat:addMessage', {
             color = { 4, 199, 247 },
-            args = { 'DRIFTZONE', msg }
+            args = { 'DriftZone', tostring(msg or '') }
         })
     end
 end
 
-RegisterNetEvent('driftzone_vehicless:client:notify', function(typ, duration, msg)
+local function notify(typ, msg, duration)
+    msg = tostring(msg or '')
+    if Config.NotifyEvent and Config.NotifyEvent ~= '' then
+        TriggerEvent(Config.NotifyEvent, typ or 'info', duration or 5000, msg)
+    end
+    if not Config.NotifyEvent or Config.NotifyEvent == '' then
+        chat(msg)
+    end
+end
+
+RegisterNetEvent('driftzone_vehicless:client:notify', function(typ, msg, duration)
     notify(typ, msg, duration)
 end)
 
 local function sendNui(data)
-    SendNUIMessage(data or {})
+    SendNUIMessage(data)
 end
 
 local function setFocus(state)
@@ -59,89 +62,6 @@ local function cleanModel(value)
     return tostring(value or ''):lower():gsub('%s+', ''):gsub('[^%w_%-]', '')
 end
 
-local function getPedSeat(vehicle, ped)
-    if not vehicle or vehicle == 0 then return -1 end
-    for seat = -1, GetVehicleMaxNumberOfPassengers(vehicle) do
-        if GetPedInVehicleSeat(vehicle, seat) == ped then return seat end
-    end
-    return -1
-end
-
-local function saveAndMovePlayer()
-    local ped = PlayerPedId()
-    local coords = GetEntityCoords(ped)
-    local veh = GetVehiclePedIsIn(ped, false)
-
-    playerState = {
-        coords = coords,
-        heading = GetEntityHeading(ped),
-        visible = IsEntityVisible(ped),
-        vehicle = veh,
-        vehicleSeat = veh ~= 0 and getPedSeat(veh, ped) or -1
-    }
-
-    if veh and veh ~= 0 then
-        TaskLeaveVehicle(ped, veh, 16)
-        local timeout = GetGameTimer() + 1600
-        while IsPedInAnyVehicle(ped, false) and GetGameTimer() < timeout do
-            Wait(0)
-        end
-        ClearPedTasksImmediately(ped)
-    end
-
-    local c = Config.Studio.coords
-    local offset = Config.Studio.playerOffset or { x = 0.0, y = 0.0, z = 24.0 }
-
-    SetEntityCoordsNoOffset(ped, c.x + (offset.x or 0.0), c.y + (offset.y or 0.0), c.z + (offset.z or 24.0), false, false, false)
-    SetEntityHeading(ped, Config.Studio.heading or 45.0)
-    SetEntityCollision(ped, false, false)
-
-    if Config.Studio.freezePlayer ~= false then
-        FreezeEntityPosition(ped, true)
-    end
-
-    if Config.Studio.hidePlayer ~= false then
-        SetEntityVisible(ped, false, false)
-        SetEntityAlpha(ped, 0, false)
-    end
-end
-
-local function restorePlayer()
-    local ped = PlayerPedId()
-
-    FreezeEntityPosition(ped, false)
-    SetEntityCollision(ped, true, true)
-    ResetEntityAlpha(ped)
-    SetEntityVisible(ped, true, false)
-
-    if playerState then
-        if Config.Studio.restorePlayerPosition ~= false and playerState.coords then
-            SetEntityCoordsNoOffset(ped, playerState.coords.x, playerState.coords.y, playerState.coords.z, false, false, false)
-            SetEntityHeading(ped, playerState.heading or GetEntityHeading(ped))
-        end
-
-        if playerState.visible == false then
-            SetEntityVisible(ped, false, false)
-        end
-
-        if playerState.vehicle and playerState.vehicle ~= 0 and DoesEntityExist(playerState.vehicle) and playerState.vehicleSeat then
-            SetPedIntoVehicle(ped, playerState.vehicle, playerState.vehicleSeat)
-        end
-    end
-
-    playerState = nil
-end
-
-local function deleteCurrentVehicle()
-    if studioVehicle and studioVehicle ~= 0 and DoesEntityExist(studioVehicle) then
-        SetEntityAsMissionEntity(studioVehicle, true, true)
-        DeleteVehicle(studioVehicle)
-        DeleteEntity(studioVehicle)
-    end
-
-    studioVehicle = 0
-end
-
 local function resetSettings()
     local s = Config.Studio
     currentSettings.heading = s.heading or 45.0
@@ -155,6 +75,86 @@ local function resetSettings()
     currentSettings.doors = false
 end
 
+local function saveAndMovePlayer()
+    local ped = PlayerPedId()
+    local coords = GetEntityCoords(ped)
+    savedPed = {
+        coords = coords,
+        heading = GetEntityHeading(ped),
+        visible = IsEntityVisible(ped),
+        inVehicle = IsPedInAnyVehicle(ped, false)
+    }
+
+    if savedPed.inVehicle then
+        local veh = GetVehiclePedIsIn(ped, false)
+        if veh and veh ~= 0 then
+            savedPed.vehicle = veh
+            savedPed.seat = -1
+            for i = -1, GetVehicleMaxNumberOfPassengers(veh) - 1 do
+                if GetPedInVehicleSeat(veh, i) == ped then
+                    savedPed.seat = i
+                    break
+                end
+            end
+            TaskLeaveVehicle(ped, veh, 16)
+            Wait(250)
+        end
+    end
+
+    local c = Config.Studio.coords
+    local offset = Config.Studio.playerOffset or { x = 0.0, y = 0.0, z = 24.0 }
+    SetEntityCoords(ped, c.x + (offset.x or 0.0), c.y + (offset.y or 0.0), c.z + (offset.z or 24.0), false, false, false, false)
+    FreezeEntityPosition(ped, true)
+    SetEntityCollision(ped, false, false)
+
+    if Config.Studio.hidePlayer ~= false then
+        SetEntityVisible(ped, false, false)
+    end
+end
+
+local function restorePlayer()
+    local ped = PlayerPedId()
+    FreezeEntityPosition(ped, false)
+    SetEntityCollision(ped, true, true)
+    SetEntityVisible(ped, true, false)
+
+    if savedPed and savedPed.coords then
+        SetEntityCoords(ped, savedPed.coords.x, savedPed.coords.y, savedPed.coords.z, false, false, false, false)
+        SetEntityHeading(ped, savedPed.heading or GetEntityHeading(ped))
+
+        if savedPed.inVehicle and savedPed.vehicle and DoesEntityExist(savedPed.vehicle) then
+            SetPedIntoVehicle(ped, savedPed.vehicle, savedPed.seat or -1)
+        end
+    end
+
+    savedPed = nil
+end
+
+local function deleteCurrentVehicle()
+    if studioVehicle and studioVehicle ~= 0 and DoesEntityExist(studioVehicle) then
+        SetEntityAsMissionEntity(studioVehicle, true, true)
+        DeleteEntity(studioVehicle)
+    end
+    studioVehicle = 0
+end
+
+local function destroyStudio()
+    open = false
+    takingShot = false
+    currentModel = nil
+
+    if studioCam then
+        RenderScriptCams(false, true, 300, true, true)
+        DestroyCam(studioCam, false)
+        studioCam = nil
+    end
+
+    deleteCurrentVehicle()
+    restorePlayer()
+    setFocus(false)
+    sendNui({ action = 'close' })
+end
+
 local function updateCamera()
     if not open or not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle) then return end
     if not studioCam then return end
@@ -166,9 +166,8 @@ local function updateCamera()
     local height = currentSettings.height or Config.Studio.defaultHeight or 1.15
     local lookHeight = currentSettings.lookHeight or Config.Studio.defaultLookHeight or 0.65
 
-    -- Camera sta pe pozitie fixa. Doar masina se roteste.
-    local camX = coords.x + (-math.sin(rad) * dist)
-    local camY = coords.y + (math.cos(rad) * dist)
+    local camX = coords.x + -math.sin(rad) * dist
+    local camY = coords.y + math.cos(rad) * dist
     local camZ = coords.z + height
 
     SetCamCoord(studioCam, camX, camY, camZ)
@@ -176,36 +175,41 @@ local function updateCamera()
     SetCamFov(studioCam, currentSettings.fov or Config.Studio.defaultFov or 47.0)
 end
 
+local function makeVehicleWhite(vehicle)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
+
+    local color = Config.Studio.whiteColorIndex or 111
+    SetVehicleColours(vehicle, color, color)
+    SetVehicleExtraColours(vehicle, color, color)
+
+    local p = Config.Studio.primaryRGB or { r = 255, g = 255, b = 255 }
+    local s = Config.Studio.secondaryRGB or { r = 255, g = 255, b = 255 }
+    SetVehicleCustomPrimaryColour(vehicle, p.r or 255, p.g or 255, p.b or 255)
+    SetVehicleCustomSecondaryColour(vehicle, s.r or 255, s.g or 255, s.b or 255)
+
+    if SetVehicleInteriorColour then SetVehicleInteriorColour(vehicle, color) end
+    if SetVehicleDashboardColour then SetVehicleDashboardColour(vehicle, color) end
+end
+
 local function applyVehicleLook()
     if not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle) then return end
 
     SetVehicleModKit(studioVehicle, 0)
     SetEntityHeading(studioVehicle, currentSettings.heading or Config.Studio.heading or 45.0)
-    SetEntityLodDist(studioVehicle, 1000)
     SetVehicleDirtLevel(studioVehicle, 0.0)
     SetVehicleEngineOn(studioVehicle, false, true, true)
     SetVehicleRadioEnabled(studioVehicle, false)
     SetVehRadioStation(studioVehicle, 'OFF')
     SetVehicleNumberPlateText(studioVehicle, Config.Studio.plate or 'DRIFTZ')
+    makeVehicleWhite(studioVehicle)
 
-    -- Masina apare mereu alba pe ambele culori.
-    -- Folosesc custom RGB ca sa nu conteze ce index de culoare are masina.
-    if Config.Studio.forceWhiteColor ~= false then
-        SetVehicleColours(studioVehicle, 111, 111)
-        SetVehicleExtraColours(studioVehicle, 111, 111)
-        SetVehicleCustomPrimaryColour(studioVehicle, 255, 255, 255)
-        SetVehicleCustomSecondaryColour(studioVehicle, 255, 255, 255)
-        SetVehicleWheelType(studioVehicle, 0)
-        SetVehicleTyreSmokeColor(studioVehicle, 255, 255, 255)
-    end
-
-    if Config.Studio.invincibleVehicle ~= false then
+    if Config.Studio.invincibleVehicle then
         SetEntityInvincible(studioVehicle, true)
         SetVehicleCanBreak(studioVehicle, false)
         SetVehicleEngineCanDegrade(studioVehicle, false)
     end
 
-    if Config.Studio.freezeVehicle ~= false then
+    if Config.Studio.freezeVehicle then
         FreezeEntityPosition(studioVehicle, true)
     end
 
@@ -229,30 +233,8 @@ local function applyVehicleLook()
     end
 end
 
-local function destroyStudio(skipNuiClose)
-    open = false
-    currentModel = nil
-    takingShot = false
-    shotToken = shotToken + 1
-
-    if studioCam then
-        RenderScriptCams(false, true, 250, true, true)
-        DestroyCam(studioCam, false)
-        studioCam = nil
-    end
-
-    deleteCurrentVehicle()
-    restorePlayer()
-    setFocus(false)
-
-    if not skipNuiClose then
-        sendNui({ action = 'close' })
-    end
-end
-
 local function spawnStudioVehicle(modelName, keepView)
     modelName = cleanModel(modelName)
-
     if modelName == '' then
         notify('warning', 'Scrie modelul masinii.')
         return false
@@ -296,7 +278,7 @@ local function spawnStudioVehicle(modelName, keepView)
     end
 
     SetCamActive(studioCam, true)
-    RenderScriptCams(true, true, 250, true, true)
+    RenderScriptCams(true, true, 300, true, true)
     updateCamera()
 
     return true
@@ -306,43 +288,14 @@ local function updateUi()
     sendNui({
         action = 'state',
         model = currentModel or '',
-        heading = math.floor((currentSettings.heading or 0.0) * 10.0) / 10.0,
-        fov = math.floor((currentSettings.fov or 0.0) * 10.0) / 10.0,
-        distance = math.floor((currentSettings.distance or 0.0) * 10.0) / 10.0,
-        height = math.floor((currentSettings.height or 0.0) * 10.0) / 10.0,
-        lookHeight = math.floor((currentSettings.lookHeight or 0.0) * 10.0) / 10.0,
+        heading = math.floor((currentSettings.heading or 0) * 10) / 10,
+        fov = math.floor((currentSettings.fov or 0) * 10) / 10,
+        distance = math.floor((currentSettings.distance or 0) * 10) / 10,
+        height = math.floor((currentSettings.height or 0) * 10) / 10,
         autoRotate = currentSettings.autoRotate == true,
         lights = currentSettings.lights == true,
-        doors = currentSettings.doors == true,
-        screenshotReady = true
+        doors = currentSettings.doors == true
     })
-end
-
-local function openStudio(model, mainColor)
-    model = cleanModel(model)
-
-    if open then
-        local ok = spawnStudioVehicle(model, true)
-        if ok then
-            sendNui({ action = 'open', model = model, mainColor = mainColor or Config.MainColor or '#04c7f7' })
-            updateUi()
-        end
-        return
-    end
-
-    resetSettings()
-    open = true
-    saveAndMovePlayer()
-
-    local ok = spawnStudioVehicle(model, false)
-    if not ok then
-        destroyStudio()
-        return
-    end
-
-    setFocus(true)
-    sendNui({ action = 'open', model = model, mainColor = mainColor or Config.MainColor or '#04c7f7' })
-    updateUi()
 end
 
 RegisterCommand(Config.Command or 'vehss', function(_, args)
@@ -350,12 +303,28 @@ RegisterCommand(Config.Command or 'vehss', function(_, args)
 end, false)
 
 RegisterCommand(Config.CloseCommand or 'vehssclose', function()
-    if open then destroyStudio() end
+    destroyStudio()
 end, false)
 
 RegisterNetEvent('driftzone_vehicless:client:openStudio', function(data)
     data = data or {}
-    openStudio(data.model or '', data.mainColor)
+    local model = cleanModel(data.model or '')
+
+    if open then destroyStudio() Wait(250) end
+
+    open = true
+    resetSettings()
+    saveAndMovePlayer()
+
+    local ok = spawnStudioVehicle(model, true)
+    if not ok then
+        destroyStudio()
+        return
+    end
+
+    setFocus(true)
+    sendNui({ action = 'open', model = model, mainColor = data.mainColor or Config.MainColor or '#04c7f7' })
+    updateUi()
 end)
 
 RegisterNUICallback('close', function(_, cb)
@@ -369,7 +338,6 @@ RegisterNUICallback('loadModel', function(data, cb)
 
     local model = cleanModel(data.model)
     local ok = spawnStudioVehicle(model, data.keepView ~= false)
-
     if ok then
         sendNui({ action = 'open', model = model, mainColor = Config.MainColor or '#04c7f7' })
         updateUi()
@@ -383,27 +351,24 @@ RegisterNUICallback('control', function(data, cb)
     local action = tostring(data.action or '')
     local s = Config.Studio
 
-    if not open or not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle) then
-        cb({ ok = false })
-        return
-    end
+    if not open or not DoesEntityExist(studioVehicle) then cb({ ok = false }) return end
 
     if action == 'rotate_left' then
         currentSettings.heading = (currentSettings.heading or 0.0) - (s.rotationStep or 7.5)
     elseif action == 'rotate_right' then
         currentSettings.heading = (currentSettings.heading or 0.0) + (s.rotationStep or 7.5)
     elseif action == 'fov_down' then
-        currentSettings.fov = clamp((currentSettings.fov or s.defaultFov or 47.0) - (s.fovStep or 3.0), s.minFov or 18.0, s.maxFov or 85.0)
+        currentSettings.fov = clamp((currentSettings.fov or s.defaultFov) - (s.fovStep or 3.0), s.minFov or 18.0, s.maxFov or 85.0)
     elseif action == 'fov_up' then
-        currentSettings.fov = clamp((currentSettings.fov or s.defaultFov or 47.0) + (s.fovStep or 3.0), s.minFov or 18.0, s.maxFov or 85.0)
+        currentSettings.fov = clamp((currentSettings.fov or s.defaultFov) + (s.fovStep or 3.0), s.minFov or 18.0, s.maxFov or 85.0)
     elseif action == 'distance_down' then
-        currentSettings.distance = clamp((currentSettings.distance or s.defaultDistance or 7.2) - (s.distanceStep or 0.35), s.minDistance or 2.5, s.maxDistance or 14.0)
+        currentSettings.distance = clamp((currentSettings.distance or s.defaultDistance) - (s.distanceStep or 0.35), s.minDistance or 2.5, s.maxDistance or 14.0)
     elseif action == 'distance_up' then
-        currentSettings.distance = clamp((currentSettings.distance or s.defaultDistance or 7.2) + (s.distanceStep or 0.35), s.minDistance or 2.5, s.maxDistance or 14.0)
+        currentSettings.distance = clamp((currentSettings.distance or s.defaultDistance) + (s.distanceStep or 0.35), s.minDistance or 2.5, s.maxDistance or 14.0)
     elseif action == 'height_down' then
-        currentSettings.height = clamp((currentSettings.height or s.defaultHeight or 1.15) - (s.heightStep or 0.12), s.minHeight or -0.2, s.maxHeight or 4.5)
+        currentSettings.height = clamp((currentSettings.height or s.defaultHeight) - (s.heightStep or 0.12), s.minHeight or -0.2, s.maxHeight or 4.5)
     elseif action == 'height_up' then
-        currentSettings.height = clamp((currentSettings.height or s.defaultHeight or 1.15) + (s.heightStep or 0.12), s.minHeight or -0.2, s.maxHeight or 4.5)
+        currentSettings.height = clamp((currentSettings.height or s.defaultHeight) + (s.heightStep or 0.12), s.minHeight or -0.2, s.maxHeight or 4.5)
     elseif action == 'look_down' then
         currentSettings.lookHeight = clamp((currentSettings.lookHeight or s.defaultLookHeight or 0.65) - (s.lookHeightStep or 0.10), s.minLookHeight or -0.4, s.maxLookHeight or 2.8)
     elseif action == 'look_up' then
@@ -418,131 +383,60 @@ RegisterNUICallback('control', function(data, cb)
         resetSettings()
     end
 
-    currentSettings.heading = (currentSettings.heading or 0.0) % 360.0
+    currentSettings.heading = currentSettings.heading % 360.0
     applyVehicleLook()
     updateCamera()
     updateUi()
     cb({ ok = true })
 end)
 
-local function finishScreenshot(ok, message)
-    takingShot = false
-    setFocus(open == true)
-    sendNui({ action = 'shotDone' })
-
-    if ok then
-        notify('success', message or 'Screenshot salvat pe server.', 6500)
-    else
-        notify('warning', message or 'Nu am putut face/salva screenshot-ul. Verifica F8 si consola serverului.', 8000)
-    end
-end
-
-RegisterNetEvent('driftzone_vehicless:client:screenshotSaved', function(data)
-    data = data or {}
-    local token = tonumber(data.token or 0)
-
-    if token ~= 0 and token ~= shotToken then return end
-    finishScreenshot(data.ok == true, data.message or data.error or nil)
-end)
-
 RegisterNUICallback('screenshot', function(_, cb)
-    if not open then cb({ ok = false }) return end
-    if takingShot then cb({ ok = false }) return end
+    if not open or not currentModel or currentModel == '' then
+        cb({ ok = false })
+        return
+    end
+
+    if takingShot then
+        cb({ ok = false })
+        return
+    end
 
     takingShot = true
     shotToken = shotToken + 1
     local myToken = shotToken
-    local safeModel = cleanModel(currentModel or 'vehicle')
-    if safeModel == '' then safeModel = 'vehicle' end
-    local fileName = safeModel .. '.png'
 
     sendNui({ action = 'prepareShot' })
     setFocus(false)
 
-    SetTimeout(Config.Studio.screenshotFailTimeoutMs or 30000, function()
+    SetTimeout(Config.Screenshot.prepareDelayMs or 450, function()
+        if not open or not takingShot or shotToken ~= myToken then return end
+        TriggerServerEvent('driftzone_vehicless:server:takeScreenshot', currentModel, myToken)
+    end)
+
+    SetTimeout((Config.Screenshot.timeoutMs or 20000) + 1500, function()
         if takingShot and shotToken == myToken then
-            finishScreenshot(false, 'Screenshot-ul nu a fost salvat. Verifica F8 si consola serverului.')
+            takingShot = false
+            sendNui({ action = 'shotDone' })
+            if open then setFocus(true) end
+            notify('warning', 'Screenshot timeout. Verifica daca screenshot-basic este pornit in server.cfg.', 6500)
         end
     end)
 
-    SetTimeout(Config.Studio.screenshotDelayMs or 450, function()
-        if not open or not takingShot or shotToken ~= myToken then return end
-
-        -- Prima varianta: serverul foloseste screenshot-basic daca este pornit.
-        -- Daca nu exista/da eroare, serverul cere fallback intern in NUI.
-        TriggerServerEvent('driftzone_vehicless:server:requestScreenshot', myToken, fileName, safeModel)
-    end)
-
     cb({ ok = true })
 end)
 
-RegisterNetEvent('driftzone_vehicless:client:captureInternal', function(data)
-    data = data or {}
-    local token = tonumber(data.token or 0)
-    if not takingShot or token ~= shotToken then return end
+RegisterNetEvent('driftzone_vehicless:client:screenshotDone', function(ok, message, token)
+    if token and token ~= shotToken then return end
 
-    sendNui({
-        action = 'captureInternal',
-        filename = data.filename or ((cleanModel(currentModel or 'vehicle') or 'vehicle') .. '.png'),
-        encoding = Config.Studio.screenshotEncoding or 'png',
-        quality = Config.Studio.screenshotQuality or 0.95,
-        token = token
-    })
-end)
+    takingShot = false
+    sendNui({ action = 'shotDone' })
+    if open then setFocus(true) end
 
-RegisterNUICallback('shotUploadStart', function(data, cb)
-    data = data or {}
-    local token = tonumber(data.token or 0)
-
-    if not takingShot or token ~= shotToken then
-        cb({ ok = false, error = 'invalid token' })
-        return
+    if ok then
+        notify('success', message or 'Screenshot salvat.', 5000)
+    else
+        notify('warning', message or 'Nu am putut salva screenshot-ul.', 7000)
     end
-
-    TriggerServerEvent('driftzone_vehicless:server:screenshotStart', token, data.filename or '', tonumber(data.total or 0), tonumber(data.size or 0), currentModel or '')
-    cb({ ok = true })
-end)
-
-RegisterNUICallback('shotUploadChunk', function(data, cb)
-    data = data or {}
-    local token = tonumber(data.token or 0)
-
-    if not takingShot or token ~= shotToken then
-        cb({ ok = false, error = 'invalid token' })
-        return
-    end
-
-    TriggerServerEvent('driftzone_vehicless:server:screenshotChunk', token, tonumber(data.index or 0), tonumber(data.total or 0), tostring(data.chunk or ''))
-    cb({ ok = true })
-end)
-
-RegisterNUICallback('shotUploadFinish', function(data, cb)
-    data = data or {}
-    local token = tonumber(data.token or 0)
-
-    if not takingShot or token ~= shotToken then
-        cb({ ok = false, error = 'invalid token' })
-        return
-    end
-
-    TriggerServerEvent('driftzone_vehicless:server:screenshotFinish', token)
-    cb({ ok = true })
-end)
-
-RegisterNUICallback('shotResult', function(data, cb)
-    data = data or {}
-    if not takingShot then cb({ ok = false }) return end
-
-    finishScreenshot(data.ok == true, data.error or nil)
-    cb({ ok = true })
-end)
-
-CreateThread(function()
-    Wait(800)
-    TriggerEvent('chat:addSuggestion', '/' .. (Config.Command or 'vehss'), 'Deschide studio-ul pentru poza la masina', {
-        { name = 'model', help = 'ex: s15, rmodm4, supra' }
-    })
-    TriggerEvent('chat:addSuggestion', '/' .. (Config.CloseCommand or 'vehssclose'), 'Inchide studio-ul daca UI-ul s-a blocat')
 end)
 
 CreateThread(function()
@@ -552,29 +446,15 @@ CreateThread(function()
                 currentSettings.heading = ((currentSettings.heading or 0.0) + (Config.Studio.autoRotateSpeed or 0.18)) % 360.0
                 SetEntityHeading(studioVehicle, currentSettings.heading)
                 updateCamera()
-
-                if GetGameTimer() % 350 < 20 then
-                    updateUi()
-                end
+                if GetGameTimer() % 350 < 20 then updateUi() end
             end
 
             local ped = PlayerPedId()
-            if Config.Studio.hidePlayer ~= false then
-                SetEntityVisible(ped, false, false)
-                SetEntityAlpha(ped, 0, false)
-            end
-
-            DisableControlAction(0, 1, true)
-            DisableControlAction(0, 2, true)
-            DisableControlAction(0, 24, true)
-            DisableControlAction(0, 25, true)
-            DisableControlAction(0, 37, true)
-            DisableControlAction(0, 75, true)
-            DisableControlAction(0, 140, true)
-            DisableControlAction(0, 141, true)
-            DisableControlAction(0, 142, true)
+            if Config.Studio.hidePlayer ~= false then SetEntityVisible(ped, false, false) end
             DisableControlAction(0, 200, true)
             DisableControlAction(0, 322, true)
+            DisableControlAction(0, 24, true)
+            DisableControlAction(0, 25, true)
             Wait(0)
         else
             Wait(450)
@@ -593,7 +473,5 @@ end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
-    TriggerEvent('chat:removeSuggestion', '/' .. (Config.Command or 'vehss'))
-    TriggerEvent('chat:removeSuggestion', '/' .. (Config.CloseCommand or 'vehssclose'))
-    destroyStudio(true)
+    destroyStudio()
 end)

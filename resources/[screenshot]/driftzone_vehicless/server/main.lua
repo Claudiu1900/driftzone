@@ -1,229 +1,91 @@
-local AdminCache = {}
+local ScreenshotBusy = {}
 
-local function nowMs()
-    if type(GetGameTimer) == 'function' then return GetGameTimer() end
-    return os.time() * 1000
-end
-
-local function sqlName(name)
-    return ('`%s`'):format(tostring(name or ''):gsub('`', ''))
-end
-
-local function notify(src, typ, msg, duration)
-    TriggerClientEvent('driftzone_vehicless:client:notify', src, typ or 'info', duration or 5000, tostring(msg or ''))
-end
-
-local function isDuty(value)
-    local text = tostring(value or ''):lower()
-    return value == true or tonumber(value) == 1 or text == 'yes' or text == 'true' or text == 'on' or text == 'da'
+local function cleanText(value)
+    return tostring(value or ''):gsub('[\r\n]', ' ')
 end
 
 local function cleanModel(value)
     return tostring(value or ''):lower():gsub('%s+', ''):gsub('[^%w_%-]', '')
 end
 
-local function getUid(src)
-    local state = Player(src).state
-    if state and tonumber(state.dz_uid) and tonumber(state.dz_uid) > 0 then
-        return tonumber(state.dz_uid)
+local function cleanFileName(value)
+    local name = cleanModel(value)
+    name = name:gsub('[^a-z0-9_%-]', '')
+    if name == '' then name = 'vehicle' end
+    return name
+end
+
+local function notify(src, typ, msg, duration)
+    TriggerClientEvent('driftzone_vehicless:client:notify', src, typ or 'info', tostring(msg or ''), duration or 5000)
+end
+
+local function hasAccess(src)
+    if Config.RequirePermission ~= true then return true end
+
+    if Config.PermissionAce and Config.PermissionAce ~= '' and IsPlayerAceAllowed(src, Config.PermissionAce) then
+        return true
     end
 
-    local res = Config.AuthResource or 'driftzone_auth'
-    if res ~= '' and GetResourceState(res) == 'started' then
+    if Config.UseDriftzoneAuth == true and Config.AuthResource and GetResourceState(Config.AuthResource) == 'started' then
+        local res = Config.AuthResource
+        local uid = nil
         local attempts = {
             function() return exports[res]:GetUID(src) end,
             function() return exports[res]:GetUid(src) end,
             function() return exports[res]:getUID(src) end,
-            function() return exports[res]:getUid(src) end,
-            function() return exports[res]:GetUserId(src) end,
-            function() return exports[res]:getUserId(src) end
+            function() return exports[res]:GetUserId(src) end
         }
 
         for _, fn in ipairs(attempts) do
             local ok, value = pcall(fn)
-            local uid = tonumber(value)
-            if ok and uid and uid > 0 then return uid end
+            if ok and tonumber(value) then
+                uid = tonumber(value)
+                break
+            end
+        end
+
+        if uid then
+            local ok, row = pcall(function()
+                if not MySQL or not MySQL.single or not MySQL.single.await then return nil end
+                return MySQL.single.await('SELECT admin_level, admin, aduty FROM users WHERE uid = ? LIMIT 1', { uid })
+            end)
+
+            if ok and row then
+                local level = tonumber(row.admin_level or row.admin or 0) or 0
+                local duty = tostring(row.aduty or ''):lower()
+                local aduty = row.aduty == true or tonumber(row.aduty) == 1 or duty == 'yes' or duty == 'true' or duty == 'on'
+
+                if level >= (Config.RequiredAdminLevel or 6) and (Config.RequireAduty ~= true or aduty) then
+                    return true
+                end
+            end
         end
     end
 
-    return nil
+    return false
 end
 
-
-local function hasAceAccess(src)
-    local cmd = Config.Command or 'vehss'
-    if Config.AllowAceFallback == false then return false end
-    return IsPlayerAceAllowed(src, 'driftzone.vehicless') or IsPlayerAceAllowed(src, 'command.' .. cmd)
+local function getResourceDir()
+    return GetResourcePath(GetCurrentResourceName())
 end
 
-local function isLogged(src)
-    if Config.RequireLogin == false then return true end
-    if hasAceAccess(src) then return true end
-
-    local state = Player(src).state
-    if state and state.dz_logged == true then return true end
-
-    local res = Config.AuthResource or 'driftzone_auth'
-    if res ~= '' and GetResourceState(res) == 'started' then
-        local attempts = {
-            function() return exports[res]:IsLoggedIn(src) end,
-            function() return exports[res]:isLoggedIn(src) end,
-            function() return exports[res]:IsLogged(src) end,
-            function() return exports[res]:isLogged(src) end
-        }
-
-        for _, fn in ipairs(attempts) do
-            local ok, result = pcall(fn)
-            if ok and result == true then return true end
-        end
-    end
-
-    return getUid(src) ~= nil
+local function normalizePath(path)
+    return tostring(path or ''):gsub('\\', '/')
 end
 
-local function aceAdmin(src)
-    if hasAceAccess(src) then
-        return {
-            uid = 0,
-            name = GetPlayerName(src) or ('Player ' .. tostring(src)),
-            level = Config.AdminLevel or 6,
-            aduty = true,
-            ace = true
-        }
+local function ensureScreenshotDir()
+    local dirName = Config.Screenshot.directory or 'screenshots'
+    local resourceDir = normalizePath(getResourceDir())
+    local fullDir = resourceDir .. '/' .. dirName
+
+    local sep = package.config:sub(1, 1)
+    if sep == '\\' then
+        os.execute(('mkdir "%s" >NUL 2>NUL'):format(fullDir))
+    else
+        os.execute(('mkdir -p "%s" >/dev/null 2>&1'):format(fullDir))
     end
 
-    return nil
-end
-
-local function oxSingle(query, params)
-    if Config.UseDatabase == false then return nil, 'database disabled' end
-
-    local res = Config.OxmysqlResource or 'oxmysql'
-    if GetResourceState(res) ~= 'started' then
-        return nil, ('%s nu este pornit'):format(res)
-    end
-
-    local p = promise.new()
-    local ok, err = pcall(function()
-        exports[res]:single(query, params or {}, function(row)
-            p:resolve({ row = row })
-        end)
-    end)
-
-    if not ok then
-        return nil, tostring(err)
-    end
-
-    local result = Citizen.Await(p)
-    return result and result.row or nil, nil
-end
-
-local function getAdminData(src)
-    local uid = getUid(src)
-
-    if uid then
-        local cached = AdminCache[uid]
-        if cached and cached.expires > nowMs() then return cached.data end
-
-        local usersTable = sqlName(Config.UsersTable or 'users')
-        local uidCol = sqlName(Config.UsersIdColumn or 'uid')
-        local query = ('SELECT * FROM %s WHERE %s = ? LIMIT 1'):format(usersTable, uidCol)
-        local row, dbErr = oxSingle(query, { uid })
-
-        if row then
-            local adminCol = tostring(Config.AdminColumn or 'admin_level')
-            local fallbackCol = tostring(Config.AdminColumnFallback or '')
-            local adutyCol = tostring(Config.AdutyColumn or 'aduty')
-            local usernameCol = tostring(Config.UsernameColumn or 'username')
-            local level = tonumber(row[adminCol] or (fallbackCol ~= '' and row[fallbackCol]) or 0) or 0
-
-            local data = {
-                uid = uid,
-                name = row[usernameCol] or row.username or GetPlayerName(src) or ('Player ' .. tostring(src)),
-                level = level,
-                aduty = isDuty(row[adutyCol])
-            }
-
-            AdminCache[uid] = { data = data, expires = nowMs() + 2500 }
-            return data
-        end
-
-        if dbErr then
-            print(('[DRIFTZONE_VEHICLESS] DB warning for %s: %s'):format(GetPlayerName(src) or src, dbErr))
-        end
-    end
-
-    return aceAdmin(src)
-end
-
-local function requireAdmin(src)
-    if not src or src <= 0 then return nil end
-
-    if not isLogged(src) then
-        notify(src, 'warning', 'Trebuie sa fii logat.')
-        return nil
-    end
-
-    local admin = getAdminData(src)
-    if not admin or admin.level < (Config.AdminLevel or 6) then
-        notify(src, 'warning', 'Nu ai acces la aceasta comanda.')
-        return nil
-    end
-
-    if Config.RequireAduty ~= false and not admin.aduty then
-        notify(src, 'warning', 'Trebuie sa fii ON DUTY.')
-        return nil
-    end
-
-    return admin
-end
-
-local function openStudio(src, model)
-    local admin = requireAdmin(src)
-    if not admin then return end
-
-    model = cleanModel(model)
-    if model == '' then
-        notify(src, 'warning', ('Folosire: /%s model_name'):format(Config.Command or 'vehss'))
-        return
-    end
-
-    TriggerClientEvent('driftzone_vehicless:client:openStudio', src, {
-        model = model,
-        admin = admin.name,
-        mainColor = Config.MainColor or '#04c7f7'
-    })
-end
-
-RegisterCommand(Config.Command or 'vehss', function(src, args)
-    if src <= 0 then
-        print(('[DRIFTZONE_VEHICLESS] Folosire in joc: /%s model_name'):format(Config.Command or 'vehss'))
-        return
-    end
-
-    openStudio(src, args and args[1] or '')
-end, false)
-
-RegisterNetEvent('driftzone_vehicless:server:requestOpen', function(model)
-    openStudio(source, model)
-end)
-
-local ScreenshotUploads = {}
-local Base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-
-local function sanitizeFileName(value)
-    local name = tostring(value or ''):lower():gsub('%s+', '_'):gsub('[^%w_%-%.]', '')
-    name = name:gsub('%.%.', ''):gsub('^%.+', '')
-    if name == '' then name = 'vehicle.png' end
-    if not name:find('%.png$') then name = name .. '.png' end
-    return name
-end
-
-local function getScreenshotFolder()
-    local folder = tostring(Config.ScreenshotServerFolder or 'screenshots'):gsub('^/+', ''):gsub('/+$', '')
-    folder = folder:gsub('%.%.', '')
-    if folder == '' then folder = 'screenshots' end
-    return folder
+    return fullDir
 end
 
 local function fileExists(path)
@@ -232,257 +94,127 @@ local function fileExists(path)
     return false
 end
 
-local function buildScreenshotPath(modelOrFile)
-    local folder = getScreenshotFolder()
-    local file = sanitizeFileName(modelOrFile)
-    local resourcePath = GetResourcePath(GetCurrentResourceName()) or ''
+local function buildFilePath(model)
+    local dir = ensureScreenshotDir()
+    local base = cleanFileName(model)
+    local ext = Config.Screenshot.encoding or 'png'
+    if ext == 'jpg' or ext == 'jpeg' then ext = 'jpg' else ext = 'png' end
 
-    if Config.ScreenshotOverwriteSameModel ~= false then
-        return folder .. '/' .. file, resourcePath .. '/' .. folder .. '/' .. file
+    local path = ('%s/%s.%s'):format(dir, base, ext)
+    local fileName = ('%s.%s'):format(base, ext)
+
+    if Config.Screenshot.overwriteSameModel ~= false then
+        return path, fileName
     end
 
-    local base = file:gsub('%.png$', '')
-    local relative = folder .. '/' .. file
-    local absolute = resourcePath .. '/' .. relative
-    local i = 2
-    while fileExists(absolute) do
-        relative = ('%s/%s_%s.png'):format(folder, base, i)
-        absolute = resourcePath .. '/' .. relative
-        i = i + 1
-        if i > 9999 then break end
+    if not fileExists(path) then return path, fileName end
+
+    for i = 2, 9999 do
+        local p = ('%s/%s_%d.%s'):format(dir, base, i, ext)
+        local f = ('%s_%d.%s'):format(base, i, ext)
+        if not fileExists(p) then
+            return p, f
+        end
     end
 
-    return relative, absolute
+    return path, fileName
 end
 
-RegisterNetEvent('driftzone_vehicless:server:requestScreenshot', function(token, filename, model)
+RegisterNetEvent('driftzone_vehicless:server:requestOpen', function(model)
     local src = source
-    token = tonumber(token or 0) or 0
-    if token <= 0 then return end
-    if not requireAdmin(src) then return end
 
-    local safeModel = cleanModel(model or filename or 'vehicle')
-    if safeModel == '' then safeModel = sanitizeFileName(filename or 'vehicle.png'):gsub('%.png$', '') end
-    if safeModel == '' then safeModel = 'vehicle' end
-
-    local relativePath, absolutePath = buildScreenshotPath(safeModel .. '.png')
-    if Config.ScreenshotOverwriteSameModel ~= false then
-        pcall(function() os.remove(absolutePath) end)
+    if not hasAccess(src) then
+        notify(src, 'warning', 'Nu ai acces la aceasta comanda.', 5500)
+        return
     end
 
-    local screenshotBasic = Config.ScreenshotBasicResource or 'screenshot-basic'
+    model = cleanModel(model)
+    if model == '' then
+        notify(src, 'warning', ('Folosire: /%s model_name'):format(Config.Command or 'vehss'), 5500)
+        return
+    end
 
-    if Config.UseScreenshotBasic ~= false and screenshotBasic ~= '' and GetResourceState(screenshotBasic) == 'started' then
-        local okCall, errCall = pcall(function()
-            exports[screenshotBasic]:requestClientScreenshot(src, {
-                fileName = absolutePath,
-                encoding = Config.Studio.screenshotEncoding or 'png',
-                quality = Config.Studio.screenshotQuality or 0.95
-            }, function(err, data)
-                if err then
-                    print(('[DRIFTZONE_VEHICLESS] screenshot-basic error for %s: %s'):format(GetPlayerName(src) or src, tostring(err)))
-                    if Config.InternalFallbackOnScreenshotBasicError ~= false then
-                        TriggerClientEvent('driftzone_vehicless:client:captureInternal', src, {
-                            token = token,
-                            filename = sanitizeFileName(safeModel .. '.png')
-                        })
-                    else
-                        TriggerClientEvent('driftzone_vehicless:client:screenshotSaved', src, { ok = false, token = token, error = tostring(err) })
-                    end
-                    return
+    TriggerClientEvent('driftzone_vehicless:client:openStudio', src, {
+        model = model,
+        mainColor = Config.MainColor or '#04c7f7'
+    })
+end)
+
+RegisterNetEvent('driftzone_vehicless:server:takeScreenshot', function(model, token)
+    local src = source
+    model = cleanModel(model)
+
+    if model == '' then
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Model invalid pentru screenshot.', token)
+        return
+    end
+
+    if ScreenshotBusy[src] then
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Asteapta, se salveaza deja un screenshot.', token)
+        return
+    end
+
+    local resourceName = Config.Screenshot.resource or 'screenshot-basic'
+    if GetResourceState(resourceName) ~= 'started' then
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Porneste screenshot-basic in server.cfg inainte de driftzone_vehicless.', token)
+        return
+    end
+
+    local filePath, fileName = buildFilePath(model)
+    ScreenshotBusy[src] = true
+    local finished = false
+
+    SetTimeout(Config.Screenshot.timeoutMs or 20000, function()
+        if finished then return end
+        finished = true
+        ScreenshotBusy[src] = nil
+        TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot timeout. Verifica consola server/client pentru screenshot-basic.', token)
+    end)
+
+    local okCall, callErr = pcall(function()
+        exports[resourceName]:requestClientScreenshot(src, {
+            fileName = filePath,
+            encoding = Config.Screenshot.encoding or 'png',
+            quality = Config.Screenshot.quality or 0.95
+        }, function(err, data)
+            if finished then return end
+            finished = true
+            ScreenshotBusy[src] = nil
+
+            if err then
+                print(('[DRIFTZONE_VEHICLESS] screenshot-basic error for %s: %s'):format(GetPlayerName(src) or src, cleanText(err)))
+                TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot-basic eroare: ' .. cleanText(err), token)
+                return
+            end
+
+            SetTimeout(250, function()
+                if fileExists(filePath) then
+                    print(('[DRIFTZONE_VEHICLESS] Screenshot saved: %s'):format(filePath))
+                    TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, true, 'Screenshot salvat: screenshots/' .. fileName, token)
+                else
+                    print(('[DRIFTZONE_VEHICLESS] screenshot-basic finished, but file missing: %s | data: %s'):format(filePath, cleanText(data)))
+                    TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'Screenshot facut, dar fisierul nu a fost gasit pe server.', token)
                 end
-
-                print(('[DRIFTZONE_VEHICLESS] Screenshot saved: %s'):format(tostring(data or absolutePath)))
-                TriggerClientEvent('driftzone_vehicless:client:screenshotSaved', src, {
-                    ok = true,
-                    token = token,
-                    file = relativePath,
-                    message = 'Screenshot salvat pe server: ' .. relativePath
-                })
             end)
         end)
+    end)
 
-        if okCall then return end
-
-        print(('[DRIFTZONE_VEHICLESS] screenshot-basic call failed: %s'):format(tostring(errCall)))
-    end
-
-    -- Fallback intern: nu depinde de screenshot-basic, dar daca NUI-ul tau nu suporta game-view hook, va da eroare in F8.
-    TriggerClientEvent('driftzone_vehicless:client:captureInternal', src, {
-        token = token,
-        filename = sanitizeFileName(safeModel .. '.png')
-    })
-end)
-
-local function screenshotKey(src, token)
-    return tostring(src) .. ':' .. tostring(token)
-end
-
-local function base64Decode(data)
-    data = tostring(data or ''):gsub('[^' .. Base64Chars .. '=]', '')
-    return (data:gsub('.', function(x)
-        if x == '=' then return '' end
-        local f = (Base64Chars:find(x, 1, true) or 1) - 1
-        local r = ''
-        for i = 6, 1, -1 do
-            r = r .. ((f % 2^i - f % 2^(i - 1) > 0) and '1' or '0')
-        end
-        return r
-    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
-        if #x ~= 8 then return '' end
-        local c = 0
-        for i = 1, 8 do
-            if x:sub(i, i) == '1' then c = c + 2^(8 - i) end
-        end
-        return string.char(c)
-    end))
-end
-
-local function screenshotFail(src, token, msg)
-    ScreenshotUploads[screenshotKey(src, token)] = nil
-    TriggerClientEvent('driftzone_vehicless:client:screenshotSaved', src, {
-        ok = false,
-        token = token,
-        error = msg or 'Screenshot save failed.'
-    })
-end
-
-RegisterNetEvent('driftzone_vehicless:server:screenshotStart', function(token, filename, total, size, model)
-    local src = source
-    token = tonumber(token or 0) or 0
-    total = tonumber(total or 0) or 0
-    size = tonumber(size or 0) or 0
-
-    if token <= 0 then return end
-    if not requireAdmin(src) then return end
-
-    local maxChars = tonumber(Config.ScreenshotMaxBase64Chars or 25000000) or 25000000
-    local maxChunks = tonumber(Config.ScreenshotMaxChunks or 2500) or 2500
-
-    if total <= 0 or total > maxChunks or size <= 0 or size > maxChars then
-        screenshotFail(src, token, 'Screenshot prea mare sau invalid.')
-        return
-    end
-
-    local safeFile = sanitizeFileName(filename)
-    ScreenshotUploads[screenshotKey(src, token)] = {
-        src = src,
-        token = token,
-        filename = safeFile,
-        model = cleanModel(model or 'vehicle'),
-        total = total,
-        size = size,
-        chunks = {},
-        received = 0,
-        started = nowMs()
-    }
-end)
-
-RegisterNetEvent('driftzone_vehicless:server:screenshotChunk', function(token, index, total, chunk)
-    local src = source
-    token = tonumber(token or 0) or 0
-    index = tonumber(index or 0) or 0
-    total = tonumber(total or 0) or 0
-    chunk = tostring(chunk or '')
-
-    local upload = ScreenshotUploads[screenshotKey(src, token)]
-    if not upload then return end
-    if total ~= upload.total or index < 1 or index > upload.total or chunk == '' then return end
-
-    if not upload.chunks[index] then
-        upload.chunks[index] = chunk
-        upload.received = upload.received + 1
-    end
-end)
-
-RegisterNetEvent('driftzone_vehicless:server:screenshotFinish', function(token)
-    local src = source
-    token = tonumber(token or 0) or 0
-
-    local key = screenshotKey(src, token)
-    local upload = ScreenshotUploads[key]
-    if not upload then
-        screenshotFail(src, token, 'Upload-ul screenshot-ului nu exista.')
-        return
-    end
-
-    if upload.received ~= upload.total then
-        screenshotFail(src, token, ('Lipsesc bucati din screenshot: %s/%s.'):format(upload.received, upload.total))
-        return
-    end
-
-    local parts = {}
-    for i = 1, upload.total do
-        if not upload.chunks[i] then
-            screenshotFail(src, token, ('Lipseste bucata %s din screenshot.'):format(i))
-            return
-        end
-        parts[i] = upload.chunks[i]
-    end
-
-    local base64 = table.concat(parts)
-    if #base64 ~= upload.size then
-        -- Nu e fatal mereu, dar daca e diferenta mare, ceva s-a corupt.
-        if math.abs(#base64 - upload.size) > 32 then
-            screenshotFail(src, token, 'Screenshot corupt la upload.')
-            return
+    if not okCall then
+        if not finished then
+            finished = true
+            ScreenshotBusy[src] = nil
+            print(('[DRIFTZONE_VEHICLESS] requestClientScreenshot failed: %s'):format(cleanText(callErr)))
+            TriggerClientEvent('driftzone_vehicless:client:screenshotDone', src, false, 'requestClientScreenshot a esuat. Verifica screenshot-basic.', token)
         end
     end
-
-    local bytes = base64Decode(base64)
-    if not bytes or #bytes < 1000 then
-        screenshotFail(src, token, 'Screenshot invalid dupa decodare.')
-        return
-    end
-
-    local relativePath = buildScreenshotPath(upload.model ~= '' and (upload.model .. '.png') or upload.filename)
-    local ok = SaveResourceFile(GetCurrentResourceName(), relativePath, bytes, #bytes)
-    ScreenshotUploads[key] = nil
-
-    if not ok then
-        TriggerClientEvent('driftzone_vehicless:client:screenshotSaved', src, {
-            ok = false,
-            token = token,
-            error = 'Nu pot scrie fisierul. Verifica daca folderul screenshots exista si resource-ul are permisiune de scriere.'
-        })
-        return
-    end
-
-    local resourcePath = GetResourcePath(GetCurrentResourceName()) or GetCurrentResourceName()
-    local savedPath = resourcePath .. '/' .. relativePath
-    print(('[DRIFTZONE_VEHICLESS] Screenshot saved: %s'):format(savedPath))
-
-    TriggerClientEvent('driftzone_vehicless:client:screenshotSaved', src, {
-        ok = true,
-        token = token,
-        file = relativePath,
-        message = 'Screenshot salvat pe server: ' .. relativePath
-    })
-end)
-
-CreateThread(function()
-    while true do
-        local t = nowMs()
-        for key, upload in pairs(ScreenshotUploads) do
-            if upload.started and t - upload.started > 60000 then
-                ScreenshotUploads[key] = nil
-            end
-        end
-        Wait(30000)
-    end
-end)
-
-RegisterNetEvent('driftzone_vehicless:server:clearCache', function()
-    local uid = getUid(source)
-    if uid then AdminCache[uid] = nil end
 end)
 
 AddEventHandler('playerDropped', function()
-    local uid = getUid(source)
-    if uid then AdminCache[uid] = nil end
+    ScreenshotBusy[source] = nil
 end)
 
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
-    print('[DRIFTZONE_VEHICLESS] Loaded fixed version. Command: /' .. (Config.Command or 'vehss'))
+    ensureScreenshotDir()
+    print('[DRIFTZONE_VEHICLESS] Loaded. Screenshot mode: screenshot-basic fileName. No screenshotChunk events.')
 end)

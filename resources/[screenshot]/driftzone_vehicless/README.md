@@ -1,6 +1,26 @@
-# driftzone_vehicless
+# driftzone_vehicless v4
 
-FiveM local vehicle photo studio pentru DriftZone.
+Fix pentru crash-ul:
+
+```txt
+Reliable network event size overflow:
+driftzone_vehicless:server:screenshotChunk
+```
+
+Resource-ul NU mai trimite poza prin event-uri net pe bucati. Asta era cauza crash-ului.
+
+## Instalare
+
+1. Sterge folderul vechi `driftzone_vehicless`.
+2. Pune folderul nou `driftzone_vehicless`.
+3. In `server.cfg` pune exact in ordinea asta:
+
+```cfg
+ensure screenshot-basic
+ensure driftzone_vehicless
+```
+
+Nu pune `yarn`, `webpack` sau alte build-uri pentru acest resource.
 
 ## Comanda
 
@@ -14,51 +34,39 @@ Exemplu:
 /vehss s15
 ```
 
-Acces default: `admin_level 6+` si `aduty yes`.
+Close fortat daca se blocheaza UI-ul:
 
-## Ce face versiunea asta
-
-- Spawn local pentru masina, doar pentru adminul care foloseste comanda.
-- Masina se pune automat pe alb la primary + secondary.
-- Camera ramane fixa; se roteste doar masina.
-- Playerul este ascuns si apoi readus la pozitia initiala.
-- Screenshot-ul se salveaza in `driftzone_vehicless/screenshots/`.
-- Numele fisierului este exact modelul masinii, de exemplu `s15.png`.
-- Daca `Config.ScreenshotOverwriteSameModel = true`, poza veche cu acelasi model se suprascrie.
-- Daca `Config.ScreenshotOverwriteSameModel = false`, salveaza `s15.png`, `s15_2.png`, `s15_3.png` etc.
-
-## Recomandat pentru screenshot fara poza neagra
-
-Resource-ul incearca prima data sa foloseasca `screenshot-basic`, pentru ca acela captureaza corect game render target-ul FiveM.
-Daca nu este pornit, foloseste fallback intern NUI.
-
-In `server.cfg` pune:
-
-```cfg
-ensure screenshot-basic
-ensure driftzone_vehicless
+```txt
+/vehssclose
 ```
 
-Daca nu ai `screenshot-basic`, resource-ul tot porneste, dar fallback-ul intern poate da poza neagra pe unele build-uri FiveM.
+## Screenshot-uri
 
-## Config important
+Pozele se salveaza pe server in:
 
-Fisier: `shared/config.lua`
+```txt
+driftzone_vehicless/screenshots/
+```
+
+Numele fisierului este modelul masinii:
+
+```txt
+s15.png
+rmodm4.png
+supra.png
+```
+
+Daca vrei sa nu suprascrie aceeasi masina, modifica in `shared/config.lua`:
 
 ```lua
-Config.ScreenshotOverwriteSameModel = true
-Config.Studio.forceWhiteColor = true
-Config.UseScreenshotBasic = true
+Config.Screenshot.overwriteSameModel = false
 ```
 
-## Unde se salveaza pozele
+## Alte fix-uri
 
-```txt
-resources/[folder]/driftzone_vehicless/screenshots/model_name.png
-```
-
-Exemplu:
-
-```txt
-resources/[driftzone]/driftzone_vehicless/screenshots/s15.png
-```
+- masina spawneaza primary alb si secondary alb;
+- camera ramane fixa;
+- se roteste doar masina;
+- playerul revine la pozitia lui dupa close;
+- nu mai exista event `screenshotChunk`;
+- nu mai exista salvare prin NUI base64, deci nu mai apare network event overflow.
