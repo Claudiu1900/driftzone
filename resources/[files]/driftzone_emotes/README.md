@@ -93,3 +93,25 @@ stream/
 ```
 
 Sunt acceptate foldere in interiorul `stream`, de exemplu `[Props]`, `[Gang]`, `[Custom Emotes]`.
+
+
+## Acces admin
+
+Sistemul este limitat server-side la `users.admin_level >= 6`. Configul este în `shared/config.lua`, secțiunea `Config.Access`.
+
+Necesită `oxmysql` pornit înainte de resource:
+
+```cfg
+ensure oxmysql
+ensure driftzone_emotes
+```
+
+Dacă folosești alt nume de coloană/tabel, modifici:
+
+```lua
+Config.Access.UsersTable = 'users'
+Config.Access.UsersIdColumn = 'uid'
+Config.Access.AdminColumn = 'admin_level'
+Config.Access.AdminColumnFallback = ''
+Config.Access.MinAdminLevel = 6
+```

@@ -75,6 +75,25 @@ Config = {
         }
     },
     NotifyEvent = 'client:notify',
+
+    -- Acces DriftZone: sistemul de emotes este disponibil doar pentru admini.
+    -- Verifica users.admin_level >= 6 folosind uid din state/export driftzone_auth.
+    Access = {
+        Enabled = true,
+        MinAdminLevel = 6,
+        UsersTable = 'users',
+        UsersIdColumn = 'uid',
+        AdminColumn = 'admin_level',
+        AdminColumnFallback = '',
+        StateUidKeys = { 'dz_uid', 'uid', 'user_id' },
+        StateAdminKeys = { 'admin_level', 'admin' },
+        AuthResource = 'driftzone_auth',
+        IdentifierColumns = { 'identifier', 'license' },
+        CacheMs = 5000,
+        ClientCacheMs = 5000,
+        ClientTimeoutMs = 3500,
+        NoAccessMessage = 'Nu ai acces la emotes. Ai nevoie de admin level 6+.'
+    },
     Notify = function(text, length, type)
         TriggerEvent(Config.NotifyEvent or 'client:notify', type or 'info', length or 5000, tostring(text or ''))
     end,

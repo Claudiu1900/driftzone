@@ -34,6 +34,64 @@ local PlayerParticles = {}
 local dzLockedEmote = false
 local dzForceCancel = false
 local dzLastLockedName = nil
+
+-- DriftZone access gate: client cere confirmare de la server; serverul verifica users.admin_level >= Config.Access.MinAdminLevel.
+local dzAccessBypass = false
+local dzAccessCache = { allowed = false, expires = 0, level = 0 }
+local dzAccessPending = {}
+local dzAccessRequestId = 0
+
+local function dzAccessEnabled()
+    return not (Config.Access and Config.Access.Enabled == false)
+end
+
+local function dzHasAccessCached()
+    if not dzAccessEnabled() then return true end
+    return dzAccessCache.allowed == true and GetGameTimer() < (dzAccessCache.expires or 0)
+end
+
+local function dzRequireAccess(cb, silent)
+    if not dzAccessEnabled() or dzHasAccessCached() then
+        if cb then cb(true) end
+        return true
+    end
+
+    dzAccessRequestId = dzAccessRequestId + 1
+    local requestId = dzAccessRequestId
+    dzAccessPending[requestId] = cb or function() end
+
+    TriggerServerEvent('driftzone_emotes:server:checkAccess', requestId)
+
+    SetTimeout((Config.Access and Config.Access.ClientTimeoutMs) or 3500, function()
+        if dzAccessPending[requestId] then
+            dzAccessPending[requestId] = nil
+            if not silent then
+                Notify('Nu am putut verifica accesul la emotes.', 5000, 'error')
+            end
+            if cb then cb(false) end
+        end
+    end)
+
+    return false
+end
+
+RegisterNetEvent('driftzone_emotes:client:accessResult', function(requestId, allowed, message, level)
+    local cb = dzAccessPending[requestId]
+    dzAccessPending[requestId] = nil
+
+    if allowed then
+        dzAccessCache.allowed = true
+        dzAccessCache.level = tonumber(level or 0) or 0
+        dzAccessCache.expires = GetGameTimer() + ((Config.Access and Config.Access.ClientCacheMs) or 5000)
+    else
+        dzAccessCache.allowed = false
+        dzAccessCache.level = tonumber(level or 0) or 0
+        dzAccessCache.expires = 0
+        Notify(message or 'Nu ai acces la emotes. Ai nevoie de admin level 6+.', 5000, 'error')
+    end
+
+    if cb then cb(allowed == true) end
+end)
 Citizen.CreateThread(function()
     local lastReady = false
     local id = 0
@@ -363,6 +421,17 @@ end)
 RegisterCommand(Config.MenuKey.Command, function() openMenu() end)
 exports('openMenu', function() return openMenu() end)
 function openMenu()
+    if not dzAccessBypass and not dzHasAccessCached() then
+        dzRequireAccess(function(ok)
+            if ok then
+                dzAccessBypass = true
+                openMenu()
+                dzAccessBypass = false
+            end
+        end)
+        return
+    end
+
     if menuReady then
         if not Config.CanOpenMenu() then return end
         if not setDataState then
@@ -1786,6 +1855,18 @@ RegisterCommand('e', function(source, args, raw) EmoteCommandStart(source, args,
 RegisterCommand('emote', function(source, args, raw) EmoteCommandStart(source, args, raw) end, false)
 
 function EmoteCommandStart(source, args, raw, type)
+    if not dzAccessBypass and not dzHasAccessCached() then
+        local argsCopy = args or {}
+        dzRequireAccess(function(ok)
+            if ok then
+                dzAccessBypass = true
+                EmoteCommandStart(source, argsCopy, raw, type)
+                dzAccessBypass = false
+            end
+        end)
+        return
+    end
+
     if #args > 0 then
         local requestedName = string.lower(tostring(args[1] or ''))
         if dzLockedEmote and not dzForceCancel and type ~= 'dz_locked_force' then
@@ -1837,6 +1918,17 @@ function EmoteCommandStart(source, args, raw, type)
 end
 
 function OnEmotePlay(name, category, type)
+    if not dzAccessBypass and not dzHasAccessCached() then
+        dzRequireAccess(function(ok)
+            if ok then
+                dzAccessBypass = true
+                OnEmotePlay(name, category, type)
+                dzAccessBypass = false
+            end
+        end)
+        return
+    end
+
     removeAllPropsGang()
     local ped = PlayerPedId()
     if type == "clone" then ped = myClone end
@@ -2144,6 +2236,12 @@ exports("EmoteCancel", function() return cancelEmote("driftzone") end)
 exports('IsPlayerInAnim', function() return isInAnimation end)
 
 RegisterCommand('resetquicks', function()
+    if not dzAccessBypass and not dzHasAccessCached() then
+        dzRequireAccess(function(ok)
+            if ok then ExecuteCommand('resetquicks') end
+        end)
+        return
+    end
     SetResourceKvp("driftzone_emotes_quicks_v2", json.encode({}))
     SendNUIMessage({action = "resetQuicks"})
 end)
@@ -2801,6 +2899,17 @@ end
 
 -- DriftZone public API
 local function dzPlayByName(emoteName, locked)
+    if not dzAccessBypass and not dzHasAccessCached() then
+        dzRequireAccess(function(ok)
+            if ok then
+                dzAccessBypass = true
+                dzPlayByName(emoteName, locked)
+                dzAccessBypass = false
+            end
+        end)
+        return false
+    end
+
     emoteName = string.lower(tostring(emoteName or '')):gsub('%s+', '')
     if emoteName == '' then return false end
 

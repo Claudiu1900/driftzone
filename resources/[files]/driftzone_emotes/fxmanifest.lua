@@ -5,7 +5,7 @@ lua54 'yes'
 name 'driftzone_emotes'
 author 'DriftZone'
 description 'DriftZone Emotes - 0r style UI, standalone/custom framework'
-version '1.0.0'
+version '1.1.0'
 
 ui_page 'html/index.html'
 
@@ -25,6 +25,7 @@ client_scripts {
 }
 
 server_scripts {
+    '@oxmysql/lib/MySQL.lua',
     'server/main.lua'
 }
 
@@ -38,14 +39,15 @@ files {
     'html/assets/images/*.*',
     'html/assets/sounds/*.*',
     'assets/*.png',
+    'stream/**/*',
     'stream/*.ytyp',
     'stream/*/*.ytyp',
-    'stream/**/*.ytyp',
-    'stream/**/*',
-    'stream/*/*'
+    'stream/**/*.ytyp'
 }
 
 -- Pentru props/custom emotes puse manual in stream.
 data_file 'DLC_ITYP_REQUEST' 'stream/*.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/*/*.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/**/*.ytyp'
+
+dependency 'oxmysql'
