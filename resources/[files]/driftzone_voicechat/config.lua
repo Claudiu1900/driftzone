@@ -16,6 +16,10 @@ Config.VoiceMode = {
 -- Non-participantii sunt mutati client-side, deci nu aud apelul.
 Config.PhoneCallDistance = 99999.0
 
+-- Voice target folosit pentru apeluri telefonice.
+-- Nu schimba daca nu folosesti deja voice targets in alt script.
+Config.PhoneVoiceTarget = 31
+
 Config.SilentDistance = 0.0
 
 Config.Volume = {

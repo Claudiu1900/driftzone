@@ -8,6 +8,49 @@ local lastVolumeApply = 0
 
 local phoneCallId = false
 local phoneParticipants = {}
+local phoneVoiceTargetActive = false
+
+local function phoneVoiceTargetId()
+    return tonumber(Config.PhoneVoiceTarget or 31) or 31
+end
+
+local function safeNative(fn)
+    local ok, err = pcall(fn)
+    if not ok and Config.Debug then
+        print('[DRIFTZONE_VOICECHAT] native error: ' .. tostring(err))
+    end
+end
+
+local function rebuildPhoneVoiceTarget()
+    local target = phoneVoiceTargetId()
+
+    safeNative(function() MumbleClearVoiceTarget(target) end)
+
+    if phoneCallId ~= false and phoneCallId ~= nil and tostring(phoneCallId) ~= '' and talking == true then
+        local myServerId = GetPlayerServerId(PlayerId())
+        local hasTarget = false
+
+        for serverId, enabled in pairs(phoneParticipants or {}) do
+            serverId = tonumber(serverId)
+            if enabled == true and serverId and serverId > 0 and serverId ~= myServerId then
+                safeNative(function() MumbleAddVoiceTargetPlayerByServerId(target, serverId) end)
+                hasTarget = true
+            end
+        end
+
+        if hasTarget then
+            safeNative(function() MumbleSetVoiceTarget(target) end)
+            phoneVoiceTargetActive = true
+            return
+        end
+    end
+
+    if phoneVoiceTargetActive then
+        safeNative(function() MumbleSetVoiceTarget(0) end)
+    end
+
+    phoneVoiceTargetActive = false
+end
 
 local function clamp(value, min, max)
     value = tonumber(value)
@@ -77,19 +120,18 @@ local function shouldHearPlayer(player, myCoords)
     local serverId = GetPlayerServerId(player)
     if not serverId or serverId == 0 then return false end
 
+    -- In apel telefonic audio-ul merge prin Mumble Voice Target.
+    -- Nu depindem de distanta si nu blocam participantul daca statebag-ul ajunge cu delay.
+    if isInPhoneCall() then
+        return isPhoneParticipant(serverId) == true
+    end
+
     local remotePlayer = Player(serverId)
     local state = remotePlayer and remotePlayer.state
     if not state or state.dz_voice_talking ~= true then return false end
 
     local remoteCall = state.dz_voice_phone_call
     if remoteCall ~= nil and remoteCall ~= false and tostring(remoteCall) ~= '' then
-        return isInPhoneCall()
-            and tostring(remoteCall) == tostring(phoneCallId)
-            and isPhoneParticipant(serverId)
-    end
-
-    -- Daca eu sunt intr-un apel, nu ascult proximitatea normala ca sa nu se amestece cu apelul.
-    if isInPhoneCall() then
         return false
     end
 
@@ -195,6 +237,7 @@ local function setTalking(state)
 
     talking = state
     setLocalTalkerRange()
+    rebuildPhoneVoiceTarget()
 
     TriggerServerEvent('driftzone_voicechat:server:setTalking', talking)
     applyVolumeToPlayers()
@@ -226,6 +269,7 @@ local function initVoice()
     LocalPlayer.state:set('voiceIntent', 'speech', true)
     LocalPlayer.state:set('dz_voice_distance', getVoiceDistance(), true)
     LocalPlayer.state:set('dz_voice_phone_call', false, true)
+    rebuildPhoneVoiceTarget()
 
     setTalking(false)
     applyVolumeToPlayers()
@@ -306,6 +350,7 @@ RegisterNetEvent('driftzone_voicechat:client:setPhoneCall', function(callId, par
 
     LocalPlayer.state:set('dz_voice_phone_call', phoneCallId, true)
     setLocalTalkerRange()
+    rebuildPhoneVoiceTarget()
     applyVolumeToPlayers()
     updateUi()
 end)
@@ -315,6 +360,7 @@ RegisterNetEvent('driftzone_voicechat:client:clearPhoneCall', function()
     phoneParticipants = {}
 
     LocalPlayer.state:set('dz_voice_phone_call', false, true)
+    rebuildPhoneVoiceTarget()
     setLocalTalkerRange()
     applyVolumeToPlayers()
     updateUi()
@@ -395,6 +441,9 @@ AddEventHandler('onResourceStop', function(resource)
 
     setTalking(false)
     LocalPlayer.state:set('dz_voice_phone_call', false, true)
+    phoneCallId = false
+    phoneParticipants = {}
+    rebuildPhoneVoiceTarget()
     MumbleSetTalkerProximity(0.0)
     NetworkSetTalkerProximity(0.0)
     SetNuiFocus(false, false)
