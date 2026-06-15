@@ -4,9 +4,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'DriftZone Phone - prototype calls with DriftZone VoiceChat'
-version '1.0.0'
-
-ui_page 'html/index.html'
+version '0.4.0'
 
 shared_scripts {
     'shared/config.lua'
@@ -21,11 +19,12 @@ client_scripts {
     'client/main.lua'
 }
 
+ui_page 'html/index.html'
+
 files {
     'html/index.html',
     'html/style.css',
     'html/script.js',
-    'html/assets/*.svg'
+    'html/assets/*.svg',
+    'html/assets/sounds/*.mp3'
 }
-
-dependency 'oxmysql'

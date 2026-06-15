@@ -2,6 +2,8 @@
 
 const root = document.getElementById('phoneRoot');
 const clockEl = document.getElementById('clock');
+const peekView = document.getElementById('peekView');
+const peekNumber = document.getElementById('peekNumber');
 const homeView = document.getElementById('homeView');
 const dialView = document.getElementById('dialView');
 const callView = document.getElementById('callView');
@@ -21,12 +23,25 @@ const otherNumber = document.getElementById('otherNumber');
 const callSubtitle = document.getElementById('callSubtitle');
 const callTimer = document.getElementById('callTimer');
 
-let open = false;
+let isOpen = false;
+let isPeek = false;
+let hasFocus = true;
 let lastState = {};
-let audioCtx = null;
-let ringTimer = null;
-let timerInterval = null;
 let currentScreen = 'home';
+let timerInterval = null;
+let closeTimer = null;
+
+const sounds = {
+    ring: new Audio('assets/sounds/ring.mp3'),
+    ring2: new Audio('assets/sounds/ring2.mp3'),
+    decline: new Audio('assets/sounds/decline.mp3')
+};
+
+sounds.ring.loop = true;
+sounds.ring2.loop = true;
+sounds.ring.volume = 0.48;
+sounds.ring2.volume = 0.56;
+sounds.decline.volume = 0.58;
 
 function nui(name, data = {}) {
     fetch(`https://${GetParentResourceName()}/${name}`, {
@@ -39,24 +54,84 @@ function nui(name, data = {}) {
 function show(el) { if (el) el.classList.remove('hidden'); }
 function hide(el) { if (el) el.classList.add('hidden'); }
 
+function playSound(name) {
+    const audio = sounds[name];
+    if (!audio) return;
+    try {
+        audio.currentTime = 0;
+        const p = audio.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (e) {}
+}
+
+function stopSound(name) {
+    const audio = sounds[name];
+    if (!audio) return;
+    try {
+        audio.pause();
+        audio.currentTime = 0;
+    } catch (e) {}
+}
+
+function stopRings() {
+    stopSound('ring');
+    stopSound('ring2');
+}
+
 function cleanNumber(value) {
     return String(value || '').replace(/[^0-9]/g, '').slice(0, 32);
 }
 
 function updateClock() {
     const d = new Date();
-    const h = String(d.getHours()).padStart(2, '0');
-    const m = String(d.getMinutes()).padStart(2, '0');
-    clockEl.textContent = `${h}:${m}`;
+    clockEl.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function setFocusUi(state) {
+    hasFocus = state === true;
+    root.classList.toggle('no-focus', !hasFocus);
+}
+
+function showRoot(mode) {
+    if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+    }
+
+    hide(root) === undefined;
+    root.classList.remove('hidden', 'closing', 'peek', 'no-focus');
+    root.classList.add('opening');
+    isOpen = true;
+    isPeek = mode === 'peek';
+    root.classList.toggle('peek', isPeek);
+
+    setTimeout(() => root.classList.remove('opening'), 260);
+}
+
+function hideRootAnimated() {
+    if (root.classList.contains('hidden')) return;
+
+    root.classList.remove('opening');
+    root.classList.add('closing');
+    isOpen = false;
+    isPeek = false;
+
+    closeTimer = setTimeout(() => {
+        root.classList.add('hidden');
+        root.classList.remove('closing', 'peek', 'no-focus');
+        closeTimer = null;
+    }, 240);
 }
 
 function switchScreen(name) {
     currentScreen = name;
+    hide(peekView);
     hide(homeView);
     hide(dialView);
     hide(callView);
 
-    if (name === 'dial') show(dialView);
+    if (name === 'peek') show(peekView);
+    else if (name === 'dial') show(dialView);
     else if (name === 'call') show(callView);
     else show(homeView);
 }
@@ -68,8 +143,14 @@ function openDialer() {
 }
 
 function goHome() {
+    if (isPeek) return nui('openFull');
     if (lastState && lastState.inCall) return switchScreen('call');
     switchScreen('home');
+}
+
+function requestClosePhone() {
+    hideRootAnimated();
+    nui('close');
 }
 
 function setDialStatus(cls, title, text, icon) {
@@ -79,87 +160,36 @@ function setDialStatus(cls, title, text, icon) {
     if (icon) dialStatusIcon.src = icon;
 }
 
-function pressKey(key) {
-    numberInput.value = cleanNumber(numberInput.value + key);
-}
-
-function clearNumber() {
-    numberInput.value = '';
-}
-
-function backspace() {
-    numberInput.value = cleanNumber(numberInput.value).slice(0, -1);
-}
+function pressKey(key) { numberInput.value = cleanNumber(numberInput.value + key); }
+function clearNumber() { numberInput.value = ''; }
+function backspace() { numberInput.value = cleanNumber(numberInput.value).slice(0, -1); }
 
 function dial() {
     const number = cleanNumber(numberInput.value);
     if (!number) {
         setDialStatus('error', 'Numar invalid', 'Scrie un numar de telefon.', 'assets/warning.svg');
+        playSound('decline');
         return;
     }
-    stopRing();
+    stopRings();
     nui('dial', { number });
 }
 
-function answer() { stopRing(); nui('answer'); }
-function decline() { stopRing(); nui('decline'); }
-function hangup() { stopRing(); nui('hangup'); }
-
-function closePhone() {
-    open = false;
-    stopRing();
-    hide(root);
-    nui('close');
+function answer() {
+    stopRings();
+    showRoot('full');
+    switchScreen('call');
+    nui('answer');
 }
 
-function ensureAudio() {
-    try {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        return audioCtx;
-    } catch (e) {
-        return null;
-    }
+function decline() {
+    stopRings();
+    nui('decline');
 }
 
-function beep(freq, duration, delay) {
-    const ctx = ensureAudio();
-    if (!ctx) return;
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.value = freq;
-    gain.gain.value = 0.0001;
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    const start = ctx.currentTime + (delay || 0);
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.052, start + 0.025);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-
-    osc.start(start);
-    osc.stop(start + duration + 0.03);
-}
-
-function startRing() {
-    if (ringTimer) return;
-    beep(920, 0.17, 0);
-    beep(680, 0.17, 0.23);
-    ringTimer = setInterval(() => {
-        beep(920, 0.17, 0);
-        beep(680, 0.17, 0.23);
-    }, 1420);
-}
-
-function stopRing() {
-    if (ringTimer) {
-        clearInterval(ringTimer);
-        ringTimer = null;
-    }
+function hangup() {
+    stopRings();
+    nui('hangup');
 }
 
 function stopTimer() {
@@ -174,9 +204,7 @@ function startTimer(startedAt) {
     const start = Number(startedAt || 0) > 0 ? Number(startedAt) * 1000 : Date.now();
     const tick = () => {
         const diff = Math.max(0, Math.floor((Date.now() - start) / 1000));
-        const m = String(Math.floor(diff / 60)).padStart(2, '0');
-        const s = String(diff % 60).padStart(2, '0');
-        callTimer.textContent = `${m}:${s}`;
+        callTimer.textContent = `${String(Math.floor(diff / 60)).padStart(2, '0')}:${String(diff % 60).padStart(2, '0')}`;
     };
     tick();
     timerInterval = setInterval(tick, 1000);
@@ -197,12 +225,41 @@ function renderHome(state = {}) {
     }
 }
 
+function renderPeek(state = {}) {
+    peekNumber.textContent = state.otherNumber || 'Necunoscut';
+    switchScreen('peek');
+}
+
+function applyCallSounds(state = {}) {
+    if (!state.inCall) {
+        stopRings();
+        return;
+    }
+
+    if (state.outgoing) {
+        stopSound('ring2');
+        playSound('ring');
+        return;
+    }
+
+    if (state.incoming) {
+        stopSound('ring');
+        playSound('ring2');
+        return;
+    }
+
+    if (state.active) {
+        stopRings();
+    }
+}
+
 function renderState(state = {}) {
     lastState = state || {};
 
     const ownNumber = lastState.myNumber || '';
     myNumber.textContent = ownNumber || 'Numar nesetat';
     renderHome(lastState);
+    applyCallSounds(lastState);
 
     if (!ownNumber) {
         setDialStatus('error', 'Telefon inactiv', 'Nu ai users.phonenumber setat.', 'assets/warning.svg');
@@ -215,6 +272,11 @@ function renderState(state = {}) {
     stopTimer();
 
     if (lastState.inCall) {
+        if (isPeek && lastState.incoming) {
+            renderPeek(lastState);
+            return;
+        }
+
         switchScreen('call');
         otherNumber.textContent = lastState.otherNumber || 'Necunoscut';
 
@@ -223,66 +285,102 @@ function renderState(state = {}) {
             callSubtitle.textContent = 'Telefonul suna. Poti raspunde sau respinge.';
             show(incomingActions);
             hide(hangupBtn);
-            startRing();
         } else if (lastState.outgoing) {
             callMode.textContent = 'Se apeleaza';
             callSubtitle.textContent = 'Asteapta raspunsul persoanei apelate.';
             hide(incomingActions);
             show(hangupBtn);
-            stopRing();
         } else if (lastState.active) {
             callMode.textContent = 'Apel activ';
-            callSubtitle.textContent = 'Vorbesti prin DriftZone VoiceChat. Tine N ca sa vorbesti.';
+            callSubtitle.textContent = 'Tine N ca sa vorbesti. Oamenii de langa tine te aud normal, dar nu aud persoana din telefon.';
             hide(incomingActions);
             show(hangupBtn);
-            stopRing();
             startTimer(lastState.startedAt);
         }
         return;
     }
 
-    stopRing();
+    if (isPeek) {
+        hideRootAnimated();
+        return;
+    }
+
     if (currentScreen === 'call') switchScreen('home');
 }
 
-numberInput.addEventListener('input', () => {
-    numberInput.value = cleanNumber(numberInput.value);
-});
+function handleFeedback(payload = {}) {
+    const sound = String(payload.sound || '').toLowerCase();
+    const title = payload.title || 'Telefon';
+    const text = payload.text || '';
+    const kind = String(payload.kind || 'info').toLowerCase();
 
-numberInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') dial();
-});
+    if (sound === 'decline') {
+        stopRings();
+        playSound('decline');
+    } else if (sound === 'ring') {
+        stopSound('ring2');
+        playSound('ring');
+    } else if (sound === 'ring2') {
+        stopSound('ring');
+        playSound('ring2');
+    }
+
+    if (kind === 'error' || kind === 'busy' || kind === 'declined' || kind === 'missed' || kind === 'ended') {
+        setDialStatus('error', title, text, 'assets/warning.svg');
+    } else {
+        setDialStatus('idle', title, text, 'assets/phone.svg');
+    }
+}
+
+numberInput.addEventListener('input', () => { numberInput.value = cleanNumber(numberInput.value); });
+numberInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') dial(); });
 
 document.addEventListener('keydown', (e) => {
-    if (!open) return;
-    if (e.key === 'Escape') closePhone();
+    if (!isOpen) return;
+    if (e.key === 'Escape') requestClosePhone();
     if (e.key === 'Backspace' && currentScreen === 'dial' && document.activeElement !== numberInput) backspace();
 });
 
 window.addEventListener('message', (event) => {
     const data = event.data || {};
 
+    if (data.mainColor) document.documentElement.style.setProperty('--main', data.mainColor);
+
     if (data.action === 'setup') {
-        if (data.mainColor) document.documentElement.style.setProperty('--main', data.mainColor);
+        return;
+    }
+
+    if (data.action === 'focus') {
+        setFocusUi(data.focus === true);
+        return;
     }
 
     if (data.action === 'open') {
-        open = true;
-        if (data.mainColor) document.documentElement.style.setProperty('--main', data.mainColor);
-        show(root);
+        showRoot('full');
         renderState(data.state || lastState || {});
         if (!(lastState && lastState.inCall)) switchScreen('home');
+        return;
+    }
+
+    if (data.action === 'peek') {
+        showRoot('peek');
+        renderState(data.state || lastState || {});
+        renderPeek(data.state || lastState || {});
+        return;
     }
 
     if (data.action === 'close') {
-        open = false;
-        hide(root);
-        stopRing();
-        stopTimer();
+        hideRootAnimated();
+        return;
     }
 
     if (data.action === 'state' || data.action === 'incoming') {
         renderState(data.state || {});
+        return;
+    }
+
+    if (data.action === 'feedback') {
+        handleFeedback(data.payload || {});
     }
 });
 

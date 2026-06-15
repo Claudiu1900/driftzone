@@ -26,16 +26,18 @@ local function normalizeSqlExpr(columnName)
     local col = ('COALESCE(CAST(%s AS CHAR), \'\')'):format(sqlName(columnName))
     local chars = { ' ', '-', '.', '+', '(', ')', '/', '_', ':' }
     local expr = col
+
     for _, ch in ipairs(chars) do
         expr = ("REPLACE(%s, '%s', '')"):format(expr, ch:gsub("'", "\\'"))
     end
+
     return expr
 end
 
-local function notify(src, typ, msg, duration)
-    if src and tonumber(src) and tonumber(src) > 0 then
-        TriggerClientEvent('driftzone_phone:client:notify', src, typ or 'info', tostring(msg or ''), duration or 4500)
-    end
+local function sendFeedback(src, payload)
+    src = tonumber(src)
+    if not src or src <= 0 then return end
+    TriggerClientEvent('driftzone_phone:client:feedback', src, payload or {})
 end
 
 local function getUserColumns()
@@ -64,7 +66,7 @@ local function getPhoneColumns()
 
     local function add(name)
         name = tostring(name or '')
-        if name ~= '' and not added[name] and cols[name] then
+        if name ~= '' and not added[name] and (cols[name] == true or next(cols) == nil) then
             added[name] = true
             out[#out + 1] = name
         end
@@ -74,7 +76,6 @@ local function getPhoneColumns()
     for _, name in ipairs(Config.PhoneColumns or {}) do add(name) end
 
     if #out <= 0 then
-        -- fallback pentru servere unde SHOW COLUMNS nu merge, dar coloana exista.
         out[1] = Config.PhoneColumn or 'phonenumber'
     end
 
@@ -172,7 +173,7 @@ local function getPhoneByUid(uid, force)
     end
 
     if phone == '' then phone = nil end
-    PhoneCache[uid] = { phone = phone, expires = GetGameTimer() + 10000 }
+    PhoneCache[uid] = { phone = phone, expires = GetGameTimer() + 7000 }
     return phone
 end
 
@@ -208,9 +209,7 @@ local function getPlayerByUid(uid)
 
     for _, id in ipairs(GetPlayers()) do
         local src = tonumber(id)
-        if src and getUid(src) == uid then
-            return src
-        end
+        if src and getUid(src) == uid then return src end
     end
 
     return nil
@@ -235,11 +234,13 @@ end
 local function getCallForPlayer(src)
     local callId = PlayerCall[tonumber(src)]
     if not callId then return nil, nil end
+
     local call = Calls[callId]
     if not call then
         PlayerCall[tonumber(src)] = nil
         return nil, nil
     end
+
     return callId, call
 end
 
@@ -256,7 +257,8 @@ local function publicCallStateFor(src)
         active = false,
         otherNumber = '',
         otherName = '',
-        callId = nil
+        callId = nil,
+        startedAt = 0
     }
 
     if call then
@@ -288,7 +290,15 @@ local function sendCallStates(call)
     sendState(call.b)
 end
 
-local function endCall(callId, reason)
+local function otherParticipant(call, src)
+    if not call then return nil end
+    src = tonumber(src)
+    if call.a == src then return call.b end
+    if call.b == src then return call.a end
+    return nil
+end
+
+local function endCall(callId, reason, endedBy)
     local call = Calls[callId]
     if not call then return end
 
@@ -299,15 +309,36 @@ local function endCall(callId, reason)
     TriggerEvent('driftzone_voicechat:server:endPhoneCall', callId)
 
     if reason == 'missed' then
-        notify(call.from, 'warning', 'Apel nepreluat.', 4500)
-        notify(call.to, 'warning', 'Apel ratat.', 4500)
+        sendFeedback(call.from, {
+            kind = 'missed',
+            title = 'Apel nepreluat',
+            text = 'Nu a raspuns nimeni.',
+            sound = 'decline'
+        })
     elseif reason == 'declined' then
-        notify(call.from, 'warning', 'Apel respins.', 4500)
+        sendFeedback(call.from, {
+            kind = 'declined',
+            title = 'Apel respins',
+            text = 'Persoana a inchis apelul.',
+            sound = 'decline'
+        })
     elseif reason == 'busy' then
-        notify(call.from, 'warning', 'Linia este ocupata.', 4500)
+        sendFeedback(call.from, {
+            kind = 'busy',
+            title = 'Linie ocupata',
+            text = 'Persoana este deja intr-un apel.',
+            sound = 'decline'
+        })
     elseif reason == 'ended' then
-        notify(call.a, 'info', 'Apel incheiat.', 3500)
-        notify(call.b, 'info', 'Apel incheiat.', 3500)
+        local other = endedBy and otherParticipant(call, endedBy) or nil
+        if other then
+            sendFeedback(other, {
+                kind = 'ended',
+                title = 'Apel inchis',
+                text = 'Persoana a inchis apelul.',
+                sound = 'decline'
+            })
+        end
     end
 
     sendState(call.a)
@@ -319,6 +350,16 @@ local function makeCallId()
     return ('dzcall_%s_%s'):format(os.time(), NextCallId)
 end
 
+local function failCall(src, title, text)
+    sendFeedback(src, {
+        kind = 'error',
+        title = title or 'Apel esuat',
+        text = text or 'Nu se poate efectua apelul.',
+        sound = 'decline'
+    })
+    sendState(src)
+end
+
 RegisterNetEvent('driftzone_phone:server:requestState', function()
     local src = source
     if not isLogged(src) then return end
@@ -327,10 +368,12 @@ end)
 
 RegisterNetEvent('driftzone_phone:server:startCall', function(rawNumber)
     local src = source
-    if not isLogged(src) then return notify(src, 'warning', 'Trebuie sa fii logat.', 4000) end
+    if not isLogged(src) then
+        return failCall(src, 'Telefon blocat', 'Trebuie sa fii logat.')
+    end
 
     if PlayerCall[src] then
-        return notify(src, 'warning', 'Esti deja intr-un apel.', 4000)
+        return failCall(src, 'Linie ocupata', 'Esti deja intr-un apel.')
     end
 
     local number = cleanNumber(rawNumber)
@@ -338,17 +381,17 @@ RegisterNetEvent('driftzone_phone:server:startCall', function(rawNumber)
     local maxLen = tonumber(Config.PhoneNumberMaxLength or 32) or 32
 
     if number == '' or #number < minLen or #number > maxLen then
-        return notify(src, 'warning', 'Numar de telefon invalid.', 4000)
+        return failCall(src, 'Numar invalid', 'Scrie un numar de telefon valid.')
     end
 
     local uid = getUid(src)
     local myPhone = uid and getPhoneByUid(uid, true) or nil
     if not myPhone then
-        return notify(src, 'warning', 'Nu ai numar de telefon setat in users.phonenumber.', 4500)
+        return failCall(src, 'Numar lipsa', 'Nu ai users.phonenumber setat.')
     end
 
     if number == myPhone then
-        return notify(src, 'warning', 'Nu te poti suna singur.', 4000)
+        return failCall(src, 'Numar invalid', 'Nu te poti suna singur.')
     end
 
     local target, targetUid = getPlayerByPhone(number)
@@ -358,15 +401,16 @@ RegisterNetEvent('driftzone_phone:server:startCall', function(rawNumber)
     end
 
     if not targetUid then
-        return notify(src, 'warning', 'Numarul nu exista in baza de date.', 4500)
+        return failCall(src, 'Numar inexistent', 'Numarul nu exista in baza de date.')
     end
 
     if not target then
-        return notify(src, 'warning', 'Telefonul este inchis sau persoana nu este online.', 4500)
+        return failCall(src, 'Telefon indisponibil', 'Persoana nu este pe server.')
     end
 
     if PlayerCall[target] then
-        return notify(src, 'warning', 'Linia este ocupata.', 4500)
+        local fake = { from = src }
+        return failCall(src, 'Linie ocupata', 'Persoana este deja intr-un apel.')
     end
 
     local callId = makeCallId()
@@ -387,10 +431,14 @@ RegisterNetEvent('driftzone_phone:server:startCall', function(rawNumber)
     PlayerCall[src] = callId
     PlayerCall[target] = callId
 
-    notify(src, 'info', 'Suni la ' .. number .. '...', 4500)
-    TriggerClientEvent('driftzone_phone:client:incoming', target, publicCallStateFor(target))
-    notify(target, 'info', 'Telefonul suna. Deschide /phone ca sa raspunzi.', 6000)
+    sendFeedback(src, {
+        kind = 'ringing',
+        title = 'Se apeleaza',
+        text = 'Suni la ' .. number .. '.',
+        sound = 'ring'
+    })
 
+    TriggerClientEvent('driftzone_phone:client:incoming', target, publicCallStateFor(target))
     sendCallStates(call)
 
     SetTimeout(tonumber(Config.CallTimeoutMs or 30000) or 30000, function()
@@ -412,9 +460,6 @@ RegisterNetEvent('driftzone_phone:server:answerCall', function()
     call.startedAt = os.time()
 
     TriggerEvent('driftzone_voicechat:server:startPhoneCall', callId, call.a, call.b)
-
-    notify(call.a, 'success', 'Apel conectat.', 3500)
-    notify(call.b, 'success', 'Apel conectat.', 3500)
     sendCallStates(call)
 end)
 
@@ -424,9 +469,9 @@ RegisterNetEvent('driftzone_phone:server:declineCall', function()
     if not call then return sendState(src) end
 
     if call.state == 'ringing' and call.to == src then
-        endCall(callId, 'declined')
+        endCall(callId, 'declined', src)
     else
-        endCall(callId, 'ended')
+        endCall(callId, 'ended', src)
     end
 end)
 
@@ -434,7 +479,7 @@ RegisterNetEvent('driftzone_phone:server:hangupCall', function()
     local src = source
     local callId, call = getCallForPlayer(src)
     if not call then return sendState(src) end
-    endCall(callId, 'ended')
+    endCall(callId, 'ended', src)
 end)
 
 AddEventHandler('playerDropped', function()
@@ -443,7 +488,7 @@ AddEventHandler('playerDropped', function()
 
     local callId = PlayerCall[src]
     if callId then
-        endCall(callId, 'ended')
+        endCall(callId, 'ended', src)
     end
 end)
 

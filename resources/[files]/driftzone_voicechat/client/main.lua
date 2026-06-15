@@ -9,6 +9,8 @@ local lastVolumeApply = 0
 local phoneCallId = false
 local phoneParticipants = {}
 local phoneVoiceTargetActive = false
+local getProximityDistance
+local getPlayerCoordsSafe
 
 local function phoneVoiceTargetId()
     return tonumber(Config.PhoneVoiceTarget or 31) or 31
@@ -28,13 +30,42 @@ local function rebuildPhoneVoiceTarget()
 
     if phoneCallId ~= false and phoneCallId ~= nil and tostring(phoneCallId) ~= '' and talking == true then
         local myServerId = GetPlayerServerId(PlayerId())
+        local added = {}
         local hasTarget = false
 
-        for serverId, enabled in pairs(phoneParticipants or {}) do
+        local function addTarget(serverId)
             serverId = tonumber(serverId)
-            if enabled == true and serverId and serverId > 0 and serverId ~= myServerId then
+            if serverId and serverId > 0 and serverId ~= myServerId and not added[serverId] then
+                added[serverId] = true
                 safeNative(function() MumbleAddVoiceTargetPlayerByServerId(target, serverId) end)
                 hasTarget = true
+            end
+        end
+
+        -- Persoana din apel aude vocea indiferent de distanta.
+        for serverId, enabled in pairs(phoneParticipants or {}) do
+            if enabled == true then addTarget(serverId) end
+        end
+
+        -- Jucatorii din jur te aud normal cand vorbesti la telefon.
+        local ped = PlayerPedId()
+        if ped and ped ~= 0 and DoesEntityExist(ped) then
+            local myCoords = GetEntityCoords(ped)
+            local prox = getProximityDistance()
+            for _, ply in ipairs(GetActivePlayers()) do
+                if ply ~= PlayerId() then
+                    local sid = GetPlayerServerId(ply)
+                    local coords = getPlayerCoordsSafe(ply)
+                    if sid and sid ~= 0 and coords then
+                        local dx = myCoords.x - coords.x
+                        local dy = myCoords.y - coords.y
+                        local dz = myCoords.z - coords.z
+                        local distSq = dx * dx + dy * dy + dz * dz
+                        if distSq <= (prox * prox) then
+                            addTarget(sid)
+                        end
+                    end
+                end
             end
         end
 
@@ -71,7 +102,7 @@ local function sendUi(payload)
     SendNUIMessage(payload)
 end
 
-local function getProximityDistance()
+getProximityDistance = function()
     return tonumber(Config.VoiceMode.distance or 15.0) or 15.0
 end
 
@@ -80,10 +111,6 @@ local function isInPhoneCall()
 end
 
 local function getVoiceDistance()
-    if isInPhoneCall() then
-        return tonumber(Config.PhoneCallDistance or 99999.0) or 99999.0
-    end
-
     return getProximityDistance()
 end
 
@@ -100,10 +127,10 @@ local function setLocalTalkerRange()
     }, true)
 
     LocalPlayer.state:set('dz_voice_talking', talking, true)
-    LocalPlayer.state:set('dz_voice_distance', getVoiceDistance(), true)
+    LocalPlayer.state:set('dz_voice_distance', getProximityDistance(), true)
 end
 
-local function getPlayerCoordsSafe(player)
+getPlayerCoordsSafe = function(player)
     local ped = GetPlayerPed(player)
     if not ped or ped == 0 or not DoesEntityExist(ped) then return nil end
     return GetEntityCoords(ped)
@@ -120,20 +147,14 @@ local function shouldHearPlayer(player, myCoords)
     local serverId = GetPlayerServerId(player)
     if not serverId or serverId == 0 then return false end
 
-    -- In apel telefonic audio-ul merge prin Mumble Voice Target.
-    -- Nu depindem de distanta si nu blocam participantul daca statebag-ul ajunge cu delay.
-    if isInPhoneCall() then
-        return isPhoneParticipant(serverId) == true
+    -- Persoana din apel se aude mereu pentru tine.
+    if isPhoneParticipant(serverId) == true then
+        return true
     end
 
     local remotePlayer = Player(serverId)
     local state = remotePlayer and remotePlayer.state
     if not state or state.dz_voice_talking ~= true then return false end
-
-    local remoteCall = state.dz_voice_phone_call
-    if remoteCall ~= nil and remoteCall ~= false and tostring(remoteCall) ~= '' then
-        return false
-    end
 
     local distanceLimit = tonumber(state.dz_voice_distance or getProximityDistance()) or getProximityDistance()
     if distanceLimit <= 0.0 then return false end
@@ -267,7 +288,7 @@ local function initVoice()
     MumbleSetAudioInputIntent(`speech`)
 
     LocalPlayer.state:set('voiceIntent', 'speech', true)
-    LocalPlayer.state:set('dz_voice_distance', getVoiceDistance(), true)
+    LocalPlayer.state:set('dz_voice_distance', getProximityDistance(), true)
     LocalPlayer.state:set('dz_voice_phone_call', false, true)
     rebuildPhoneVoiceTarget()
 
@@ -392,6 +413,9 @@ CreateThread(function()
 
             if now - lastVolumeApply >= (Config.Volume.refreshMs or 250) then
                 lastVolumeApply = now
+                if talking and isInPhoneCall() then
+                    rebuildPhoneVoiceTarget()
+                end
                 applyVolumeToPlayers()
             end
 

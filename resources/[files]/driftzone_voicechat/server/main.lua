@@ -5,13 +5,7 @@ RegisterNetEvent('driftzone_voicechat:server:setTalking', function(state)
 
     Player(src).state:set('dz_voice_talking', state == true, true)
     Player(src).state:set('dz_voice_mode', 'Tipa', true)
-
-    local phoneCall = Player(src).state.dz_voice_phone_call
-    if phoneCall ~= nil and phoneCall ~= false and tostring(phoneCall) ~= '' then
-        Player(src).state:set('dz_voice_distance', Config.PhoneCallDistance or 99999.0, true)
-    else
-        Player(src).state:set('dz_voice_distance', Config.VoiceMode.distance or 15.0, true)
-    end
+    Player(src).state:set('dz_voice_distance', Config.VoiceMode.distance or 15.0, true)
 end)
 
 local function clearPlayerPhoneState(src)
@@ -34,12 +28,12 @@ AddEventHandler('driftzone_voicechat:server:startPhoneCall', function(callId, a,
 
     if Player(a) and Player(a).state then
         Player(a).state:set('dz_voice_phone_call', callId, true)
-        Player(a).state:set('dz_voice_distance', Config.PhoneCallDistance or 99999.0, true)
+        Player(a).state:set('dz_voice_distance', Config.VoiceMode.distance or 15.0, true)
     end
 
     if Player(b) and Player(b).state then
         Player(b).state:set('dz_voice_phone_call', callId, true)
-        Player(b).state:set('dz_voice_distance', Config.PhoneCallDistance or 99999.0, true)
+        Player(b).state:set('dz_voice_distance', Config.VoiceMode.distance or 15.0, true)
     end
 
     TriggerClientEvent('driftzone_voicechat:client:setPhoneCall', a, callId, { a, b })

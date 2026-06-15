@@ -15,6 +15,15 @@
                 <div class="status-icons"><span></span><span></span><span></span></div>
             </div>
 
+            <section id="peekView" class="peek-screen hidden">
+                <div class="peek-label">APEL PRIMIT</div>
+                <div id="peekNumber" class="peek-number">---</div>
+                <div class="peek-buttons">
+                    <button class="peek-answer" onclick="answer()"><img src="assets/call.svg" draggable="false"></button>
+                    <button class="peek-decline" onclick="decline()"><img src="assets/hangup.svg" draggable="false"></button>
+                </div>
+            </section>
+
             <section id="homeView" class="screen home-screen">
                 <div class="hero">
                     <span>DRIFTZONE</span>
@@ -41,10 +50,10 @@
                     </button>
                 </div>
 
-                <div id="homeBanner" class="home-banner hidden">
+                <div id="homeBanner" class="home-banner hidden" onclick="openDialer()">
                     <img src="assets/call.svg" draggable="false">
                     <div>
-                        <b>Apel activ</b>
+                        <b>Apel</b>
                         <p id="homeBannerText">---</p>
                     </div>
                 </div>
@@ -57,7 +66,7 @@
                         <b>Telefon</b>
                         <span id="myNumber">---</span>
                     </div>
-                    <button class="small-btn" onclick="closePhone()">×</button>
+                    <button class="small-btn" onclick="requestClosePhone()">×</button>
                 </div>
 
                 <div id="dialStatus" class="dial-status idle">
@@ -94,9 +103,7 @@
             <section id="callView" class="screen call-screen hidden">
                 <div class="call-bg"></div>
                 <div class="call-topline" id="callMode">Apel</div>
-                <div class="avatar">
-                    <img src="assets/user.svg" draggable="false">
-                </div>
+                <div class="avatar"><img src="assets/user.svg" draggable="false"></div>
                 <h2 id="otherNumber">---</h2>
                 <p id="callSubtitle">Conectare...</p>
                 <div id="callTimer" class="call-timer hidden">00:00</div>

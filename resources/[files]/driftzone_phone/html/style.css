@@ -9,15 +9,14 @@ html, body {
 }
 :root {
     --main: #04c7f7;
-    --bg: rgba(7, 10, 16, 0.98);
-    --panel: rgba(255,255,255,0.055);
-    --panel2: rgba(255,255,255,0.085);
-    --line: rgba(255,255,255,0.12);
+    --bg: rgba(5, 8, 14, 0.985);
+    --glass: rgba(255,255,255,0.055);
+    --glass2: rgba(255,255,255,0.088);
+    --line: rgba(255,255,255,0.13);
     --text: #fff;
     --muted: rgba(255,255,255,0.56);
-    --green: #2bd982;
-    --red: #ff4d64;
-    --amber: #ffb64d;
+    --green: #24d477;
+    --red: #ff425c;
 }
 .hidden { display: none !important; }
 .phone-root { position: fixed; inset: 0; pointer-events: none; }
@@ -31,23 +30,38 @@ html, body {
     padding: 18px 16px 20px;
     overflow: hidden;
     color: var(--text);
-    border-radius: 28px;
+    border-radius: 26px;
     border: 1px solid rgba(255,255,255,0.18);
     background:
-        radial-gradient(circle at 50% -10%, rgba(4,199,247,0.20), transparent 35%),
-        linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+        radial-gradient(circle at 50% -10%, rgba(4,199,247,0.18), transparent 35%),
+        linear-gradient(160deg, rgba(255,255,255,0.075), rgba(255,255,255,0.020)),
         var(--bg);
-    box-shadow: 0 34px 105px rgba(0,0,0,0.68), inset 0 1px 0 rgba(255,255,255,0.10);
-    animation: phoneIn 170ms ease both;
+    box-shadow: 0 34px 105px rgba(0,0,0,0.70), inset 0 1px 0 rgba(255,255,255,0.10);
 }
-.phone-frame:before {
+.phone-frame::before {
     content: '';
     position: absolute;
     inset: 9px;
-    border-radius: 22px;
+    border-radius: 20px;
     border: 1px solid rgba(255,255,255,0.065);
     pointer-events: none;
 }
+.phone-root.opening .phone-frame { animation: phoneOpen 240ms cubic-bezier(.18,.9,.22,1) both; }
+.phone-root.closing .phone-frame { animation: phoneClose 220ms ease both; }
+.phone-root.no-focus .phone-frame { opacity: .94; }
+.phone-root.peek .phone-frame {
+    right: -180px;
+    bottom: 132px;
+    width: 338px;
+    height: 230px;
+    padding: 16px;
+    border-radius: 24px;
+}
+.phone-root.peek.opening .phone-frame { animation: phonePeekOpen 240ms cubic-bezier(.18,.9,.22,1) both; }
+.phone-root.peek.closing .phone-frame { animation: phonePeekClose 220ms ease both; }
+.phone-root.peek .phone-notch,
+.phone-root.peek .status-bar,
+.phone-root.peek .home-button { display: none; }
 .phone-notch {
     position: absolute;
     top: 8px;
@@ -91,6 +105,50 @@ html, body {
     bottom: 46px;
     z-index: 2;
 }
+.peek-screen {
+    position: absolute;
+    left: 18px;
+    top: 24px;
+    width: 134px;
+    height: 180px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.peek-label {
+    color: var(--main);
+    font-size: 10px;
+    font-weight: 1000;
+    letter-spacing: 1.7px;
+}
+.peek-number {
+    margin-top: 7px;
+    width: 128px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: white;
+    font-size: 18px;
+    font-weight: 950;
+}
+.peek-buttons {
+    margin-top: 18px;
+    display: flex;
+    gap: 10px;
+}
+.peek-buttons button {
+    width: 52px;
+    height: 52px;
+    border: 0;
+    border-radius: 15px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    box-shadow: 0 12px 24px rgba(0,0,0,.32);
+}
+.peek-buttons img { width: 20px; height: 20px; }
+.peek-answer { background: linear-gradient(135deg, #22d77d, #82ffc5); }
+.peek-decline { background: linear-gradient(135deg, #bd2038, #ff536b); }
 .home-screen {
     padding: 16px 10px 8px;
     background:
@@ -107,30 +165,10 @@ html, body {
         rgba(255,255,255,0.045);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
 }
-.hero span {
-    color: var(--main);
-    font-size: 10px;
-    font-weight: 1000;
-    letter-spacing: 2.4px;
-}
-.hero h1 {
-    margin: 9px 0 0;
-    font-size: 34px;
-    line-height: 1;
-    letter-spacing: -1.2px;
-}
-.hero p {
-    margin: 9px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 800;
-}
-.apps-grid {
-    margin-top: 22px;
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 13px 11px;
-}
+.hero span { color: var(--main); font-size: 10px; font-weight: 1000; letter-spacing: 2.4px; }
+.hero h1 { margin: 9px 0 0; font-size: 34px; line-height: 1; letter-spacing: -1.2px; }
+.hero p { margin: 9px 0 0; color: var(--muted); font-size: 13px; font-weight: 800; }
+.apps-grid { margin-top: 22px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px 11px; }
 .app-icon {
     height: 78px;
     border: 0;
@@ -153,14 +191,7 @@ html, body {
     border: 1px solid rgba(255,255,255,0.10);
 }
 .phone-app img { background: linear-gradient(145deg, #1ed779, #75ffc0); box-shadow: 0 10px 25px rgba(43,217,130,0.24); }
-.app-icon span {
-    max-width: 64px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: rgba(255,255,255,0.82);
-    font-size: 10px;
-    font-weight: 850;
-}
+.app-icon span { max-width: 64px; overflow: hidden; text-overflow: ellipsis; color: rgba(255,255,255,0.82); font-size: 10px; font-weight: 850; }
 .app-icon.disabled { opacity: .45; cursor: default; }
 .home-banner {
     position: absolute;
@@ -173,16 +204,12 @@ html, body {
     border-radius: 16px;
     border: 1px solid rgba(4,199,247,0.28);
     background: rgba(4,199,247,0.10);
+    cursor: pointer;
 }
 .home-banner img { width: 28px; height: 28px; }
 .home-banner b { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
 .home-banner p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
-.screen-head {
-    height: 54px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
+.screen-head { height: 54px; display: flex; align-items: center; justify-content: space-between; }
 .screen-head > div { text-align: center; }
 .screen-head b { display: block; font-size: 15px; }
 .screen-head span { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
@@ -212,7 +239,7 @@ html, body {
 .dial-status img { width: 30px; height: 30px; }
 .dial-status b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
 .dial-status p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.3; }
-.dial-status.error { border-color: rgba(255,77,100,0.36); background: rgba(255,77,100,0.09); }
+.dial-status.error { border-color: rgba(255,66,92,0.38); background: rgba(255,66,92,0.09); }
 #numberInput {
     margin-top: 14px;
     width: 100%; height: 54px;
@@ -227,12 +254,7 @@ html, body {
     letter-spacing: 1px;
 }
 #numberInput::placeholder { color: rgba(255,255,255,0.25); }
-.keypad {
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 9px;
-}
+.keypad { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
 .keypad button {
     height: 56px;
     border-radius: 15px;
@@ -273,14 +295,7 @@ html, body {
         linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0));
     pointer-events: none;
 }
-.call-topline {
-    position: relative;
-    color: var(--main);
-    font-size: 11px;
-    font-weight: 1000;
-    text-transform: uppercase;
-    letter-spacing: 1.8px;
-}
+.call-topline { position: relative; color: var(--main); font-size: 11px; font-weight: 1000; text-transform: uppercase; letter-spacing: 1.8px; }
 .avatar {
     position: relative;
     margin: 38px auto 16px;
@@ -292,44 +307,14 @@ html, body {
     box-shadow: inset 0 0 30px rgba(4,199,247,0.10), 0 18px 45px rgba(0,0,0,0.30);
 }
 .avatar img { width: 54px; height: 54px; }
-.call-screen h2 {
-    position: relative;
-    margin: 8px 0 0;
-    font-size: 29px;
-    letter-spacing: -0.8px;
-}
-.call-screen p {
-    position: relative;
-    margin: 9px auto 0;
-    width: 86%;
-    min-height: 40px;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.38;
-}
-.call-timer {
-    position: relative;
-    margin-top: 12px;
-    color: rgba(255,255,255,0.74);
-    font-size: 13px;
-    font-weight: 900;
-}
-.call-actions {
-    position: relative;
-    margin-top: 64px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
+.call-screen h2 { position: relative; margin: 8px 0 0; font-size: 29px; letter-spacing: -0.8px; }
+.call-screen p { position: relative; margin: 9px auto 0; width: 86%; min-height: 40px; color: var(--muted); font-size: 13px; line-height: 1.38; }
+.call-timer { position: relative; margin-top: 12px; color: rgba(255,255,255,0.74); font-size: 13px; font-weight: 900; }
+.call-actions { position: relative; margin-top: 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .call-actions button { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px; height: 74px; }
 .answer { background: linear-gradient(135deg, #24c875, #82ffc5); color: #00140a !important; }
 .decline, .hangup { background: linear-gradient(135deg, #b51f34, #ff5369); }
-.hangup {
-    position: relative;
-    margin-top: 74px;
-    width: 100%;
-    display: flex; align-items: center; justify-content: center; gap: 9px;
-}
+.hangup { position: relative; margin-top: 74px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 9px; }
 .home-button {
     position: absolute;
     left: 50%; bottom: 13px;
@@ -341,7 +326,19 @@ html, body {
     cursor: pointer;
     z-index: 8;
 }
-@keyframes phoneIn {
-    from { opacity: 0; transform: translateY(18px) scale(.985); }
+@keyframes phoneOpen {
+    from { opacity: 0; transform: translateY(120px) scale(.985); }
     to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes phoneClose {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(120px) scale(.985); }
+}
+@keyframes phonePeekOpen {
+    from { opacity: 0; transform: translateX(130px) translateY(24px) scale(.98); }
+    to { opacity: 1; transform: translateX(0) translateY(0) scale(1); }
+}
+@keyframes phonePeekClose {
+    from { opacity: 1; transform: translateX(0) translateY(0) scale(1); }
+    to { opacity: 0; transform: translateX(140px) translateY(18px) scale(.98); }
 }
