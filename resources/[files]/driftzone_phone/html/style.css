@@ -1,325 +1,347 @@
-* {
-    box-sizing: border-box;
-    user-select: none;
-}
-
-html,
-body {
+* { box-sizing: border-box; user-select: none; }
+html, body {
     margin: 0;
     width: 100vw;
     height: 100vh;
     overflow: hidden;
     background: transparent;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
 }
-
 :root {
     --main: #04c7f7;
-    --panel: rgba(7, 12, 21, 0.96);
-    --panel2: rgba(255,255,255,0.055);
-    --line: rgba(255,255,255,0.105);
+    --bg: rgba(7, 10, 16, 0.98);
+    --panel: rgba(255,255,255,0.055);
+    --panel2: rgba(255,255,255,0.085);
+    --line: rgba(255,255,255,0.12);
     --text: #fff;
-    --muted: rgba(255,255,255,0.52);
-    --green: #29d882;
+    --muted: rgba(255,255,255,0.56);
+    --green: #2bd982;
     --red: #ff4d64;
-    --amber: #ffb24b;
+    --amber: #ffb64d;
 }
-
 .hidden { display: none !important; }
-
-.phone-root {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-}
-
+.phone-root { position: fixed; inset: 0; pointer-events: none; }
 .phone-frame {
     pointer-events: auto;
     position: absolute;
-    right: 34px;
-    bottom: 34px;
-    width: 342px;
+    right: 32px;
+    bottom: 30px;
+    width: 338px;
     height: 690px;
-    padding: 18px;
+    padding: 18px 16px 20px;
     overflow: hidden;
     color: var(--text);
     border-radius: 28px;
-    border: 1px solid rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.18);
     background:
-        radial-gradient(circle at 50% 0%, rgba(4,199,247,0.16), transparent 34%),
-        linear-gradient(160deg, rgba(255,255,255,0.075), rgba(255,255,255,0.022)),
-        var(--panel);
-    box-shadow:
-        0 34px 95px rgba(0,0,0,0.62),
-        0 0 42px rgba(4,199,247,0.12),
-        inset 0 1px 0 rgba(255,255,255,0.10);
+        radial-gradient(circle at 50% -10%, rgba(4,199,247,0.20), transparent 35%),
+        linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+        var(--bg);
+    box-shadow: 0 34px 105px rgba(0,0,0,0.68), inset 0 1px 0 rgba(255,255,255,0.10);
     animation: phoneIn 170ms ease both;
 }
-
-.phone-speaker {
+.phone-frame:before {
+    content: '';
     position: absolute;
-    top: 10px;
+    inset: 9px;
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.065);
+    pointer-events: none;
+}
+.phone-notch {
+    position: absolute;
+    top: 8px;
     left: 50%;
-    width: 74px;
-    height: 5px;
+    width: 104px;
+    height: 22px;
+    transform: translateX(-50%);
+    border-radius: 0 0 14px 14px;
+    background: rgba(0,0,0,0.58);
+    z-index: 5;
+}
+.phone-notch span {
+    position: absolute;
+    left: 50%; top: 7px;
+    width: 42px; height: 4px;
     transform: translateX(-50%);
     border-radius: 20px;
     background: rgba(255,255,255,0.18);
 }
-
-.phone-top {
-    margin-top: 10px;
-    height: 58px;
+.status-bar {
+    position: relative;
+    z-index: 4;
+    height: 30px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    color: rgba(255,255,255,0.88);
+    font-size: 12px;
+    font-weight: 900;
 }
-
-.phone-top h1 {
-    margin: 2px 0 0;
-    font-size: 24px;
-    line-height: 1;
+.status-icons { display: flex; align-items: center; gap: 5px; }
+.status-icons span { display: block; width: 7px; height: 7px; border-radius: 2px; background: rgba(255,255,255,0.75); }
+.status-icons span:nth-child(2) { width: 12px; }
+.status-icons span:nth-child(3) { width: 18px; height: 8px; border-radius: 3px; background: rgba(255,255,255,0.26); border: 1px solid rgba(255,255,255,0.55); }
+.screen {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: 48px;
+    bottom: 46px;
+    z-index: 2;
 }
-
-.muted {
+.home-screen {
+    padding: 16px 10px 8px;
+    background:
+        radial-gradient(circle at 85% 10%, rgba(4,199,247,0.18), transparent 28%),
+        radial-gradient(circle at 5% 70%, rgba(255,255,255,0.08), transparent 32%);
+}
+.hero {
+    height: 178px;
+    padding: 23px 20px;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background:
+        linear-gradient(145deg, rgba(4,199,247,0.12), rgba(255,255,255,0.035)),
+        rgba(255,255,255,0.045);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.hero span {
     color: var(--main);
     font-size: 10px;
     font-weight: 1000;
-    letter-spacing: 2px;
+    letter-spacing: 2.4px;
 }
-
-.icon-btn {
-    width: 38px;
-    height: 38px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: rgba(255,255,255,0.065);
+.hero h1 {
+    margin: 9px 0 0;
+    font-size: 34px;
+    line-height: 1;
+    letter-spacing: -1.2px;
+}
+.hero p {
+    margin: 9px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+.apps-grid {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 13px 11px;
+}
+.app-icon {
+    height: 78px;
+    border: 0;
+    outline: none;
+    background: transparent;
     color: white;
-    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-direction: column;
+    gap: 7px;
     cursor: pointer;
 }
-
-.icon-btn:hover {
-    border-color: rgba(255,255,255,0.28);
-    background: rgba(255,255,255,0.11);
+.app-icon img {
+    width: 48px;
+    height: 48px;
+    padding: 11px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.075);
+    border: 1px solid rgba(255,255,255,0.10);
 }
-
-.status-card {
-    margin-top: 10px;
-    min-height: 78px;
+.phone-app img { background: linear-gradient(145deg, #1ed779, #75ffc0); box-shadow: 0 10px 25px rgba(43,217,130,0.24); }
+.app-icon span {
+    max-width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgba(255,255,255,0.82);
+    font-size: 10px;
+    font-weight: 850;
+}
+.app-icon.disabled { opacity: .45; cursor: default; }
+.home-banner {
+    position: absolute;
+    left: 10px; right: 10px; bottom: 18px;
+    min-height: 70px;
     padding: 12px;
     display: flex;
     align-items: center;
     gap: 12px;
-    border-radius: 14px;
-    border: 1px solid var(--line);
-    background: rgba(255,255,255,0.052);
-}
-
-.status-card img {
-    width: 34px;
-    height: 34px;
-}
-
-.status-card b {
-    display: block;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.status-card p {
-    margin: 4px 0 0;
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.35;
-}
-
-.status-card.ringing {
-    border-color: rgba(255,178,75,0.38);
-    background: rgba(255,178,75,0.09);
-}
-
-.status-card.active {
-    border-color: rgba(41,216,130,0.38);
-    background: rgba(41,216,130,0.09);
-}
-
-.status-card.error {
-    border-color: rgba(255,77,100,0.42);
-    background: rgba(255,77,100,0.09);
-}
-
-.number-card {
-    margin-top: 12px;
-    padding: 12px;
-    border-radius: 13px;
-    background: rgba(0,0,0,0.22);
-    border: 1px solid var(--line);
-}
-
-.number-card label {
-    display: block;
-    color: var(--muted);
-    font-size: 10px;
-    text-transform: uppercase;
-    font-weight: 900;
-    letter-spacing: 1.2px;
-}
-
-.number-card b {
-    display: block;
-    margin-top: 5px;
-    color: white;
-    font-size: 16px;
-}
-
-.dial-view {
-    margin-top: 14px;
-}
-
-#numberInput {
-    width: 100%;
-    height: 52px;
+    border-radius: 16px;
     border: 1px solid rgba(4,199,247,0.28);
-    border-radius: 12px;
+    background: rgba(4,199,247,0.10);
+}
+.home-banner img { width: 28px; height: 28px; }
+.home-banner b { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+.home-banner p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+.screen-head {
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.screen-head > div { text-align: center; }
+.screen-head b { display: block; font-size: 15px; }
+.screen-head span { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+.small-btn {
+    width: 38px; height: 38px;
+    display: grid; place-items: center;
+    border-radius: 11px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,0.060);
+    color: white;
+    font-size: 22px;
+    font-weight: 800;
+    cursor: pointer;
+}
+.small-btn img { width: 17px; height: 17px; }
+.dial-status {
+    margin-top: 8px;
+    min-height: 72px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 15px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,0.050);
+}
+.dial-status img { width: 30px; height: 30px; }
+.dial-status b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+.dial-status p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.3; }
+.dial-status.error { border-color: rgba(255,77,100,0.36); background: rgba(255,77,100,0.09); }
+#numberInput {
+    margin-top: 14px;
+    width: 100%; height: 54px;
+    border: 1px solid rgba(4,199,247,0.30);
+    border-radius: 15px;
     outline: none;
-    background: rgba(0,0,0,0.28);
+    background: rgba(0,0,0,0.30);
     color: white;
     text-align: center;
-    font-size: 21px;
-    font-weight: 900;
+    font-size: 22px;
+    font-weight: 950;
     letter-spacing: 1px;
 }
-
-#numberInput::placeholder {
-    color: rgba(255,255,255,0.28);
-}
-
+#numberInput::placeholder { color: rgba(255,255,255,0.25); }
 .keypad {
     margin-top: 14px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 9px;
 }
-
 .keypad button {
-    height: 54px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: rgba(255,255,255,0.06);
+    height: 56px;
+    border-radius: 15px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.065);
     color: white;
-    font-size: 18px;
-    font-weight: 1000;
     cursor: pointer;
+    transition: transform .12s ease, border-color .12s ease, background .12s ease;
 }
-
-.keypad button:hover {
-    border-color: rgba(4,199,247,0.55);
-    background: rgba(4,199,247,0.14);
-}
-
-.call-btn,
-.hangup,
-.call-actions button {
+.keypad button:hover { transform: translateY(-1px); border-color: rgba(4,199,247,0.50); background: rgba(4,199,247,0.13); }
+.keypad b { display: block; font-size: 20px; line-height: 18px; }
+.keypad small { display: block; margin-top: 5px; color: rgba(255,255,255,0.42); font-size: 8px; font-weight: 900; letter-spacing: 1px; }
+.call-btn, .hangup, .call-actions button {
     height: 52px;
     border: 0;
-    border-radius: 13px;
+    border-radius: 15px;
     color: white;
     font-weight: 1000;
-    letter-spacing: 1px;
+    letter-spacing: .8px;
     cursor: pointer;
 }
-
 .call-btn {
     margin-top: 14px;
     width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
-    color: #00130b;
-    background: linear-gradient(135deg, #29d882, #8affc5);
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+    color: #00140a;
+    background: linear-gradient(135deg, #25d77f, #8affc5);
+    box-shadow: 0 12px 28px rgba(43,217,130,0.20);
 }
-
-.call-btn img,
-.hangup img,
-.call-actions img {
-    width: 18px;
-    height: 18px;
+.call-btn img, .hangup img, .call-actions img { width: 18px; height: 18px; }
+.call-screen { text-align: center; padding: 28px 12px 0; }
+.call-bg {
+    position: absolute;
+    inset: 0;
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 50% 12%, rgba(4,199,247,0.20), transparent 34%),
+        linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0));
+    pointer-events: none;
 }
-
-.call-view {
-    margin-top: 24px;
-    text-align: center;
-}
-
-.avatar {
-    margin: 0 auto 16px;
-    width: 96px;
-    height: 96px;
-    display: grid;
-    place-items: center;
-    border-radius: 24px;
-    border: 1px solid rgba(4,199,247,0.26);
-    background: rgba(4,199,247,0.10);
-    box-shadow: inset 0 0 22px rgba(4,199,247,0.08);
-}
-
-.avatar img {
-    width: 46px;
-    height: 46px;
-}
-
-.call-view span {
+.call-topline {
+    position: relative;
     color: var(--main);
     font-size: 11px;
     font-weight: 1000;
     text-transform: uppercase;
-    letter-spacing: 1.6px;
+    letter-spacing: 1.8px;
 }
-
-.call-view h2 {
+.avatar {
+    position: relative;
+    margin: 38px auto 16px;
+    width: 112px; height: 112px;
+    display: grid; place-items: center;
+    border-radius: 28px;
+    border: 1px solid rgba(4,199,247,0.30);
+    background: rgba(4,199,247,0.11);
+    box-shadow: inset 0 0 30px rgba(4,199,247,0.10), 0 18px 45px rgba(0,0,0,0.30);
+}
+.avatar img { width: 54px; height: 54px; }
+.call-screen h2 {
+    position: relative;
     margin: 8px 0 0;
-    font-size: 27px;
+    font-size: 29px;
+    letter-spacing: -0.8px;
 }
-
-.call-view p {
+.call-screen p {
+    position: relative;
     margin: 9px auto 0;
-    width: 85%;
-    min-height: 35px;
+    width: 86%;
+    min-height: 40px;
     color: var(--muted);
     font-size: 13px;
     line-height: 1.38;
 }
-
+.call-timer {
+    position: relative;
+    margin-top: 12px;
+    color: rgba(255,255,255,0.74);
+    font-size: 13px;
+    font-weight: 900;
+}
 .call-actions {
-    margin-top: 28px;
+    position: relative;
+    margin-top: 64px;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
 }
-
-.answer {
-    background: linear-gradient(135deg, #22c875, #76ffc0);
-    color: #00130b !important;
-}
-
-.decline,
+.call-actions button { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px; height: 74px; }
+.answer { background: linear-gradient(135deg, #24c875, #82ffc5); color: #00140a !important; }
+.decline, .hangup { background: linear-gradient(135deg, #b51f34, #ff5369); }
 .hangup {
-    background: linear-gradient(135deg, #b51f34, #ff5369);
-}
-
-.hangup {
-    margin-top: 28px;
+    position: relative;
+    margin-top: 74px;
     width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
+    display: flex; align-items: center; justify-content: center; gap: 9px;
 }
-
+.home-button {
+    position: absolute;
+    left: 50%; bottom: 13px;
+    width: 96px; height: 5px;
+    transform: translateX(-50%);
+    border: 0;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.22);
+    cursor: pointer;
+    z-index: 8;
+}
 @keyframes phoneIn {
-    from { opacity: 0; transform: translateY(18px) scale(0.98); }
+    from { opacity: 0; transform: translateY(18px) scale(.985); }
     to { opacity: 1; transform: translateY(0) scale(1); }
 }

@@ -8,77 +8,111 @@
 <body>
     <main id="phoneRoot" class="phone-root hidden">
         <section class="phone-frame">
-            <div class="phone-speaker"></div>
+            <div class="phone-notch"><span></span></div>
 
-            <header class="phone-top">
-                <div>
-                    <span class="muted">DRIFTZONE</span>
-                    <h1>Phone</h1>
+            <div class="status-bar">
+                <b id="clock">12:00</b>
+                <div class="status-icons"><span></span><span></span><span></span></div>
+            </div>
+
+            <section id="homeView" class="screen home-screen">
+                <div class="hero">
+                    <span>DRIFTZONE</span>
+                    <h1>Telefon</h1>
+                    <p id="homeNumber">Numar: ---</p>
                 </div>
-                <button class="icon-btn" onclick="closePhone()" title="Close">×</button>
-            </header>
 
-            <section id="statusCard" class="status-card idle">
-                <img id="statusIcon" src="assets/phone.svg" draggable="false">
-                <div>
-                    <b id="statusTitle">Ready</b>
-                    <p id="statusText">Formează un număr de telefon.</p>
+                <div class="apps-grid">
+                    <button class="app-icon phone-app" onclick="openDialer()">
+                        <img src="assets/app_phone.svg" draggable="false">
+                        <span>Telefon</span>
+                    </button>
+                    <button class="app-icon disabled">
+                        <img src="assets/app_contacts.svg" draggable="false">
+                        <span>Contacte</span>
+                    </button>
+                    <button class="app-icon disabled">
+                        <img src="assets/app_messages.svg" draggable="false">
+                        <span>Mesaje</span>
+                    </button>
+                    <button class="app-icon disabled">
+                        <img src="assets/app_settings.svg" draggable="false">
+                        <span>Setari</span>
+                    </button>
+                </div>
+
+                <div id="homeBanner" class="home-banner hidden">
+                    <img src="assets/call.svg" draggable="false">
+                    <div>
+                        <b>Apel activ</b>
+                        <p id="homeBannerText">---</p>
+                    </div>
                 </div>
             </section>
 
-            <section class="number-card">
-                <label>Numărul tău</label>
-                <b id="myNumber">---</b>
-            </section>
+            <section id="dialView" class="screen dial-screen hidden">
+                <div class="screen-head">
+                    <button class="small-btn" onclick="goHome()"><img src="assets/back.svg" draggable="false"></button>
+                    <div>
+                        <b>Telefon</b>
+                        <span id="myNumber">---</span>
+                    </div>
+                    <button class="small-btn" onclick="closePhone()">×</button>
+                </div>
 
-            <section id="dialView" class="dial-view">
-                <input id="numberInput" maxlength="16" inputmode="numeric" placeholder="Introdu număr" autocomplete="off">
+                <div id="dialStatus" class="dial-status idle">
+                    <img id="dialStatusIcon" src="assets/phone.svg" draggable="false">
+                    <div>
+                        <b id="dialStatusTitle">Ready</b>
+                        <p id="dialStatusText">Scrie un numar si apasa apelare.</p>
+                    </div>
+                </div>
+
+                <input id="numberInput" maxlength="32" inputmode="numeric" placeholder="Numar telefon" autocomplete="off">
 
                 <div class="keypad">
-                    <button onclick="pressKey('1')">1</button>
-                    <button onclick="pressKey('2')">2</button>
-                    <button onclick="pressKey('3')">3</button>
-                    <button onclick="pressKey('4')">4</button>
-                    <button onclick="pressKey('5')">5</button>
-                    <button onclick="pressKey('6')">6</button>
-                    <button onclick="pressKey('7')">7</button>
-                    <button onclick="pressKey('8')">8</button>
-                    <button onclick="pressKey('9')">9</button>
-                    <button onclick="clearNumber()">CLR</button>
-                    <button onclick="pressKey('0')">0</button>
-                    <button onclick="backspace()">⌫</button>
+                    <button onclick="pressKey('1')"><b>1</b><small></small></button>
+                    <button onclick="pressKey('2')"><b>2</b><small>ABC</small></button>
+                    <button onclick="pressKey('3')"><b>3</b><small>DEF</small></button>
+                    <button onclick="pressKey('4')"><b>4</b><small>GHI</small></button>
+                    <button onclick="pressKey('5')"><b>5</b><small>JKL</small></button>
+                    <button onclick="pressKey('6')"><b>6</b><small>MNO</small></button>
+                    <button onclick="pressKey('7')"><b>7</b><small>PQRS</small></button>
+                    <button onclick="pressKey('8')"><b>8</b><small>TUV</small></button>
+                    <button onclick="pressKey('9')"><b>9</b><small>WXYZ</small></button>
+                    <button onclick="clearNumber()"><b>CLR</b><small></small></button>
+                    <button onclick="pressKey('0')"><b>0</b><small>+</small></button>
+                    <button onclick="backspace()"><b>⌫</b><small></small></button>
                 </div>
 
                 <button class="call-btn" onclick="dial()">
                     <img src="assets/call.svg" draggable="false">
-                    SUNĂ
+                    Apeleaza
                 </button>
             </section>
 
-            <section id="callView" class="call-view hidden">
+            <section id="callView" class="screen call-screen hidden">
+                <div class="call-bg"></div>
+                <div class="call-topline" id="callMode">Apel</div>
                 <div class="avatar">
                     <img src="assets/user.svg" draggable="false">
                 </div>
-                <span id="callMode">Apel</span>
                 <h2 id="otherNumber">---</h2>
                 <p id="callSubtitle">Conectare...</p>
+                <div id="callTimer" class="call-timer hidden">00:00</div>
 
                 <div id="incomingActions" class="call-actions hidden">
-                    <button class="answer" onclick="answer()">
-                        <img src="assets/call.svg" draggable="false">
-                        Răspunde
-                    </button>
-                    <button class="decline" onclick="decline()">
-                        <img src="assets/hangup.svg" draggable="false">
-                        Închide
-                    </button>
+                    <button class="answer" onclick="answer()"><img src="assets/call.svg" draggable="false"><span>Raspunde</span></button>
+                    <button class="decline" onclick="decline()"><img src="assets/hangup.svg" draggable="false"><span>Respinge</span></button>
                 </div>
 
                 <button id="hangupBtn" class="hangup hidden" onclick="hangup()">
                     <img src="assets/hangup.svg" draggable="false">
-                    Închide apelul
+                    Inchide apelul
                 </button>
             </section>
+
+            <button class="home-button" onclick="goHome()"></button>
         </section>
     </main>
 

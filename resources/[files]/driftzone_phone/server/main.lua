@@ -2,6 +2,7 @@ local Calls = {}
 local PlayerCall = {}
 local PhoneCache = {}
 local UidCache = {}
+local UserColumns = nil
 local NextCallId = 0
 
 local function debugPrint(...)
@@ -21,10 +22,63 @@ local function cleanNumber(number)
     return number
 end
 
+local function normalizeSqlExpr(columnName)
+    local col = ('COALESCE(CAST(%s AS CHAR), \'\')'):format(sqlName(columnName))
+    local chars = { ' ', '-', '.', '+', '(', ')', '/', '_', ':' }
+    local expr = col
+    for _, ch in ipairs(chars) do
+        expr = ("REPLACE(%s, '%s', '')"):format(expr, ch:gsub("'", "\\'"))
+    end
+    return expr
+end
+
 local function notify(src, typ, msg, duration)
     if src and tonumber(src) and tonumber(src) > 0 then
         TriggerClientEvent('driftzone_phone:client:notify', src, typ or 'info', tostring(msg or ''), duration or 4500)
     end
+end
+
+local function getUserColumns()
+    if UserColumns then return UserColumns end
+    UserColumns = {}
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await(('SHOW COLUMNS FROM %s'):format(sqlName(Config.UsersTable or 'users')), {}) or {}
+    end)
+
+    if ok and type(rows) == 'table' then
+        for _, row in ipairs(rows) do
+            if row and row.Field then
+                UserColumns[tostring(row.Field)] = true
+            end
+        end
+    end
+
+    return UserColumns
+end
+
+local function getPhoneColumns()
+    local cols = getUserColumns()
+    local out = {}
+    local added = {}
+
+    local function add(name)
+        name = tostring(name or '')
+        if name ~= '' and not added[name] and cols[name] then
+            added[name] = true
+            out[#out + 1] = name
+        end
+    end
+
+    add(Config.PhoneColumn or 'phonenumber')
+    for _, name in ipairs(Config.PhoneColumns or {}) do add(name) end
+
+    if #out <= 0 then
+        -- fallback pentru servere unde SHOW COLUMNS nu merge, dar coloana exista.
+        out[1] = Config.PhoneColumn or 'phonenumber'
+    end
+
+    return out
 end
 
 local function getUid(src)
@@ -50,7 +104,8 @@ local function getUid(src)
             function() return exports[res]:GetUid(src) end,
             function() return exports[res]:getUID(src) end,
             function() return exports[res]:GetUserId(src) end,
-            function() return exports[res]:getUserId(src) end
+            function() return exports[res]:getUserId(src) end,
+            function() return exports[res]:getUserID(src) end
         }
 
         for _, fn in ipairs(attempts) do
@@ -72,10 +127,15 @@ local function isLogged(src)
 
     local res = Config.AuthResource or 'driftzone_auth'
     if GetResourceState(res) == 'started' then
-        local ok, result = pcall(function()
-            return exports[res]:IsLoggedIn(src)
-        end)
-        if ok and result == true then return true end
+        local attempts = {
+            function() return exports[res]:IsLoggedIn(src) end,
+            function() return exports[res]:isLoggedIn(src) end,
+            function() return exports[res]:IsLogged(src) end
+        }
+        for _, fn in ipairs(attempts) do
+            local ok, result = pcall(fn)
+            if ok and result == true then return true end
+        end
     end
 
     return getUid(src) ~= nil
@@ -90,19 +150,29 @@ local function getPhoneByUid(uid, force)
         return cached.phone
     end
 
-    local row = MySQL.single.await(
-        ('SELECT %s AS phone FROM %s WHERE %s = ? LIMIT 1'):format(
-            sqlName(Config.PhoneColumn or 'phonenumber'),
-            sqlName(Config.UsersTable or 'users'),
-            sqlName(Config.UsersIdColumn or 'uid')
-        ),
-        { uid }
-    )
+    local phone = nil
+    local phoneCols = getPhoneColumns()
 
-    local phone = row and cleanNumber(row.phone) or nil
+    for _, col in ipairs(phoneCols) do
+        local ok, row = pcall(function()
+            return MySQL.single.await(
+                ('SELECT %s AS phone FROM %s WHERE %s = ? LIMIT 1'):format(
+                    sqlName(col),
+                    sqlName(Config.UsersTable or 'users'),
+                    sqlName(Config.UsersIdColumn or 'uid')
+                ),
+                { uid }
+            )
+        end)
+
+        if ok and row then
+            phone = cleanNumber(row.phone)
+            if phone ~= '' then break end
+        end
+    end
+
     if phone == '' then phone = nil end
-
-    PhoneCache[uid] = { phone = phone, expires = GetGameTimer() + 15000 }
+    PhoneCache[uid] = { phone = phone, expires = GetGameTimer() + 10000 }
     return phone
 end
 
@@ -110,16 +180,26 @@ local function getUidByPhone(phone)
     phone = cleanNumber(phone)
     if phone == '' then return nil end
 
-    local row = MySQL.single.await(
-        ('SELECT %s AS uid FROM %s WHERE %s = ? LIMIT 1'):format(
-            sqlName(Config.UsersIdColumn or 'uid'),
-            sqlName(Config.UsersTable or 'users'),
-            sqlName(Config.PhoneColumn or 'phonenumber')
-        ),
-        { phone }
-    )
+    local phoneCols = getPhoneColumns()
+    for _, col in ipairs(phoneCols) do
+        local expr = normalizeSqlExpr(col)
+        local ok, row = pcall(function()
+            return MySQL.single.await(
+                ('SELECT %s AS uid FROM %s WHERE %s = ? LIMIT 1'):format(
+                    sqlName(Config.UsersIdColumn or 'uid'),
+                    sqlName(Config.UsersTable or 'users'),
+                    expr
+                ),
+                { phone }
+            )
+        end)
 
-    return row and tonumber(row.uid) or nil
+        if ok and row and tonumber(row.uid) then
+            return tonumber(row.uid)
+        end
+    end
+
+    return nil
 end
 
 local function getPlayerByUid(uid)
@@ -136,6 +216,22 @@ local function getPlayerByUid(uid)
     return nil
 end
 
+local function getPlayerByPhone(phone)
+    phone = cleanNumber(phone)
+    if phone == '' then return nil, nil end
+
+    for _, id in ipairs(GetPlayers()) do
+        local src = tonumber(id)
+        local uid = src and getUid(src)
+        local p = uid and getPhoneByUid(uid, false) or nil
+        if p and cleanNumber(p) == phone then
+            return src, uid
+        end
+    end
+
+    return nil, nil
+end
+
 local function getCallForPlayer(src)
     local callId = PlayerCall[tonumber(src)]
     if not callId then return nil, nil end
@@ -149,7 +245,7 @@ end
 
 local function publicCallStateFor(src)
     local uid = getUid(src)
-    local myPhone = uid and getPhoneByUid(uid) or nil
+    local myPhone = uid and getPhoneByUid(uid, true) or nil
     local callId, call = getCallForPlayer(src)
 
     local state = {
@@ -181,6 +277,7 @@ local function publicCallStateFor(src)
 end
 
 local function sendState(src)
+    src = tonumber(src)
     if not src or src <= 0 then return end
     TriggerClientEvent('driftzone_phone:client:state', src, publicCallStateFor(src))
 end
@@ -237,29 +334,33 @@ RegisterNetEvent('driftzone_phone:server:startCall', function(rawNumber)
     end
 
     local number = cleanNumber(rawNumber)
-    local minLen = tonumber(Config.PhoneNumberMinLength or 3) or 3
-    local maxLen = tonumber(Config.PhoneNumberMaxLength or 16) or 16
+    local minLen = tonumber(Config.PhoneNumberMinLength or 1) or 1
+    local maxLen = tonumber(Config.PhoneNumberMaxLength or 32) or 32
 
-    if #number < minLen or #number > maxLen then
+    if number == '' or #number < minLen or #number > maxLen then
         return notify(src, 'warning', 'Numar de telefon invalid.', 4000)
     end
 
     local uid = getUid(src)
     local myPhone = uid and getPhoneByUid(uid, true) or nil
     if not myPhone then
-        return notify(src, 'warning', 'Nu ai numar de telefon setat.', 4500)
+        return notify(src, 'warning', 'Nu ai numar de telefon setat in users.phonenumber.', 4500)
     end
 
     if number == myPhone then
         return notify(src, 'warning', 'Nu te poti suna singur.', 4000)
     end
 
-    local targetUid = getUidByPhone(number)
-    if not targetUid then
-        return notify(src, 'warning', 'Numarul nu exista.', 4500)
+    local target, targetUid = getPlayerByPhone(number)
+    if not target then
+        targetUid = getUidByPhone(number)
+        if targetUid then target = getPlayerByUid(targetUid) end
     end
 
-    local target = getPlayerByUid(targetUid)
+    if not targetUid then
+        return notify(src, 'warning', 'Numarul nu exista in baza de date.', 4500)
+    end
+
     if not target then
         return notify(src, 'warning', 'Telefonul este inchis sau persoana nu este online.', 4500)
     end
@@ -288,7 +389,7 @@ RegisterNetEvent('driftzone_phone:server:startCall', function(rawNumber)
 
     notify(src, 'info', 'Suni la ' .. number .. '...', 4500)
     TriggerClientEvent('driftzone_phone:client:incoming', target, publicCallStateFor(target))
-    notify(target, 'info', 'Te suna ' .. myPhone .. '.', 6000)
+    notify(target, 'info', 'Telefonul suna. Deschide /phone ca sa raspunzi.', 6000)
 
     sendCallStates(call)
 
@@ -356,5 +457,5 @@ end)
 
 CreateThread(function()
     Wait(1000)
-    print('[DRIFTZONE_PHONE] Prototype loaded. Command: /' .. tostring(Config.Command or 'phone'))
+    print('[DRIFTZONE_PHONE] Loaded. Command: /' .. tostring(Config.Command or 'phone'))
 end)
