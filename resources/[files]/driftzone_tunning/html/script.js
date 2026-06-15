@@ -17,7 +17,6 @@ let activeCategory = null;
 let cart = [];
 let previewTimer = null;
 let queuedPreview = null;
-let wheelGroupOpen = false;
 
 const classicColors = [
     ['Black', 0, '#050505'], ['White', 111, '#f2f2f2'], ['Red', 27, '#c90000'],
@@ -79,27 +78,16 @@ function money(value) {
     try { return '$' + n.toLocaleString('ro-RO'); } catch (e) { return '$' + n; }
 }
 
-function getCategories() {
-    return Array.isArray(data.categories) ? data.categories : [];
-}
-
-function getWheelCategories() {
-    return getCategories().filter((cat) => cat && cat.type === 'wheel' && Number(cat.wheelType) !== 10 && cat.key !== 'wheels_openwheel');
-}
-
-function getCategory(key) {
-    return getCategories().find((cat) => cat && cat.key === key) || null;
-}
+function getCategories() { return Array.isArray(data.categories) ? data.categories : []; }
+function getWheelCategories() { return getCategories().filter((cat) => cat && cat.type === 'wheel' && Number(cat.wheelType) !== 10 && cat.key !== 'wheels_openwheel'); }
+function getCategory(key) { return getCategories().find((cat) => cat && cat.key === key) || null; }
 
 function getMainCategories() {
     const main = getCategories().filter((cat) => cat && cat.type !== 'wheel');
     const wheelCats = getWheelCategories();
-
     if (wheelCats.length > 0) {
-        const count = wheelCats.reduce((sum, cat) => sum + Number(cat.count || 0), 0);
-        main.push({ key: '__wheels', label: 'Wheels', type: 'wheelGroup', group: 'Wheels', count, children: wheelCats });
+        main.push({ key: '__wheels', label: 'Wheels', type: 'wheelGroup', group: 'Wheels', count: wheelCats.length, children: wheelCats });
     }
-
     return main;
 }
 
@@ -117,6 +105,7 @@ function getPrice(key) {
 
 function optionPriceText(cat) {
     if (!cat || cat.previewOnly || cat.type === 'gradientPreview') return 'PREVIEW';
+    if (cat.type === 'wheelGroup') return 'CATEGORII';
     return money(getPrice(cat.key));
 }
 
@@ -125,9 +114,7 @@ function open(payload) {
     cart = [];
     activeMainKey = null;
     activeCategory = null;
-    wheelGroupOpen = false;
     root.classList.remove('hidden');
-    root.classList.remove('camera-mode');
 
     const plate = data.vehiclePlate ? ` • ${data.vehiclePlate}` : '';
     vehicleInfo.textContent = `${data.vehicleName || 'Vehicle'}${plate}`;
@@ -137,7 +124,7 @@ function open(payload) {
     renderCart();
     wheelBack.classList.add('hidden');
     selectedTitle.textContent = 'Alege o categorie';
-    optionsEl.innerHTML = '<div class="empty-state">Selectează un pachet de tuning din stânga.</div>';
+    optionsEl.innerHTML = '<div class="empty-state">Selectează o categorie din stânga.</div>';
 }
 
 function close() {
@@ -146,28 +133,24 @@ function close() {
     cart = [];
     activeMainKey = null;
     activeCategory = null;
-    wheelGroupOpen = false;
     optionsEl.innerHTML = '';
+    if (previewTimer) clearTimeout(previewTimer);
+    previewTimer = null;
+    queuedPreview = null;
 }
 
 function renderCategories() {
     const cats = getMainCategories();
-
     categoriesEl.innerHTML = cats.map((cat) => {
         const active = activeMainKey === cat.key;
         const meta = cat.type === 'wheelGroup'
-            ? `${getWheelCategories().length} categorii`
+            ? `${getWheelCategories().length} tipuri de jante`
             : (cat.type === 'mod' ? `${cat.count || 0} opțiuni` : String(cat.group || cat.type || 'Tuning'));
-        const price = cat.type === 'wheelGroup' ? 'Wheels' : optionPriceText(cat);
-
         return `
             <button class="cat ${active ? 'active' : ''}" type="button" data-category="${escapeHtml(cat.key)}">
-                <img src="icons/${getIcon(cat)}.svg" draggable="false" alt="">
-                <div class="cat-text">
-                    <b>${escapeHtml(cat.label)}</b>
-                    <span>${escapeHtml(meta)}</span>
-                </div>
-                <small>${escapeHtml(price)}</small>
+                <span class="cat-icon"><img src="icons/${getIcon(cat)}.svg" draggable="false" alt=""></span>
+                <span class="cat-text"><b>${escapeHtml(cat.label)}</b><em>${escapeHtml(meta)}</em></span>
+                <small>${escapeHtml(optionPriceText(cat))}</small>
             </button>
         `;
     }).join('');
@@ -177,15 +160,12 @@ function selectCategory(key) {
     if (key === '__wheels') {
         activeMainKey = '__wheels';
         activeCategory = { key: '__wheels', label: 'Wheels', type: 'wheelGroup', group: 'Wheels' };
-        wheelGroupOpen = true;
         renderCategories();
         renderWheelCategories();
         return;
     }
-
     activeMainKey = key;
     activeCategory = getCategory(key);
-    wheelGroupOpen = false;
     renderCategories();
     renderOptions();
 }
@@ -193,14 +173,12 @@ function selectCategory(key) {
 function selectWheelCategory(key) {
     activeMainKey = '__wheels';
     activeCategory = getCategory(key);
-    wheelGroupOpen = false;
     renderCategories();
     renderOptions();
 }
 
 function renderOptions() {
     if (!activeCategory) return;
-
     wheelBack.classList.toggle('hidden', activeMainKey !== '__wheels' || activeCategory.key === '__wheels');
     selectedTitle.textContent = `${activeCategory.label} • ${optionPriceText(activeCategory)}`;
 
@@ -217,12 +195,10 @@ function renderWheelCategories() {
     wheelBack.classList.add('hidden');
     selectedTitle.textContent = 'Wheels • alege tipul de jante';
     const wheelCats = getWheelCategories();
-
     if (wheelCats.length <= 0) {
         optionsEl.innerHTML = '<div class="empty-state">Mașina nu are categorii de roți disponibile.</div>';
         return;
     }
-
     optionsEl.innerHTML = wheelCats.map((cat) => `
         <button class="option wheel-type" type="button" data-wheel-category="${escapeHtml(cat.key)}">
             <img src="icons/wheels.svg" draggable="false" alt="">
@@ -232,26 +208,21 @@ function renderWheelCategories() {
     `).join('');
 }
 
-function sendPreview(key, value, variantLabel) {
-    nui('preview', { key, value, variantLabel });
-}
-
+function sendPreview(key, value, variantLabel) { nui('preview', { key, value, variantLabel }); }
 function schedulePreview(key, value, variantLabel) {
     queuedPreview = { key, value, variantLabel };
     if (previewTimer) return;
-
     previewTimer = setTimeout(() => {
         const payload = queuedPreview;
         queuedPreview = null;
         previewTimer = null;
         if (payload) sendPreview(payload.key, payload.value, payload.variantLabel);
-    }, 25);
+    }, 20);
 }
 
 function preview(key, value) {
     const cat = getCategory(key) || activeCategory;
     if (!cat) return;
-
     const variantLabel = valueToText(key, value);
 
     if (cat.previewOnly === true || cat.type === 'gradientPreview') {
@@ -278,7 +249,6 @@ function renderColorOptions() {
             <i style="background:${hex}"></i><b>${escapeHtml(name)}</b>
         </button>
     `).join('');
-
     optionsEl.innerHTML = `
         <div class="option custom-color">
             <input id="customPicker" type="color" value="#04c7f7">
@@ -287,22 +257,14 @@ function renderColorOptions() {
         </div>
         ${quick}
     `;
-
     setTimeout(() => {
         const picker = document.getElementById('customPicker');
         const hex = document.getElementById('customHex');
         const apply = document.getElementById('customApply');
         if (!picker || !hex || !apply) return;
-
-        picker.addEventListener('input', () => {
-            hex.value = picker.value;
-            preview(activeCategory.key, picker.value);
-        });
+        picker.addEventListener('input', () => { hex.value = picker.value; preview(activeCategory.key, picker.value); });
         hex.addEventListener('change', () => {
-            if (/^#[0-9A-Fa-f]{6}$/.test(hex.value)) {
-                picker.value = hex.value;
-                preview(activeCategory.key, hex.value);
-            }
+            if (/^#[0-9A-Fa-f]{6}$/.test(hex.value)) { picker.value = hex.value; preview(activeCategory.key, hex.value); }
         });
         apply.addEventListener('click', () => preview(activeCategory.key, hex.value || '#04c7f7'));
     }, 20);
@@ -315,7 +277,6 @@ function renderClassicColorOptions() {
         </button>
     `).join('');
 }
-
 function renderWindowTintOptions() {
     optionsEl.innerHTML = windowTints.map(([name, id]) => `
         <button class="option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="number" data-value="${id}">
@@ -323,7 +284,6 @@ function renderWindowTintOptions() {
         </button>
     `).join('');
 }
-
 function renderXenonOptions() {
     optionsEl.innerHTML = xenonColors.map(([name, id, hex]) => `
         <button class="option color-swatch wide" type="button" data-preview-key="${activeCategory.key}" data-value-kind="number" data-value="${id}">
@@ -331,25 +291,15 @@ function renderXenonOptions() {
         </button>
     `).join('');
 }
-
 function renderToggleOptions() {
     optionsEl.innerHTML = `
-        <button class="option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="boolean" data-value="true">
-            <b>Enabled</b><span>${money(getPrice(activeCategory.key))}</span>
-        </button>
-        <button class="option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="boolean" data-value="false">
-            <b>Disabled</b><span>${money(getPrice(activeCategory.key))}</span>
-        </button>
+        <button class="option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="boolean" data-value="true"><b>Enabled</b><span>${money(getPrice(activeCategory.key))}</span></button>
+        <button class="option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="boolean" data-value="false"><b>Disabled</b><span>${money(getPrice(activeCategory.key))}</span></button>
     `;
 }
-
 function renderGradientPreviewOptions() {
     const opts = Array.isArray(activeCategory.options) ? activeCategory.options : [];
-    if (opts.length <= 0) {
-        optionsEl.innerHTML = '<div class="empty-state">Nu există gradient preview pentru mașina asta.</div>';
-        return;
-    }
-
+    if (opts.length <= 0) { optionsEl.innerHTML = '<div class="empty-state">Nu există gradient preview pentru mașina asta.</div>'; return; }
     optionsEl.innerHTML = opts.map((item) => `
         <button class="option gradient-option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="number" data-value="${Number(item.value || item.id || 0)}">
             <img src="icons/gradient.svg" draggable="false" alt="">
@@ -358,32 +308,20 @@ function renderGradientPreviewOptions() {
         </button>
     `).join('');
 }
-
 function renderModOptions() {
     const opts = Array.isArray(activeCategory.options) ? activeCategory.options : [];
     if (opts.length > 0) {
         optionsEl.innerHTML = opts.map((item) => `
             <button class="option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="number" data-value="${Number(item.value)}">
-                <b>${escapeHtml(item.label || valueToText(activeCategory.key, item.value))}</b>
-                <span>${money(getPrice(activeCategory.key))}</span>
+                <b>${escapeHtml(item.label || valueToText(activeCategory.key, item.value))}</b><span>${money(getPrice(activeCategory.key))}</span>
             </button>
         `).join('');
         return;
     }
-
+    let html = `<button class="option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="number" data-value="-1"><b>Stock</b><span>${money(getPrice(activeCategory.key))}</span></button>`;
     const count = Number(activeCategory.count || 0);
-    let html = `
-        <button class="option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="number" data-value="-1">
-            <b>Stock</b><span>${money(getPrice(activeCategory.key))}</span>
-        </button>
-    `;
-
     for (let i = 0; i < count; i++) {
-        html += `
-            <button class="option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="number" data-value="${i}">
-                <b>${escapeHtml(activeCategory.label)} ${i + 1}</b><span>${money(getPrice(activeCategory.key))}</span>
-            </button>
-        `;
+        html += `<button class="option" type="button" data-preview-key="${activeCategory.key}" data-value-kind="number" data-value="${i}"><b>${escapeHtml(activeCategory.label)} ${i + 1}</b><span>${money(getPrice(activeCategory.key))}</span></button>`;
     }
     optionsEl.innerHTML = html;
 }
@@ -395,21 +333,11 @@ function readValue(el) {
     if (kind === 'string') return String(raw || '');
     return Number(raw);
 }
-
-function findNameById(list, value) {
-    const found = list.find((item) => Number(item[1]) === Number(value));
-    return found ? found[0] : String(value);
-}
-
+function findNameById(list, value) { const found = list.find((item) => Number(item[1]) === Number(value)); return found ? found[0] : String(value); }
 function valueToText(key, value) {
     const cat = getCategory(key) || activeCategory;
     if (!cat) return String(value);
-
-    if (cat.type === 'color') {
-        if (typeof value === 'string') return value.toUpperCase();
-        if (value && typeof value === 'object') return `RGB(${value.r || 0}, ${value.g || 0}, ${value.b || 0})`;
-        return 'Custom Color';
-    }
+    if (cat.type === 'color') return typeof value === 'string' ? value.toUpperCase() : 'Custom Color';
     if (cat.type === 'classicColor') return findNameById(classicColors, value);
     if (cat.type === 'windowTint') return findNameById(windowTints, value);
     if (cat.type === 'xenonColor') return findNameById(xenonColors, value);
@@ -428,82 +356,41 @@ function valueToText(key, value) {
     return String(value);
 }
 
-function setCart(items) {
-    if (!Array.isArray(items)) return;
-    cart = items.map((item) => ({ ...item, variantLabel: item.variantLabel || valueToText(item.key, item.value) }));
-    renderCart();
-}
-
-function removeCartItem(key) {
-    key = String(key || '');
-    cart = cart.filter((item) => item.key !== key);
-    renderCart();
-    nui('remove', { key });
-}
-
+function setCart(items) { if (Array.isArray(items)) { cart = items.map((item) => ({ ...item, variantLabel: item.variantLabel || valueToText(item.key, item.value) })); renderCart(); } }
+function removeCartItem(key) { cart = cart.filter((item) => item.key !== String(key || '')); renderCart(); nui('remove', { key }); }
 function renderCart() {
     cartCount.textContent = `${cart.length} item${cart.length === 1 ? '' : 'e'}`;
     const total = cart.reduce((sum, item) => sum + Number(item.price || 0), 0);
     totalPrice.textContent = money(total);
-
     if (cart.length === 0) {
-        cartItems.innerHTML = `
-            <div class="cart-empty">
-                <b>Nicio modificare</b>
-                <span>Selectează tuning-uri din meniu.</span>
-            </div>
-        `;
+        cartItems.innerHTML = '<div class="cart-empty"><b>Nicio modificare</b><span>Alege tuning-uri din meniu.</span></div>';
         return;
     }
-
     cartItems.innerHTML = cart.map((item) => `
         <div class="cart-item">
-            <div>
-                <b>${escapeHtml(item.label)}</b>
-                <small>${escapeHtml(item.variantLabel || valueToText(item.key, item.value))}</small>
-                <span>${money(item.price)}</span>
-            </div>
+            <div><b>${escapeHtml(item.label)}</b><small>${escapeHtml(item.variantLabel || valueToText(item.key, item.value))}</small><span>${money(item.price)}</span></div>
             <button class="cart-remove" type="button" data-remove="${escapeHtml(item.key)}">×</button>
         </div>
     `).join('');
 }
 
 function pay() {
-    if (previewTimer) {
-        clearTimeout(previewTimer);
-        previewTimer = null;
-    }
+    if (previewTimer) clearTimeout(previewTimer);
+    previewTimer = null;
     queuedPreview = null;
     nui('buy');
 }
 function closeMenu() { nui('close'); }
 
-categoriesEl.addEventListener('click', (event) => {
-    const el = event.target.closest('[data-category]');
-    if (!el) return;
-    selectCategory(el.dataset.category);
-});
-
+categoriesEl.addEventListener('click', (event) => { const el = event.target.closest('[data-category]'); if (el) selectCategory(el.dataset.category); });
 optionsEl.addEventListener('click', (event) => {
     const wheel = event.target.closest('[data-wheel-category]');
-    if (wheel) {
-        selectWheelCategory(wheel.dataset.wheelCategory);
-        return;
-    }
-
+    if (wheel) { selectWheelCategory(wheel.dataset.wheelCategory); return; }
     const opt = event.target.closest('[data-preview-key]');
-    if (!opt) return;
-    preview(opt.dataset.previewKey, readValue(opt));
+    if (opt) preview(opt.dataset.previewKey, readValue(opt));
 });
-
-cartItems.addEventListener('click', (event) => {
-    const el = event.target.closest('[data-remove]');
-    if (!el) return;
-    removeCartItem(el.dataset.remove);
-});
-
+cartItems.addEventListener('click', (event) => { const el = event.target.closest('[data-remove]'); if (el) removeCartItem(el.dataset.remove); });
 wheelBack.addEventListener('click', () => selectCategory('__wheels'));
-
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') nui('close');
     if (event.key === '`' || event.code === 'Backquote') nui('toggleCamera');
@@ -514,7 +401,7 @@ window.addEventListener('message', (event) => {
     if (msg.action === 'open') open(msg.data || {});
     if (msg.action === 'close') close();
     if (msg.action === 'cart') setCart(msg.items || []);
-    if (msg.action === 'camera') root.classList.toggle('camera-mode', msg.enabled === true);
+    // Camera libera ramane fara transparenta si fara modificari vizuale pe UI.
 });
 
 window.driftTunning = { open, close, setCart };

@@ -6,30 +6,28 @@ Config.MainColor = '#04c7f7'
 Config.TalkCommand = '+driftzone_voice_talk'
 Config.TalkKey = 'N'
 
--- Un singur mod: Loud/Tipa
+-- Proximity voice default.
 Config.VoiceMode = {
     label = 'Tipa',
     distance = 15.0
 }
 
--- Cand nu tii apasat pe N, server/client state ramane muted.
+-- Distanta folosita in apel telefonic.
+-- Non-participantii sunt mutati client-side, deci nu aud apelul.
+Config.PhoneCallDistance = 99999.0
+
 Config.SilentDistance = 0.0
 
 Config.Volume = {
     default = 100,
     min = 0,
     max = 100,
-
-    -- Cat de des aplica volumul/mute pe jucatori.
-    -- 250ms = suficient de rapid fara lag.
     refreshMs = 250
 }
 
 Config.UI = {
     showVolume = true,
     showMicIcon = true,
-
-    -- Comanda pentru hide/show la UI-ul de volum.
     toggleCommand = 'voiceui'
 }
 

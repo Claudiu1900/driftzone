@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>DriftZone Phone</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main id="phoneRoot" class="phone-root hidden">
+        <section class="phone-frame">
+            <div class="phone-speaker"></div>
+
+            <header class="phone-top">
+                <div>
+                    <span class="muted">DRIFTZONE</span>
+                    <h1>Phone</h1>
+                </div>
+                <button class="icon-btn" onclick="closePhone()" title="Close">×</button>
+            </header>
+
+            <section id="statusCard" class="status-card idle">
+                <img id="statusIcon" src="assets/phone.svg" draggable="false">
+                <div>
+                    <b id="statusTitle">Ready</b>
+                    <p id="statusText">Formează un număr de telefon.</p>
+                </div>
+            </section>
+
+            <section class="number-card">
+                <label>Numărul tău</label>
+                <b id="myNumber">---</b>
+            </section>
+
+            <section id="dialView" class="dial-view">
+                <input id="numberInput" maxlength="16" inputmode="numeric" placeholder="Introdu număr" autocomplete="off">
+
+                <div class="keypad">
+                    <button onclick="pressKey('1')">1</button>
+                    <button onclick="pressKey('2')">2</button>
+                    <button onclick="pressKey('3')">3</button>
+                    <button onclick="pressKey('4')">4</button>
+                    <button onclick="pressKey('5')">5</button>
+                    <button onclick="pressKey('6')">6</button>
+                    <button onclick="pressKey('7')">7</button>
+                    <button onclick="pressKey('8')">8</button>
+                    <button onclick="pressKey('9')">9</button>
+                    <button onclick="clearNumber()">CLR</button>
+                    <button onclick="pressKey('0')">0</button>
+                    <button onclick="backspace()">⌫</button>
+                </div>
+
+                <button class="call-btn" onclick="dial()">
+                    <img src="assets/call.svg" draggable="false">
+                    SUNĂ
+                </button>
+            </section>
+
+            <section id="callView" class="call-view hidden">
+                <div class="avatar">
+                    <img src="assets/user.svg" draggable="false">
+                </div>
+                <span id="callMode">Apel</span>
+                <h2 id="otherNumber">---</h2>
+                <p id="callSubtitle">Conectare...</p>
+
+                <div id="incomingActions" class="call-actions hidden">
+                    <button class="answer" onclick="answer()">
+                        <img src="assets/call.svg" draggable="false">
+                        Răspunde
+                    </button>
+                    <button class="decline" onclick="decline()">
+                        <img src="assets/hangup.svg" draggable="false">
+                        Închide
+                    </button>
+                </div>
+
+                <button id="hangupBtn" class="hangup hidden" onclick="hangup()">
+                    <img src="assets/hangup.svg" draggable="false">
+                    Închide apelul
+                </button>
+            </section>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

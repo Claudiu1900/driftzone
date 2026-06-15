@@ -19,6 +19,7 @@ local vehicleWasFrozen = false
 local vehicleFreezeActive = false
 local gradientPreviewActive = false
 local previewLockUntil = 0
+local basePaint = nil
 
 local function notify(t, msg, d)
     TriggerEvent('client:notify', t or 'info', d or 5000, tostring(msg or ''))
@@ -112,6 +113,34 @@ local function getActiveTuningVehicle()
     end
 
     return getVehicle()
+end
+
+local function captureBasePaint(veh)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then
+        basePaint = nil
+        return
+    end
+
+    local primary, secondary = GetVehicleColours(veh)
+    local pearl, wheel = GetVehicleExtraColours(veh)
+
+    basePaint = {
+        primary = tonumber(primary or 0) or 0,
+        secondary = tonumber(secondary or 0) or 0,
+        pearl = tonumber(pearl or 0) or 0,
+        wheel = tonumber(wheel or 0) or 0
+    }
+end
+
+local function restoreBasePaint(veh)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then return end
+
+    if basePaint then
+        ClearVehicleCustomPrimaryColour(veh)
+        ClearVehicleCustomSecondaryColour(veh)
+        SetVehicleColours(veh, tonumber(basePaint.primary or 0) or 0, tonumber(basePaint.secondary or 0) or 0)
+        SetVehicleExtraColours(veh, tonumber(basePaint.pearl or 0) or 0, tonumber(basePaint.wheel or 0) or 0)
+    end
 end
 
 local function setFreeCamera(state)
@@ -486,7 +515,12 @@ local function resetVehicle(veh)
 
     ClearVehicleCustomPrimaryColour(veh)
     ClearVehicleCustomSecondaryColour(veh)
-    SetVehicleExtraColours(veh, 0, 0)
+    if basePaint then
+        SetVehicleColours(veh, tonumber(basePaint.primary or 0) or 0, tonumber(basePaint.secondary or 0) or 0)
+        SetVehicleExtraColours(veh, tonumber(basePaint.pearl or 0) or 0, tonumber(basePaint.wheel or 0) or 0)
+    else
+        SetVehicleExtraColours(veh, 0, 0)
+    end
     SetVehicleWindowTint(veh, 0)
     ToggleVehicleMod(veh, 18, false)
     ToggleVehicleMod(veh, 22, false)
@@ -698,6 +732,7 @@ local function closeTunning(save)
     freeCamera = false
     gradientPreviewActive = false
     previewLockUntil = 0
+    basePaint = nil
     currentData = nil
     currentTuning = {}
     originalTuning = {}
@@ -719,6 +754,7 @@ local function openTunning(payload)
     end
 
     freezeVehicleForTunning(veh)
+    captureBasePaint(veh)
 
     currentData = payload or {}
     availableCategories = buildAvailableCategories(veh, currentData.categories or Config.Categories or {})
@@ -953,11 +989,18 @@ RegisterNUICallback('buy', function(_, cb)
             return
         end
 
+        local stableTuning = deepCopy(currentTuning or {})
+        for key, cat in pairs(categoryMap or {}) do
+            if cat and (cat.previewOnly == true or cat.type == 'gradientPreview') then
+                stableTuning[key] = nil
+            end
+        end
+
         TriggerServerEvent('driftzone_tunning:server:buy', {
             vehicleId = currentData.vehicleId,
             adminMode = currentData.adminMode == true,
             changes = pendingChanges,
-            tuning = currentTuning
+            tuning = stableTuning
         })
     end
 

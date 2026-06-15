@@ -27,17 +27,14 @@ function nui(name, data = {}) {
 
 function clampVolume(value) {
     value = Number(value);
-
     if (!Number.isFinite(value)) return 100;
     if (value < 0) return 0;
     if (value > 100) return 100;
-
     return Math.round(value);
 }
 
 function queueSendVolume(value) {
     pendingVolume = clampVolume(value);
-
     if (sendTimer) return;
 
     sendTimer = setTimeout(() => {
@@ -49,9 +46,7 @@ function queueSendVolume(value) {
 }
 
 function setMainColor(color) {
-    if (color) {
-        document.documentElement.style.setProperty('--main', color);
-    }
+    if (color) document.documentElement.style.setProperty('--main', color);
 }
 
 function setVolumeUi(value, saveLocal = true) {
@@ -62,9 +57,7 @@ function setVolumeUi(value, saveLocal = true) {
     volumeText.textContent = String(value);
     volumeSlider.style.setProperty('--progress', `${value}%`);
 
-    if (saveLocal) {
-        localStorage.setItem('driftzone_voice_volume', String(value));
-    }
+    if (saveLocal) localStorage.setItem('driftzone_voice_volume', String(value));
 }
 
 function setTalkingUi(state) {
@@ -77,7 +70,6 @@ function setTalkingUi(state) {
 
 function setFocusUi(state) {
     hasFocus = state === true;
-
     volumeBox.classList.toggle('focused', hasFocus);
     focusHint.classList.toggle('hidden', !hasFocus);
 }
@@ -89,21 +81,17 @@ function setVisibilityUi(showVolume, showMicIcon) {
     volumeBox.classList.toggle('hidden', !volumeVisible);
     micBox.classList.toggle('hidden', !micVisible);
 
-    if (!volumeVisible) {
-        setFocusUi(false);
-    }
+    if (!volumeVisible) setFocusUi(false);
 }
 
 volumeSlider.addEventListener('input', () => {
     const value = clampVolume(volumeSlider.value);
-
     setVolumeUi(value, true);
     queueSendVolume(value);
 });
 
 volumeSlider.addEventListener('change', () => {
     const value = clampVolume(volumeSlider.value);
-
     setVolumeUi(value, true);
     nui('setVolume', { volume: value });
 });
@@ -129,7 +117,7 @@ window.addEventListener('message', (event) => {
         setVisibilityUi(data.showVolume !== false, data.showMicIcon !== false);
         setFocusUi(data.focus === true);
 
-        nui('setVolume', { volume: value });
+        nui('setVolume', { volume });
     }
 
     if (data.action === 'state') {
@@ -142,43 +130,29 @@ window.addEventListener('message', (event) => {
         if (typeof data.volume !== 'undefined') {
             const saved = localStorage.getItem('driftzone_voice_volume');
             const volume = saved === null ? clampVolume(data.volume) : clampVolume(Number(saved));
-
             setVolumeUi(volume, true);
         }
 
-        if (typeof data.focus !== 'undefined') {
-            setFocusUi(data.focus === true);
-        }
+        if (typeof data.focus !== 'undefined') setFocusUi(data.focus === true);
     }
 
     if (data.action === 'volume') {
         const volume = typeof data.volume === 'undefined' ? lastVolume : data.volume;
-
         setVolumeUi(volume, true);
 
-        if (typeof data.focus !== 'undefined') {
-            setFocusUi(data.focus === true);
-        }
+        if (typeof data.focus !== 'undefined') setFocusUi(data.focus === true);
     }
 
     if (data.action === 'visibility') {
         setVisibilityUi(data.showVolume !== false, data.showMicIcon !== false);
 
-        if (typeof data.focus !== 'undefined') {
-            setFocusUi(data.focus === true);
-        }
-
-        if (typeof data.volume !== 'undefined') {
-            setVolumeUi(data.volume, true);
-        }
+        if (typeof data.focus !== 'undefined') setFocusUi(data.focus === true);
+        if (typeof data.volume !== 'undefined') setVolumeUi(data.volume, true);
     }
 
     if (data.action === 'focus') {
         setFocusUi(data.focus === true);
-
-        if (typeof data.volume !== 'undefined') {
-            setVolumeUi(data.volume, true);
-        }
+        if (typeof data.volume !== 'undefined') setVolumeUi(data.volume, true);
     }
 });
 

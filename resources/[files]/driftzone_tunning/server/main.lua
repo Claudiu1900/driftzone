@@ -302,6 +302,11 @@ local function cleanTuningObject(value)
         end
     end
 
+    -- Siguranta: gradientele din preview nu trebuie niciodata salvate in DB.
+    clean.primaryGradientColor = nil
+    clean.secondaryGradientColor = nil
+    clean.gradientPreview = nil
+
     return clean
 end
 

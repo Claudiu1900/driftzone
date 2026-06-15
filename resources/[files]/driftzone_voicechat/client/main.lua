@@ -6,16 +6,14 @@ local volumeFocus = false
 local volumeUiVisible = true
 local lastVolumeApply = 0
 
+local phoneCallId = false
+local phoneParticipants = {}
+
 local function clamp(value, min, max)
     value = tonumber(value)
-
-    if value == nil then
-        value = min
-    end
-
+    if value == nil then value = min end
     if value < min then return min end
     if value > max then return max end
-
     return value
 end
 
@@ -30,20 +28,31 @@ local function sendUi(payload)
     SendNUIMessage(payload)
 end
 
-local function getVoiceDistance()
+local function getProximityDistance()
     return tonumber(Config.VoiceMode.distance or 15.0) or 15.0
+end
+
+local function isInPhoneCall()
+    return phoneCallId ~= false and phoneCallId ~= nil and tostring(phoneCallId) ~= ''
+end
+
+local function getVoiceDistance()
+    if isInPhoneCall() then
+        return tonumber(Config.PhoneCallDistance or 99999.0) or 99999.0
+    end
+
+    return getProximityDistance()
 end
 
 local function setLocalTalkerRange()
     local range = talking and getVoiceDistance() or (Config.SilentDistance or 0.0)
 
-    -- Native FiveM/Mumble proximity.
     MumbleSetTalkerProximity(range + 0.0)
     NetworkSetTalkerProximity(range + 0.0)
 
     LocalPlayer.state:set('proximity', {
         index = 1,
-        distance = getVoiceDistance(),
+        distance = getProximityDistance(),
         mode = Config.VoiceMode.label or 'Tipa'
     }, true)
 
@@ -53,41 +62,42 @@ end
 
 local function getPlayerCoordsSafe(player)
     local ped = GetPlayerPed(player)
-
-    if not ped or ped == 0 or not DoesEntityExist(ped) then
-        return nil
-    end
-
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return nil end
     return GetEntityCoords(ped)
 end
 
+local function isPhoneParticipant(serverId)
+    serverId = tonumber(serverId)
+    return serverId and phoneParticipants[serverId] == true
+end
+
 local function shouldHearPlayer(player, myCoords)
-    if player == PlayerId() then
-        return true
-    end
+    if player == PlayerId() then return true end
 
     local serverId = GetPlayerServerId(player)
-
-    if not serverId or serverId == 0 then
-        return false
-    end
+    if not serverId or serverId == 0 then return false end
 
     local remotePlayer = Player(serverId)
     local state = remotePlayer and remotePlayer.state
+    if not state or state.dz_voice_talking ~= true then return false end
 
-    if not state or state.dz_voice_talking ~= true then
+    local remoteCall = state.dz_voice_phone_call
+    if remoteCall ~= nil and remoteCall ~= false and tostring(remoteCall) ~= '' then
+        return isInPhoneCall()
+            and tostring(remoteCall) == tostring(phoneCallId)
+            and isPhoneParticipant(serverId)
+    end
+
+    -- Daca eu sunt intr-un apel, nu ascult proximitatea normala ca sa nu se amestece cu apelul.
+    if isInPhoneCall() then
         return false
     end
 
-    local distanceLimit = tonumber(state.dz_voice_distance or getVoiceDistance()) or getVoiceDistance()
-    if distanceLimit <= 0.0 then
-        return false
-    end
+    local distanceLimit = tonumber(state.dz_voice_distance or getProximityDistance()) or getProximityDistance()
+    if distanceLimit <= 0.0 then return false end
 
     local coords = getPlayerCoordsSafe(player)
-    if not coords then
-        return false
-    end
+    if not coords then return false end
 
     local dx = myCoords.x - coords.x
     local dy = myCoords.y - coords.y
@@ -111,7 +121,6 @@ local function applyVolumeToPlayers()
             if shouldHearPlayer(ply, myCoords) then
                 MumbleSetVolumeOverrideByServerId(serverId, volume + 0.0)
             else
-                -- Hard mute pe client pentru jucatorii care nu vorbesc sau sunt peste distanta.
                 MumbleSetVolumeOverrideByServerId(serverId, 0.0)
             end
         end
@@ -155,7 +164,7 @@ local function updateUi()
         talking = talking,
         volume = voiceVolume,
         mainColor = Config.MainColor,
-        mode = Config.VoiceMode.label or 'Tipa',
+        mode = isInPhoneCall() and 'Telefon' or (Config.VoiceMode.label or 'Tipa'),
         distance = getVoiceDistance(),
         focus = volumeFocus,
         showVolume = volumeUiVisible and (Config.UI.showVolume ~= false),
@@ -182,7 +191,6 @@ end
 
 local function setTalking(state)
     state = state == true
-
     if talking == state then return end
 
     talking = state
@@ -217,6 +225,7 @@ local function initVoice()
 
     LocalPlayer.state:set('voiceIntent', 'speech', true)
     LocalPlayer.state:set('dz_voice_distance', getVoiceDistance(), true)
+    LocalPlayer.state:set('dz_voice_phone_call', false, true)
 
     setTalking(false)
     applyVolumeToPlayers()
@@ -224,7 +233,7 @@ local function initVoice()
     resourceStarted = true
     updateUi()
 
-    debugPrint('initialized loud mode, distance=' .. tostring(getVoiceDistance()))
+    debugPrint('initialized voicechat, distance=' .. tostring(getProximityDistance()))
 end
 
 RegisterCommand(Config.TalkCommand, function()
@@ -247,7 +256,7 @@ RegisterNUICallback('ready', function(_, cb)
         mainColor = Config.MainColor,
         showVolume = volumeUiVisible and (Config.UI.showVolume ~= false),
         showMicIcon = Config.UI.showMicIcon ~= false,
-        mode = Config.VoiceMode.label or 'Tipa',
+        mode = isInPhoneCall() and 'Telefon' or (Config.VoiceMode.label or 'Tipa'),
         distance = getVoiceDistance(),
         focus = volumeFocus
     })
@@ -257,12 +266,9 @@ end)
 
 RegisterNUICallback('setVolume', function(data, cb)
     local value = data and data.volume
-
-    -- IMPORTANT: 0 este volum valid. Nu cade pe default 100.
     if value ~= nil then
         saveVolume(tonumber(value))
     end
-
     cb({ ok = true })
 end)
 
@@ -270,7 +276,6 @@ RegisterNUICallback('closeFocus', function(_, cb)
     setVolumeFocus(false)
     cb({ ok = true })
 end)
-
 
 RegisterCommand(Config.UI.toggleCommand or 'voiceui', function()
     setVolumeUiVisible(not volumeUiVisible)
@@ -286,6 +291,33 @@ end)
 
 RegisterNetEvent('driftzone_voicechat:client:toggleVolumeUi', function()
     setVolumeUiVisible(not volumeUiVisible)
+end)
+
+RegisterNetEvent('driftzone_voicechat:client:setPhoneCall', function(callId, participants)
+    phoneCallId = tostring(callId or '')
+    phoneParticipants = {}
+
+    if type(participants) == 'table' then
+        for _, serverId in ipairs(participants) do
+            serverId = tonumber(serverId)
+            if serverId then phoneParticipants[serverId] = true end
+        end
+    end
+
+    LocalPlayer.state:set('dz_voice_phone_call', phoneCallId, true)
+    setLocalTalkerRange()
+    applyVolumeToPlayers()
+    updateUi()
+end)
+
+RegisterNetEvent('driftzone_voicechat:client:clearPhoneCall', function()
+    phoneCallId = false
+    phoneParticipants = {}
+
+    LocalPlayer.state:set('dz_voice_phone_call', false, true)
+    setLocalTalkerRange()
+    applyVolumeToPlayers()
+    updateUi()
 end)
 
 RegisterCommand('voicevol', function()
@@ -327,11 +359,9 @@ end)
 CreateThread(function()
     while true do
         if talking then
-            -- Safety fallback: daca key-up nu ajunge, opreste vorbitul cand N nu mai este apasat.
             if not IsControlPressed(0, 249) and not IsDisabledControlPressed(0, 249) then
                 setTalking(false)
             end
-
             Wait(90)
         else
             Wait(450)
@@ -349,7 +379,6 @@ CreateThread(function()
             DisableControlAction(0, 200, true)
             DisableControlAction(0, 243, true)
 
-            -- ESC sau ` inchide cursorul.
             if IsDisabledControlJustPressed(0, 200) or IsDisabledControlJustPressed(0, 243) then
                 setVolumeFocus(false)
             end
@@ -365,6 +394,7 @@ AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
 
     setTalking(false)
+    LocalPlayer.state:set('dz_voice_phone_call', false, true)
     MumbleSetTalkerProximity(0.0)
     NetworkSetTalkerProximity(0.0)
     SetNuiFocus(false, false)
@@ -396,4 +426,12 @@ exports('SetTalking', setTalking)
 
 exports('IsTalking', function()
     return talking
+end)
+
+exports('SetPhoneCall', function(callId, participants)
+    TriggerEvent('driftzone_voicechat:client:setPhoneCall', callId, participants)
+end)
+
+exports('ClearPhoneCall', function()
+    TriggerEvent('driftzone_voicechat:client:clearPhoneCall')
 end)
