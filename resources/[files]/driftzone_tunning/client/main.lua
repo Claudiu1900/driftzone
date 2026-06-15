@@ -18,6 +18,7 @@ local tuningVehicle = 0
 local vehicleWasFrozen = false
 local vehicleFreezeActive = false
 local gradientPreviewActive = false
+local previewLockUntil = 0
 
 local function notify(t, msg, d)
     TriggerEvent('client:notify', t or 'info', d or 5000, tostring(msg or ''))
@@ -529,9 +530,10 @@ local function applyTuningToVehicle(veh, tuning)
     SetVehicleDirtLevel(veh, 0.0)
 end
 
-local function restoreGradientPreview(veh)
-    if not gradientPreviewActive then return end
-
+local function clearPreviewTuning(veh)
+    -- Curata orice gradient/chameleon folosit doar ca preview.
+    -- Se aplica mereu starea stabila din currentTuning, nu doar cand flag-ul e activ,
+    -- ca sa nu ramana gradientul daca preview-ul a venit intarziat din NUI.
     veh = veh or getActiveTuningVehicle()
     if veh ~= 0 and DoesEntityExist(veh) then
         applyTuningToVehicle(veh, currentTuning or {})
@@ -686,7 +688,7 @@ local function closeTunning(save)
         if not save then
             applyTuningToVehicle(veh, originalTuning or {})
         else
-            restoreGradientPreview(veh)
+            clearPreviewTuning(veh)
         end
     end
 
@@ -695,6 +697,7 @@ local function closeTunning(save)
     tunningOpen = false
     freeCamera = false
     gradientPreviewActive = false
+    previewLockUntil = 0
     currentData = nil
     currentTuning = {}
     originalTuning = {}
@@ -733,6 +736,7 @@ local function openTunning(payload)
     currentTuning = deepCopy(originalTuning)
     pendingChanges = {}
     gradientPreviewActive = false
+    previewLockUntil = 0
 
     applyTuningToVehicle(veh, currentTuning)
 
@@ -750,6 +754,7 @@ RegisterNetEvent('driftzone_tunning:client:paid', function(data)
     originalTuning = data and data.tuning or currentTuning
     currentTuning = data and data.tuning or currentTuning
     gradientPreviewActive = false
+    previewLockUntil = 0
 
     local veh = getActiveTuningVehicle()
     if veh ~= 0 and DoesEntityExist(veh) then
@@ -824,6 +829,11 @@ RegisterNUICallback('preview', function(data, cb)
     end
 
     local now = GetGameTimer()
+    if now < previewLockUntil then
+        cb({ ok = true })
+        return
+    end
+
     if now - lastPreviewAt < PREVIEW_THROTTLE_MS then
         cb({ ok = true })
         return
@@ -839,6 +849,9 @@ RegisterNUICallback('preview', function(data, cb)
         local value = data.value
 
         if cat.previewOnly == true or cat.type == 'gradientPreview' then
+            -- Porneste preview-ul de la tuning-ul stabil, ca doua gradienturi consecutive
+            -- sa nu se suprapuna si sa nu ramana pe masina.
+            clearPreviewTuning(veh)
             applyOne(veh, key, value, cat)
             gradientPreviewActive = true
             cb({ ok = true })
@@ -846,7 +859,7 @@ RegisterNUICallback('preview', function(data, cb)
         end
 
         -- Daca a fost aplicat un gradient de preview, il curatam inainte de orice alt preview/cumparare.
-        restoreGradientPreview(veh)
+        clearPreviewTuning(veh)
 
         currentTuning[key] = value
 
@@ -904,10 +917,18 @@ RegisterNUICallback('remove', function(data, cb)
         end
 
         pendingChanges = newChanges
-        currentTuning[key] = nil
+        if originalTuning and originalTuning[key] ~= nil then
+            if type(originalTuning[key]) == 'table' then
+                currentTuning[key] = deepCopy(originalTuning[key])
+            else
+                currentTuning[key] = originalTuning[key]
+            end
+        else
+            currentTuning[key] = nil
+        end
 
         if veh ~= 0 and DoesEntityExist(veh) then
-            applyTuningToVehicle(veh, currentTuning or {})
+            clearPreviewTuning(veh)
         end
 
         sendNui({ action = 'cart', items = pendingChanges })
@@ -918,9 +939,18 @@ end)
 
 RegisterNUICallback('buy', function(_, cb)
     if currentData then
+        previewLockUntil = GetGameTimer() + 1800
+
         local veh = getActiveTuningVehicle()
         if veh ~= 0 and DoesEntityExist(veh) then
-            restoreGradientPreview(veh)
+            clearPreviewTuning(veh)
+        end
+
+        if type(pendingChanges) ~= 'table' or #pendingChanges <= 0 then
+            sendNui({ action = 'cart', items = {} })
+            notify('warning', 'Nu ai selectat nicio modificare de cumparat.', 3500)
+            cb({ ok = true })
+            return
         end
 
         TriggerServerEvent('driftzone_tunning:server:buy', {

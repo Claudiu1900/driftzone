@@ -136,8 +136,8 @@ function open(payload) {
     renderCategories();
     renderCart();
     wheelBack.classList.add('hidden');
-    selectedTitle.textContent = 'Selectează o categorie';
-    optionsEl.innerHTML = '<div class="empty-state">Alege o categorie din stânga.</div>';
+    selectedTitle.textContent = 'Alege o categorie';
+    optionsEl.innerHTML = '<div class="empty-state">Selectează un pachet de tuning din stânga.</div>';
 }
 
 function close() {
@@ -468,7 +468,14 @@ function renderCart() {
     `).join('');
 }
 
-function pay() { nui('buy'); }
+function pay() {
+    if (previewTimer) {
+        clearTimeout(previewTimer);
+        previewTimer = null;
+    }
+    queuedPreview = null;
+    nui('buy');
+}
 function closeMenu() { nui('close'); }
 
 categoriesEl.addEventListener('click', (event) => {

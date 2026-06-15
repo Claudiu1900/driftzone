@@ -1,6 +1,6 @@
 # driftzone_tunning
 
-Versiune optimizată pentru DriftZone.
+Versiune optimizata DriftZone.
 
 ## Instalare
 
@@ -10,18 +10,24 @@ ensure driftzone_auth
 ensure driftzone_tunning
 ```
 
-Rulează `SQL.sql` dacă nu ai coloana `vehiclenames.tunable` și tabela `tunning_logs`.
+Ruleaza SQL-ul doar daca nu ai tabelele create:
 
-## Ce include
+```txt
+driftzone_tunning/SQL.sql
+```
 
-- UI nou, dark, premium, cu colțuri mici.
-- SVG-uri locale pentru categorii: Colors, Gradient, Body, Performance, Wheels, Interior, Visual, Lights, Engine Bay, Extras.
-- Mașina primește freeze când intri în tuning și revine normal când ieși.
-- Preview-ul de gradient este doar preview: nu intră în coș, nu se cumpără, nu rămâne pe mașină când cumperi alt tuning.
-- Open Wheel este scos din roți.
-- În meniul principal apare o singură categorie `Wheels`; după selectare alegi Sport/Muscle/Tuner/Street/Track etc.
-- Fără `vendor/beta_module.js` și fără fișiere obfuscate.
-- Optimizări: preview throttled, categorii mapate local, doar tuning-uri reale detectate pe vehicul.
+## Update inclus
+
+- UI refacut: mai curat, mai premium, fara elemente suprapuse in bara de jos.
+- Bara de jos este mai inalta si optiunile au spatiu corect.
+- A fost scoasa caseta cu textul despre ` camera libera si ESC.
+- Cand apesi `, meniul ramane vizibil normal, nu se mai face transparent.
+- Gradient Preview este strict preview: nu intra in cos, nu se cumpara si nu se salveaza.
+- Daca dai Pay dupa un gradient preview, gradientul se curata inainte de cumparare.
+- Daca incerci sa cumperi doar gradient preview, masina revine la tuning-ul stabil si nu ramane gradientul.
+- Masina primeste freeze cand intri in tuning si revine la starea initiala cand iesi.
+- Open Wheel este scos.
+- In meniul principal apare doar Wheels, apoi in interior alegi tipul de roti.
 
 ## Comenzi
 
@@ -31,13 +37,4 @@ Rulează `SQL.sql` dacă nu ai coloana `vehiclenames.tunable` și tabela `tunnin
 /tunning
 ```
 
-`/tunning` este admin mode și respectă:
-
-```lua
-Config.AdminMinLevel = 6
-Config.AdminDutyRequired = true
-```
-
-## Important
-
-Dacă o piesă nu apare pe o mașină add-on, înseamnă că mașina nu expune piesa corect prin modkit/carcols/carvariations. Scriptul nu inventează tuning-uri fake.
+`/tunning` este comanda admin configurata in `config.lua`.
