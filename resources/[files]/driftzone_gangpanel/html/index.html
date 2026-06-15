@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Gang Panel</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main id="root" class="root hidden">
+        <section class="panel-shell">
+            <aside class="sidebar">
+                <div class="brand">
+                    <div class="brand-mark">DZ</div>
+                    <div>
+                        <h1>Gang Panel</h1>
+                        <p id="selfInfo">Loading</p>
+                    </div>
+                </div>
+
+                <nav id="nav" class="nav"></nav>
+
+                <div class="side-footer">
+                    <button class="ghost-btn" onclick="refreshData()">Refresh</button>
+                    <button class="danger-soft" onclick="closePanel()">Close</button>
+                </div>
+            </aside>
+
+            <section class="content">
+                <header class="topbar">
+                    <div>
+                        <h2 id="pageTitle">Dashboard</h2>
+                        <p id="pageSubtitle">Administrare ganguri</p>
+                    </div>
+                    <button id="createGangBtn" class="primary-btn hidden" onclick="openGangModal()">Create Gang</button>
+                </header>
+
+                <div id="view" class="view"></div>
+            </section>
+        </section>
+    </main>
+
+    <div id="modal" class="modal hidden">
+        <div class="modal-card">
+            <div class="modal-head">
+                <b id="modalTitle">Create Gang</b>
+                <button onclick="closeModal()">×</button>
+            </div>
+            <div id="modalBody" class="modal-body"></div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
