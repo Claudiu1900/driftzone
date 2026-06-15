@@ -115,3 +115,9 @@ Config.Access.AdminColumn = 'admin_level'
 Config.Access.AdminColumnFallback = ''
 Config.Access.MinAdminLevel = 6
 ```
+
+## Update single synced emotes
+
+- Emote-urile din categoria `shared` / `synced` nu mai cer selectarea unui jucator.
+- Cand apesi pe ele din UI sau folosesti `/e nume_emote`, animatia porneste direct pe tine, single.
+- Sistemul vechi de request/selectare player a ramas in cod pentru compatibilitate cu event-uri vechi, dar UI-ul si comenzile DriftZone folosesc single-play.

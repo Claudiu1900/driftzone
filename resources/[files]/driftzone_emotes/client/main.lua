@@ -1189,64 +1189,11 @@ RegisterNUICallback('callback', function(data)
                 TriggerServerEvent('driftzone_emotes:setPedAlpha:server', GetPlayerServerId(PlayerId()), 255)
             end
         elseif data.category == "shared" or data.category == "erpemotes" then
-            if requestActive then return end
-            if inVehicle then return end
-            nearbyPlayers = GetPlayersInArea(GetEntityCoords(PlayerPedId()), 5.0)
-            if next(nearbyPlayers) ~= nil and next(nearbyPlayers) then
-                menuActive = false
-                SetNuiFocusKeepInput(false)
-                SetNuiFocus(false, false)
-                SendNUIMessage({action = "menu", state = false})
-                requestActive = true
-                ShowTextUI(Lang:t("notifications.waiting_for_a_decision"), "ESC")
-                animData.type = data.category
-                animData.animNumber = data.id
-                animData.targetAnimName = animData[4] or nil
-                for _, id in pairs(nearbyPlayers) do
-                    Create3DTextUIOnPlayer("driftzone_emotes-request-players-" .. id, {
-                        id = id,
-                        displayDist = 5.0,
-                        interactDist = 1.3,
-                        enableKeyClick = true, 
-                        keyNum = 38,
-                        key = "E",
-                        text = animData[3] .. "?",
-                        theme = "green", 
-                        triggerData = {
-                            triggerName = "driftzone_emotes:sendAnimRequest:client",
-                            args = {data = animData, id = id}
-                        }
-                    })
-                end
-                Citizen.CreateThread(function()
-                    while requestActive do
-                        Citizen.Wait(0)
-                        if IsControlPressed(0, 322) then
-                            Notify(Lang:t("notifications.request_cancelled"), 7500, "error")
-                            requestActive = false
-                            currentAnimData = {}
-                            HideTextUI()
-                            for _, id in pairs(nearbyPlayers) do
-                                Delete3DTextUIOnPlayer("driftzone_emotes-request-players-" .. id)
-                            end
-                            break
-                        end
-                    end
-                end)
-                Citizen.SetTimeout(7500, function()
-                    if next(nearbyPlayers) ~= nil and next(nearbyPlayers) and requestActive then
-                        Notify(Lang:t("notifications.request_timed_out"), 7500, "error")
-                        requestActive = false
-                        currentAnimData = {}
-                        HideTextUI()
-                        for _, id in pairs(nearbyPlayers) do
-                            Delete3DTextUIOnPlayer("driftzone_emotes-request-players-" .. id)
-                        end
-                    end
-                end)
-            else
-                Notify(Lang:t("notifications.no_players_nearby"), 7500, "error")
-            end
+            menuActive = false
+            SetNuiFocusKeepInput(false)
+            SetNuiFocus(false, false)
+            SendNUIMessage({action = "menu", state = false})
+            dzPlaySyncedAsSingle(data.id, data.category, PlayerPedId(), animData, tableData, cAnimData, inVehicle)
         end
     end
 end)
@@ -1917,6 +1864,77 @@ function EmoteCommandStart(source, args, raw, type)
     end
 end
 
+
+local function dzPlaySyncedAsSingle(name, category, ped, animData, tableData, cAnimData, inVehicle)
+    -- DriftZone: emotes din categoria Shared/ERP pot fi rulate si single.
+    -- Nu mai cauta jucatori langa tine si nu mai deschide selectorul E pe player.
+    if requestActive then return end
+    if inVehicle then return end
+    if not animData or not tableData then return end
+
+    local dict = animData[tableData.dict]
+    local anim = animData[tableData.anim]
+    if not dict or not anim then return end
+    if not loadAnim(dict) then return end
+
+    lastPlayedAnimType = category
+    isInAnimation = true
+    table.insert(currentAnimData, cAnimData)
+
+    local movementType = 1
+    local animationDuration = -1
+
+    if animData.AnimationOptions then
+        if animData.AnimationOptions.onFootFlag then
+            movementType = animData.AnimationOptions.onFootFlag
+        elseif animData.AnimationOptions.EmoteMoving then
+            movementType = 51
+        elseif animData.AnimationOptions.EmoteLoop then
+            movementType = 1
+        elseif animData.AnimationOptions.EmoteStuck then
+            movementType = 50
+        end
+
+        if animData.AnimationOptions.Duration then
+            animationDuration = animData.AnimationOptions.Duration
+        elseif animData.AnimationOptions.EmoteDuration then
+            animationDuration = animData.AnimationOptions.EmoteDuration
+        end
+    end
+
+    TaskPlayAnim(ped, dict, anim, 5.0, 5.0, animationDuration, movementType, 0, false, false, false)
+    RemoveAnimDict(dict)
+
+    if animData.AnimationOptions and animData.AnimationOptions.Prop then
+        local propName = animData.AnimationOptions.Prop
+        local propBone = animData.AnimationOptions.PropBone
+        local propPl1, propPl2, propPl3, propPl4, propPl5, propPl6 = table.unpack(animData.AnimationOptions.PropPlacement)
+        if not addPropToPlayer(propName, propBone, propPl1, propPl2, propPl3, propPl4, propPl5, propPl6, nil) then return end
+
+        local secondPropName, secondPropBone, secondPropPl1, secondPropPl2, secondPropPl3, secondPropPl4, secondPropPl5, secondPropPl6
+        local secondPropEmote = false
+
+        if animData.AnimationOptions.Prop2 then
+            secondPropName = animData.AnimationOptions.Prop2
+            secondPropBone = animData.AnimationOptions.Prop2Bone
+            secondPropPl1, secondPropPl2, secondPropPl3, secondPropPl4, secondPropPl5, secondPropPl6 = table.unpack(animData.AnimationOptions.Prop2Placement)
+            secondPropEmote = true
+        elseif animData.AnimationOptions.SecondProp then
+            secondPropName = animData.AnimationOptions.SecondProp
+            secondPropBone = animData.AnimationOptions.SecondPropBone
+            secondPropPl1, secondPropPl2, secondPropPl3, secondPropPl4, secondPropPl5, secondPropPl6 = table.unpack(animData.AnimationOptions.SecondPropPlacement)
+            secondPropEmote = true
+        end
+
+        if secondPropEmote then
+            if not addPropToPlayer(secondPropName, secondPropBone, secondPropPl1, secondPropPl2, secondPropPl3, secondPropPl4, secondPropPl5, secondPropPl6, nil) then
+                destroyAllProps()
+                return
+            end
+        end
+    end
+end
+
 function OnEmotePlay(name, category, type)
     if not dzAccessBypass and not dzHasAccessCached() then
         dzRequireAccess(function(ok)
@@ -2154,64 +2172,7 @@ function OnEmotePlay(name, category, type)
         TaskPlayAnim(ped, animData[tableData.dict], animData[tableData.anim], 5.0, 5.0, animationDuration, movementType, 0, false, false, false)
         RemoveAnimDict(animData[tableData.dict])
     elseif category == "shared" or category == "erpemotes" then
-        if requestActive then return end
-        if inVehicle then return end
-        nearbyPlayers = GetPlayersInArea(GetEntityCoords(PlayerPedId()), 5.0)
-        if next(nearbyPlayers) ~= nil and next(nearbyPlayers) then
-            menuActive = false
-            SetNuiFocusKeepInput(false)
-            SetNuiFocus(false, false)
-            SendNUIMessage({action = "menu", state = false})
-            requestActive = true
-            ShowTextUI(Lang:t("notifications.waiting_for_a_decision"), "ESC")
-            animData.type = category
-            animData.animNumber = name
-            animData.targetAnimName = animData[4] or nil
-            for _, id in pairs(nearbyPlayers) do
-                Create3DTextUIOnPlayer("driftzone_emotes-request-players-" .. id, {
-                    id = id,
-                    displayDist = 5.0,
-                    interactDist = 1.3,
-                    enableKeyClick = true, 
-                    keyNum = 38,
-                    key = "E",
-                    text = animData[3] .. "?",
-                    theme = "green", 
-                    triggerData = {
-                        triggerName = "driftzone_emotes:sendAnimRequest:client",
-                        args = {data = animData, id = id}
-                    }
-                })
-            end
-            Citizen.CreateThread(function()
-                while requestActive do
-                    Citizen.Wait(0)
-                    if IsControlPressed(0, 322) then
-                        Notify(Lang:t("notifications.request_cancelled"), 7500, "error")
-                        requestActive = false
-                        currentAnimData = {}
-                        HideTextUI()
-                        for _, id in pairs(nearbyPlayers) do
-                            Delete3DTextUIOnPlayer("driftzone_emotes-request-players-" .. id)
-                        end
-                        break
-                    end
-                end
-            end)
-            Citizen.SetTimeout(7500, function()
-                if next(nearbyPlayers) ~= nil and next(nearbyPlayers) and requestActive then
-                    Notify(Lang:t("notifications.request_timed_out"), 7500, "error")
-                    requestActive = false
-                    currentAnimData = {}
-                    HideTextUI()
-                    for _, id in pairs(nearbyPlayers) do
-                        Delete3DTextUIOnPlayer("driftzone_emotes-request-players-" .. id)
-                    end
-                end
-            end)
-        else
-            Notify(Lang:t("notifications.no_players_nearby"), 7500, "error")
-        end
+        dzPlaySyncedAsSingle(name, category, ped, animData, tableData, cAnimData, inVehicle)
     end
 end
 
