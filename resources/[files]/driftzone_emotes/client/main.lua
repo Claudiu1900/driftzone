@@ -31,6 +31,12 @@ local animPosOldCoords = nil
 local myClone = nil
 local syncedTarget = 0
 local PlayerParticles = {}
+
+-- DriftZone fix: nu mai exista selector de player pentru emote-uri shared/synced.
+-- Tin variabilele globale curate ca sa nu ramana blocat pe request vechi.
+nearbyPlayers = nearbyPlayers or {}
+requestActive = false
+
 local dzLockedEmote = false
 local dzForceCancel = false
 local dzLastLockedName = nil
@@ -460,7 +466,16 @@ function openMenu()
             SendNUIMessage({action = "setData", sender = "0RES", defaultQuickKeys = Config.DefaultQuickKeys, categories = categories, animations = data, favs = favoriteAnimations, quicks = quickAnimations, translations = translations, quickKeys = Config.QuickKeys})
             while not setDataState do Citizen.Wait(1000) end
         end
-        if requestActive then return end
+        if requestActive then
+            requestActive = false
+            HideTextUI()
+            if nearbyPlayers then
+                for _, id in pairs(nearbyPlayers) do
+                    Delete3DTextUIOnPlayer("driftzone_emotes-request-players-" .. id)
+                end
+            end
+            nearbyPlayers = {}
+        end
         if DoesEntityExist(myClone) then return end
         menuActive = true
         SetNuiFocus(menuActive, menuActive)
@@ -1865,10 +1880,19 @@ function EmoteCommandStart(source, args, raw, type)
 end
 
 
-local function dzPlaySyncedAsSingle(name, category, ped, animData, tableData, cAnimData, inVehicle)
+function dzPlaySyncedAsSingle(name, category, ped, animData, tableData, cAnimData, inVehicle)
     -- DriftZone: emotes din categoria Shared/ERP pot fi rulate si single.
     -- Nu mai cauta jucatori langa tine si nu mai deschide selectorul E pe player.
-    if requestActive then return end
+    if requestActive then
+        requestActive = false
+        HideTextUI()
+        if nearbyPlayers then
+            for _, id in pairs(nearbyPlayers) do
+                Delete3DTextUIOnPlayer("driftzone_emotes-request-players-" .. id)
+            end
+        end
+        nearbyPlayers = {}
+    end
     if inVehicle then return end
     if not animData or not tableData then return end
 
@@ -2340,15 +2364,42 @@ RegisterNetEvent('driftzone_emotes:setPedAlpha:server', function(id, alpha)
 end)
 
 RegisterNetEvent('driftzone_emotes:sendAnimRequest:client', function(data)
-    data.target = GetPlayerServerId(PlayerId())
-    if next(nearbyPlayers) ~= nil and next(nearbyPlayers) and requestActive then
-        requestActive = false
-        HideTextUI()
+    -- DriftZone FINAL: orice emote shared/synced se ruleaza single pe tine.
+    -- Nu mai trimitem request catre alt player si nu mai afisam "No players nearby".
+    requestActive = false
+    HideTextUI()
+
+    if nearbyPlayers then
         for _, id in pairs(nearbyPlayers) do
             Delete3DTextUIOnPlayer("driftzone_emotes-request-players-" .. id)
         end
     end
-    TriggerServerEvent('driftzone_emotes:sendAnimRequest:server', data)
+    nearbyPlayers = {}
+
+    local emoteName = nil
+    if type(data) == 'string' then
+        emoteName = data
+    elseif type(data) == 'table' then
+        emoteName = data.id or data.name or data.animNumber or data.targetAnimName
+        if not emoteName and type(data.data) == 'table' then
+            emoteName = data.data.id or data.data.name or data.data.animNumber or data.data.targetAnimName
+        end
+        if not emoteName and type(data.data) == 'string' then
+            emoteName = data.data
+        end
+    end
+
+    emoteName = emoteName and string.lower(tostring(emoteName):gsub('%s+', '')) or nil
+    if not emoteName or emoteName == '' then return end
+
+    if RES2.Shared and RES2.Shared[emoteName] then
+        OnEmotePlay(emoteName, 'shared')
+    elseif RES2.ERP and RES2.ERP[emoteName] then
+        OnEmotePlay(emoteName, 'erpemotes')
+    else
+        -- fallback: incearca exact ca /e nume
+        EmoteCommandStart(nil, {emoteName}, nil)
+    end
 end)
 
 local requestReceiveActive = false

@@ -121,3 +121,8 @@ Config.Access.MinAdminLevel = 6
 - Emote-urile din categoria `shared` / `synced` nu mai cer selectarea unui jucator.
 - Cand apesi pe ele din UI sau folosesti `/e nume_emote`, animatia porneste direct pe tine, single.
 - Sistemul vechi de request/selectare player a ramas in cod pentru compatibilitate cu event-uri vechi, dar UI-ul si comenzile DriftZone folosesc single-play.
+
+
+## Fix shared/synced single
+
+Emote-urile de tip shared/synced, de exemplu `/e give`, `/e handshake`, `/e hug`, nu mai caută player aproape și nu mai afișează `No players nearby`. Acum rulează direct single pe playerul care folosește comanda sau apasă în UI.

@@ -5,7 +5,7 @@ lua54 'yes'
 name 'driftzone_emotes'
 author 'DriftZone'
 description 'DriftZone Emotes - 0r style UI, standalone/custom framework'
-version '1.1.0'
+version '1.1.2'
 
 ui_page 'html/index.html'
 
