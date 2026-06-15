@@ -543,6 +543,7 @@ RegisterNetEvent('driftzone_phone:server:sendMessage', function(data)
     if not targetUid then return sendFeedback(src, { kind = 'message_failed', sound = 'decline' }) end
     if isBlocked(targetUid, myPhone) then return sendFeedback(src, { kind = 'message_blocked', sound = 'decline' }) end
 
+    local clientToken = tostring(data.clientToken or '')
     local insertedId = 0
     pcall(function()
         insertedId = MySQL.insert.await(('INSERT INTO %s (sender_uid, receiver_uid, sender_number, receiver_number, message, message_type, location_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())'):format(sqlName(Config.MessageHistoryTable)), {
@@ -550,11 +551,38 @@ RegisterNetEvent('driftzone_phone:server:sendMessage', function(data)
         }) or 0
     end)
 
+    local senderMessage = {
+        id = insertedId,
+        mine = true,
+        otherNumber = toNumber,
+        otherName = getContactName(uid, toNumber) or toNumber,
+        from = myPhone,
+        to = toNumber,
+        text = text,
+        type = msgType,
+        location = location,
+        clientToken = clientToken,
+        created_at = os.date('%Y-%m-%d %H:%M:%S')
+    }
+
+    TriggerClientEvent('driftzone_phone:client:messageSync', src, senderMessage)
     sendFeedback(src, { kind = 'message_sent', sound = 'message' })
-    sendState(src)
 
     local target = getPlayerByUid(targetUid)
     if target then
+        local receiverMessage = {
+            id = insertedId,
+            mine = false,
+            otherNumber = myPhone,
+            otherName = getContactName(targetUid, myPhone) or myPhone,
+            from = myPhone,
+            to = toNumber,
+            text = text,
+            type = msgType,
+            location = location,
+            created_at = os.date('%Y-%m-%d %H:%M:%S')
+        }
+        TriggerClientEvent('driftzone_phone:client:messageSync', target, receiverMessage)
         TriggerClientEvent('driftzone_phone:client:messageReceived', target, {
             id = insertedId,
             from = myPhone,
@@ -564,7 +592,6 @@ RegisterNetEvent('driftzone_phone:server:sendMessage', function(data)
             location = location,
             sound = 'message'
         })
-        sendState(target)
     end
 end)
 

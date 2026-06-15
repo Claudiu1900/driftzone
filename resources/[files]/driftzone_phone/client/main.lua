@@ -168,7 +168,8 @@ RegisterNUICallback('shareLocation', function(data, cb)
         number = data and data.number or '',
         type = 'location',
         text = 'Locatie partajata',
-        location = { x = c.x, y = c.y, z = c.z }
+        location = { x = c.x, y = c.y, z = c.z },
+        clientToken = data and data.clientToken or ''
     })
     cb({ ok = true })
 end)
@@ -203,6 +204,10 @@ end)
 RegisterNetEvent('driftzone_phone:client:incoming', function(state)
     lastState = state or lastState or {}
     showIncomingPeek(lastState)
+end)
+
+RegisterNetEvent('driftzone_phone:client:messageSync', function(payload)
+    sendNui({ action = 'messageSync', message = payload or {} })
 end)
 
 RegisterNetEvent('driftzone_phone:client:messageReceived', function(payload)
@@ -241,9 +246,13 @@ CreateThread(function()
     while true do
         if phoneVisible or (lastState and lastState.inCall) then
             refreshState()
-            Wait(Config.StateRefreshMs or 1200)
+            if lastState and lastState.inCall then
+                Wait(2500)
+            else
+                Wait(Config.StateRefreshMs or 8000)
+            end
         else
-            Wait(2500)
+            Wait(6000)
         end
     end
 end)

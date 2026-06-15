@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'DriftZone Phone - prototype calls, contacts, messages, location share'
-version '1.0.0'
+version '1.0.8'
 
 ui_page 'html/index.html'
 

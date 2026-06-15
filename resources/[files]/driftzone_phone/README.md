@@ -1,27 +1,49 @@
-# driftzone_phone V7
+# driftzone_phone V8
 
-Telefon prototip pentru DriftZone, cu UI refacut, contacte, block, istoric apeluri, mesaje sincronizate si share location.
+Telefon DriftZone refacut.
 
-## Fixuri V7
+## Ce include
 
-- UI refacut complet: contacte, mesaje, apeluri, dialer si ecran de apel.
-- Iconurile SVG sunt transparente, fara background in fisier.
-- Fix major la JavaScript: nu mai pica meniul cand apesi +, cand scrii sau cand salvezi contacte.
-- State refresh nu mai rescrie ecranul cat timp scrii in input.
-- Sunetele nu se mai suprapun in loop.
-- `ring.mp3` si `ring2.mp3` ruleaza ca loop controlat si se opresc la raspuns/respins/inchidere.
-- `decline.mp3` ruleaza doar la esec/respins/nepreluat, nu cand inchizi un apel activ normal.
-- `message.mp3` ruleaza o singura data la trimis/primit mesaj.
-- Speaker si Mute folosesc `driftzone_voicechat:client:setPhoneOptions`.
-- Tasta ` face toggle la cursor cat timp telefonul este vizibil.
-- Home bar: in aplicatii merge inapoi; pe home inchide telefonul.
+- UI nou mai curat si mai fluid.
+- Contacte: add, edit, block, delete.
+- Daca ai un numar la block, nu te mai poate suna.
+- Apeluri cu accept/refuz/inchidere.
+- Mesaje live: apar instant la ambii jucatori, fara refresh greu.
+- Istoric mesaje in `message_history`.
+- Istoric apeluri in `call_history`.
+- Share location in conversatie, cu waypoint cand apesi pe locatie.
+- Sunete controlate: nu se mai suprapun in loop aiurea.
+- Cursor cu tasta ` cat timp telefonul e vizibil.
+- Mute si Speaker pentru apel prin `driftzone_voicechat`.
 
-## SQL
+## Instalare
 
-Ruleaza `SQL.sql`.
+Ruleaza SQL:
 
-## Comanda
+```sql
+source driftzone_phone/SQL.sql
+```
+
+server.cfg:
+
+```cfg
+setr voice_useNativeAudio true
+setr voice_useSendingRangeOnly true
+setr voice_enableUi 0
+
+ensure oxmysql
+ensure driftzone_auth
+ensure driftzone_voicechat
+ensure driftzone_phone
+```
+
+## Sound-uri
+
+Sunetele se pun in:
 
 ```txt
-/phone
+driftzone_phone/html/assets/sounds/ring.mp3
+driftzone_phone/html/assets/sounds/ring2.mp3
+driftzone_phone/html/assets/sounds/decline.mp3
+driftzone_phone/html/assets/sounds/message.mp3
 ```
