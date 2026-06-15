@@ -27,7 +27,6 @@ button, input { font-family: inherit; }
     border: 1px solid var(--line);
     background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.025)), var(--panel);
     box-shadow: 0 28px 80px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.08);
-    backdrop-filter: blur(5px);
     border-radius: 8px;
 }
 .left-panel {
