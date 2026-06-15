@@ -2,6 +2,7 @@ local phoneVisible = false
 local phoneOpen = false
 local phonePeek = false
 local phoneFocus = false
+local autoIncomingVisible = false
 local nuiReady = false
 local lastState = {}
 
@@ -30,6 +31,7 @@ local function openPhone()
     phoneVisible = true
     phoneOpen = true
     phonePeek = false
+    autoIncomingVisible = false
     setFocus(true)
     sendNui({
         action = 'open',
@@ -44,7 +46,9 @@ local function showIncomingPeek(state)
     phoneVisible = true
     phoneOpen = false
     phonePeek = true
-    setFocus(true)
+    autoIncomingVisible = true
+    -- Nu activam cursorul automat cand primesti apel. Apesi ` daca vrei sa raspunzi/respingi.
+    setFocus(false)
     sendNui({
         action = 'peek',
         mainColor = Config.MainColor or '#04c7f7',
@@ -56,6 +60,7 @@ local function closePhone()
     phoneVisible = false
     phoneOpen = false
     phonePeek = false
+    autoIncomingVisible = false
     setFocus(false)
     sendNui({ action = 'close' })
 end
@@ -96,18 +101,22 @@ RegisterNUICallback('answer', function(_, cb)
     phoneVisible = true
     phoneOpen = true
     phonePeek = false
-    setFocus(true)
+    autoIncomingVisible = false
+    -- Dupa ce raspunzi, cursorul se inchide automat ca sa nu ramana blocat.
+    setFocus(false)
     sendNui({ action = 'open', mode = 'full', state = lastState or {} })
     TriggerServerEvent('driftzone_phone:server:answerCall')
     cb({ ok = true })
 end)
 
 RegisterNUICallback('decline', function(_, cb)
+    setFocus(false)
     TriggerServerEvent('driftzone_phone:server:declineCall')
     cb({ ok = true })
 end)
 
 RegisterNUICallback('hangup', function(_, cb)
+    setFocus(false)
     TriggerServerEvent('driftzone_phone:server:hangupCall')
     cb({ ok = true })
 end)
@@ -139,7 +148,9 @@ RegisterNetEvent('driftzone_phone:client:incoming', function(state)
         phoneVisible = true
         phoneOpen = true
         phonePeek = false
-        setFocus(true)
+        autoIncomingVisible = false
+        -- Daca telefonul era deja deschis de player, pastram starea cursorului.
+        setFocus(phoneFocus == true)
         sendNui({ action = 'incoming', state = lastState, open = true })
     end
 end)
@@ -168,10 +179,6 @@ end)
 CreateThread(function()
     while true do
         if phoneVisible then
-            if IsControlJustPressed(0, 243) or IsDisabledControlJustPressed(0, 243) then
-                setFocus(not phoneFocus)
-            end
-
             if phoneFocus then
                 DisableControlAction(0, 1, true)
                 DisableControlAction(0, 2, true)
@@ -179,10 +186,15 @@ CreateThread(function()
                 DisableControlAction(0, 25, true)
                 DisableControlAction(0, 200, true)
                 DisableControlAction(0, 243, true)
+            end
 
-                if IsDisabledControlJustPressed(0, 200) then
-                    closePhone()
-                end
+            -- ` toggle cursor mereu cat telefonul este vizibil, inclusiv la apel primit automat.
+            if IsControlJustPressed(0, 243) or IsDisabledControlJustPressed(0, 243) then
+                setFocus(not phoneFocus)
+            end
+
+            if phoneFocus and IsDisabledControlJustPressed(0, 200) then
+                closePhone()
             end
 
             Wait(0)

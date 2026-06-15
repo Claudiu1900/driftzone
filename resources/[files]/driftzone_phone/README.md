@@ -55,3 +55,11 @@ ensure driftzone_auth
 ensure driftzone_voicechat
 ensure driftzone_phone
 ```
+
+
+## V5 fix
+- Apelul primit apare de jos in sus, nu din dreapta in stanga.
+- Cand te suna cineva, cursorul NU se activeaza automat. Apesi ` ca sa il activezi/dezactivezi.
+- Dupa accept/respinge/inchide apel, cursorul este fortat off ca sa nu ramana blocat.
+- Daca un apel activ este inchis, nu mai ruleaza `decline.mp3`.
+- `decline.mp3` ramane doar pentru numar inexistent, jucator offline, apel respins inainte de raspuns sau apel nepreluat.

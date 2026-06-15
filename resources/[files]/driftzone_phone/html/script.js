@@ -99,7 +99,8 @@ function showRoot(mode) {
     }
 
     hide(root) === undefined;
-    root.classList.remove('hidden', 'closing', 'peek', 'no-focus');
+    root.classList.remove('hidden', 'closing', 'peek');
+    root.classList.toggle('no-focus', !hasFocus);
     root.classList.add('opening');
     isOpen = true;
     isPeek = mode === 'peek';
@@ -177,6 +178,7 @@ function dial() {
 
 function answer() {
     stopRings();
+    setFocusUi(false);
     showRoot('full');
     switchScreen('call');
     nui('answer');
@@ -184,11 +186,13 @@ function answer() {
 
 function decline() {
     stopRings();
+    setFocusUi(false);
     nui('decline');
 }
 
 function hangup() {
     stopRings();
+    setFocusUi(false);
     nui('hangup');
 }
 
@@ -325,7 +329,7 @@ function handleFeedback(payload = {}) {
         playSound('ring2');
     }
 
-    if (kind === 'error' || kind === 'busy' || kind === 'declined' || kind === 'missed' || kind === 'ended') {
+    if (kind === 'error' || kind === 'busy' || kind === 'declined' || kind === 'missed') {
         setDialStatus('error', title, text, 'assets/warning.svg');
     } else {
         setDialStatus('idle', title, text, 'assets/phone.svg');

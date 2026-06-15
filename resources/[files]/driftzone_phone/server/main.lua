@@ -332,11 +332,11 @@ local function endCall(callId, reason, endedBy)
     elseif reason == 'ended' then
         local other = endedBy and otherParticipant(call, endedBy) or nil
         if other then
+            -- Cand apelul era deja activ si cineva inchide, NU dam decline.mp3.
             sendFeedback(other, {
                 kind = 'ended',
                 title = 'Apel inchis',
-                text = 'Persoana a inchis apelul.',
-                sound = 'decline'
+                text = 'Persoana a inchis apelul.'
             })
         end
     end
