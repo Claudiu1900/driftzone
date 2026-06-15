@@ -1,49 +1,18 @@
-# driftzone_phone V4
+# driftzone_phone
 
-Prototip telefon DriftZone cu apeluri prin `driftzone_voicechat`.
+Prototip telefon DriftZone cu apeluri, contacte, block, istoric apeluri, mesaje sync si share location.
 
-## Comanda
+## Instalare
 
-```txt
-/phone
+Ruleaza SQL:
+
+```sql
+source driftzone_phone/SQL.sql
 ```
 
-## Ce face
+Asigura-te ca in tabela `users` exista coloana `phonenumber`.
 
-- Telefonul se deschide in dreapta cu animatie de jos in sus.
-- Inchiderea are animatie de sus/jos, nu dispare instant.
-- Telefonul porneste pe home screen si are aplicatie Telefon.
-- Numarul playerului se ia din `users.phonenumber`.
-- Poti suna doar numere de telefon existente in DB si online.
-- Cand cineva te suna, telefonul apare partial in dreapta cu butoane de raspuns/respins.
-- Nu mai trimite notificari externe prin `client:notify`.
-- Sunete:
-  - `ring.mp3` = cand tu suni pe cineva;
-  - `ring2.mp3` = cand te suna cineva;
-  - `decline.mp3` = numar invalid, persoana offline, respins, nepreluat.
-- Backtick / tasta ` face toggle la cursor cat timp telefonul este vizibil.
-
-## Unde pui sound-urile
-
-Pune fisierele aici:
-
-```txt
-driftzone_phone/html/assets/sounds/ring.mp3
-driftzone_phone/html/assets/sounds/ring2.mp3
-driftzone_phone/html/assets/sounds/decline.mp3
-```
-
-Zip-ul include placeholder-uri. Le poti inlocui cu sunetele tale.
-
-## VoiceChat
-
-Telefonul foloseste `driftzone_voicechat` inclus in zip.
-In apel:
-- persoana din telefon te aude indiferent de distanta;
-- jucatorii de langa tine te aud normal cand tii N;
-- jucatorii de langa tine NU aud persoana din telefon.
-
-## server.cfg
+In `server.cfg`:
 
 ```cfg
 setr voice_useNativeAudio true
@@ -56,10 +25,21 @@ ensure driftzone_voicechat
 ensure driftzone_phone
 ```
 
+## Sound-uri
 
-## V5 fix
-- Apelul primit apare de jos in sus, nu din dreapta in stanga.
-- Cand te suna cineva, cursorul NU se activeaza automat. Apesi ` ca sa il activezi/dezactivezi.
-- Dupa accept/respinge/inchide apel, cursorul este fortat off ca sa nu ramana blocat.
-- Daca un apel activ este inchis, nu mai ruleaza `decline.mp3`.
-- `decline.mp3` ramane doar pentru numar inexistent, jucator offline, apel respins inainte de raspuns sau apel nepreluat.
+Sound-urile sunt incluse in:
+
+```txt
+driftzone_phone/html/assets/sounds/ring.mp3
+driftzone_phone/html/assets/sounds/ring2.mp3
+driftzone_phone/html/assets/sounds/decline.mp3
+driftzone_phone/html/assets/sounds/message.mp3
+```
+
+## Comanda
+
+```txt
+/phone
+```
+
+Backtick ` toggles cursorul cat timp telefonul este vizibil.

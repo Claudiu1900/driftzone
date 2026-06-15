@@ -9,6 +9,11 @@ local lastVolumeApply = 0
 local phoneCallId = false
 local phoneParticipants = {}
 local phoneVoiceTargetActive = false
+local phoneMuted = false
+local phoneSpeaker = false
+local phoneSpeakerListeners = {}
+local phoneSpeakerSources = {}
+local lastSpeakerUpdate = 0
 local getProximityDistance
 local getPlayerCoordsSafe
 
@@ -42,9 +47,15 @@ local function rebuildPhoneVoiceTarget()
             end
         end
 
-        -- Persoana din apel aude vocea indiferent de distanta.
-        for serverId, enabled in pairs(phoneParticipants or {}) do
-            if enabled == true then addTarget(serverId) end
+        -- Persoana din apel aude vocea indiferent de distanta, daca nu ai mute pe apel.
+        if phoneMuted ~= true then
+            for serverId, enabled in pairs(phoneParticipants or {}) do
+                if enabled == true then addTarget(serverId) end
+            end
+            -- Listenerii adaugati de speaker-ul celuilalt participant.
+            for serverId, enabled in pairs(phoneSpeakerListeners or {}) do
+                if enabled == true then addTarget(serverId) end
+            end
         end
 
         -- Jucatorii din jur te aud normal cand vorbesti la telefon.
@@ -149,6 +160,11 @@ local function shouldHearPlayer(player, myCoords)
 
     -- Persoana din apel se aude mereu pentru tine.
     if isPhoneParticipant(serverId) == true then
+        return true
+    end
+
+    -- Daca esti langa cineva cu speaker-ul pe apel pornit, auzi sursa din telefon.
+    if phoneSpeakerSources[serverId] == true then
         return true
     end
 
@@ -358,6 +374,37 @@ RegisterNetEvent('driftzone_voicechat:client:toggleVolumeUi', function()
     setVolumeUiVisible(not volumeUiVisible)
 end)
 
+
+local function collectNearbyServerIds()
+    local out = {}
+    local ped = PlayerPedId()
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return out end
+    local myCoords = GetEntityCoords(ped)
+    local prox = getProximityDistance()
+    for _, ply in ipairs(GetActivePlayers()) do
+        if ply ~= PlayerId() then
+            local sid = GetPlayerServerId(ply)
+            local coords = getPlayerCoordsSafe(ply)
+            if sid and sid ~= 0 and coords then
+                local dx = myCoords.x - coords.x
+                local dy = myCoords.y - coords.y
+                local dz = myCoords.z - coords.z
+                local distSq = dx * dx + dy * dy + dz * dz
+                if distSq <= (prox * prox) then out[#out + 1] = sid end
+            end
+        end
+    end
+    return out
+end
+
+local function sendPhoneOptionsUpdate(force)
+    if not isInPhoneCall() then return end
+    local now = GetGameTimer()
+    if force ~= true and now - lastSpeakerUpdate < 900 then return end
+    lastSpeakerUpdate = now
+    TriggerServerEvent('driftzone_voicechat:server:updatePhoneOptions', phoneCallId, phoneMuted == true, phoneSpeaker == true, phoneSpeaker == true and collectNearbyServerIds() or {})
+end
+
 RegisterNetEvent('driftzone_voicechat:client:setPhoneCall', function(callId, participants)
     phoneCallId = tostring(callId or '')
     phoneParticipants = {}
@@ -370,6 +417,10 @@ RegisterNetEvent('driftzone_voicechat:client:setPhoneCall', function(callId, par
     end
 
     LocalPlayer.state:set('dz_voice_phone_call', phoneCallId, true)
+    phoneMuted = false
+    phoneSpeaker = false
+    phoneSpeakerListeners = {}
+    phoneSpeakerSources = {}
     setLocalTalkerRange()
     rebuildPhoneVoiceTarget()
     applyVolumeToPlayers()
@@ -379,12 +430,54 @@ end)
 RegisterNetEvent('driftzone_voicechat:client:clearPhoneCall', function()
     phoneCallId = false
     phoneParticipants = {}
+    phoneMuted = false
+    phoneSpeaker = false
+    phoneSpeakerListeners = {}
+    phoneSpeakerSources = {}
 
     LocalPlayer.state:set('dz_voice_phone_call', false, true)
     rebuildPhoneVoiceTarget()
     setLocalTalkerRange()
     applyVolumeToPlayers()
     updateUi()
+end)
+
+
+RegisterNetEvent('driftzone_voicechat:client:setPhoneOptions', function(options)
+    options = type(options) == 'table' and options or {}
+    phoneMuted = options.muted == true
+    phoneSpeaker = options.speaker == true
+    rebuildPhoneVoiceTarget()
+    sendPhoneOptionsUpdate(true)
+end)
+
+RegisterNetEvent('driftzone_voicechat:client:setPhoneSpeakerListeners', function(callId, listeners)
+    if tostring(callId or '') ~= tostring(phoneCallId or '') then return end
+    phoneSpeakerListeners = {}
+    if type(listeners) == 'table' then
+        for _, serverId in ipairs(listeners) do
+            serverId = tonumber(serverId)
+            if serverId and serverId > 0 then phoneSpeakerListeners[serverId] = true end
+        end
+    end
+    rebuildPhoneVoiceTarget()
+end)
+
+RegisterNetEvent('driftzone_voicechat:client:addPhoneSpeakerSource', function(callId, sourceServerId)
+    if tostring(callId or '') == '' then return end
+    sourceServerId = tonumber(sourceServerId)
+    if sourceServerId and sourceServerId > 0 then
+        phoneSpeakerSources[sourceServerId] = true
+        applyVolumeToPlayers()
+    end
+end)
+
+RegisterNetEvent('driftzone_voicechat:client:removePhoneSpeakerSource', function(_, sourceServerId)
+    sourceServerId = tonumber(sourceServerId)
+    if sourceServerId and sourceServerId > 0 then
+        phoneSpeakerSources[sourceServerId] = nil
+        applyVolumeToPlayers()
+    end
 end)
 
 RegisterCommand('voicevol', function()
@@ -413,8 +506,9 @@ CreateThread(function()
 
             if now - lastVolumeApply >= (Config.Volume.refreshMs or 250) then
                 lastVolumeApply = now
-                if talking and isInPhoneCall() then
-                    rebuildPhoneVoiceTarget()
+                if isInPhoneCall() then
+                    if talking then rebuildPhoneVoiceTarget() end
+                    if phoneSpeaker then sendPhoneOptionsUpdate(false) end
                 end
                 applyVolumeToPlayers()
             end
@@ -467,6 +561,10 @@ AddEventHandler('onResourceStop', function(resource)
     LocalPlayer.state:set('dz_voice_phone_call', false, true)
     phoneCallId = false
     phoneParticipants = {}
+    phoneMuted = false
+    phoneSpeaker = false
+    phoneSpeakerListeners = {}
+    phoneSpeakerSources = {}
     rebuildPhoneVoiceTarget()
     MumbleSetTalkerProximity(0.0)
     NetworkSetTalkerProximity(0.0)
@@ -507,4 +605,8 @@ end)
 
 exports('ClearPhoneCall', function()
     TriggerEvent('driftzone_voicechat:client:clearPhoneCall')
+end)
+
+exports('SetPhoneOptions', function(options)
+    TriggerEvent('driftzone_voicechat:client:setPhoneOptions', options or {})
 end)
