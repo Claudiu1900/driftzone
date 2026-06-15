@@ -7,28 +7,31 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="phoneRoot" class="phone-root hidden">
-        <div class="phone-frame">
-            <div class="notch"><span></span></div>
-            <div class="statusbar"><b id="statusTime">12:00</b><span>5G</span></div>
+    <main id="phoneRoot" class="phone-root hidden no-focus">
+        <section class="phone-frame">
+            <div class="phone-glass"></div>
+            <div class="status-bar">
+                <span id="statusTime">00:00</span>
+                <div class="status-icons"><span></span><span></span><b></b></div>
+            </div>
 
-            <section id="homeScreen" class="screen home-screen"></section>
-            <section id="dialScreen" class="screen app-screen hidden"></section>
-            <section id="contactsScreen" class="screen app-screen hidden"></section>
-            <section id="callsScreen" class="screen app-screen hidden"></section>
-            <section id="messagesScreen" class="screen app-screen hidden"></section>
-            <section id="conversationScreen" class="screen app-screen hidden"></section>
-            <section id="callScreen" class="screen call-screen hidden"></section>
-            <section id="peekScreen" class="screen peek-screen hidden"></section>
+            <div id="homeScreen" class="screen"></div>
+            <div id="dialScreen" class="screen hidden"></div>
+            <div id="contactsScreen" class="screen hidden"></div>
+            <div id="callsScreen" class="screen hidden"></div>
+            <div id="messagesScreen" class="screen hidden"></div>
+            <div id="conversationScreen" class="screen hidden"></div>
+            <div id="callScreen" class="screen hidden"></div>
+            <div id="peekScreen" class="screen hidden"></div>
 
-            <button id="homeBar" class="home-bar" onclick="homeBarAction()"></button>
-        </div>
-    </div>
+            <button id="homeBar" class="home-bar" onclick="homeBarAction()" aria-label="Back"></button>
+        </section>
+    </main>
 
-    <audio id="ringSound" src="assets/sounds/ring.mp3" loop preload="auto"></audio>
-    <audio id="ring2Sound" src="assets/sounds/ring2.mp3" loop preload="auto"></audio>
-    <audio id="declineSound" src="assets/sounds/decline.mp3" preload="auto"></audio>
-    <audio id="messageSound" src="assets/sounds/message.mp3" preload="auto"></audio>
+    <audio id="ringSound" preload="auto" src="assets/sounds/ring.mp3"></audio>
+    <audio id="ring2Sound" preload="auto" src="assets/sounds/ring2.mp3"></audio>
+    <audio id="declineSound" preload="auto" src="assets/sounds/decline.mp3"></audio>
+    <audio id="messageSound" preload="auto" src="assets/sounds/message.mp3"></audio>
 
     <script src="script.js"></script>
 </body>

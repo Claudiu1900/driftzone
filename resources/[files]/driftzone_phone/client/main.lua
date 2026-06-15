@@ -1,7 +1,6 @@
 local phoneVisible = false
 local phoneOpen = false
 local phoneFocus = false
-local nuiReady = false
 local lastState = {}
 local currentCallOptions = { muted = false, speaker = false }
 
@@ -16,6 +15,11 @@ local function setFocus(state)
     sendNui({ action = 'focus', focus = phoneFocus })
 end
 
+local function resetCallOptions()
+    currentCallOptions = { muted = false, speaker = false }
+    TriggerEvent('driftzone_voicechat:client:setPhoneOptions', currentCallOptions)
+end
+
 local function refreshState()
     TriggerServerEvent('driftzone_phone:server:requestState')
 end
@@ -26,7 +30,7 @@ local function openPhone(screen)
     setFocus(true)
     sendNui({
         action = 'open',
-        screen = screen or nil,
+        screen = screen or 'home',
         mainColor = Config.MainColor or '#04c7f7',
         state = lastState or {}
     })
@@ -51,8 +55,7 @@ end
 local function closePhone()
     phoneVisible = false
     phoneOpen = false
-    currentCallOptions = { muted = false, speaker = false }
-    TriggerEvent('driftzone_voicechat:client:setPhoneOptions', currentCallOptions)
+    resetCallOptions()
     setFocus(false)
     sendNui({ action = 'close' })
 end
@@ -63,11 +66,14 @@ local function toggleCursor()
 end
 
 RegisterCommand(Config.Command or 'phone', function()
-    if phoneOpen then closePhone() else openPhone('home') end
+    if phoneOpen then
+        closePhone()
+    else
+        openPhone('home')
+    end
 end, false)
 
 RegisterNUICallback('ready', function(_, cb)
-    nuiReady = true
     sendNui({ action = 'setup', mainColor = Config.MainColor or '#04c7f7' })
     refreshState()
     cb({ ok = true })
@@ -79,7 +85,7 @@ RegisterNUICallback('close', function(_, cb)
 end)
 
 RegisterNUICallback('openFull', function(data, cb)
-    openPhone(data and data.screen or nil)
+    openPhone(data and data.screen or 'home')
     cb({ ok = true })
 end)
 
@@ -94,31 +100,34 @@ RegisterNUICallback('requestState', function(_, cb)
 end)
 
 RegisterNUICallback('dial', function(data, cb)
+    phoneVisible = true
+    phoneOpen = true
     TriggerServerEvent('driftzone_phone:server:startCall', data and data.number or '')
     cb({ ok = true })
 end)
 
 RegisterNUICallback('answer', function(_, cb)
-    if not phoneOpen then
-        phoneVisible = true
-        phoneOpen = true
-        sendNui({ action = 'open', screen = 'call', state = lastState or {} })
-    end
-    setFocus(false)
+    phoneVisible = true
+    phoneOpen = true
+    setFocus(true)
+    sendNui({ action = 'open', screen = 'call', state = lastState or {} })
     TriggerServerEvent('driftzone_phone:server:answerCall')
     cb({ ok = true })
 end)
 
 RegisterNUICallback('decline', function(_, cb)
     TriggerServerEvent('driftzone_phone:server:declineCall')
-    if not phoneOpen then closePhone() else setFocus(true) end
+    if not phoneOpen then
+        closePhone()
+    else
+        setFocus(true)
+    end
     cb({ ok = true })
 end)
 
 RegisterNUICallback('hangup', function(_, cb)
     TriggerServerEvent('driftzone_phone:server:hangupCall')
-    currentCallOptions = { muted = false, speaker = false }
-    TriggerEvent('driftzone_voicechat:client:setPhoneOptions', currentCallOptions)
+    resetCallOptions()
     if phoneOpen then setFocus(true) end
     cb({ ok = true })
 end)
@@ -168,7 +177,9 @@ RegisterNUICallback('setWaypoint', function(data, cb)
     local loc = data and data.location or {}
     local x = tonumber(loc.x)
     local y = tonumber(loc.y)
-    if x and y then SetNewWaypoint(x + 0.0, y + 0.0) end
+    if x and y then
+        SetNewWaypoint(x + 0.0, y + 0.0)
+    end
     cb({ ok = true })
 end)
 
@@ -176,11 +187,11 @@ RegisterNetEvent('driftzone_phone:client:state', function(state)
     local wasInCall = lastState and lastState.inCall == true
     local wasActive = lastState and lastState.active == true
     lastState = state or {}
+
     sendNui({ action = 'state', state = lastState })
 
     if wasInCall and not lastState.inCall then
-        currentCallOptions = { muted = false, speaker = false }
-        TriggerEvent('driftzone_voicechat:client:setPhoneOptions', currentCallOptions)
+        resetCallOptions()
         if phoneOpen then setFocus(true) end
     end
 
@@ -210,6 +221,15 @@ CreateThread(function()
                 toggleCursor()
                 Wait(250)
             end
+
+            if phoneFocus then
+                DisableControlAction(0, 1, true)
+                DisableControlAction(0, 2, true)
+                DisableControlAction(0, 24, true)
+                DisableControlAction(0, 25, true)
+                DisableControlAction(0, 200, true)
+            end
+
             Wait(0)
         else
             Wait(350)
@@ -231,5 +251,5 @@ end)
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
     SetNuiFocus(false, false)
-    TriggerEvent('driftzone_voicechat:client:setPhoneOptions', { muted = false, speaker = false })
+    resetCallOptions()
 end)

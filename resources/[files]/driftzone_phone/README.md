@@ -1,45 +1,27 @@
-# driftzone_phone
+# driftzone_phone V7
 
-Prototip telefon DriftZone cu apeluri, contacte, block, istoric apeluri, mesaje sync si share location.
+Telefon prototip pentru DriftZone, cu UI refacut, contacte, block, istoric apeluri, mesaje sincronizate si share location.
 
-## Instalare
+## Fixuri V7
 
-Ruleaza SQL:
+- UI refacut complet: contacte, mesaje, apeluri, dialer si ecran de apel.
+- Iconurile SVG sunt transparente, fara background in fisier.
+- Fix major la JavaScript: nu mai pica meniul cand apesi +, cand scrii sau cand salvezi contacte.
+- State refresh nu mai rescrie ecranul cat timp scrii in input.
+- Sunetele nu se mai suprapun in loop.
+- `ring.mp3` si `ring2.mp3` ruleaza ca loop controlat si se opresc la raspuns/respins/inchidere.
+- `decline.mp3` ruleaza doar la esec/respins/nepreluat, nu cand inchizi un apel activ normal.
+- `message.mp3` ruleaza o singura data la trimis/primit mesaj.
+- Speaker si Mute folosesc `driftzone_voicechat:client:setPhoneOptions`.
+- Tasta ` face toggle la cursor cat timp telefonul este vizibil.
+- Home bar: in aplicatii merge inapoi; pe home inchide telefonul.
 
-```sql
-source driftzone_phone/SQL.sql
-```
+## SQL
 
-Asigura-te ca in tabela `users` exista coloana `phonenumber`.
-
-In `server.cfg`:
-
-```cfg
-setr voice_useNativeAudio true
-setr voice_useSendingRangeOnly true
-setr voice_enableUi 0
-
-ensure oxmysql
-ensure driftzone_auth
-ensure driftzone_voicechat
-ensure driftzone_phone
-```
-
-## Sound-uri
-
-Sound-urile sunt incluse in:
-
-```txt
-driftzone_phone/html/assets/sounds/ring.mp3
-driftzone_phone/html/assets/sounds/ring2.mp3
-driftzone_phone/html/assets/sounds/decline.mp3
-driftzone_phone/html/assets/sounds/message.mp3
-```
+Ruleaza `SQL.sql`.
 
 ## Comanda
 
 ```txt
 /phone
 ```
-
-Backtick ` toggles cursorul cat timp telefonul este vizibil.
