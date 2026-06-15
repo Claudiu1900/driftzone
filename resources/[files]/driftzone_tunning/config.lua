@@ -13,7 +13,13 @@ Config.ShowOnlyValidVisualMods = true
 Config.ExtraIds = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 }
 Config.ExtraPricePercent = 1
 
-
+-- UI optimizat: in meniul principal apare o singura categorie "Wheels".
+-- Dupa ce intri in Wheels, alegi subcategoria: Sport, Muscle, Tuner etc.
+Config.UI = {
+    MainColor = '#04c7f7',
+    GroupWheels = true,
+    FreezeVehicleOnOpen = true
+}
 
 -- Gradient preview colors din driftzone_gradients. Sunt doar PREVIEW in tunning:
 -- nu se adauga in cos, nu se cumpara si nu se salveaza in vehicle_tunning.
@@ -49,7 +55,7 @@ Config.PricePercent = {
     struts = 2, archCover = 2, aerials = 1, trimB = 2, tank = 2, windows = 2, livery = 4,
     wheels_sport = 5, wheels_muscle = 5, wheels_lowrider = 5, wheels_suv = 5, wheels_offroad = 5,
     wheels_tuner = 5, wheels_bike = 5, wheels_highend = 5, wheels_bennys = 6, wheels_bespoke = 6,
-    wheels_openwheel = 6, wheels_street = 6, wheels_track = 6
+    wheels_street = 6, wheels_track = 6
 }
 
 Config.Categories = {
@@ -119,7 +125,6 @@ Config.Categories = {
     { key = 'wheels_highend', label = 'Wheels High End', type = 'wheel', modType = 23, wheelType = 7, group = 'Wheels' },
     { key = 'wheels_bennys', label = 'Benny\'s Original', type = 'wheel', modType = 23, wheelType = 8, group = 'Wheels' },
     { key = 'wheels_bespoke', label = 'Benny\'s Bespoke', type = 'wheel', modType = 23, wheelType = 9, group = 'Wheels' },
-    { key = 'wheels_openwheel', label = 'Open Wheel', type = 'wheel', modType = 23, wheelType = 10, group = 'Wheels' },
     { key = 'wheels_street', label = 'Street Wheels', type = 'wheel', modType = 23, wheelType = 11, group = 'Wheels' },
     { key = 'wheels_track', label = 'Track Wheels', type = 'wheel', modType = 23, wheelType = 12, group = 'Wheels' }
 }

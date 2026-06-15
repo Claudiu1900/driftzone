@@ -14,6 +14,11 @@ local availableCategories = {}
 local lastPreviewAt = 0
 local PREVIEW_THROTTLE_MS = 35
 
+local tuningVehicle = 0
+local vehicleWasFrozen = false
+local vehicleFreezeActive = false
+local gradientPreviewActive = false
+
 local function notify(t, msg, d)
     TriggerEvent('client:notify', t or 'info', d or 5000, tostring(msg or ''))
 end
@@ -63,6 +68,49 @@ end
 local function setFocus(state)
     SetNuiFocus(state == true, state == true)
     SetNuiFocusKeepInput(false)
+end
+
+local function isEntityFrozenSafe(entity)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
+
+    local ok, result = pcall(function()
+        return IsEntityPositionFrozen(entity)
+    end)
+
+    return ok and result == true
+end
+
+local function freezeVehicleForTunning(veh)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then return end
+
+    tuningVehicle = veh
+    vehicleWasFrozen = isEntityFrozenSafe(veh)
+    vehicleFreezeActive = true
+
+    requestControl(veh, 1200)
+    FreezeEntityPosition(veh, true)
+    SetVehicleHandbrake(veh, true)
+    SetVehicleDirtLevel(veh, 0.0)
+end
+
+local function restoreVehicleFreeze()
+    if vehicleFreezeActive and tuningVehicle ~= 0 and DoesEntityExist(tuningVehicle) then
+        requestControl(tuningVehicle, 900)
+        SetVehicleHandbrake(tuningVehicle, false)
+        FreezeEntityPosition(tuningVehicle, vehicleWasFrozen == true)
+    end
+
+    tuningVehicle = 0
+    vehicleWasFrozen = false
+    vehicleFreezeActive = false
+end
+
+local function getActiveTuningVehicle()
+    if tuningVehicle ~= 0 and DoesEntityExist(tuningVehicle) then
+        return tuningVehicle
+    end
+
+    return getVehicle()
 end
 
 local function setFreeCamera(state)
@@ -472,12 +520,24 @@ local function applyTuningToVehicle(veh, tuning)
     for i = 1, #Config.Categories do
         local cat = Config.Categories[i]
 
-        if data[cat.key] ~= nil then
+        if cat and cat.key and data[cat.key] ~= nil and cat.type ~= 'gradientPreview' and cat.previewOnly ~= true then
             applyOneUnsafe(veh, cat.key, data[cat.key], cat)
         end
     end
 
     applyExtraTuningData(veh, data)
+    SetVehicleDirtLevel(veh, 0.0)
+end
+
+local function restoreGradientPreview(veh)
+    if not gradientPreviewActive then return end
+
+    veh = veh or getActiveTuningVehicle()
+    if veh ~= 0 and DoesEntityExist(veh) then
+        applyTuningToVehicle(veh, currentTuning or {})
+    end
+
+    gradientPreviewActive = false
 end
 
 local function rebuildCategoryMap(categories)
@@ -620,14 +680,21 @@ end
 local function closeTunning(save)
     if not tunningOpen then return end
 
-    local veh = getVehicle()
+    local veh = getActiveTuningVehicle()
 
-    if veh ~= 0 and not save then
-        applyTuningToVehicle(veh, originalTuning or {})
+    if veh ~= 0 and DoesEntityExist(veh) then
+        if not save then
+            applyTuningToVehicle(veh, originalTuning or {})
+        else
+            restoreGradientPreview(veh)
+        end
     end
+
+    restoreVehicleFreeze()
 
     tunningOpen = false
     freeCamera = false
+    gradientPreviewActive = false
     currentData = nil
     currentTuning = {}
     originalTuning = {}
@@ -648,6 +715,8 @@ local function openTunning(payload)
         return
     end
 
+    freezeVehicleForTunning(veh)
+
     currentData = payload or {}
     availableCategories = buildAvailableCategories(veh, currentData.categories or Config.Categories or {})
     currentData.categories = availableCategories
@@ -663,6 +732,7 @@ local function openTunning(payload)
 
     currentTuning = deepCopy(originalTuning)
     pendingChanges = {}
+    gradientPreviewActive = false
 
     applyTuningToVehicle(veh, currentTuning)
 
@@ -679,8 +749,9 @@ RegisterNetEvent('driftzone_tunning:client:open', openTunning)
 RegisterNetEvent('driftzone_tunning:client:paid', function(data)
     originalTuning = data and data.tuning or currentTuning
     currentTuning = data and data.tuning or currentTuning
+    gradientPreviewActive = false
 
-    local veh = getVehicle()
+    local veh = getActiveTuningVehicle()
     if veh ~= 0 and DoesEntityExist(veh) then
         applyTuningToVehicle(veh, currentTuning or {})
     end
@@ -760,7 +831,7 @@ RegisterNUICallback('preview', function(data, cb)
 
     lastPreviewAt = now
 
-    local veh = getVehicle()
+    local veh = getActiveTuningVehicle()
     local key = tostring(data.key or '')
     local cat = findCategory(key)
 
@@ -769,9 +840,13 @@ RegisterNUICallback('preview', function(data, cb)
 
         if cat.previewOnly == true or cat.type == 'gradientPreview' then
             applyOne(veh, key, value, cat)
+            gradientPreviewActive = true
             cb({ ok = true })
             return
         end
+
+        -- Daca a fost aplicat un gradient de preview, il curatam inainte de orice alt preview/cumparare.
+        restoreGradientPreview(veh)
 
         currentTuning[key] = value
 
@@ -843,6 +918,11 @@ end)
 
 RegisterNUICallback('buy', function(_, cb)
     if currentData then
+        local veh = getActiveTuningVehicle()
+        if veh ~= 0 and DoesEntityExist(veh) then
+            restoreGradientPreview(veh)
+        end
+
         TriggerServerEvent('driftzone_tunning:server:buy', {
             vehicleId = currentData.vehicleId,
             adminMode = currentData.adminMode == true,
@@ -906,6 +986,14 @@ end)
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
 
+    if tunningOpen then
+        local veh = getActiveTuningVehicle()
+        if veh ~= 0 and DoesEntityExist(veh) then
+            applyTuningToVehicle(veh, originalTuning or {})
+        end
+    end
+
+    restoreVehicleFreeze()
     setFocus(false)
     TriggerEvent('driftzone_hud:visible', true)
 end)

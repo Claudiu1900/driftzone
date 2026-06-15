@@ -1,54 +1,43 @@
-# driftzone_tunning rebuild
+# driftzone_tunning
 
-Versiune refacuta pentru DriftZone.
-
-## Ce e nou
-
-- UI complet refacut, mai curat si mai premium.
-- Nu contine culori chameleon.
-- Afiseaza doar tuning-urile reale detectate pe masina curenta.
-- Extra-urile sunt detectate automat `0-25` si apar doar daca exista pe vehicul.
-- Roțile sunt separate pe tipuri: Sport, Muscle, Lowrider, SUV, Offroad, Tuner, Bike, High End, Benny's, Street, Track.
-- Bug reparat: schimbarea la wheels seteaza intai `SetVehicleWheelType`, apoi `SetVehicleMod(23, ...)`, iar pentru motociclete seteaza si `modType 24`.
-- Include mai multe categorii pentru add-on-uri: Trim B, Dashboard/Interior color, Plate Style, Livery, Engine Bay, Interior etc.
-- Armor este scos.
-- Optimizat: categorie map, preview throttled, fara optiuni fake.
+Versiune optimizată pentru DriftZone.
 
 ## Instalare
 
-Inlocuieste folderul:
-
-```txt
-resources/driftzone_tunning
-```
-
-Ruleaza SQL daca nu l-ai rulat deja:
-
-```txt
-driftzone_tunning/SQL.sql
-```
-
-Restart:
-
 ```cfg
-restart driftzone_tunning
+ensure oxmysql
+ensure driftzone_auth
+ensure driftzone_tunning
 ```
 
-Daca o masina add-on nu afiseaza o piesa, inseamna ca masina nu expune acea piesa corect in `carcols.meta` / `carvariations.meta` / modkit. Scriptul nu inventeaza optiuni care nu se pot aplica.
+Rulează `SQL.sql` dacă nu ai coloana `vehiclenames.tunable` și tabela `tunning_logs`.
 
+## Ce include
 
-## Update UI vechi
+- UI nou, dark, premium, cu colțuri mici.
+- SVG-uri locale pentru categorii: Colors, Gradient, Body, Performance, Wheels, Interior, Visual, Lights, Engine Bay, Extras.
+- Mașina primește freeze când intri în tuning și revine normal când ieși.
+- Preview-ul de gradient este doar preview: nu intră în coș, nu se cumpără, nu rămâne pe mașină când cumperi alt tuning.
+- Open Wheel este scos din roți.
+- În meniul principal apare o singură categorie `Wheels`; după selectare alegi Sport/Muscle/Tuner/Street/Track etc.
+- Fără `vendor/beta_module.js` și fără fișiere obfuscate.
+- Optimizări: preview throttled, categorii mapate local, doar tuning-uri reale detectate pe vehicul.
 
-- UI-ul vechi a fost pus inapoi.
-- Backend-ul ramane cel optimizat: add-on tuning, extras 0-25, wheels fix cu WheelType, fara chameleon si fara armor.
+## Comenzi
 
-## Update gradient preview + instant open
+```txt
+/tuning
+/tune
+/tunning
+```
 
-- Adaugate categorii noi in tunning:
-  - `Primary Gradient Color`
-  - `Secondary Gradient Color`
-- Gradientele sunt doar preview: nu se adauga in cos, nu se cumpara si nu se salveaza in `ownedvehicles.vehicle_tunning`.
-- Daca apesi Pay dupa un preview de gradient, masina revine la tuning-ul cumparat/salvat, fara sa pastreze preview-ul de gradient.
-- Meniul se deschide mult mai rapid: scanarea modkit-ului nu mai face request/wait pe fiecare categorie.
-- UI vechi pastrat.
-- Fixurile pentru add-on tuning, wheels si extras raman active.
+`/tunning` este admin mode și respectă:
+
+```lua
+Config.AdminMinLevel = 6
+Config.AdminDutyRequired = true
+```
+
+## Important
+
+Dacă o piesă nu apare pe o mașină add-on, înseamnă că mașina nu expune piesa corect prin modkit/carcols/carvariations. Scriptul nu inventează tuning-uri fake.

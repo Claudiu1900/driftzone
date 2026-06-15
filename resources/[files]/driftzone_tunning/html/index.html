@@ -2,42 +2,54 @@
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DriftZone Tunning</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="root" class="root hidden">
-        <div class="left-panel">
-            <div class="brand">
-                <div class="logo">DZ</div>
-                <div>
+    <main id="root" class="root hidden">
+        <section class="left-panel">
+            <div class="brand-row">
+                <div class="brand-mark">DZ</div>
+                <div class="brand-text">
+                    <span>TUNNING STUDIO</span>
                     <h1>DriftZone Tunning</h1>
                     <p id="vehicleInfo">Vehicle</p>
                 </div>
             </div>
 
-            <div class="hint">
-                Apasa <b>`</b> pentru camera libera • ESC anuleaza modificarile
+            <div class="hint-card">
+                <b>`</b> camera liberă <span></span> <b>ESC</b> anulează
             </div>
 
+            <div class="panel-label">Categorii</div>
             <div id="categories" class="categories"></div>
-        </div>
+        </section>
 
-        <div class="bottom-panel">
-            <div class="section-title" id="selectedTitle">Selecteaza o categorie</div>
+        <section class="bottom-panel">
+            <div class="option-head">
+                <button id="wheelBack" class="back-btn hidden" type="button">ÎNAPOI LA WHEELS</button>
+                <div>
+                    <div class="panel-label">Selecție</div>
+                    <div class="section-title" id="selectedTitle">Selectează o categorie</div>
+                </div>
+            </div>
             <div id="options" class="options"></div>
-        </div>
+        </section>
 
-        <div class="right-panel">
+        <aside class="right-panel">
             <div class="money-card">
-                <span>Cash</span>
+                <span>Cash disponibil</span>
                 <b id="money">$0</b>
             </div>
 
             <div class="cart">
                 <div class="cart-head">
-                    <b>Cart</b>
-                    <span id="cartCount">0 items</span>
+                    <div>
+                        <span>Coș tuning</span>
+                        <b id="cartCount">0 items</b>
+                    </div>
+                    <img src="icons/cart.svg" draggable="false" alt="">
                 </div>
 
                 <div id="cartItems" class="cart-items"></div>
@@ -47,13 +59,12 @@
                         <span>Total</span>
                         <b id="totalPrice">$0</b>
                     </div>
-
-                    <button class="pay-btn" onclick="pay()">Pay & Apply</button>
-                    <button class="cancel-btn" onclick="closeMenu()">Cancel</button>
+                    <button class="pay-btn" type="button" onclick="pay()">CUMPĂRĂ</button>
+                    <button class="cancel-btn" type="button" onclick="closeMenu()">ANULEAZĂ</button>
                 </div>
             </div>
-        </div>
-    </div>
+        </aside>
+    </main>
 
     <script src="script.js"></script>
 </body>
