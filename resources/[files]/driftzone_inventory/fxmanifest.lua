@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Inventory - 49 slots + admin item system'
-version '1.0.0'
+description 'DriftZone Inventory - optimized hooks, synced drops, animations'
+version '1.2.0'
 
 ui_page 'html/index.html'
 

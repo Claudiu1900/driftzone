@@ -1,24 +1,6 @@
-# driftzone_inventory
+# driftzone_inventory - Optimized FINAL
 
-Inventory DriftZone optimizat.
-
-## Funcții
-
-- 49 sloturi, 7x7.
-- Sloturi pătrate.
-- Drag & drop între sloturi.
-- Imaginea itemului umple tot slotul.
-- Fără header, fără DZ, fără X, fără numere pe sloturi.
-- Click dreapta pe item: nume item + USE / GIVE / DROP.
-- Numele nu mai apare la hover.
-- GIVE: închide inventarul, apare selectorul de player, verifică sloturile țintei și trimite itemul.
-- DROP: aruncă itemul la locația playerului.
-- Drop-urile în radius 4m se combină într-un singur punct.
-- Dropped items apar în dreapta când ești în radius 4m.
-- Itemele din Dropped Items se pot trage în inventar.
-- Marker albastru spre pământ la locația drop-ului.
-- Admin UI `/additem`.
-- Comenzi admin: `/giveitem`, `/takeitem`, `/wipeinventory`.
+Inventory DriftZone optimizat pentru framework propriu.
 
 ## Instalare
 
@@ -28,50 +10,58 @@ ensure driftzone_auth
 ensure driftzone_inventory
 ```
 
-Rulează:
+Ruleaza `SQL.sql` daca nu ai tabelele.
 
-```txt
-driftzone_inventory/SQL.sql
+## Update-uri incluse
+
+- Cand dai GIVE la un item, se ruleaza animatia `give2` o singura data.
+- Cand dai DROP sau PICKUP la un item, se ruleaza animatia `pickup` o singura data.
+- Inventarul face reload din DB de fiecare data cand il deschizi.
+- Dupa GIVE nu se mai redeschide inventarul automat.
+- Markerul/sageata de la drop-uri se vede la tot serverul in radius, nu doar la cel care arunca.
+- Drag & drop cu item in afara inventarului = DROP pe jos.
+- Hook-uri usor de modificat in `shared/config.lua`.
+- Drop polling optimizat si configurabil.
+
+## Config hook-uri
+
+In `shared/config.lua` ai:
+
+```lua
+Config.ClientHooks.OnGiveSuccess = function(data)
+    TriggerEvent('driftzone_inventory:client:playActionAnimation', 'give')
+end
+
+Config.ClientHooks.OnDropSuccess = function(data)
+    TriggerEvent('driftzone_inventory:client:playActionAnimation', 'pickup')
+end
+
+Config.ClientHooks.OnPickupSuccess = function(data)
+    TriggerEvent('driftzone_inventory:client:playActionAnimation', 'pickup')
+end
 ```
 
-Restart:
+Poti pune si alte triggere/exporturi acolo.
 
-```cfg
-restart driftzone_inventory
+## Animatii
+
+Default foloseste animatii native GTA pentru toti jucatorii:
+
+```lua
+Config.ActionAnimations.UseDriftzoneEmotes = false
 ```
 
-## Update drag/drop + amounts
+Daca vrei sa foloseasca `driftzone_emotes`, setezi:
 
-- Inventarul se deschide pe tasta `I`.
-- Drag & drop este optimizat cu event delegation + requestAnimationFrame.
-- Pentru iteme stackable cu mai mult de 1 bucata, DROP si GIVE deschid selector de cantitate cu slider, input, MIN si MAX.
+```lua
+Config.ActionAnimations.UseDriftzoneEmotes = true
+```
 
+Emote-urile default sunt:
 
-## Update selector give
-- GIVE nu mai deschide inventarul la jucatorul care primeste itemul.
-- Selectorul de player este curat: fara crosshair, fara UI extra, doar cursor normal si cercul albastru sub player cand treci cu mouse-ul peste el.
-- Inputul de cantitate nu mai afiseaza sagetile native + / -.
+```lua
+give = 'give2'
+pickup = 'pickup'
+```
 
-
-## Gradient items
-
-In `/additem` ai campuri noi:
-- `Gradient Item` = 1 daca itemul trebuie sa deschida meniul de gradient;
-- `Gradient ID` = ID-ul gradientului din `driftzone_gradients`.
-
-Cand `Gradient Item = 1`, itemul devine automat:
-- item_id: `ID_gradient`, de exemplu `16_gradient`;
-- usable: 1;
-- giveable: 1;
-- stackable: 1.
-
-Cand dai USE pe item, inventarul deschide `driftzone_gradients`. Itemul este sters de `driftzone_gradients` doar dupa ce gradientul a fost aplicat cu succes pe masina.
-
-
-## Update takegradient
-
-- Itemul `takegradient` este compatibil cu `driftzone_gradients`.
-- Cand dai USE pe `takegradient`, inventarul se inchide si deschide selectorul de scos gradient.
-- Inventarul nu sterge itemul direct; `driftzone_gradients` sterge `takegradient` doar dupa ce scoaterea gradientului a reusit.
-- Dupa scoatere, `driftzone_gradients` da inapoi itemul gradientului, de exemplu `17_gradient`.
-- Pentru asta trebuie sa ai pornit `driftzone_gradients` cu functia de remove/takegradient.
+Sunt oprite automat dupa durata setata in config ca sa nu ramana in loop.

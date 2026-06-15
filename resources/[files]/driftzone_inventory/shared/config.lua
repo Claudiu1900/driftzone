@@ -44,3 +44,82 @@ Config.GradientResource = 'driftzone_gradients'
 Config.GradientItemSuffix = '_gradient'
 
 Config.TakeGradientItemId = 'takegradient'
+
+
+-- =========================
+-- DRIFTZONE INVENTORY HOOKS
+-- =========================
+-- Aici modifici usor animatii / triggere fara sa umbli in client/server.
+Config.ActionAnimations = {
+    Enabled = true,
+
+    -- false = foloseste animatii native GTA, merge pentru toti jucatorii.
+    -- true  = incearca intai driftzone_emotes cu numele de mai jos, apoi opreste automat dupa duration.
+    UseDriftzoneEmotes = false,
+    EmotesResource = 'driftzone_emotes',
+
+    give = {
+        emote = 'give2',
+        dict = 'mp_common',
+        anim = 'givetake1_b',
+        duration = 1600,
+        flag = 48
+    },
+
+    pickup = {
+        emote = 'pickup',
+        dict = 'pickup_object',
+        anim = 'pickup_low',
+        duration = 1150,
+        flag = 0
+    }
+}
+
+Config.Drops = {
+    -- true = markerul/ sageata drop-urilor se vede pentru tot serverul in radius, nu doar pentru cel care arunca.
+    RefreshAlways = true,
+    RefreshIntervalMs = 1500,
+    RefreshIntervalClosedMs = 2200
+}
+
+-- Hook-uri client. Poti adauga aici orice TriggerEvent/export vrei.
+-- Exemplu:
+-- Config.ClientHooks.OnGiveSuccess = function(data)
+--     TriggerEvent('alt_resource:client:ceva', data)
+-- end
+Config.ClientHooks = {}
+
+Config.ClientHooks.OnInventoryOpen = function(data)
+    -- se apeleaza cand inventarul se deschide
+end
+
+Config.ClientHooks.OnGiveSuccess = function(data)
+    TriggerEvent('driftzone_inventory:client:playActionAnimation', 'give')
+end
+
+Config.ClientHooks.OnDropSuccess = function(data)
+    TriggerEvent('driftzone_inventory:client:playActionAnimation', 'pickup')
+end
+
+Config.ClientHooks.OnPickupSuccess = function(data)
+    TriggerEvent('driftzone_inventory:client:playActionAnimation', 'pickup')
+end
+
+Config.ClientHooks.OnInventoryClose = function()
+end
+
+-- Hook-uri server. Ruleaza dupa actiuni reusite.
+Config.ServerHooks = {}
+
+Config.ServerHooks.OnPlayerGiveItem = function(data)
+    -- data = { source, target, fromUid, toUid, itemId, amount }
+end
+
+Config.ServerHooks.OnPlayerDropItem = function(data)
+    -- data = { source, uid, itemId, amount, dropId, coords }
+end
+
+Config.ServerHooks.OnPlayerPickupItem = function(data)
+    -- data = { source, uid, itemId, amount, dropId }
+end
+

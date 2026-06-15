@@ -7,6 +7,7 @@ local selectorTarget = nil
 local selectorTargetPed = nil
 local markerRotation = 0.0
 local nearbyDrops = {}
+local closeAll
 
 local function notify(typ, msg, duration)
     TriggerEvent(Config.NotifyEvent or 'client:notify', typ or 'info', duration or 4500, tostring(msg or ''))
@@ -21,7 +22,108 @@ local function sendNui(data)
     SendNUIMessage(data)
 end
 
+local function runClientHook(name, data)
+    if not Config or not Config.ClientHooks then return end
+    local fn = Config.ClientHooks[name]
+    if type(fn) ~= 'function' then return end
+
+    local ok, err = pcall(fn, data or {})
+    if not ok then
+        print(('[DRIFTZONE_INVENTORY] Client hook %s error: %s'):format(tostring(name), tostring(err)))
+    end
+end
+
+local function requestAnimDictSafe(dict, timeout)
+    dict = tostring(dict or '')
+    if dict == '' then return false end
+
+    RequestAnimDict(dict)
+    local expires = GetGameTimer() + (tonumber(timeout or 1800) or 1800)
+    while not HasAnimDictLoaded(dict) do
+        Wait(0)
+        if GetGameTimer() > expires then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function playNativeAction(anim)
+    if not anim or not anim.dict or not anim.anim then return false end
+
+    local ped = PlayerPedId()
+    if not ped or ped == 0 or IsPedDeadOrDying(ped, true) then return false end
+
+    local duration = tonumber(anim.duration or 1200) or 1200
+    local flag = tonumber(anim.flag or 0) or 0
+
+    if requestAnimDictSafe(anim.dict, anim.timeout or 1800) then
+        ClearPedSecondaryTask(ped)
+        TaskPlayAnim(ped, anim.dict, anim.anim, 4.0, -4.0, duration, flag, 0.0, false, false, false)
+
+        SetTimeout(duration + 80, function()
+            local p = PlayerPedId()
+            if p and p ~= 0 then
+                StopAnimTask(p, anim.dict, anim.anim, 1.0)
+            end
+        end)
+
+        return true
+    end
+
+    return false
+end
+
+local function playActionAnimation(actionName)
+    local cfg = Config.ActionAnimations or {}
+    if cfg.Enabled == false then return end
+
+    local anim = cfg[actionName]
+    if type(anim) ~= 'table' then return end
+
+    local duration = tonumber(anim.duration or 1200) or 1200
+    local emoteRes = tostring(cfg.EmotesResource or 'driftzone_emotes')
+
+    if cfg.UseDriftzoneEmotes == true and anim.emote and GetResourceState(emoteRes) == 'started' then
+        TriggerEvent('driftzone_emotes:client:play', tostring(anim.emote))
+        SetTimeout(duration, function()
+            TriggerEvent('driftzone_emotes:client:forceStop')
+            local ped = PlayerPedId()
+            if ped and ped ~= 0 then ClearPedSecondaryTask(ped) end
+        end)
+        return
+    end
+
+    playNativeAction(anim)
+end
+
+RegisterNetEvent('driftzone_inventory:client:playActionAnimation', function(actionName)
+    playActionAnimation(tostring(actionName or ''))
+end)
+
+RegisterNetEvent('driftzone_inventory:client:actionDone', function(actionName, data)
+    actionName = tostring(actionName or '')
+    if actionName == 'give' then
+        runClientHook('OnGiveSuccess', data or {})
+    elseif actionName == 'drop' then
+        runClientHook('OnDropSuccess', data or {})
+    elseif actionName == 'pickup' then
+        runClientHook('OnPickupSuccess', data or {})
+    end
+end)
+
+RegisterNetEvent('driftzone_inventory:client:forceClose', function()
+    closeAll()
+end)
+
+RegisterNetEvent('driftzone_inventory:client:refreshDropsNow', function()
+    TriggerServerEvent('driftzone_inventory:server:requestNearbyDrops')
+end)
+
+
 local function openInventory(data)
+    runClientHook('OnInventoryOpen', data or {})
     inventoryOpen = true
     addItemOpen = false
     selectorOpen = false
@@ -30,7 +132,9 @@ local function openInventory(data)
     sendNui({ action = 'openInventory', data = data or {} })
 end
 
-local function closeAll()
+closeAll = function()
+    runClientHook('OnInventoryClose')
+    TriggerServerEvent('driftzone_inventory:server:closed')
     inventoryOpen = false
     addItemOpen = false
     selectorOpen = false
@@ -264,11 +368,21 @@ end)
 
 CreateThread(function()
     while true do
-        if inventoryOpen or selectorOpen then
-            TriggerServerEvent('driftzone_inventory:server:requestNearbyDrops')
-            Wait(1500)
+        if Config.Drops and Config.Drops.RefreshAlways == false then
+            if inventoryOpen or selectorOpen then
+                TriggerServerEvent('driftzone_inventory:server:requestNearbyDrops')
+                Wait(tonumber(Config.Drops.RefreshIntervalMs or 1500) or 1500)
+            else
+                Wait(tonumber(Config.Drops.RefreshIntervalClosedMs or 2200) or 2200)
+            end
         else
-            Wait(2000)
+            -- Refresh permanent: markerul drop-urilor se vede la tot serverul in radius.
+            TriggerServerEvent('driftzone_inventory:server:requestNearbyDrops')
+            if inventoryOpen or selectorOpen then
+                Wait(tonumber(Config.Drops and Config.Drops.RefreshIntervalMs or 1500) or 1500)
+            else
+                Wait(tonumber(Config.Drops and Config.Drops.RefreshIntervalClosedMs or 2200) or 2200)
+            end
         end
     end
 end)
@@ -281,7 +395,7 @@ CreateThread(function()
             markerRotation = (markerRotation + 2.8) % 360.0
             for _, drop in ipairs(nearbyDrops) do
                 local coords = vector3(drop.x + 0.0, drop.y + 0.0, drop.z + 0.0)
-                if #(pcoords - coords) <= 35.0 then
+                if #(pcoords - coords) <= (Config.DropMarkerRadius or 35.0) then
                     DrawMarker(
                         2,
                         coords.x, coords.y, coords.z + 0.25,

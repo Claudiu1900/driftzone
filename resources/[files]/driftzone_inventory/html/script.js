@@ -247,6 +247,16 @@ function finishDrag(e) {
         const item = getItemBySlot(current.slot);
         if (isStackableMany(item)) openAmountModal('drop', current.slot, item);
         else nui('dropItem', { slot: current.slot, amount: 1 });
+        return;
+    }
+
+    // Drag & drop in afara inventarului = arunca itemul pe jos.
+    if (current.type === 'inventory') {
+        selectedSlot = current.slot;
+        const item = getItemBySlot(current.slot);
+        if (isStackableMany(item)) openAmountModal('drop', current.slot, item);
+        else nui('dropItem', { slot: current.slot, amount: 1 });
+        return;
     }
 }
 

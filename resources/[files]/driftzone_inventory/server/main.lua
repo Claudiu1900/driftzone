@@ -19,6 +19,18 @@ local function notify(src, typ, msg, duration)
     TriggerClientEvent(Config.NotifyEvent or 'client:notify', src, typ or 'info', duration or 4500, tostring(msg or ''))
 end
 
+local function runServerHook(name, data)
+    if not Config or not Config.ServerHooks then return end
+    local fn = Config.ServerHooks[name]
+    if type(fn) ~= 'function' then return end
+
+    local ok, err = pcall(fn, data or {})
+    if not ok then
+        print(('[DRIFTZONE_INVENTORY] Server hook %s error: %s'):format(tostring(name), tostring(err)))
+    end
+end
+
+
 local function jsonEncode(data)
     local ok, res = pcall(json.encode, data or {})
     if ok then return res end
@@ -142,6 +154,23 @@ local function ensureInventory(uid)
     end
 
     Inventories[uid] = normalizeInventory(jsonDecode(row.inventory_json))
+    return Inventories[uid]
+end
+
+
+local function reloadInventory(uid)
+    uid = tonumber(uid)
+    if not uid or uid <= 0 then return normalizeInventory({}) end
+
+    Inventories[uid] = nil
+    local row = MySQL.single.await(('SELECT inventory_json FROM %s WHERE uid = ? LIMIT 1'):format(sqlName(Config.InventoryTable)), { uid })
+    if not row then
+        MySQL.insert.await(('INSERT INTO %s (uid, inventory_json, updated_at) VALUES (?, ?, NOW())'):format(sqlName(Config.InventoryTable)), { uid, '{}' })
+        Inventories[uid] = normalizeInventory({})
+    else
+        Inventories[uid] = normalizeInventory(jsonDecode(row.inventory_json))
+    end
+
     return Inventories[uid]
 end
 
@@ -486,10 +515,21 @@ local function pushNearbyDrops(src)
     })
 end
 
-local function pushInventory(src, mode, target)
+local function pushDropsToAll()
+    for _, id in ipairs(GetPlayers()) do
+        local target = tonumber(id)
+        if target and target > 0 then
+            pushNearbyDrops(target)
+        end
+    end
+end
+
+
+local function pushInventory(src, mode, target, forceReload)
     local uid = getUid(src)
     if not uid then return end
-    local inv = ensureInventory(uid)
+    if forceReload == true then ItemsCache = nil end
+    local inv = forceReload == true and reloadInventory(uid) or ensureInventory(uid)
     TriggerClientEvent('driftzone_inventory:client:open', src, {
         slots = Config.Slots,
         columns = Config.Columns,
@@ -541,7 +581,7 @@ RegisterCommand(Config.Command or 'inventory', function(src)
     if src <= 0 then return end
     if not isLogged(src) then return notify(src, 'warning', 'Trebuie sa fii logat.') end
     OpenPlayers[src] = true
-    pushInventory(src, 'normal')
+    pushInventory(src, 'normal', nil, true)
 end, false)
 
 RegisterCommand('additem', function(src)
@@ -619,7 +659,7 @@ RegisterNetEvent('driftzone_inventory:server:requestOpen', function()
     local src = source
     if not isLogged(src) then return notify(src, 'warning', 'Trebuie sa fii logat.') end
     OpenPlayers[src] = true
-    pushInventory(src, 'normal')
+    pushInventory(src, 'normal', nil, true)
 end)
 
 RegisterNetEvent('driftzone_inventory:server:move', function(fromSlot, toSlot)
@@ -722,7 +762,7 @@ RegisterNetEvent('driftzone_inventory:server:startGiveToPlayer', function(target
         serverId = targetServerId,
         name = GetPlayerName(targetServerId),
         uid = getUid(targetServerId)
-    })
+    }, true)
 end)
 
 RegisterNetEvent('driftzone_inventory:server:giveSelected', function(targetServerId, slotIndex, amount)
@@ -760,9 +800,27 @@ RegisterNetEvent('driftzone_inventory:server:giveSelected', function(targetServe
     end
 
     logAction('player_giveitem', fromUid, toUid, item.item_id, amount, { from = GetPlayerName(src), to = GetPlayerName(targetServerId) })
+
+    runServerHook('OnPlayerGiveItem', {
+        source = src,
+        target = targetServerId,
+        fromUid = fromUid,
+        toUid = toUid,
+        itemId = item.item_id,
+        itemName = item.item_name,
+        amount = amount
+    })
+
     notify(src, 'success', ('Ai oferit %sx %s.'):format(amount, item.item_name))
     notify(targetServerId, 'info', ('Ai primit %sx %s.'):format(amount, item.item_name))
-    pushInventory(src, 'give', { serverId = targetServerId, name = GetPlayerName(targetServerId), uid = toUid })
+
+    -- Nu mai redeschide inventarul dupa GIVE.
+    TriggerClientEvent('driftzone_inventory:client:actionDone', src, 'give', {
+        target = targetServerId,
+        itemId = item.item_id,
+        amount = amount
+    })
+
 end)
 
 RegisterNetEvent('driftzone_inventory:server:useItem', function(slotIndex)
@@ -873,8 +931,25 @@ RegisterNetEvent('driftzone_inventory:server:dropItem', function(slotIndex, amou
 
     addToDrop(drop, item.item_id, amount)
     logAction('player_dropitem', uid, 0, item.item_id, amount, { name = GetPlayerName(src), drop = dropId })
+
+    runServerHook('OnPlayerDropItem', {
+        source = src,
+        uid = uid,
+        itemId = item.item_id,
+        itemName = item.item_name,
+        amount = amount,
+        dropId = dropId,
+        coords = { x = drop.x, y = drop.y, z = drop.z }
+    })
+
+    TriggerClientEvent('driftzone_inventory:client:actionDone', src, 'drop', {
+        itemId = item.item_id,
+        amount = amount,
+        dropId = dropId
+    })
+
     pushInventory(src, 'normal')
-    pushNearbyDrops(src)
+    pushDropsToAll()
 end)
 
 RegisterNetEvent('driftzone_inventory:server:pickupDrop', function(dropId, index, toSlot)
@@ -907,8 +982,29 @@ RegisterNetEvent('driftzone_inventory:server:pickupDrop', function(dropId, index
     if #drop.items <= 0 then Drops[dropId] = nil end
 
     logAction('player_pickupitem', 0, uid, itemId, amount, { name = GetPlayerName(src), drop = dropId })
+
+    runServerHook('OnPlayerPickupItem', {
+        source = src,
+        uid = uid,
+        itemId = itemId,
+        amount = amount,
+        dropId = dropId
+    })
+
+    TriggerClientEvent('driftzone_inventory:client:actionDone', src, 'pickup', {
+        itemId = itemId,
+        amount = amount,
+        dropId = dropId
+    })
+
     pushInventory(src, 'normal')
-    pushNearbyDrops(src)
+    pushDropsToAll()
+end)
+
+
+RegisterNetEvent('driftzone_inventory:server:closed', function()
+    local src = source
+    OpenPlayers[src] = nil
 end)
 
 AddEventHandler('playerDropped', function()
