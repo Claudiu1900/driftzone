@@ -28,11 +28,12 @@ local function jsonEncode(data)
 end
 
 local function notify(src, typ, msg, duration)
-    TriggerClientEvent(Config.NotifyEvent or 'client:notify', src, typ or 'info', duration or 4500, tostring(msg or ''))
+    TriggerClientEvent(Config.NotifyEvent or 'client:notify', src, typ or 'info', duration or Config.NotifyDuration or 4500, tostring(msg or ''))
 end
 
 local function uiToast(src, typ, msg)
-    TriggerClientEvent('driftzone_gangpanel:client:toast', src, typ or 'info', tostring(msg or ''))
+    -- Foloseste direct sistemul propriu de notificari al serverului, nu toast NUI intern.
+    notify(src, typ or 'info', msg or '', Config.NotifyDuration or 4500)
 end
 
 local function runHook(name, ...)
@@ -265,7 +266,13 @@ local function sanitizeGangData(data, partial)
     for _, t in ipairs(Config.GangTypes or {}) do
         if out.gang_type == t then validType = true break end
     end
-    if not validType then out.gang_type = 'Neo' end
+    if out.gang_type == 'Neo' then out.gang_type = 'Mafie Neoficiala' end
+    if out.gang_type == 'Oficiala' then out.gang_type = 'Mafie Oficiala' end
+    validType = false
+    for _, t in ipairs(Config.GangTypes or {}) do
+        if out.gang_type == t then validType = true break end
+    end
+    if not validType then out.gang_type = 'Mafie Neoficiala' end
 
     if not partial then
         if out.name == '' then return nil, 'Numele gangului este obligatoriu.' end
@@ -308,7 +315,7 @@ local function buildGangsList(access)
             id = tonumber(g.id),
             name = g.name,
             shortcut = g.shortcut,
-            type = g.gang_type,
+            type = (g.gang_type == 'Neo' and 'Mafie Neoficiala') or (g.gang_type == 'Oficiala' and 'Mafie Oficiala') or g.gang_type,
             color = g.color,
             leader_uid = tonumber(g.leader_uid or 0) or 0,
             totalMembers = total,

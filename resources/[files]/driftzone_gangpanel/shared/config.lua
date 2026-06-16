@@ -2,7 +2,10 @@ Config = {}
 
 Config.MainColor = '#04c7f7'
 Config.Command = 'gang'
+
+-- Sistemul tau de notificari. Format folosit: TriggerClientEvent(event, src, type, duration, message)
 Config.NotifyEvent = 'client:notify'
+Config.NotifyDuration = 4500
 
 Config.UsersTable = 'users'
 Config.UsersIdColumn = 'uid'
@@ -27,8 +30,8 @@ Config.RolePower = {
 }
 
 Config.GangTypes = {
-    'Neo',
-    'Oficiala'
+    'Mafie Neoficiala',
+    'Mafie Oficiala'
 }
 
 Config.MaxMembersPerGang = 120
@@ -41,12 +44,16 @@ Config.AllowLeaderPromoteCoLeader = true
 Config.AllowCoLeaderKickMembers = true
 Config.AllowCoLeaderInviteMembers = true
 
-Config.Emote = {
+-- Animatie locala, fara sa depinda de permisiunile din driftzone_emotes.
+-- Sta pornita cat timp /gang este deschis si se opreste curat la iesire.
+Config.TabletAnimation = {
     enabled = true,
-    name = 'tablet2',
-    playEvent = 'driftzone_emotes:client:play',
-    stopEvent = 'driftzone_emotes:client:stop',
-    fallbackCancelCommand = 'e c'
+    dict = 'amb@code_human_in_bus_passenger_idles@female@tablet@base',
+    anim = 'base',
+    flag = 49,
+    prop = 'prop_cs_tablet',
+    bone = 28422,
+    placement = { x = 0.03, y = -0.05, z = 0.0, rx = 0.0, ry = 0.0, rz = 0.0 }
 }
 
 Config.Hooks = {}

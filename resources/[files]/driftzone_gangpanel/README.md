@@ -1,69 +1,63 @@
 # driftzone_gangpanel
 
-Gang panel pentru DriftZone.
+Gang panel complet pentru DriftZone.
+
+## Ce contine
+
+- `/gang` deschide meniul.
+- Animatie `tablet2` facuta local, fara sa depinda de permisiunile din `driftzone_emotes`.
+- Cand inchizi meniul, animatia si prop-ul de tableta se opresc curat.
+- Notificarile folosesc sistemul serverului: `client:notify`.
+- Acces total pentru `users.sindicate = 1`.
+- Acces gang pentru membri din `gang_members`.
+- Grade fixe: `Membru`, `Co-Lider`, `Lider`.
+- Tipuri gang: `Mafie Neoficiala`, `Mafie Oficiala`.
+- UI premium/dark, optimizat, fara colturi exagerate.
+- Dashboard, Gangs, Members, Taxes, Logs, Settings.
+- Syndicate poate crea, edita, dezactiva mafii si vede UID/ID server/loguri.
+- Liderul si Co-Liderul pot vedea total membri si online fara date de syndicate.
+- Co-Lider poate adauga/kick doar membri simpli.
+- Lider poate administra membri si Co-Lideri.
+- Butoane rapide pentru folosirea coordonatelor tale la garage/storage.
 
 ## Instalare
 
-1. Pune folderul `driftzone_gangpanel` in resources.
-2. Ruleaza `SQL.sql` in baza de date.
-3. In `server.cfg`:
+Pune folderul in `resources/[files]/driftzone_gangpanel` sau unde tii resursele.
+
+In `server.cfg`:
 
 ```cfg
 ensure oxmysql
 ensure driftzone_auth
-ensure driftzone_emotes
 ensure driftzone_gangpanel
 ```
 
-## Comanda
+Ruleaza:
 
 ```txt
-/gang
+driftzone_gangpanel/SQL.sql
 ```
 
-## Acces
-
-- `users.sindicate = 1` = acces total.
-- Membrii din `gang_members` au acces la panelul gangului lor.
-- Grade disponibile: `Membru`, `Co-Lider`, `Lider`.
-
-## Ce face
-
-- `Syndicate` poate crea/edita/dezactiva ganguri.
-- Create gang: tip `Neo`/`Oficiala`, nume, shortcut, culoare HEX, UID lider, garage/storage optional.
-- Liderul si Co-Liderul pot administra membrii, conform restrictiilor din `shared/config.lua`.
-- Membrul simplu are acces pregatit pentru taxe.
-- Panelul porneste emote-ul `tablet2` cat timp este deschis si il opreste la inchidere.
-
-## Database
-
-Tabele create:
-
-```txt
-gangs
-gang_members
-gang_logs
-gang_taxes
-```
-
-Daca nu ai coloana pentru syndicate:
+Daca baza ta nu suporta `ADD COLUMN IF NOT EXISTS`, ruleaza manual:
 
 ```sql
 ALTER TABLE `users` ADD COLUMN `sindicate` TINYINT(1) NOT NULL DEFAULT 0;
 ```
 
-## Config
+Seteaza acces total:
 
-Setari in:
-
-```txt
-shared/config.lua
+```sql
+UPDATE `users` SET `sindicate` = 1 WHERE `uid` = UID_UL_TAU;
 ```
 
-Poti modifica:
+## Config
 
-- numele comenzii;
-- coloanele DB;
-- accesul Co-Liderului;
-- hook-uri pentru alte scripturi;
-- emote-ul folosit la deschiderea panelului.
+In `shared/config.lua` poti schimba:
+
+```lua
+Config.NotifyEvent = 'client:notify'
+Config.Command = 'gang'
+Config.SyndicateColumn = 'sindicate'
+Config.TabletAnimation.enabled = true
+```
+

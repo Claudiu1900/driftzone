@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Gang Panel - syndicate + gang management'
-version '1.0.0'
+description 'DriftZone Gang Panel - mafia management premium UI'
+version '2.0.0'
 
 ui_page 'html/index.html'
 

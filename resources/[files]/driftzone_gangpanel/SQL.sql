@@ -1,12 +1,16 @@
--- DriftZone GangPanel SQL
+-- DriftZone GangPanel SQL - V2 UI + Mafia types
 -- Ruleaza acest fisier o singura data in baza ta de date.
 
 -- Daca nu ai coloana, ruleaza manual linia de mai jos:
 -- ALTER TABLE `users` ADD COLUMN `sindicate` TINYINT(1) NOT NULL DEFAULT 0;
 
+
+ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `sindicate` TINYINT(1) NOT NULL DEFAULT 0;
+
+
 CREATE TABLE IF NOT EXISTS `gangs` (
   `id` INT NOT NULL AUTO_INCREMENT,
-  `gang_type` VARCHAR(20) NOT NULL DEFAULT 'Neo',
+  `gang_type` VARCHAR(32) NOT NULL DEFAULT 'Mafie Neoficiala',
   `name` VARCHAR(64) NOT NULL,
   `shortcut` VARCHAR(16) NOT NULL,
   `color` VARCHAR(9) NOT NULL DEFAULT '#04C7F7',
@@ -67,3 +71,8 @@ CREATE TABLE IF NOT EXISTS `gang_taxes` (
   KEY `idx_gang_taxes_gang_uid` (`gang_id`, `uid`),
   KEY `idx_gang_taxes_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- Migrare pentru versiunile vechi care aveau tipurile Neo / Oficiala.
+UPDATE `gangs` SET `gang_type` = 'Mafie Neoficiala' WHERE `gang_type` = 'Neo';
+UPDATE `gangs` SET `gang_type` = 'Mafie Oficiala' WHERE `gang_type` = 'Oficiala';

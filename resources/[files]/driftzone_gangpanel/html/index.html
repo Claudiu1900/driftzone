@@ -14,15 +14,16 @@
                     <div class="brand-mark">DZ</div>
                     <div>
                         <h1>Gang Panel</h1>
-                        <p id="selfInfo">Loading</p>
+                        <p id="selfInfo">Loading...</p>
                     </div>
                 </div>
 
+                <div id="quickProfile" class="quick-profile"></div>
                 <nav id="nav" class="nav"></nav>
 
                 <div class="side-footer">
                     <button class="ghost-btn" onclick="refreshData()">Refresh</button>
-                    <button class="danger-soft" onclick="closePanel()">Close</button>
+                    <button class="ghost-btn" onclick="closePanel()">Close</button>
                 </div>
             </aside>
 
@@ -30,17 +31,19 @@
                 <header class="topbar">
                     <div>
                         <h2 id="pageTitle">Dashboard</h2>
-                        <p id="pageSubtitle">Administrare ganguri</p>
+                        <p id="pageSubtitle">Overview</p>
                     </div>
-                    <button id="createGangBtn" class="primary-btn hidden" onclick="openGangModal()">Create Gang</button>
+                    <div class="top-actions">
+                        <button id="createGangBtn" class="primary-btn hidden" onclick="openCreateGang()">Create Gang</button>
+                    </div>
                 </header>
 
-                <div id="view" class="view"></div>
+                <section id="view" class="view"></section>
             </section>
         </section>
     </main>
 
-    <div id="modal" class="modal hidden">
+    <section id="modal" class="modal hidden">
         <div class="modal-card">
             <div class="modal-head">
                 <b id="modalTitle">Create Gang</b>
@@ -48,9 +51,7 @@
             </div>
             <div id="modalBody" class="modal-body"></div>
         </div>
-    </div>
-
-    <div id="toast" class="toast hidden"></div>
+    </section>
 
     <script src="script.js"></script>
 </body>

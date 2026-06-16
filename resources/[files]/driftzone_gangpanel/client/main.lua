@@ -2,6 +2,8 @@ local panelOpen = false
 local focusEnabled = false
 local nuiReady = false
 local pendingOpen = nil
+local tabletProp = nil
+local tabletAnimActive = false
 
 local function notify(typ, msg, duration)
     TriggerEvent(Config.NotifyEvent or 'client:notify', typ or 'info', duration or 4500, tostring(msg or ''))
@@ -18,31 +20,107 @@ local function setFocus(state)
     sendNui({ action = 'focus', focus = focusEnabled })
 end
 
+local function loadAnimDict(dict, timeout)
+    if not dict or dict == '' then return false end
+    if HasAnimDictLoaded(dict) then return true end
+
+    RequestAnimDict(dict)
+    local endTime = GetGameTimer() + (timeout or 1200)
+    while not HasAnimDictLoaded(dict) and GetGameTimer() < endTime do
+        Wait(10)
+    end
+
+    return HasAnimDictLoaded(dict)
+end
+
+local function loadModel(model, timeout)
+    local hash = type(model) == 'number' and model or joaat(model)
+    if not IsModelInCdimage(hash) then return nil end
+    if HasModelLoaded(hash) then return hash end
+
+    RequestModel(hash)
+    local endTime = GetGameTimer() + (timeout or 1200)
+    while not HasModelLoaded(hash) and GetGameTimer() < endTime do
+        Wait(10)
+    end
+
+    if HasModelLoaded(hash) then return hash end
+    return nil
+end
+
+local function deleteTabletProp()
+    if tabletProp and DoesEntityExist(tabletProp) then
+        DeleteEntity(tabletProp)
+    end
+    tabletProp = nil
+end
+
+local function attachTabletProp(ped)
+    local cfg = Config.TabletAnimation or {}
+    if not cfg.prop or cfg.prop == '' then return end
+    if tabletProp and DoesEntityExist(tabletProp) then return end
+
+    local hash = loadModel(cfg.prop, 1200)
+    if not hash then return end
+
+    local coords = GetEntityCoords(ped)
+    tabletProp = CreateObject(hash, coords.x, coords.y, coords.z + 0.2, true, true, false)
+    SetModelAsNoLongerNeeded(hash)
+
+    local placement = cfg.placement or {}
+    AttachEntityToEntity(
+        tabletProp,
+        ped,
+        GetPedBoneIndex(ped, tonumber(cfg.bone or 28422) or 28422),
+        tonumber(placement.x or 0.03) or 0.03,
+        tonumber(placement.y or -0.05) or -0.05,
+        tonumber(placement.z or 0.0) or 0.0,
+        tonumber(placement.rx or 0.0) or 0.0,
+        tonumber(placement.ry or 0.0) or 0.0,
+        tonumber(placement.rz or 0.0) or 0.0,
+        true,
+        true,
+        false,
+        true,
+        1,
+        true
+    )
+end
+
 local function startTabletEmote()
-    if not Config.Emote or Config.Emote.enabled == false then return end
+    local cfg = Config.TabletAnimation or {}
+    if cfg.enabled == false then return end
 
-    local eventName = Config.Emote.playEvent or 'driftzone_emotes:client:play'
-    local emoteName = Config.Emote.name or 'tablet2'
+    local ped = PlayerPedId()
+    if not ped or ped == 0 or IsEntityDead(ped) then return end
 
-    pcall(function()
-        TriggerEvent(eventName, emoteName)
-    end)
+    local dict = cfg.dict or 'amb@code_human_in_bus_passenger_idles@female@tablet@base'
+    local anim = cfg.anim or 'base'
+
+    if loadAnimDict(dict, 1200) then
+        TaskPlayAnim(ped, dict, anim, 4.0, 4.0, -1, tonumber(cfg.flag or 49) or 49, 0.0, false, false, false)
+        RemoveAnimDict(dict)
+    end
+
+    attachTabletProp(ped)
+    tabletAnimActive = true
 end
 
 local function stopTabletEmote()
-    if not Config.Emote or Config.Emote.enabled == false then return end
+    local cfg = Config.TabletAnimation or {}
+    if cfg.enabled == false then return end
 
-    pcall(function()
-        TriggerEvent(Config.Emote.stopEvent or 'driftzone_emotes:client:stop')
-    end)
+    local ped = PlayerPedId()
+    local dict = cfg.dict or 'amb@code_human_in_bus_passenger_idles@female@tablet@base'
+    local anim = cfg.anim or 'base'
 
-    if Config.Emote.fallbackCancelCommand and Config.Emote.fallbackCancelCommand ~= '' then
-        SetTimeout(60, function()
-            if not panelOpen then
-                ExecuteCommand(Config.Emote.fallbackCancelCommand)
-            end
-        end)
+    if ped and ped ~= 0 then
+        StopAnimTask(ped, dict, anim, 1.0)
+        ClearPedSecondaryTask(ped)
     end
+
+    tabletAnimActive = false
+    deleteTabletProp()
 end
 
 local function openPanel(data)
@@ -91,11 +169,7 @@ RegisterNetEvent('driftzone_gangpanel:client:update', function(data)
 end)
 
 RegisterNetEvent('driftzone_gangpanel:client:toast', function(typ, message)
-    if panelOpen then
-        sendNui({ action = 'toast', typ = typ or 'info', message = tostring(message or '') })
-    else
-        notify(typ or 'info', message or '')
-    end
+    notify(typ or 'info', message or '')
 end)
 
 RegisterNetEvent('driftzone_gangpanel:client:forceClose', function()
@@ -164,6 +238,13 @@ RegisterNUICallback('changeRole', function(data, cb)
     cb({ ok = true })
 end)
 
+
+RegisterNUICallback('getCoords', function(_, cb)
+    local ped = PlayerPedId()
+    local coords = GetEntityCoords(ped)
+    cb({ ok = true, x = coords.x, y = coords.y, z = coords.z })
+end)
+
 CreateThread(function()
     while true do
         if panelOpen then
@@ -189,6 +270,26 @@ CreateThread(function()
             Wait(0)
         else
             Wait(450)
+        end
+    end
+end)
+
+
+CreateThread(function()
+    while true do
+        if panelOpen and tabletAnimActive then
+            local cfg = Config.TabletAnimation or {}
+            local ped = PlayerPedId()
+            local dict = cfg.dict or 'amb@code_human_in_bus_passenger_idles@female@tablet@base'
+            local anim = cfg.anim or 'base'
+            if ped and ped ~= 0 and not IsEntityPlayingAnim(ped, dict, anim, 3) then
+                startTabletEmote()
+            elseif ped and ped ~= 0 then
+                attachTabletProp(ped)
+            end
+            Wait(1300)
+        else
+            Wait(700)
         end
     end
 end)
