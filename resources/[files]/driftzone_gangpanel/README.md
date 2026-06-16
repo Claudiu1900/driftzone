@@ -1,63 +1,45 @@
-# driftzone_gangpanel
-
-Gang panel complet pentru DriftZone.
-
-## Ce contine
-
-- `/gang` deschide meniul.
-- Animatie `tablet2` facuta local, fara sa depinda de permisiunile din `driftzone_emotes`.
-- Cand inchizi meniul, animatia si prop-ul de tableta se opresc curat.
-- Notificarile folosesc sistemul serverului: `client:notify`.
-- Acces total pentru `users.sindicate = 1`.
-- Acces gang pentru membri din `gang_members`.
-- Grade fixe: `Membru`, `Co-Lider`, `Lider`.
-- Tipuri gang: `Mafie Neoficiala`, `Mafie Oficiala`.
-- UI premium/dark, optimizat, fara colturi exagerate.
-- Dashboard, Gangs, Members, Taxes, Logs, Settings.
-- Syndicate poate crea, edita, dezactiva mafii si vede UID/ID server/loguri.
-- Liderul si Co-Liderul pot vedea total membri si online fara date de syndicate.
-- Co-Lider poate adauga/kick doar membri simpli.
-- Lider poate administra membri si Co-Lideri.
-- Butoane rapide pentru folosirea coordonatelor tale la garage/storage.
+# driftzone_gangpanel V3
 
 ## Instalare
-
-Pune folderul in `resources/[files]/driftzone_gangpanel` sau unde tii resursele.
-
-In `server.cfg`:
 
 ```cfg
 ensure oxmysql
 ensure driftzone_auth
+ensure driftzone_inventory
 ensure driftzone_gangpanel
 ```
 
-Ruleaza:
+Rulează:
 
 ```txt
 driftzone_gangpanel/SQL.sql
 ```
 
-Daca baza ta nu suporta `ADD COLUMN IF NOT EXISTS`, ruleaza manual:
+## Acces
+
+Acces total:
 
 ```sql
-ALTER TABLE `users` ADD COLUMN `sindicate` TINYINT(1) NOT NULL DEFAULT 0;
+UPDATE users SET sindicate = 1 WHERE uid = CNP_UL_TAU;
 ```
 
-Seteaza acces total:
+Comandă:
 
-```sql
-UPDATE `users` SET `sindicate` = 1 WHERE `uid` = UID_UL_TAU;
+```txt
+/gang
 ```
 
-## Config
+## Ce include
 
-In `shared/config.lua` poti schimba:
-
-```lua
-Config.NotifyEvent = 'client:notify'
-Config.Command = 'gang'
-Config.SyndicateColumn = 'sindicate'
-Config.TabletAnimation.enabled = true
-```
-
+- Mafii cu ID pornind de la 1.
+- Tipuri: Mafie Neoficiala / Mafie Oficiala.
+- Când un jucător intră într-o mafie, `users.rank` primește shortcut-ul, iar `users.rankcolor` primește culoarea HEX.
+- Logurile nu apar în meniu, dar se salvează în DB.
+- Pentru membri apare doar Taxes.
+- Pentru Lider / Co-Lider apar Dashboard, Members, Taxes, Venituri.
+- Pentru Sindicat apar Gangs + management complet.
+- Taxe cu selector de player ca la playerinteract.
+- Plata taxei verifică cash, apoi bank.
+- Veniturile din taxe merg în gang revenue.
+- Liderul poate cere retragere. După 5-10 minute primește waypoint și revendică dirtymoney.
+- Sindicat poate adăuga/scădea bani din venituri.

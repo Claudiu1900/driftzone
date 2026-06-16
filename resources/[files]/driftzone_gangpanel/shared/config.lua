@@ -2,8 +2,6 @@ Config = {}
 
 Config.MainColor = '#04c7f7'
 Config.Command = 'gang'
-
--- Sistemul tau de notificari. Format folosit: TriggerClientEvent(event, src, type, duration, message)
 Config.NotifyEvent = 'client:notify'
 Config.NotifyDuration = 4500
 
@@ -11,11 +9,18 @@ Config.UsersTable = 'users'
 Config.UsersIdColumn = 'uid'
 Config.UsernameColumn = 'username'
 Config.SyndicateColumn = 'sindicate'
+Config.CashColumn = 'cash'
+Config.BankColumn = 'bank'
+Config.RankColumn = 'rank'
+Config.RankColorColumn = 'rankcolor'
 
 Config.GangsTable = 'gangs'
 Config.MembersTable = 'gang_members'
+Config.TaxCategoriesTable = 'gang_tax_categories'
+Config.TaxRecordsTable = 'gang_tax_records'
+Config.RevenueLogsTable = 'gang_revenue_logs'
+Config.WithdrawalsTable = 'gang_withdrawals'
 Config.LogsTable = 'gang_logs'
-Config.TaxesTable = 'gang_taxes'
 
 Config.Roles = {
     member = 'Membru',
@@ -34,18 +39,42 @@ Config.GangTypes = {
     'Mafie Oficiala'
 }
 
-Config.MaxMembersPerGang = 120
-Config.CreateDefaultRole = 'Lider'
-Config.RefreshCooldownMs = 600
-Config.ActionCooldownMs = 450
+Config.TaxAmounts = { 100000, 70000, 40000 }
+Config.TaxRequestTimeoutMs = 35000
+Config.ActionCooldownMs = 500
+Config.RefreshCooldownMs = 750
 Config.UpdateLastSeenEveryMs = 60000
+Config.MaxMembersPerGang = 120
 
-Config.AllowLeaderPromoteCoLeader = true
-Config.AllowCoLeaderKickMembers = true
-Config.AllowCoLeaderInviteMembers = true
+Config.PlayerSelector = {
+    MaxDistance = 6.0,
+    ScreenRadius = 0.075,
+    PaddingX = 0.035,
+    PaddingY = 0.050,
+    MinWidth = 0.050,
+    Marker = { type = 25, radius = 1.05, zOffset = 0.035, r = 4, g = 199, b = 247, a = 190 }
+}
 
--- Animatie locala, fara sa depinda de permisiunile din driftzone_emotes.
--- Sta pornita cat timp /gang este deschis si se opreste curat la iesire.
+Config.Withdrawal = {
+    MinDelaySeconds = 300,
+    MaxDelaySeconds = 600,
+    DirtyMoneyItem = 'dirtymoney',
+    InventoryResource = 'driftzone_inventory',
+    MarkerType = 2,
+    MarkerScale = { x = 0.42, y = 0.42, z = 0.42 },
+    MarkerColor = { r = 4, g = 199, b = 247, a = 210 },
+    ClaimDistance = 2.0,
+    Locations = {
+        vector3(1253.406616, -2565.718750, 42.709106),
+        vector3(1240.364868, -3257.221924, 6.903320),
+        vector3(748.127442, -528.778016, 27.763428),
+        vector3(1979.947266, 3049.279052, 50.426392),
+        vector3(2156.452636, 3385.938476, 45.489380),
+        vector3(1943.617554, 4655.011230, 40.518676),
+        vector3(148.589020, 6362.360352, 31.520874)
+    }
+}
+
 Config.TabletAnimation = {
     enabled = true,
     dict = 'amb@code_human_in_bus_passenger_idles@female@tablet@base',
@@ -57,10 +86,3 @@ Config.TabletAnimation = {
 }
 
 Config.Hooks = {}
-
--- Exemple:
--- Config.Hooks.AfterCreateGang = function(src, gangId, data) end
--- Config.Hooks.AfterAddMember = function(src, gangId, targetUid, role) end
--- Config.Hooks.AfterKickMember = function(src, gangId, targetUid) end
--- Config.Hooks.AfterUpdateGang = function(src, gangId, data) end
--- Config.Hooks.AfterDeleteGang = function(src, gangId) end

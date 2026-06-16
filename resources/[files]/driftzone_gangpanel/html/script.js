@@ -1,437 +1,183 @@
 'use strict';
 
-const root = document.getElementById('root');
+const app = document.getElementById('app');
 const nav = document.getElementById('nav');
-const view = document.getElementById('view');
-const selfInfo = document.getElementById('selfInfo');
-const quickProfile = document.getElementById('quickProfile');
+const page = document.getElementById('page');
 const pageTitle = document.getElementById('pageTitle');
-const pageSubtitle = document.getElementById('pageSubtitle');
-const createGangBtn = document.getElementById('createGangBtn');
+const pageKicker = document.getElementById('pageKicker');
+const profileLine = document.getElementById('profileLine');
+const gangBadge = document.getElementById('gangBadge');
 const modal = document.getElementById('modal');
-const modalTitle = document.getElementById('modalTitle');
-const modalBody = document.getElementById('modalBody');
+const modalBox = document.getElementById('modalBox');
+const selector = document.getElementById('selector');
+const taxModal = document.getElementById('taxModal');
+const incomingTaxTitle = document.getElementById('incomingTaxTitle');
+const incomingTaxText = document.getElementById('incomingTaxText');
+const claimHint = document.getElementById('claimHint');
 
-let state = {};
-let activePage = 'dashboard';
+let state = { user: {}, access: {}, gangs: [], gang: null, members: [], taxes: [], categories: [], taxAmounts: [100000,70000,40000] };
+let activePage = 'taxes';
 let selectedGangId = null;
-let focusEnabled = true;
-let detailsRequested = 0;
-
-const navItemsBase = [
-    ['dashboard', 'Dashboard', 'dashboard.svg'],
-    ['gangs', 'Gangs', 'gangs.svg'],
-    ['members', 'Members', 'members.svg'],
-    ['taxes', 'Taxes', 'wallet.svg'],
-    ['logs', 'Logs', 'logs.svg'],
-    ['settings', 'Settings', 'settings.svg']
-];
+let selectedCategory = 0;
+let currentTax = null;
+let selectorActive = false;
+let selectorTimer = null;
+let selectorStartedAt = 0;
 
 function nui(name, data = {}) {
-    return fetch(`https://${GetParentResourceName()}/${name}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-        body: JSON.stringify(data)
-    }).then(r => r.json().catch(() => ({}))).catch(() => ({}));
+    return fetch(`https://${GetParentResourceName()}/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify(data) }).then(r => r.json().catch(() => ({}))).catch(() => ({}));
+}
+function esc(v){return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
+function money(v){return '$' + Number(v||0).toLocaleString('en-US')}
+function show(el){el.classList.remove('hidden')}
+function hide(el){el.classList.add('hidden')}
+function rolePower(role){return role === 'Lider' ? 3 : role === 'Co-Lider' ? 2 : role === 'Membru' ? 1 : 0}
+function isSyndicate(){return state.user && state.user.syndicate === true}
+function isLeader(){return state.user && state.user.role === 'Lider'}
+function isBoss(){return isSyndicate() || rolePower(state.user.role) >= 2}
+function canRevenue(){return isSyndicate() || rolePower(state.user.role) >= 2}
+function canMembers(){return isSyndicate() || rolePower(state.user.role) >= 2}
+function closePhone(){nui('close'); hide(app); hide(modal); hide(selector); selectorActive=false}
+function refresh(){nui('refresh')}
+function setPage(p){activePage = p; hide(modal); render()}
+function openModal(html){modalBox.innerHTML = html; show(modal)}
+function closeModal(){hide(modal); modalBox.innerHTML=''}
+function val(id){const el=document.getElementById(id); return el ? el.value : ''}
+
+function navItems(){
+    const items = [];
+    if (isSyndicate()) items.push(['gangs','Mafii','Gestionează orașul']);
+    if (isBoss()) items.push(['dashboard','Dashboard','Status organizație']);
+    if (canMembers()) items.push(['members','Membri','Administrare membri']);
+    items.push(['taxes','Taxe','Oferă și urmărește taxe']);
+    if (canRevenue()) items.push(['revenue','Venituri','Bani colectați']);
+    return items;
 }
 
-function esc(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+function normalizePage(){
+    const allowed = navItems().map(i => i[0]);
+    if (!allowed.includes(activePage)) activePage = allowed[0] || 'taxes';
 }
 
-function num(n) { return Number(n || 0).toLocaleString('ro-RO'); }
-function color(g) { return esc((g && g.color) || '#04c7f7'); }
-function isSyndicate() { return state.self && state.self.syndicate === true; }
-function myRole() { return (state.self && state.self.role) || 'Membru'; }
-function myGangId() { return Number(state.self && state.self.gangId || 0); }
-function canManageMembers() { return isSyndicate() || myRole() === 'Lider' || myRole() === 'Co-Lider'; }
-function canChangeRole() { return isSyndicate() || myRole() === 'Lider'; }
-function gangTypes() { return (state.config && Array.isArray(state.config.gangTypes)) ? state.config.gangTypes : ['Mafie Neoficiala', 'Mafie Oficiala']; }
-
-function setTitle(title, subtitle) {
-    pageTitle.textContent = title;
-    pageSubtitle.textContent = subtitle || '';
-}
-
-function open(data) {
-    state = data || {};
-    selectedGangId = (state.details && state.details.gang && state.details.gang.id) || (state.gangs && state.gangs[0] && state.gangs[0].id) || null;
-    activePage = 'dashboard';
+function render(){
+    normalizePage();
     document.documentElement.style.setProperty('--main', state.mainColor || '#04c7f7');
-    root.classList.remove('hidden');
-    render();
+    const user = state.user || {};
+    profileLine.textContent = `${user.name || 'Necunoscut'} • CNP ${user.cnp || '-'}`;
+    const g = state.gang;
+    gangBadge.innerHTML = g ? `<span style="background:${esc(g.color || '#04c7f7')}"></span><div><b>${esc(g.shortcut || '')}</b><small>ID ${esc(g.id)} • ${esc(g.type || '')}</small></div>` : `<span></span><div><b>Sindicat</b><small>Control oraș</small></div>`;
+    nav.innerHTML = navItems().map(([id,label,sub]) => `<button class="${activePage===id?'active':''}" onclick="setPage('${id}')"><b>${label}</b><small>${sub}</small></button>`).join('');
+    if (activePage === 'gangs') return renderGangs();
+    if (activePage === 'dashboard') return renderDashboard();
+    if (activePage === 'members') return renderMembers();
+    if (activePage === 'revenue') return renderRevenue();
+    return renderTaxes();
 }
 
-function closeLocal() {
-    root.classList.add('hidden');
-    closeModal();
+function setHeader(k,t){pageKicker.textContent=k; pageTitle.textContent=t}
+function statsCards(items){return `<div class="stats">${items.map(i=>`<div class="stat"><span>${esc(i[0])}</span><b>${esc(i[1])}</b><small>${esc(i[2]||'')}</small></div>`).join('')}</div>`}
+
+function renderDashboard(){
+    setHeader('Organizație','Dashboard');
+    const g = state.gang || {};
+    page.innerHTML = `${statsCards([
+        ['ID Mafie', g.id || '-', 'identificator intern'],
+        ['Membri total', g.members_total || 0, 'în organizație'],
+        ['Membri pe oraș', g.members_online || 0, 'online acum'],
+        ['Venituri', money(g.revenue || 0), 'taxe colectate']
+    ])}<div class="panel-card"><h3>${esc(g.name || 'Fără organizație')}</h3><p>${esc(g.type || '')} • Shortcut ${esc(g.shortcut || '-')}</p><div class="split"><div><b>Garage</b><span>${coords(g,'garage')}</span></div><div><b>Storage</b><span>${coords(g,'storage')}</span></div></div></div>`;
+}
+function coords(g,p){const x=g[p+'_x']; if(x===null||typeof x==='undefined') return 'Nesetat'; return `${Number(g[p+'_x']).toFixed(2)}, ${Number(g[p+'_y']).toFixed(2)}, ${Number(g[p+'_z']).toFixed(2)}`}
+
+function renderGangs(){
+    setHeader('Sindicat','Mafii din oraș');
+    const rows = (state.gangs||[]).map(g => `<tr onclick="selectGang(${Number(g.id)})"><td>#${g.id}</td><td><span class="color" style="background:${esc(g.color)}"></span>${esc(g.name)}</td><td>${esc(g.shortcut)}</td><td>${esc(g.type)}</td><td>${g.members_total||0}</td><td>${g.members_online||0}</td><td>${money(g.revenue||0)}</td></tr>`).join('');
+    page.innerHTML = `<div class="toolbar"><button class="primary" onclick="openGangModal()">Create Gang</button><button onclick="refresh()">Actualizează</button></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Mafie</th><th>Shortcut</th><th>Tip</th><th>Total</th><th>Pe oraș</th><th>Venituri</th></tr></thead><tbody>${rows||'<tr><td colspan="7">Nu exista mafii.</td></tr>'}</tbody></table></div>`;
 }
 
-function closePanel() { nui('close'); closeLocal(); }
-function refreshData() { nui('refresh'); }
-
-function mergeUpdate(data) {
-    if (!data) return;
-    if (data.detailsOnly) {
-        state.details = data.details;
-    } else {
-        state = { ...state, ...data };
-        if (!selectedGangId && state.gangs && state.gangs[0]) selectedGangId = state.gangs[0].id;
-    }
-    render();
+function selectGang(id){selectedGangId=id; nui('getGangDetails',{gang_id:id})}
+function openGangModal(g={}){
+    openModal(`<div class="modal-head"><h3>${g.id?'Editează':'Creează'} mafie</h3><button onclick="closeModal()">×</button></div><div class="form-grid">
+        <label>Tip<select id="g_type"><option ${g.type==='Mafie Neoficiala'?'selected':''}>Mafie Neoficiala</option><option ${g.type==='Mafie Oficiala'?'selected':''}>Mafie Oficiala</option></select></label>
+        <label>Nume<input id="g_name" value="${esc(g.name||'')}" placeholder="Nume mafie"></label>
+        <label>Shortcut<input id="g_shortcut" value="${esc(g.shortcut||'')}" placeholder="EX: B13"></label>
+        <label>Culoare HEX<input id="g_color" value="${esc(g.color||'#04c7f7')}" placeholder="#04c7f7"></label>
+        <label>CNP Lider<input id="g_leader" type="number" value="${esc(g.leader_uid||'')}" placeholder="CNP"></label>
+        <label>Garage X<input id="g_gx" type="number" step="0.001" value="${esc(g.garage_x??'')}"></label>
+        <label>Garage Y<input id="g_gy" type="number" step="0.001" value="${esc(g.garage_y??'')}"></label>
+        <label>Garage Z<input id="g_gz" type="number" step="0.001" value="${esc(g.garage_z??'')}"></label>
+        <label>Storage X<input id="g_sx" type="number" step="0.001" value="${esc(g.storage_x??'')}"></label>
+        <label>Storage Y<input id="g_sy" type="number" step="0.001" value="${esc(g.storage_y??'')}"></label>
+        <label>Storage Z<input id="g_sz" type="number" step="0.001" value="${esc(g.storage_z??'')}"></label>
+    </div><div class="modal-actions"><button onclick="fillCoords('g')">Coordonate actuale</button>${g.id?`<button class="danger" onclick="deleteGang(${g.id})">Dezactivează</button>`:''}<button class="primary" onclick="saveGang(${g.id||0})">Salvează</button></div>`)
 }
-
-function selectedGang() {
-    const gangs = Array.isArray(state.gangs) ? state.gangs : [];
-    const fromList = gangs.find(g => Number(g.id) === Number(selectedGangId)) || gangs[0] || null;
-    return (state.details && state.details.gang && Number(state.details.gang.id) === Number(selectedGangId)) ? state.details.gang : fromList;
+async function fillCoords(prefix){ const r = await nui('getCoords'); if(!r || !r.ok) return; if(prefix==='g'){ const fields=[['g_gx',r.x],['g_gy',r.y],['g_gz',r.z],['g_sx',r.x],['g_sy',r.y],['g_sz',r.z]]; fields.forEach(([id,v])=>{ const el=document.getElementById(id); if(el && !el.value) el.value=v; }); } }
+function saveGang(id){
+    const data={id:id||undefined,type:val('g_type'),name:val('g_name'),shortcut:val('g_shortcut'),color:val('g_color'),leader_uid:Number(val('g_leader')),garage_x:Number(val('g_gx')),garage_y:Number(val('g_gy')),garage_z:Number(val('g_gz')),storage_x:Number(val('g_sx')),storage_y:Number(val('g_sy')),storage_z:Number(val('g_sz'))};
+    nui(id?'updateGang':'createGang',data); closeModal();
 }
+function deleteGang(id){nui('deleteGang',{gang_id:id}); closeModal()}
 
-function selectedMembers() {
-    return (state.details && Array.isArray(state.details.members)) ? state.details.members : [];
+function renderMembers(){
+    setHeader('Organizație','Membri');
+    const g = state.gang || {};
+    const rows = (state.members||[]).map(m => `<tr><td>${m.cnp}</td><td>${esc(m.name||('CNP '+m.cnp))}</td><td><span class="pill">${esc(m.role)}</span></td><td>${m.online?'<b class="ok">Pe oraș</b>':'Plecat'}</td>${isSyndicate()?`<td>${m.server_id||'-'}</td>`:''}<td><button onclick="openRoleModal(${m.cnp},'${esc(m.role)}')">Rol</button><button class="danger" onclick="kickMember(${m.cnp})">Scoate</button></td></tr>`).join('');
+    page.innerHTML = `<div class="toolbar"><button class="primary" onclick="openAddMember()">Adaugă membru</button></div><div class="table-wrap"><table><thead><tr><th>CNP</th><th>Nume</th><th>Grad</th><th>Status</th>${isSyndicate()?'<th>ID server</th>':''}<th>Acțiuni</th></tr></thead><tbody>${rows||'<tr><td colspan="6">Nu ai membri afișați.</td></tr>'}</tbody></table></div>`;
 }
-
-function selectedLogs() {
-    return (state.details && Array.isArray(state.details.logs)) ? state.details.logs : [];
+function openAddMember(){
+    const gangOpt = isSyndicate()?`<label>ID Mafie<input id="m_gang" type="number" value="${state.gang?.id||selectedGangId||''}"></label>`:'';
+    openModal(`<div class="modal-head"><h3>Adaugă membru</h3><button onclick="closeModal()">×</button></div><div class="form-grid">${gangOpt}<label>CNP<input id="m_cnp" type="number" placeholder="CNP"></label><label>Grad<select id="m_role"><option>Membru</option><option>Co-Lider</option>${isSyndicate()?'<option>Lider</option>':''}</select></label></div><div class="modal-actions"><button class="primary" onclick="addMember()">Adaugă</button></div>`)
 }
+function addMember(){nui('addMember',{gang_id:Number(val('m_gang')||state.gang?.id),uid:Number(val('m_cnp')),role:val('m_role')}); closeModal()}
+function kickMember(cnp){nui('kickMember',{gang_id:state.gang?.id||selectedGangId,uid:cnp})}
+function openRoleModal(cnp,role){openModal(`<div class="modal-head"><h3>Schimbă grad</h3><button onclick="closeModal()">×</button></div><label class="single">Grad<select id="r_role"><option ${role==='Membru'?'selected':''}>Membru</option><option ${role==='Co-Lider'?'selected':''}>Co-Lider</option>${isSyndicate()?`<option ${role==='Lider'?'selected':''}>Lider</option>`:''}</select></label><div class="modal-actions"><button class="primary" onclick="changeRole(${cnp})">Salvează</button></div>`)}
+function changeRole(cnp){nui('changeRole',{gang_id:state.gang?.id||selectedGangId,uid:cnp,role:val('r_role')}); closeModal()}
 
-function requestDetails(id) {
-    id = Number(id || selectedGangId || 0);
-    if (!id) return;
-    const now = Date.now();
-    if (detailsRequested === id && now - window.__lastDetailsRequest < 500) return;
-    detailsRequested = id;
-    window.__lastDetailsRequest = now;
-    nui('getGangDetails', { gangId: id });
+function renderTaxes(){
+    setHeader('Taxe','Taxe și categorii');
+    const cats = [{id:0,name:'Toate'}, ...(state.categories||[])];
+    const catButtons = cats.map(c=>`<button class="chip ${selectedCategory===Number(c.id)?'active':''}" onclick="selectedCategory=${Number(c.id)};renderTaxes()">${esc(c.name)}</button>`).join('');
+    const filtered = (state.taxes||[]).filter(t=>!selectedCategory || Number(t.category_id)===selectedCategory);
+    const rows = filtered.map(t=>`<tr><td>${esc(t.category_name)}</td><td>${money(t.amount)}</td><td>CNP ${t.payer_uid}</td><td>CNP ${t.issuer_uid}</td><td>${esc(t.paid_from||'-')}</td><td><span class="pill ${t.status==='paid'?'paid':'refused'}">${esc(t.status)}</span></td></tr>`).join('');
+    page.innerHTML = `<div class="category-strip">${catButtons}</div><div class="toolbar"><button class="primary" onclick="openOfferTax()">Oferă Taxă</button>${isSyndicate()?'<button onclick="openTaxCategory()">Categorie nouă</button>':''}</div><div class="table-wrap"><table><thead><tr><th>Taxă</th><th>Sumă</th><th>CNP plătitor</th><th>CNP emitent</th><th>Din</th><th>Status</th></tr></thead><tbody>${rows||'<tr><td colspan="6">Nu există taxe.</td></tr>'}</tbody></table></div>`;
 }
-
-function selectGang(id, page) {
-    selectedGangId = Number(id);
-    if (page) activePage = page;
-    requestDetails(selectedGangId);
-    render();
+function openTaxCategory(){openModal(`<div class="modal-head"><h3>Categorie taxă</h3><button onclick="closeModal()">×</button></div><div class="form-grid"><label>Nume<input id="tc_name" placeholder="Protecție"></label><label>Descriere<input id="tc_desc" placeholder="Optional"></label></div><div class="modal-actions"><button class="primary" onclick="saveTaxCategory()">Salvează</button></div>`)}
+function saveTaxCategory(){nui('createTaxCategory',{name:val('tc_name'),description:val('tc_desc')}); closeModal()}
+function openOfferTax(){
+    const cats = (state.categories||[]).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    const amounts = (state.taxAmounts||[100000,70000,40000]).map(a=>`<button class="amount-choice" onclick="document.getElementById('tax_amount').value='${a}'">${money(a)}</button>`).join('');
+    openModal(`<div class="modal-head"><h3>Oferă taxă</h3><button onclick="closeModal()">×</button></div><div class="form-grid"><label>Categorie<select id="tax_category">${cats}</select></label><label>Sumă<input id="tax_amount" type="number" value="100000"></label></div><div class="amounts">${amounts}</div><div class="modal-actions"><button class="primary" onclick="startTaxSelector()">Selectează persoana</button></div>`)
 }
+function startTaxSelector(){const payload={gang_id:state.gang?.id||selectedGangId,category_id:Number(val('tax_category')),amount:Number(val('tax_amount'))}; closeModal(); selectorActive=true; selectorStartedAt=Date.now(); show(selector); nui('startTaxSelector',payload)}
 
-function goPage(page) {
-    activePage = page;
-    if ((page === 'members' || page === 'settings' || page === 'logs') && selectedGangId) requestDetails(selectedGangId);
-    render();
+function renderRevenue(){
+    setHeader('Venituri','Bani colectați');
+    const g = state.gang || {};
+    page.innerHTML = `${statsCards([['Venituri disponibile',money(g.revenue||0),'din taxe plătite'],['ID Mafie',g.id||'-','apare și la membri'],['Membri pe oraș',g.members_online||0,'online acum']])}<div class="panel-card"><h3>Retragere venituri</h3><p>Retragerea trimite banii către o locație discretă. După procesare vei primi waypoint albastru.</p><div class="toolbar"><button class="primary" onclick="requestWithdrawal()">Retrage</button>${isSyndicate()?'<button onclick="openAdjustRevenue()">Adaugă / Șterge venituri</button>':''}</div></div>`;
 }
+function requestWithdrawal(){nui('requestWithdrawal',{gang_id:state.gang?.id||selectedGangId})}
+function openAdjustRevenue(){openModal(`<div class="modal-head"><h3>Venituri mafie</h3><button onclick="closeModal()">×</button></div><div class="form-grid"><label>ID Mafie<input id="rev_gang" type="number" value="${state.gang?.id||selectedGangId||''}"></label><label>Mod<select id="rev_mode"><option value="add">Adaugă</option><option value="remove">Șterge</option></select></label><label>Sumă<input id="rev_amount" type="number" value="100000"></label></div><div class="modal-actions"><button class="primary" onclick="adjustRevenue()">Aplică</button></div>`)}
+function adjustRevenue(){nui('adjustRevenue',{gang_id:Number(val('rev_gang')),mode:val('rev_mode'),amount:Number(val('rev_amount'))}); closeModal()}
 
-function renderNav() {
-    const items = navItemsBase.filter(([key]) => {
-        if (key === 'settings' || key === 'logs') return isSyndicate();
-        if (key === 'members') return isSyndicate() || myGangId() > 0;
-        return true;
-    });
+function payTax(){ if(currentTax){nui('payTax',{requestId:currentTax.requestId}); hide(taxModal); currentTax=null} }
+function refuseTax(){ if(currentTax){nui('refuseTax',{requestId:currentTax.requestId}); hide(taxModal); currentTax=null} }
 
-    nav.innerHTML = items.map(([key, label, icon]) => `
-        <button class="nav-item ${activePage === key ? 'active' : ''}" onclick="goPage('${key}')">
-            <img src="assets/icons/${icon}" draggable="false">
-            <span>${label}</span>
-        </button>
-    `).join('');
-}
+window.addEventListener('mousemove', e=>{ if(!selectorActive) return; if(selectorTimer) return; selectorTimer=setTimeout(()=>{selectorTimer=null; nui('selectorMove',{x:e.clientX/window.innerWidth,y:e.clientY/window.innerHeight})}, 35) });
+window.addEventListener('click', e=>{ if(selectorActive){ if(Date.now()-selectorStartedAt<220) return; nui('selectorClick'); selectorActive=false; hide(selector)} });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePhone(); if(e.key==='`'||e.code==='Backquote') nui('toggleFocus') });
 
-function renderProfile() {
-    const self = state.self || {};
-    selfInfo.textContent = `${self.username || 'Player'} • ${self.role || self.access || ''}`;
-    quickProfile.innerHTML = `
-        <div class="profile-ring">${esc(String(self.username || 'D').charAt(0).toUpperCase())}</div>
-        <div>
-            <b>${esc(self.username || 'Player')}</b>
-            <span>${isSyndicate() ? 'Syndicate access' : (myGangId() > 0 ? esc(myRole()) : 'No gang')}</span>
-        </div>
-    `;
-}
-
-function render() {
-    renderProfile();
-    renderNav();
-    createGangBtn.classList.toggle('hidden', !isSyndicate() || activePage !== 'gangs');
-
-    if (activePage === 'dashboard') renderDashboard();
-    else if (activePage === 'gangs') renderGangs();
-    else if (activePage === 'members') renderMembers();
-    else if (activePage === 'taxes') renderTaxes();
-    else if (activePage === 'logs') renderLogs();
-    else if (activePage === 'settings') renderSettings();
-}
-
-function getTotals() {
-    const gangs = Array.isArray(state.gangs) ? state.gangs : [];
-    return gangs.reduce((acc, g) => {
-        acc.gangs++;
-        acc.total += Number(g.totalMembers || 0);
-        acc.online += Number(g.onlineMembers || 0);
-        acc.leaders += Number(g.leaders || 0);
-        return acc;
-    }, { gangs: 0, total: 0, online: 0, leaders: 0 });
-}
-
-function renderDashboard() {
-    const totals = getTotals();
-    const gang = selectedGang();
-    setTitle('Dashboard', isSyndicate() ? 'Control general pentru mafiile active.' : 'Statusul mafiei tale.');
-
-    view.innerHTML = `
-        <div class="hero-card">
-            <div>
-                <span class="eyebrow">DRIFTZONE CONTROL</span>
-                <h3>${isSyndicate() ? 'Syndicate Management' : esc(gang && gang.name || 'Gang Panel')}</h3>
-                <p>Administrare rapida pentru mafiile de pe server, membri, grade, status online si taxe.</p>
-            </div>
-            <button class="primary-btn" onclick="goPage('gangs')">Open Gangs</button>
-        </div>
-        <div class="metric-grid">
-            <div class="metric"><span>Mafii</span><b>${num(totals.gangs)}</b><p>active</p></div>
-            <div class="metric"><span>Membri</span><b>${num(totals.total)}</b><p>total</p></div>
-            <div class="metric"><span>Online</span><b>${num(totals.online)}</b><p>in server</p></div>
-            <div class="metric"><span>Lideri</span><b>${num(totals.leaders)}</b><p>setati</p></div>
-        </div>
-        <div class="split-grid">
-            <section class="glass-card">
-                <div class="card-head"><b>Mafie selectata</b><span>${gang ? esc(gang.shortcut || '') : '-'}</span></div>
-                ${gang ? renderGangMini(gang) : '<div class="empty-row">Nu ai mafie selectata.</div>'}
-            </section>
-            <section class="glass-card">
-                <div class="card-head"><b>Actiuni rapide</b><span>Panel</span></div>
-                <div class="quick-actions">
-                    <button onclick="goPage('members')">Members</button>
-                    <button onclick="goPage('taxes')">Taxes</button>
-                    ${isSyndicate() ? '<button onclick="openCreateGang()">Create Mafia</button><button onclick="goPage(\'settings\')">Edit Mafia</button>' : ''}
-                </div>
-            </section>
-        </div>
-    `;
-}
-
-function renderGangMini(g) {
-    return `
-        <article class="mini-gang" style="--gang:${color(g)}">
-            <div class="gang-badge">${esc(g.shortcut || 'G')}</div>
-            <div>
-                <h4>${esc(g.name || 'Gang')}</h4>
-                <p>${esc(g.type || g.gang_type || 'Mafie Neoficiala')} • ID ${Number(g.id || 0)}</p>
-                <div class="mini-stats"><span>${Number(g.totalMembers || 0)} membri</span><span>${Number(g.onlineMembers || 0)} online</span></div>
-            </div>
-        </article>
-    `;
-}
-
-function renderGangs() {
-    setTitle('Gangs', isSyndicate() ? 'Creare si administrare mafii.' : 'Mafia ta si statisticile principale.');
-    const gangs = Array.isArray(state.gangs) ? state.gangs : [];
-    if (gangs.length <= 0) {
-        view.innerHTML = `<div class="empty-card">Nu exista mafii disponibile.</div>`;
-        return;
-    }
-
-    view.innerHTML = `<div class="gang-grid">${gangs.map(g => `
-        <article class="gang-card ${Number(selectedGangId) === Number(g.id) ? 'selected' : ''}" onclick="selectGang(${Number(g.id)}, 'members')" style="--gang:${color(g)}">
-            <div class="gang-card-top">
-                <div class="gang-badge">${esc(g.shortcut || 'G')}</div>
-                <div>
-                    <h3>${esc(g.name)}</h3>
-                    <p>${esc(g.type || 'Mafie Neoficiala')} • ID ${Number(g.id)}</p>
-                </div>
-            </div>
-            <div class="stats-row">
-                <div><b>${Number(g.totalMembers || 0)}</b><span>Total</span></div>
-                <div><b>${Number(g.onlineMembers || 0)}</b><span>Online</span></div>
-                <div><b>${Number(g.coleaders || 0)}</b><span>Co-Lideri</span></div>
-            </div>
-            <div class="location-row"><span>Garage</span><b>${coordLabel(g.garage)}</b></div>
-            <div class="gang-line"></div>
-        </article>
-    `).join('')}</div>`;
-}
-
-function coordLabel(v) {
-    if (!v || v.x === null || typeof v.x === 'undefined') return 'unset';
-    return `${Number(v.x).toFixed(1)}, ${Number(v.y).toFixed(1)}, ${Number(v.z).toFixed(1)}`;
-}
-
-function renderMembers() {
-    const gang = selectedGang();
-    if (!gang) {
-        setTitle('Members', 'Selecteaza o mafie.');
-        view.innerHTML = `<div class="empty-card">Nu exista mafie selectata.</div>`;
-        return;
-    }
-    setTitle('Members', `${gang.name || ''} • membri si grade`);
-    const members = selectedMembers();
-    const addBox = canManageMembers() ? `
-        <section class="glass-card compact">
-            <div class="card-head"><b>Adauga membru</b><span>UID + grad</span></div>
-            <div class="inline-form">
-                <input id="addUid" type="number" placeholder="UID jucator">
-                <select id="addRole">
-                    <option>Membru</option>
-                    ${(myRole() === 'Lider' || isSyndicate()) ? '<option>Co-Lider</option>' : ''}
-                    ${isSyndicate() ? '<option>Lider</option>' : ''}
-                </select>
-                <button class="primary-btn" onclick="addMember()">Adauga</button>
-            </div>
-        </section>` : '';
-
-    view.innerHTML = `
-        ${addBox}
-        <section class="glass-card">
-            <div class="card-head"><b>Lista membri</b><span>${members.length} membri</span></div>
-            <div class="member-list">${members.map(m => renderMemberRow(m)).join('') || '<div class="empty-row">Nu sunt membri.</div>'}</div>
-        </section>
-    `;
-}
-
-function renderMemberRow(m) {
-    const online = m.online === true;
-    const role = esc(m.role || 'Membru');
-    const uidText = isSyndicate() ? `<span class="uid">UID ${Number(m.uid || 0)} ${m.source ? ' • ID ' + Number(m.source) : ''}</span>` : '';
-    const canKick = canManageMembers() && !(m.role === 'Lider' && !isSyndicate()) && Number(m.uid) !== Number(state.self && state.self.uid);
-    const canRole = canChangeRole() && Number(m.uid) !== Number(state.self && state.self.uid);
-
-    return `
-        <div class="member-row">
-            <div class="member-main">
-                <div class="avatar ${online ? 'online' : ''}">${esc(String(m.username || '?').charAt(0).toUpperCase())}</div>
-                <div><b>${esc(m.username || 'Membru')}</b>${uidText}<span class="uid">${online ? 'Conectat acum' : 'Offline'}</span></div>
-            </div>
-            <div class="role-pill">${role}</div>
-            <div class="status ${online ? 'on' : 'off'}">${online ? 'Online' : 'Offline'}</div>
-            <div class="row-actions">
-                ${canRole ? `<select onchange="changeRole(${Number(m.uid)}, this.value)"><option>${role}</option><option>Membru</option><option>Co-Lider</option>${isSyndicate() ? '<option>Lider</option>' : ''}</select>` : ''}
-                ${canKick ? `<button class="danger-soft" onclick="kickMember(${Number(m.uid)})">Kick</button>` : ''}
-            </div>
-        </div>`;
-}
-
-function renderTaxes() {
-    setTitle('Taxes', 'Zona pregatita pentru taxe si contributii.');
-    view.innerHTML = `
-        <div class="metric-grid three">
-            <div class="metric"><span>Acces membru</span><b>Activ</b><p>Membrii simpli vad categoria taxe.</p></div>
-            <div class="metric"><span>Status</span><b>Ready</b><p>SQL gang_taxes este inclus.</p></div>
-            <div class="metric"><span>Validare</span><b>Server</b><p>Actiunile sunt pregatite pentru extindere.</p></div>
-        </div>
-        <section class="glass-card"><div class="empty-row">Urmatorul pas: sistem complet de taxe, suma datorata, platit/neplatit si istoric.</div></section>`;
-}
-
-function renderLogs() {
-    if (!isSyndicate()) return renderDashboard();
-    const gang = selectedGang();
-    const logs = selectedLogs();
-    setTitle('Logs', gang ? `${gang.name} • ultimele actiuni` : 'Logs');
-    view.innerHTML = `
-        <section class="glass-card">
-            <div class="card-head"><b>Loguri</b><span>${logs.length} actiuni</span></div>
-            <div class="logs-list">${logs.map(l => `
-                <div class="log-row"><div><b>${esc(l.action)}</b><span>Actor UID ${Number(l.actor_uid || 0)} • Target UID ${Number(l.target_uid || 0)}</span></div><em>${esc(l.created_at || '')}</em></div>
-            `).join('') || '<div class="empty-row">Nu exista loguri.</div>'}</div>
-        </section>`;
-}
-
-function renderSettings() {
-    if (!isSyndicate()) return renderDashboard();
-    const gang = selectedGang();
-    if (!gang) {
-        setTitle('Settings', 'Selecteaza o mafie.');
-        view.innerHTML = `<div class="empty-card">Selecteaza o mafie pentru editare.</div>`;
-        return;
-    }
-    setTitle('Settings', `${gang.name || ''} • editare completa`);
-    view.innerHTML = `
-        <section class="glass-card">
-            <div class="card-head"><b>Edit Mafia</b><span>ID ${Number(gang.id || 0)}</span></div>
-            ${gangForm('edit', gang)}
-            <div class="buttons-row">
-                <button class="primary-btn" onclick="saveGangEdit(${Number(gang.id)})">Save Changes</button>
-                <button class="danger-soft" onclick="deleteGang(${Number(gang.id)})">Disable Mafia</button>
-            </div>
-        </section>`;
-}
-
-function gangForm(mode, gang = {}) {
-    const prefix = mode === 'edit' ? 'edit' : 'new';
-    const type = gang.gang_type || gang.type || gangTypes()[0];
-    return `
-        <div class="form-grid">
-            <label>Tip<select id="${prefix}Type">${gangTypes().map(t => `<option ${t === type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
-            <label>Nume<input id="${prefix}Name" value="${esc(gang.name || '')}" placeholder="Los Santos Mafia"></label>
-            <label>Shortcut<input id="${prefix}Shortcut" value="${esc(gang.shortcut || '')}" placeholder="LSM"></label>
-            <label>Culoare HEX<input id="${prefix}Color" value="${esc(gang.color || '#04c7f7')}" placeholder="#04c7f7"></label>
-            <label>UID Lider<input id="${prefix}Leader" type="number" value="${Number(gang.leader_uid || 0) || ''}" placeholder="UID"></label>
-            <label>Garage X<input id="${prefix}GarageX" value="${esc(gang.garage_x ?? gang.garage?.x ?? '')}" placeholder="optional"></label>
-            <label>Garage Y<input id="${prefix}GarageY" value="${esc(gang.garage_y ?? gang.garage?.y ?? '')}" placeholder="optional"></label>
-            <label>Garage Z<input id="${prefix}GarageZ" value="${esc(gang.garage_z ?? gang.garage?.z ?? '')}" placeholder="optional"></label>
-            <label>Storage X<input id="${prefix}StorageX" value="${esc(gang.storage_x ?? gang.storage?.x ?? '')}" placeholder="optional"></label>
-            <label>Storage Y<input id="${prefix}StorageY" value="${esc(gang.storage_y ?? gang.storage?.y ?? '')}" placeholder="optional"></label>
-            <label>Storage Z<input id="${prefix}StorageZ" value="${esc(gang.storage_z ?? gang.storage?.z ?? '')}" placeholder="optional"></label>
-        </div>
-        <div class="buttons-row">
-            <button class="ghost-btn" onclick="fillCoords('${prefix}', 'garage')">Use my coords for garage</button>
-            <button class="ghost-btn" onclick="fillCoords('${prefix}', 'storage')">Use my coords for storage</button>
-        </div>`;
-}
-
-function readGangForm(prefix) {
-    const value = id => document.getElementById(prefix + id)?.value || '';
-    return {
-        gang_type: value('Type'),
-        name: value('Name'),
-        shortcut: value('Shortcut'),
-        color: value('Color'),
-        leader_uid: Number(value('Leader') || 0),
-        garage_x: value('GarageX'), garage_y: value('GarageY'), garage_z: value('GarageZ'),
-        storage_x: value('StorageX'), storage_y: value('StorageY'), storage_z: value('StorageZ')
-    };
-}
-
-function fillCoords(prefix, target) {
-    nui('getCoords').then(res => {
-        if (!res || res.ok !== true) return;
-        const name = target === 'storage' ? 'Storage' : 'Garage';
-        ['X','Y','Z'].forEach(k => {
-            const el = document.getElementById(prefix + name + k);
-            if (el) el.value = Number(res[k.toLowerCase()] || 0).toFixed(3);
-        });
-    });
-}
-
-function openCreateGang() {
-    modalTitle.textContent = 'Create Mafia';
-    modalBody.innerHTML = `${gangForm('new')}<button class="primary-btn full" onclick="createGang()">Create Mafia</button>`;
-    modal.classList.remove('hidden');
-}
-
-function closeModal() { modal.classList.add('hidden'); modalBody.innerHTML = ''; }
-function createGang() { nui('createGang', readGangForm('new')); closeModal(); }
-function saveGangEdit(gangId) { nui('updateGang', { ...readGangForm('edit'), gangId }); }
-function deleteGang(gangId) { if (confirm('Dezactivezi mafia selectata?')) nui('deleteGang', { gangId }); }
-function addMember() {
-    const uid = Number(document.getElementById('addUid')?.value || 0);
-    const role = document.getElementById('addRole')?.value || 'Membru';
-    nui('addMember', { gangId: selectedGangId || myGangId(), uid, role });
-}
-function kickMember(uid) { if (confirm('Scoti membrul din mafie?')) nui('kickMember', { gangId: selectedGangId || myGangId(), uid }); }
-function changeRole(uid, role) { nui('changeRole', { gangId: selectedGangId || myGangId(), uid, role }); }
-
-window.addEventListener('message', (event) => {
-    const data = event.data || {};
-    if (data.action === 'open') open(data.data || {});
-    if (data.action === 'close') closeLocal();
-    if (data.action === 'update') mergeUpdate(data.data || {});
-    if (data.action === 'focus') focusEnabled = data.focus === true;
+window.addEventListener('message', event=>{
+    const msg=event.data||{};
+    if(msg.action==='open'){state=msg.data||state; show(app); render()}
+    if(msg.action==='update'){state=msg.data||state; render()}
+    if(msg.action==='gangDetails'){state.gang=msg.data.gang||state.gang; state.members=msg.data.members||[]; state.taxes=msg.data.taxes||[]; if(['gangs'].includes(activePage)) activePage='dashboard'; render()}
+    if(msg.action==='close'){hide(app); hide(modal); hide(selector)}
+    if(msg.action==='openSelector'){selectorActive=true; show(selector)}
+    if(msg.action==='closeSelector'){selectorActive=false; hide(selector)}
+    if(msg.action==='incomingTax'){currentTax=msg.data||{}; incomingTaxTitle.textContent=currentTax.categoryName||'Taxă'; incomingTaxText.textContent=`${currentTax.gangName||'Mafie'} • Pret: ${money(currentTax.amount||0)} • Emis de CNP ${currentTax.issuerCnp||'-'}`; show(taxModal)}
+    if(msg.action==='clearIncomingTax'){if(currentTax&&currentTax.requestId===msg.requestId){currentTax=null; hide(taxModal)}}
+    if(msg.action==='claimHint'){claimHint.innerHTML=`Apasă <b>E</b> pentru a revendica ${money(msg.amount||0)}`; claimHint.classList.toggle('hidden', msg.visible!==true)}
+    if(msg.action==='focus'){document.body.classList.toggle('no-cursor', msg.enabled===false)}
 });
 
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closePanel();
-    if (event.code === 'Backquote' || event.key === '`') nui('toggleFocus');
-});
-
-setTimeout(() => nui('ready'), 80);
+setTimeout(()=>nui('ready'),80);

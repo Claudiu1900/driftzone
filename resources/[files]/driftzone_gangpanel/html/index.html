@@ -7,51 +7,43 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <main id="root" class="root hidden">
-        <section class="panel-shell">
-            <aside class="sidebar">
+    <main id="app" class="app hidden">
+        <section class="shell">
+            <aside class="side">
                 <div class="brand">
                     <div class="brand-mark">DZ</div>
-                    <div>
-                        <h1>Gang Panel</h1>
-                        <p id="selfInfo">Loading...</p>
-                    </div>
+                    <div><h1>Organizație</h1><p id="profileLine">Oraș • CNP</p></div>
                 </div>
-
-                <div id="quickProfile" class="quick-profile"></div>
+                <div id="gangBadge" class="gang-badge"></div>
                 <nav id="nav" class="nav"></nav>
-
-                <div class="side-footer">
-                    <button class="ghost-btn" onclick="refreshData()">Refresh</button>
-                    <button class="ghost-btn" onclick="closePanel()">Close</button>
-                </div>
+                <button class="close-panel" onclick="closePhone()">Închide</button>
             </aside>
-
             <section class="content">
                 <header class="topbar">
-                    <div>
-                        <h2 id="pageTitle">Dashboard</h2>
-                        <p id="pageSubtitle">Overview</p>
-                    </div>
-                    <div class="top-actions">
-                        <button id="createGangBtn" class="primary-btn hidden" onclick="openCreateGang()">Create Gang</button>
-                    </div>
+                    <div><span id="pageKicker">Panou</span><h2 id="pageTitle">Dashboard</h2></div>
+                    <div class="top-actions"><button onclick="refresh()">Refresh</button></div>
                 </header>
-
-                <section id="view" class="view"></section>
+                <section id="page" class="page"></section>
             </section>
         </section>
     </main>
 
-    <section id="modal" class="modal hidden">
-        <div class="modal-card">
-            <div class="modal-head">
-                <b id="modalTitle">Create Gang</b>
-                <button onclick="closeModal()">×</button>
-            </div>
-            <div id="modalBody" class="modal-body"></div>
+    <section id="selector" class="selector hidden">
+        <div class="selector-card"><b>Selectează persoana</b><span>Click pe jucătorul căruia îi oferi taxa</span></div>
+        <div class="crosshair"><i></i></div>
+    </section>
+
+    <section id="taxModal" class="tax-modal hidden">
+        <div class="tax-card">
+            <span>Taxă primită</span>
+            <h3 id="incomingTaxTitle">Taxă</h3>
+            <p id="incomingTaxText">Pret</p>
+            <div class="modal-actions"><button class="ghost" onclick="refuseTax()">Refuză</button><button class="primary" onclick="payTax()">Plătește</button></div>
         </div>
     </section>
+
+    <section id="modal" class="modal hidden"><div id="modalBox" class="modal-box"></div></section>
+    <section id="claimHint" class="claim-hint hidden">Apasă <b>E</b> pentru a revendica banii</section>
 
     <script src="script.js"></script>
 </body>

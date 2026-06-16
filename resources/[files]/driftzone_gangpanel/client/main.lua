@@ -1,150 +1,116 @@
+local uiReady = false
 local panelOpen = false
-local focusEnabled = false
-local nuiReady = false
 local pendingOpen = nil
-local tabletProp = nil
-local tabletAnimActive = false
+local cursorVisible = false
+local tabletObj = nil
+local selectorOpen = false
+local selectorPayload = nil
+local selectorTarget = nil
+local selectorTargetPed = nil
+local cursorX, cursorY = 0.5, 0.5
+local markerRotation = 0.0
+local activeWithdrawal = nil
+local claimHintVisible = false
 
 local function notify(typ, msg, duration)
-    TriggerEvent(Config.NotifyEvent or 'client:notify', typ or 'info', duration or 4500, tostring(msg or ''))
+    TriggerEvent(Config.NotifyEvent or 'client:notify', typ or 'info', duration or Config.NotifyDuration or 4500, tostring(msg or ''))
 end
 
-local function sendNui(payload)
-    SendNUIMessage(payload)
+local function sendNui(data)
+    if not uiReady then return false end
+    SendNUIMessage(data)
+    return true
 end
 
 local function setFocus(state)
-    focusEnabled = state == true
-    SetNuiFocus(focusEnabled, focusEnabled)
+    cursorVisible = state == true
+    SetNuiFocus(cursorVisible, cursorVisible)
     SetNuiFocusKeepInput(false)
-    sendNui({ action = 'focus', focus = focusEnabled })
+    sendNui({ action = 'focus', enabled = cursorVisible })
 end
 
 local function loadAnimDict(dict, timeout)
-    if not dict or dict == '' then return false end
-    if HasAnimDictLoaded(dict) then return true end
-
+    dict = tostring(dict or '')
+    if dict == '' then return false end
     RequestAnimDict(dict)
-    local endTime = GetGameTimer() + (timeout or 1200)
-    while not HasAnimDictLoaded(dict) and GetGameTimer() < endTime do
-        Wait(10)
+    local untilTime = GetGameTimer() + (timeout or 1800)
+    while not HasAnimDictLoaded(dict) do
+        Wait(0)
+        if GetGameTimer() > untilTime then return false end
     end
-
-    return HasAnimDictLoaded(dict)
+    return true
 end
 
 local function loadModel(model, timeout)
-    local hash = type(model) == 'number' and model or joaat(model)
-    if not IsModelInCdimage(hash) then return nil end
-    if HasModelLoaded(hash) then return hash end
-
+    local hash = type(model) == 'number' and model or GetHashKey(tostring(model or ''))
+    if not hash or hash == 0 then return nil end
     RequestModel(hash)
-    local endTime = GetGameTimer() + (timeout or 1200)
-    while not HasModelLoaded(hash) and GetGameTimer() < endTime do
-        Wait(10)
+    local untilTime = GetGameTimer() + (timeout or 1800)
+    while not HasModelLoaded(hash) do
+        Wait(0)
+        if GetGameTimer() > untilTime then return nil end
     end
-
-    if HasModelLoaded(hash) then return hash end
-    return nil
+    return hash
 end
 
-local function deleteTabletProp()
-    if tabletProp and DoesEntityExist(tabletProp) then
-        DeleteEntity(tabletProp)
-    end
-    tabletProp = nil
-end
-
-local function attachTabletProp(ped)
-    local cfg = Config.TabletAnimation or {}
-    if not cfg.prop or cfg.prop == '' then return end
-    if tabletProp and DoesEntityExist(tabletProp) then return end
-
-    local hash = loadModel(cfg.prop, 1200)
-    if not hash then return end
-
-    local coords = GetEntityCoords(ped)
-    tabletProp = CreateObject(hash, coords.x, coords.y, coords.z + 0.2, true, true, false)
-    SetModelAsNoLongerNeeded(hash)
-
-    local placement = cfg.placement or {}
-    AttachEntityToEntity(
-        tabletProp,
-        ped,
-        GetPedBoneIndex(ped, tonumber(cfg.bone or 28422) or 28422),
-        tonumber(placement.x or 0.03) or 0.03,
-        tonumber(placement.y or -0.05) or -0.05,
-        tonumber(placement.z or 0.0) or 0.0,
-        tonumber(placement.rx or 0.0) or 0.0,
-        tonumber(placement.ry or 0.0) or 0.0,
-        tonumber(placement.rz or 0.0) or 0.0,
-        true,
-        true,
-        false,
-        true,
-        1,
-        true
-    )
-end
-
-local function startTabletEmote()
-    local cfg = Config.TabletAnimation or {}
-    if cfg.enabled == false then return end
-
+local function stopTablet()
     local ped = PlayerPedId()
-    if not ped or ped == 0 or IsEntityDead(ped) then return end
-
-    local dict = cfg.dict or 'amb@code_human_in_bus_passenger_idles@female@tablet@base'
-    local anim = cfg.anim or 'base'
-
-    if loadAnimDict(dict, 1200) then
-        TaskPlayAnim(ped, dict, anim, 4.0, 4.0, -1, tonumber(cfg.flag or 49) or 49, 0.0, false, false, false)
-        RemoveAnimDict(dict)
-    end
-
-    attachTabletProp(ped)
-    tabletAnimActive = true
-end
-
-local function stopTabletEmote()
-    local cfg = Config.TabletAnimation or {}
-    if cfg.enabled == false then return end
-
-    local ped = PlayerPedId()
-    local dict = cfg.dict or 'amb@code_human_in_bus_passenger_idles@female@tablet@base'
-    local anim = cfg.anim or 'base'
-
+    local anim = Config.TabletAnimation or {}
     if ped and ped ~= 0 then
-        StopAnimTask(ped, dict, anim, 1.0)
+        if anim.dict and anim.anim then StopAnimTask(ped, anim.dict, anim.anim, 1.0) end
         ClearPedSecondaryTask(ped)
     end
+    if tabletObj and DoesEntityExist(tabletObj) then
+        DeleteEntity(tabletObj)
+    end
+    tabletObj = nil
+end
 
-    tabletAnimActive = false
-    deleteTabletProp()
+local function playTablet()
+    local anim = Config.TabletAnimation or {}
+    if anim.enabled == false then return end
+    local ped = PlayerPedId()
+    if not ped or ped == 0 or IsPedDeadOrDying(ped, true) then return end
+    if anim.dict and anim.anim and loadAnimDict(anim.dict) then
+        TaskPlayAnim(ped, anim.dict, anim.anim, 4.0, -4.0, -1, tonumber(anim.flag or 49) or 49, 0.0, false, false, false)
+    end
+    if anim.prop and not tabletObj then
+        local hash = loadModel(anim.prop)
+        if hash then
+            local coords = GetEntityCoords(ped)
+            tabletObj = CreateObject(hash, coords.x, coords.y, coords.z + 0.2, true, true, false)
+            local p = anim.placement or {}
+            AttachEntityToEntity(tabletObj, ped, GetPedBoneIndex(ped, tonumber(anim.bone or 28422) or 28422), p.x or 0.03, p.y or -0.05, p.z or 0.0, p.rx or 0.0, p.ry or 0.0, p.rz or 0.0, true, true, false, true, 1, true)
+            SetModelAsNoLongerNeeded(hash)
+        end
+    end
 end
 
 local function openPanel(data)
     panelOpen = true
-    pendingOpen = nil
-    startTabletEmote()
+    selectorOpen = false
+    selectorPayload = nil
+    playTablet()
     setFocus(true)
     sendNui({ action = 'open', data = data or {} })
+    if data and data.withdrawal then
+        activeWithdrawal = data.withdrawal
+        if activeWithdrawal and activeWithdrawal.x then
+            SetNewWaypoint(activeWithdrawal.x + 0.0, activeWithdrawal.y + 0.0)
+        end
+    end
 end
 
-local function closePanel(skipServer)
-    if not panelOpen then
-        setFocus(false)
-        return
-    end
-
+local function closePanel()
     panelOpen = false
+    selectorOpen = false
+    selectorPayload = nil
+    selectorTarget = nil
+    selectorTargetPed = nil
+    stopTablet()
     setFocus(false)
-    stopTabletEmote()
     sendNui({ action = 'close' })
-
-    if skipServer ~= true then
-        TriggerServerEvent('driftzone_gangpanel:server:closed')
-    end
+    TriggerServerEvent('driftzone_gangpanel:server:closed')
 end
 
 RegisterCommand(Config.Command or 'gang', function()
@@ -152,50 +118,67 @@ RegisterCommand(Config.Command or 'gang', function()
 end, false)
 
 RegisterNetEvent('driftzone_gangpanel:client:open', function(data)
-    if not nuiReady then
-        pendingOpen = data or {}
-        return
-    end
+    if not uiReady then pendingOpen = data or {} return end
     openPanel(data or {})
 end)
 
-RegisterNetEvent('driftzone_gangpanel:client:deny', function(message)
-    notify('warning', message or 'Nu ai acces la gang panel.')
+RegisterNetEvent('driftzone_gangpanel:client:deny', function()
+    closePanel()
 end)
 
 RegisterNetEvent('driftzone_gangpanel:client:update', function(data)
-    if not panelOpen then return end
-    sendNui({ action = 'update', data = data or {} })
+    if panelOpen then sendNui({ action = 'update', data = data or {} }) end
+    if data and data.withdrawal then
+        activeWithdrawal = data.withdrawal
+        if activeWithdrawal and activeWithdrawal.x then SetNewWaypoint(activeWithdrawal.x + 0.0, activeWithdrawal.y + 0.0) end
+    end
 end)
 
-RegisterNetEvent('driftzone_gangpanel:client:toast', function(typ, message)
-    notify(typ or 'info', message or '')
+RegisterNetEvent('driftzone_gangpanel:client:gangDetails', function(data)
+    sendNui({ action = 'gangDetails', data = data or {} })
 end)
 
-RegisterNetEvent('driftzone_gangpanel:client:forceClose', function()
-    closePanel(true)
+RegisterNetEvent('driftzone_gangpanel:client:incomingTax', function(data)
+    sendNui({ action = 'incomingTax', data = data or {} })
+    setFocus(true)
+end)
+
+RegisterNetEvent('driftzone_gangpanel:client:clearIncomingTax', function(requestId)
+    sendNui({ action = 'clearIncomingTax', requestId = requestId })
+end)
+
+RegisterNetEvent('driftzone_gangpanel:client:setWithdrawalPickup', function(data)
+    activeWithdrawal = data or nil
+    if activeWithdrawal and activeWithdrawal.x then
+        SetNewWaypoint(activeWithdrawal.x + 0.0, activeWithdrawal.y + 0.0)
+    end
+end)
+
+RegisterNetEvent('driftzone_gangpanel:client:clearWithdrawalPickup', function()
+    activeWithdrawal = nil
+    claimHintVisible = false
+    sendNui({ action = 'claimHint', visible = false })
 end)
 
 RegisterNUICallback('ready', function(_, cb)
-    nuiReady = true
+    uiReady = true
     cb({ ok = true })
-
     if pendingOpen then
+        local data = pendingOpen
+        pendingOpen = nil
         Wait(100)
-        openPanel(pendingOpen)
+        openPanel(data)
     end
 end)
 
 RegisterNUICallback('close', function(_, cb)
-    closePanel(false)
+    closePanel()
     cb({ ok = true })
 end)
 
 RegisterNUICallback('toggleFocus', function(_, cb)
-    if panelOpen then
-        setFocus(not focusEnabled)
-    end
-    cb({ ok = true, focus = focusEnabled })
+    if panelOpen or selectorOpen then setFocus(not cursorVisible) end
+    cb({ ok = true })
 end)
 
 RegisterNUICallback('refresh', function(_, cb)
@@ -204,7 +187,7 @@ RegisterNUICallback('refresh', function(_, cb)
 end)
 
 RegisterNUICallback('getGangDetails', function(data, cb)
-    TriggerServerEvent('driftzone_gangpanel:server:getGangDetails', tonumber(data and data.gangId or 0) or 0)
+    TriggerServerEvent('driftzone_gangpanel:server:getGangDetails', data and data.gang_id)
     cb({ ok = true })
 end)
 
@@ -219,7 +202,7 @@ RegisterNUICallback('updateGang', function(data, cb)
 end)
 
 RegisterNUICallback('deleteGang', function(data, cb)
-    TriggerServerEvent('driftzone_gangpanel:server:deleteGang', tonumber(data and data.gangId or 0) or 0)
+    TriggerServerEvent('driftzone_gangpanel:server:deleteGang', data and data.gang_id)
     cb({ ok = true })
 end)
 
@@ -238,67 +221,228 @@ RegisterNUICallback('changeRole', function(data, cb)
     cb({ ok = true })
 end)
 
+RegisterNUICallback('createTaxCategory', function(data, cb)
+    TriggerServerEvent('driftzone_gangpanel:server:createTaxCategory', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('deleteTaxCategory', function(data, cb)
+    TriggerServerEvent('driftzone_gangpanel:server:deleteTaxCategory', data and data.category_id)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('startTaxSelector', function(data, cb)
+    selectorPayload = data or {}
+    selectorOpen = true
+    selectorTarget = nil
+    selectorTargetPed = nil
+    cursorX, cursorY = 0.5, 0.5
+    setFocus(true)
+    sendNui({ action = 'openSelector' })
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('payTax', function(data, cb)
+    TriggerServerEvent('driftzone_gangpanel:server:payTax', data and data.requestId)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('refuseTax', function(data, cb)
+    TriggerServerEvent('driftzone_gangpanel:server:refuseTax', data and data.requestId)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('adjustRevenue', function(data, cb)
+    TriggerServerEvent('driftzone_gangpanel:server:adjustRevenue', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('requestWithdrawal', function(data, cb)
+    TriggerServerEvent('driftzone_gangpanel:server:requestWithdrawal', data and data.gang_id)
+    cb({ ok = true })
+end)
 
 RegisterNUICallback('getCoords', function(_, cb)
-    local ped = PlayerPedId()
+    local coords = GetEntityCoords(PlayerPedId())
+    cb({ ok = true, x = tonumber(string.format('%.6f', coords.x)), y = tonumber(string.format('%.6f', coords.y)), z = tonumber(string.format('%.6f', coords.z)) })
+end)
+
+local function projectWorldPoint(coords)
+    local onScreen, sx, sy = World3dToScreen2d(coords.x, coords.y, coords.z)
+    if onScreen then return sx, sy end
+    return nil, nil
+end
+
+local function getPedScreenBox(ped)
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return nil end
     local coords = GetEntityCoords(ped)
-    cb({ ok = true, x = coords.x, y = coords.y, z = coords.z })
+    local points = {}
+    local offsets = {
+        { x = 0.00, y = 0.00, z = 0.95 },
+        { x = 0.00, y = 0.00, z = 0.72 },
+        { x = 0.00, y = 0.00, z = 0.48 },
+        { x = 0.00, y = 0.00, z = 0.22 },
+        { x = 0.00, y = 0.00, z = -0.10 }
+    }
+    for _, off in ipairs(offsets) do
+        local point = vector3(coords.x + off.x, coords.y + off.y, coords.z + off.z)
+        local sx, sy = projectWorldPoint(point)
+        if sx and sy then points[#points + 1] = { x = sx, y = sy } end
+    end
+    local bones = { 31086, 24818, 11816, 58271, 63931 }
+    for _, bone in ipairs(bones) do
+        local bc = GetPedBoneCoords(ped, bone, 0.0, 0.0, 0.0)
+        local sx, sy = projectWorldPoint(bc)
+        if sx and sy then points[#points + 1] = { x = sx, y = sy } end
+    end
+    if #points <= 0 then return nil end
+    local minX, maxX, minY, maxY = 1.0, 0.0, 1.0, 0.0
+    for _, p in ipairs(points) do
+        if p.x < minX then minX = p.x end
+        if p.x > maxX then maxX = p.x end
+        if p.y < minY then minY = p.y end
+        if p.y > maxY then maxY = p.y end
+    end
+    local cfg = Config.PlayerSelector or {}
+    local width = math.max(maxX - minX, tonumber(cfg.MinWidth or 0.050) or 0.050)
+    local centerX = (minX + maxX) / 2.0
+    minX = centerX - (width / 2.0)
+    maxX = centerX + (width / 2.0)
+    return {
+        minX = minX - (cfg.PaddingX or 0.035), maxX = maxX + (cfg.PaddingX or 0.035),
+        minY = minY - (cfg.PaddingY or 0.050), maxY = maxY + (cfg.PaddingY or 0.050),
+        centerX = centerX, centerY = (minY + maxY) / 2.0
+    }
+end
+
+local function findPlayerFromCursor()
+    local myPed = PlayerPedId()
+    local myCoords = GetEntityCoords(myPed)
+    local bestTarget, bestPed, bestScore = nil, nil, 999999.0
+    local cfg = Config.PlayerSelector or {}
+    local radius = tonumber(cfg.ScreenRadius or 0.075) or 0.075
+    local maxDist = tonumber(cfg.MaxDistance or 6.0) or 6.0
+    for _, playerIndex in ipairs(GetActivePlayers()) do
+        if playerIndex ~= PlayerId() then
+            local ped = GetPlayerPed(playerIndex)
+            if ped and ped ~= 0 and DoesEntityExist(ped) and not IsEntityDead(ped) then
+                local coords = GetEntityCoords(ped)
+                local dist = #(myCoords - coords)
+                if dist <= maxDist then
+                    local box = getPedScreenBox(ped)
+                    if box then
+                        local insideBox = cursorX >= box.minX and cursorX <= box.maxX and cursorY >= box.minY and cursorY <= box.maxY
+                        local dx, dy = cursorX - box.centerX, cursorY - box.centerY
+                        local screenDist = math.sqrt(dx * dx + dy * dy)
+                        if insideBox or screenDist <= radius then
+                            local score = screenDist + (dist * 0.002)
+                            if score < bestScore then
+                                bestScore = score
+                                bestTarget = GetPlayerServerId(playerIndex)
+                                bestPed = ped
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return bestTarget, bestPed
+end
+
+RegisterNUICallback('selectorMove', function(data, cb)
+    cursorX = tonumber(data and data.x or 0.5) or 0.5
+    cursorY = tonumber(data and data.y or 0.5) or 0.5
+    selectorTarget, selectorTargetPed = findPlayerFromCursor()
+    cb({ ok = true, target = selectorTarget })
+end)
+
+RegisterNUICallback('selectorClick', function(_, cb)
+    if selectorOpen and selectorPayload and selectorTarget then
+        selectorPayload.target = selectorTarget
+        TriggerServerEvent('driftzone_gangpanel:server:offerTaxToPlayer', selectorPayload)
+        selectorOpen = false
+        selectorPayload = nil
+        selectorTarget = nil
+        selectorTargetPed = nil
+        sendNui({ action = 'closeSelector' })
+        if panelOpen then setFocus(true) else setFocus(false) end
+    else
+        notify('warning', 'Selecteaza o persoana apropiata.')
+    end
+    cb({ ok = true })
 end)
 
 CreateThread(function()
     while true do
-        if panelOpen then
-            DisableControlAction(0, 1, true)
-            DisableControlAction(0, 2, true)
-            DisableControlAction(0, 24, true)
-            DisableControlAction(0, 25, true)
-            DisableControlAction(0, 68, true)
-            DisableControlAction(0, 69, true)
-            DisableControlAction(0, 70, true)
-            DisableControlAction(0, 91, true)
-            DisableControlAction(0, 92, true)
-            DisableControlAction(0, 200, true)
-            DisableControlAction(0, 245, true)
-            DisableControlAction(0, 243, true)
-
-            if IsDisabledControlJustPressed(0, 200) then
-                closePanel(false)
-            elseif IsDisabledControlJustPressed(0, 243) then
-                setFocus(not focusEnabled)
-            end
-
+        if selectorOpen and selectorTargetPed and DoesEntityExist(selectorTargetPed) then
+            local coords = GetEntityCoords(selectorTargetPed)
+            local cfg = Config.PlayerSelector and Config.PlayerSelector.Marker or {}
+            DrawMarker(cfg.type or 25, coords.x, coords.y, coords.z - 0.95 + (cfg.zOffset or 0.035), 0.0, 0.0, 0.0, 0.0, 0.0, markerRotation, cfg.radius or 1.05, cfg.radius or 1.05, 0.035, cfg.r or 4, cfg.g or 199, cfg.b or 247, cfg.a or 190, false, true, 2, false, nil, nil, false)
+            markerRotation = markerRotation + 3.2
+            if markerRotation >= 360.0 then markerRotation = 0.0 end
             Wait(0)
         else
-            Wait(450)
+            Wait(180)
         end
     end
 end)
 
+CreateThread(function()
+    while true do
+        if panelOpen or selectorOpen then
+            DisableControlAction(0, 200, true)
+            if IsDisabledControlJustPressed(0, 200) then closePanel() end
+            if IsControlJustPressed(0, 243) or IsDisabledControlJustPressed(0, 243) then setFocus(not cursorVisible) end
+            if panelOpen then playTablet() end
+            Wait(0)
+        else
+            Wait(350)
+        end
+    end
+end)
 
 CreateThread(function()
     while true do
-        if panelOpen and tabletAnimActive then
-            local cfg = Config.TabletAnimation or {}
+        if activeWithdrawal and activeWithdrawal.x then
             local ped = PlayerPedId()
-            local dict = cfg.dict or 'amb@code_human_in_bus_passenger_idles@female@tablet@base'
-            local anim = cfg.anim or 'base'
-            if ped and ped ~= 0 and not IsEntityPlayingAnim(ped, dict, anim, 3) then
-                startTabletEmote()
-            elseif ped and ped ~= 0 then
-                attachTabletProp(ped)
+            local coords = GetEntityCoords(ped)
+            local target = vector3(activeWithdrawal.x + 0.0, activeWithdrawal.y + 0.0, activeWithdrawal.z + 0.0)
+            local dist = #(coords - target)
+            if dist < 35.0 then
+                local c = Config.Withdrawal.MarkerColor or {}
+                local s = Config.Withdrawal.MarkerScale or {}
+                DrawMarker(Config.Withdrawal.MarkerType or 2, target.x, target.y, target.z + 0.45, 0.0, 0.0, 0.0, 180.0, 0.0, markerRotation, s.x or 0.42, s.y or 0.42, s.z or 0.42, c.r or 4, c.g or 199, c.b or 247, c.a or 210, false, true, 2, false, nil, nil, false)
+                if dist <= (Config.Withdrawal.ClaimDistance or 2.0) then
+                    if not claimHintVisible then
+                        claimHintVisible = true
+                        sendNui({ action = 'claimHint', visible = true, amount = activeWithdrawal.amount })
+                    end
+                    if IsControlJustPressed(0, 38) then
+                        TriggerServerEvent('driftzone_gangpanel:server:claimWithdrawal', activeWithdrawal.id)
+                    end
+                elseif claimHintVisible then
+                    claimHintVisible = false
+                    sendNui({ action = 'claimHint', visible = false })
+                end
+                markerRotation = markerRotation + 2.0
+                if markerRotation >= 360.0 then markerRotation = 0.0 end
+                Wait(0)
+            else
+                if claimHintVisible then
+                    claimHintVisible = false
+                    sendNui({ action = 'claimHint', visible = false })
+                end
+                Wait(850)
             end
-            Wait(1300)
         else
-            Wait(700)
+            Wait(1200)
         end
     end
 end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    if panelOpen then
-        stopTabletEmote()
-    end
+    stopTablet()
     SetNuiFocus(false, false)
-    SetNuiFocusKeepInput(false)
 end)
