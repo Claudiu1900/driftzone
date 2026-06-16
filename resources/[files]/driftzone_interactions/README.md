@@ -1,50 +1,35 @@
-# DriftZone Interactions - Hide prompt after use
+# driftzone_implements
 
-## Fix
+Sistem optimizat de interacțiuni locale pentru DriftZone.
 
-Dupa ce jucatorul ajunge la o interactiune si apasa `E`:
+## Ce face
 
-- UI-ul cu `Apasa E` dispare imediat;
-- nu mai apare inapoi cat timp jucatorul ramane in acel radius;
-- apare din nou doar dupa ce jucatorul iese complet din radius si intra inapoi;
-- marker-ul ramane neschimbat;
-- eventurile existente raman neschimbate;
-- resource-ul ramane optimizat, folosind acelasi `Config.CheckInterval`.
+- prompt modern jos pe ecran;
+- marker/blip local;
+- waypoint personal doar pentru jucătorul care primește eventul;
+- compatibil cu eventurile vechi `driftzone_interactions:*`;
+- compatibil și cu `driftzone_implements:*`;
+- fără fișiere obfuscate `v2_settings.js` / `commands.js` în manifest.
 
-## Instalare
+## Event local / client
 
-Pune folderul in:
-
-```txt
-resources/[files]/driftzone_interactions
+```lua
+TriggerEvent('driftzone_interactions:client:addPersonalWaypoint', {
+    id = 'test_location',
+    coords = { x = 0.0, y = 0.0, z = 72.0 },
+    text = 'Apasă E',
+    subText = 'Test local',
+    event = 'my_resource:client:event',
+    data = { hello = true },
+    setWaypoint = true,
+    marker = true
+})
 ```
 
-In `server.cfg`:
+Dacă îl trimiți de pe server cu `TriggerClientEvent` către un singur player, se vede doar la acel player.
+
+## server.cfg
 
 ```cfg
-ensure driftzone_interactions
-```
-
-## Git
-
-Pe PC:
-
-```bash
-git add -A resources/[files]/driftzone_interactions
-git commit -m "Hide interaction prompt after use until re-enter"
-git pull --rebase origin main
-git push origin main
-```
-
-Pe VPS:
-
-```bash
-cd ~/server-data
-git pull --rebase origin main
-```
-
-txAdmin:
-
-```txt
-restart driftzone_interactions
+ensure driftzone_implements
 ```

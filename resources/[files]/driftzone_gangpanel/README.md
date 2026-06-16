@@ -55,3 +55,20 @@ dirtymoney
 ```
 
 Resource-ul încearcă exportul `driftzone_inventory:GiveItem`. Dacă nu există, folosește fallback direct pe tabela `inventory`.
+
+## V5 - driftzone_implements + waypoint personal
+
+- Retragerile folosesc acum `driftzone_implements` / eventurile compatibile `driftzone_interactions`.
+- Când liderul primește locația, waypointul, markerul și promptul apar doar la liderul respectiv.
+- Nu mai trimite promptul locației pentru tot orașul.
+- Markerul de ridicare este controlat prin `driftzone_implements`, iar `gangpanel` doar validează revendicarea pe server.
+
+În `server.cfg` pune:
+
+```cfg
+ensure oxmysql
+ensure driftzone_auth
+ensure driftzone_inventory
+ensure driftzone_implements
+ensure driftzone_gangpanel
+```

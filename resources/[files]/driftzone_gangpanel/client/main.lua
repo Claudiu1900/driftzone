@@ -29,6 +29,52 @@ local function setFocus(state)
     sendNui({ action = 'focus', enabled = cursorVisible })
 end
 
+
+local function withdrawalInteractionId(data)
+    local id = type(data) == 'table' and (data.id or data.withdrawalId) or data
+    return ('gang_withdrawal_%s'):format(tostring(id or '0'))
+end
+
+local function addWithdrawalInteraction(data)
+    if type(data) ~= 'table' or not data.x then return end
+    local wid = tonumber(data.id or data.withdrawalId or 0) or 0
+    if wid <= 0 then return end
+
+    activeWithdrawal = data
+    claimHintVisible = false
+    sendNui({ action = 'claimHint', visible = false })
+
+    local payload = {
+        id = withdrawalInteractionId(data),
+        coords = { x = data.x + 0.0, y = data.y + 0.0, z = data.z + 0.0 },
+        range = Config.Withdrawal.ClaimDistance or 2.0,
+        key = 'E',
+        text = Config.Withdrawal.InteractionText or 'Revendica pachetul',
+        subText = Config.Withdrawal.InteractionSubText or ('Ridicare: $' .. tostring(data.amount or 0)),
+        event = 'driftzone_gangpanel:client:claimWithdrawalFromInteraction',
+        data = { withdrawalId = wid, amount = data.amount or 0 },
+        marker = true,
+        markerType = Config.Withdrawal.MarkerType or 2,
+        markerColor = Config.Withdrawal.MarkerColor or { r = 4, g = 199, b = 247, a = 210 },
+        markerSize = Config.Withdrawal.MarkerScale or { x = 0.42, y = 0.42, z = 0.42 },
+        autoRemoveOnUse = false,
+        setWaypoint = Config.Withdrawal.SetGpsWaypoint ~= false,
+        blip = { sprite = 500, color = 3, scale = 0.72, name = 'Ridicare pachet', shortRange = false }
+    }
+
+    -- Local-only: eventul este trimis doar clientului lider de server, deci waypointul/promptul este doar pentru el.
+    TriggerEvent('driftzone_interactions:client:addPersonalWaypoint', payload)
+
+    if payload.setWaypoint then
+        SetNewWaypoint(data.x + 0.0, data.y + 0.0)
+    end
+end
+
+local function removeWithdrawalInteraction(dataOrId)
+    local id = withdrawalInteractionId(dataOrId)
+    TriggerEvent('driftzone_interactions:client:remove', id)
+end
+
 local function loadAnimDict(dict, timeout)
     dict = tostring(dict or '')
     if dict == '' then return false end
@@ -94,10 +140,7 @@ local function openPanel(data)
     setFocus(true)
     sendNui({ action = 'open', data = data or {} })
     if data and data.withdrawal then
-        activeWithdrawal = data.withdrawal
-        if activeWithdrawal and activeWithdrawal.x then
-            SetNewWaypoint(activeWithdrawal.x + 0.0, activeWithdrawal.y + 0.0)
-        end
+        addWithdrawalInteraction(data.withdrawal)
     end
 end
 
@@ -129,8 +172,7 @@ end)
 RegisterNetEvent('driftzone_gangpanel:client:update', function(data)
     if panelOpen then sendNui({ action = 'update', data = data or {} }) end
     if data and data.withdrawal then
-        activeWithdrawal = data.withdrawal
-        if activeWithdrawal and activeWithdrawal.x then SetNewWaypoint(activeWithdrawal.x + 0.0, activeWithdrawal.y + 0.0) end
+        addWithdrawalInteraction(data.withdrawal)
     end
 end)
 
@@ -148,13 +190,19 @@ RegisterNetEvent('driftzone_gangpanel:client:clearIncomingTax', function(request
 end)
 
 RegisterNetEvent('driftzone_gangpanel:client:setWithdrawalPickup', function(data)
-    activeWithdrawal = data or nil
-    if activeWithdrawal and activeWithdrawal.x then
-        SetNewWaypoint(activeWithdrawal.x + 0.0, activeWithdrawal.y + 0.0)
+    addWithdrawalInteraction(data or {})
+end)
+
+RegisterNetEvent('driftzone_gangpanel:client:claimWithdrawalFromInteraction', function(payload)
+    payload = type(payload) == 'table' and payload or {}
+    local withdrawalId = tonumber(payload.withdrawalId or payload.id or 0) or 0
+    if withdrawalId > 0 then
+        TriggerServerEvent('driftzone_gangpanel:server:claimWithdrawal', withdrawalId)
     end
 end)
 
 RegisterNetEvent('driftzone_gangpanel:client:clearWithdrawalPickup', function()
+    if activeWithdrawal then removeWithdrawalInteraction(activeWithdrawal) end
     activeWithdrawal = nil
     claimHintVisible = false
     sendNui({ action = 'claimHint', visible = false })
@@ -480,7 +528,7 @@ end)
 
 CreateThread(function()
     while true do
-        if activeWithdrawal and activeWithdrawal.x then
+        if activeWithdrawal and activeWithdrawal.x and ((Config.Withdrawal or {}).UseInteractions == false) then
             local ped = PlayerPedId()
             local coords = GetEntityCoords(ped)
             local target = vector3(activeWithdrawal.x + 0.0, activeWithdrawal.y + 0.0, activeWithdrawal.z + 0.0)

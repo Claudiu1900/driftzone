@@ -5,6 +5,11 @@ Config.Command = 'gang'
 Config.NotifyEvent = 'client:notify'
 Config.NotifyDuration = 4500
 
+-- Resource separat pentru prompturi/waypointuri locale.
+-- Trigger-ele raman compatibile si cu numele driftzone_interactions.
+Config.InteractionsResource = 'driftzone_implements'
+Config.InteractionsEventPrefix = 'driftzone_interactions'
+
 Config.UsersTable = 'users'
 Config.UsersIdColumn = 'uid'
 Config.UsernameColumn = 'username'
@@ -59,6 +64,11 @@ Config.PlayerSelector = {
 }
 
 Config.Withdrawal = {
+    UseInteractions = true,
+    InteractionEventPrefix = 'driftzone_interactions',
+    InteractionText = 'Revendica pachetul',
+    InteractionSubText = 'Apasa E pentru a ridica banii murdari',
+    SetGpsWaypoint = true,
     MinDelaySeconds = 300,
     MaxDelaySeconds = 600,
     DirtyMoneyItem = 'dirtymoney',
