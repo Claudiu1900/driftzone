@@ -15,20 +15,6 @@ Config.Toggles = {
         default = true
     },
     {
-        id = 'overhead_others',
-        title = 'Overhead Players',
-        description = 'Controleaza daca TU vezi overhead-ul celorlalti jucatori.',
-        category = 'Overhead',
-        default = true
-    },
-    {
-        id = 'overhead_self',
-        title = 'Overhead Personal',
-        description = 'Controleaza daca TU iti vezi propriul overhead local.',
-        category = 'Overhead',
-        default = false
-    },
-    {
         id = 'turometru',
         title = 'Turometru',
         description = 'Ascunde sau afiseaza turometrul / speedometer-ul DriftZone.',

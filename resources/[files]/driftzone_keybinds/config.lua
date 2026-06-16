@@ -61,24 +61,6 @@ Config.BlockedKeys = {
 }
 
 Config.Keybinds = {
-    {
-        id = 'garage',
-        name = 'Garage',
-        description = 'Deschide garajul tau',
-        key = 'M',
-        eventType = 'command',
-        eventName = 'garage',
-        enabled = true
-    },
-    {
-        id = 'outfits',
-        name = 'Outfits',
-        description = 'Deschide meniul de outfit-uri',
-        key = 'K',
-        eventType = 'command',
-        eventName = 'outfits',
-        enabled = true
-    },
         {
         id = 'inventory',
         name = 'Inventory',
