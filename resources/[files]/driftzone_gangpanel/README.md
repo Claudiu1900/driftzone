@@ -1,4 +1,6 @@
-# driftzone_gangpanel V3
+# driftzone_gangpanel V4 Premium
+
+Sistem pentru mafii / sindicat pe DriftZone.
 
 ## Instalare
 
@@ -9,37 +11,47 @@ ensure driftzone_inventory
 ensure driftzone_gangpanel
 ```
 
-Rulează:
+Rulează SQL-ul:
 
 ```txt
 driftzone_gangpanel/SQL.sql
 ```
 
-## Acces
-
-Acces total:
+Pentru acces total:
 
 ```sql
-UPDATE users SET sindicate = 1 WHERE uid = CNP_UL_TAU;
+UPDATE `users` SET `sindicate` = 1 WHERE `uid` = CNP_UL_TAU;
 ```
 
-Comandă:
+## Update V4
+
+- Fix acces `users.sindicate = 1` + fallback `users.syndicate`.
+- Tax categories nu mai sunt create automat. Se creează manual din panoul de Sindicat.
+- UI refăcut premium, fără `backdrop-filter`.
+- Selectorul de jucător pentru taxe închide meniul complet și nu mai afișează crosshair / plus / UI.
+- Pentru selectare: te uiți spre jucător și apeși `E` sau click stânga.
+- Membrii simpli văd doar Taxe.
+- Lider / Co-Lider văd Dashboard, Membri, Taxe, Venituri.
+- Sindicat vede Gangs și poate crea/edita mafii, categorii și venituri.
+- Când adaugi un membru, se setează automat `users.rank = shortcut` și `users.rankcolor = color`.
+- Logurile se salvează doar în database, nu apar în UI.
+
+## Tabele
+
+- `gangs`
+- `gang_members`
+- `gang_tax_categories`
+- `gang_tax_records`
+- `gang_revenue_logs`
+- `gang_withdrawals`
+- `gang_logs`
+
+## Dirty money
+
+La revendicarea veniturilor, liderul primește itemul:
 
 ```txt
-/gang
+dirtymoney
 ```
 
-## Ce include
-
-- Mafii cu ID pornind de la 1.
-- Tipuri: Mafie Neoficiala / Mafie Oficiala.
-- Când un jucător intră într-o mafie, `users.rank` primește shortcut-ul, iar `users.rankcolor` primește culoarea HEX.
-- Logurile nu apar în meniu, dar se salvează în DB.
-- Pentru membri apare doar Taxes.
-- Pentru Lider / Co-Lider apar Dashboard, Members, Taxes, Venituri.
-- Pentru Sindicat apar Gangs + management complet.
-- Taxe cu selector de player ca la playerinteract.
-- Plata taxei verifică cash, apoi bank.
-- Veniturile din taxe merg în gang revenue.
-- Liderul poate cere retragere. După 5-10 minute primește waypoint și revendică dirtymoney.
-- Sindicat poate adăuga/scădea bani din venituri.
+Resource-ul încearcă exportul `driftzone_inventory:GiveItem`. Dacă nu există, folosește fallback direct pe tabela `inventory`.

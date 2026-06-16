@@ -1,5 +1,5 @@
 -- =========================================================
--- DriftZone GangPanel V3 - FINAL SQL / MIGRATION FIXED
+-- DriftZone GangPanel V4 - FINAL SQL / MIGRATION FIXED
 -- Ruleaza TOT fisierul acesta, apoi restart driftzone_gangpanel.
 -- Repara eroarea: Unknown column 'g.type' in SELECT.
 -- Compatibil MySQL/MariaDB prin INFORMATION_SCHEMA.
@@ -34,6 +34,7 @@ DELIMITER ;
 -- USERS columns
 -- =========================================================
 CALL dz_add_column('users', 'sindicate', 'TINYINT(1) NOT NULL DEFAULT 0');
+CALL dz_add_column('users', 'syndicate', 'TINYINT(1) NOT NULL DEFAULT 0');
 CALL dz_add_column('users', 'rank', 'VARCHAR(64) NOT NULL DEFAULT ''''');
 CALL dz_add_column('users', 'rankcolor', 'VARCHAR(16) NOT NULL DEFAULT ''''');
 CALL dz_add_column('users', 'cash', 'BIGINT NOT NULL DEFAULT 0');
@@ -136,17 +137,8 @@ CALL dz_add_column('gang_tax_categories', 'active', 'TINYINT(1) NOT NULL DEFAULT
 CALL dz_add_column('gang_tax_categories', 'created_by', 'INT NOT NULL DEFAULT 0');
 CALL dz_add_column('gang_tax_categories', 'created_at', 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP');
 
-INSERT INTO `gang_tax_categories` (`name`, `description`, `active`, `created_by`)
-SELECT 'Protectie', 'Taxa de protectie pentru afaceri sau persoane.', 1, 0
-WHERE NOT EXISTS (SELECT 1 FROM `gang_tax_categories` WHERE `name` = 'Protectie' OR `name` = 'Protecție');
-
-INSERT INTO `gang_tax_categories` (`name`, `description`, `active`, `created_by`)
-SELECT 'Teritoriu', 'Taxa pentru activitate intr-o zona controlata.', 1, 0
-WHERE NOT EXISTS (SELECT 1 FROM `gang_tax_categories` WHERE `name` = 'Teritoriu');
-
-INSERT INTO `gang_tax_categories` (`name`, `description`, `active`, `created_by`)
-SELECT 'Servicii', 'Taxa pentru servicii sau intelegeri.', 1, 0
-WHERE NOT EXISTS (SELECT 1 FROM `gang_tax_categories` WHERE `name` = 'Servicii');
+-- Tax categories are intentionally empty by default.
+-- Syndicate creates categories manually from /gang.
 
 -- =========================================================
 -- TAX RECORDS

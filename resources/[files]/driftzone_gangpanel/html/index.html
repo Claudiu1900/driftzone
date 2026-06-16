@@ -8,41 +8,59 @@
 </head>
 <body>
     <main id="app" class="app hidden">
-        <section class="shell">
-            <aside class="side">
+        <div class="ambient a1"></div>
+        <div class="ambient a2"></div>
+        <section class="panel">
+            <aside class="sidebar">
                 <div class="brand">
                     <div class="brand-mark">DZ</div>
-                    <div><h1>Organizație</h1><p id="profileLine">Oraș • CNP</p></div>
+                    <div>
+                        <h1>Organizații</h1>
+                        <p id="profileLine">Oraș • CNP</p>
+                    </div>
                 </div>
+
                 <div id="gangBadge" class="gang-badge"></div>
                 <nav id="nav" class="nav"></nav>
-                <button class="close-panel" onclick="closePhone()">Închide</button>
+
+                <button class="close-panel" onclick="closePanel()">
+                    <span>Închide panoul</span>
+                    <b>ESC</b>
+                </button>
             </aside>
+
             <section class="content">
                 <header class="topbar">
-                    <div><span id="pageKicker">Panou</span><h2 id="pageTitle">Dashboard</h2></div>
-                    <div class="top-actions"><button onclick="refresh()">Refresh</button></div>
+                    <div>
+                        <span id="pageKicker">Panou</span>
+                        <h2 id="pageTitle">Dashboard</h2>
+                    </div>
+                    <div class="top-actions">
+                        <button onclick="refresh()">Actualizează</button>
+                    </div>
                 </header>
+
                 <section id="page" class="page"></section>
             </section>
         </section>
     </main>
 
-    <section id="selector" class="selector hidden">
-        <div class="selector-card"><b>Selectează persoana</b><span>Click pe jucătorul căruia îi oferi taxa</span></div>
-        <div class="crosshair"><i></i></div>
-    </section>
-
     <section id="taxModal" class="tax-modal hidden">
         <div class="tax-card">
             <span>Taxă primită</span>
             <h3 id="incomingTaxTitle">Taxă</h3>
-            <p id="incomingTaxText">Pret</p>
-            <div class="modal-actions"><button class="ghost" onclick="refuseTax()">Refuză</button><button class="primary" onclick="payTax()">Plătește</button></div>
+            <p id="incomingTaxText">Detalii taxă</p>
+            <div class="modal-actions">
+                <button class="ghost" onclick="refuseTax()">Refuză</button>
+                <button class="primary" onclick="payTax()">Plătește</button>
+            </div>
         </div>
     </section>
 
-    <section id="modal" class="modal hidden"><div id="modalBox" class="modal-box"></div></section>
+    <section id="modal" class="modal hidden">
+        <div id="modalBox" class="modal-box"></div>
+    </section>
+
     <section id="claimHint" class="claim-hint hidden">Apasă <b>E</b> pentru a revendica banii</section>
 
     <script src="script.js"></script>

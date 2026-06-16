@@ -237,8 +237,15 @@ RegisterNUICallback('startTaxSelector', function(data, cb)
     selectorTarget = nil
     selectorTargetPed = nil
     cursorX, cursorY = 0.5, 0.5
-    setFocus(true)
-    sendNui({ action = 'openSelector' })
+
+    -- Inchide complet panoul ca selectarea sa se faca natural, fara UI/crosshair.
+    panelOpen = false
+    stopTablet()
+    setFocus(false)
+    sendNui({ action = 'close' })
+    TriggerServerEvent('driftzone_gangpanel:server:closed')
+
+    notify('info', 'Uita-te spre persoana si apasa E sau click stanga pentru a oferi taxa.')
     cb({ ok = true })
 end)
 
@@ -266,6 +273,50 @@ RegisterNUICallback('getCoords', function(_, cb)
     local coords = GetEntityCoords(PlayerPedId())
     cb({ ok = true, x = tonumber(string.format('%.6f', coords.x)), y = tonumber(string.format('%.6f', coords.y)), z = tonumber(string.format('%.6f', coords.z)) })
 end)
+
+local findPlayerFromCursor
+
+local function rotationToDirection(rotation)
+    local z = math.rad(rotation.z)
+    local x = math.rad(rotation.x)
+    local num = math.abs(math.cos(x))
+    return vector3(-math.sin(z) * num, math.cos(z) * num, math.sin(x))
+end
+
+local function raycastFromCamera(distance)
+    local camCoord = GetGameplayCamCoord()
+    local camRot = GetGameplayCamRot(2)
+    local direction = rotationToDirection(camRot)
+    local destination = camCoord + direction * (distance or 18.0)
+    local rayHandle = StartShapeTestRay(camCoord.x, camCoord.y, camCoord.z, destination.x, destination.y, destination.z, 12, PlayerPedId(), 0)
+    local _, hit, endCoords, _, entityHit = GetShapeTestResult(rayHandle)
+    return hit == 1, endCoords, entityHit
+end
+
+local function getPlayerFromEntity(entity)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return nil, nil end
+    if not IsEntityAPed(entity) or not IsPedAPlayer(entity) then return nil, nil end
+    local playerIndex = NetworkGetPlayerIndexFromPed(entity)
+    if playerIndex == -1 or playerIndex == PlayerId() then return nil, nil end
+    local ped = GetPlayerPed(playerIndex)
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return nil, nil end
+    local myPed = PlayerPedId()
+    local maxDist = tonumber((Config.PlayerSelector or {}).MaxDistance or 6.0) or 6.0
+    if #(GetEntityCoords(myPed) - GetEntityCoords(ped)) > maxDist then return nil, nil end
+    return GetPlayerServerId(playerIndex), ped
+end
+
+local function findPlayerFromAim()
+    local hit, _, entityHit = raycastFromCamera(tonumber((Config.PlayerSelector or {}).RayDistance or 18.0) or 18.0)
+    if hit then
+        local sid, ped = getPlayerFromEntity(entityHit)
+        if sid then return sid, ped end
+    end
+
+    -- Fallback: alege cel mai apropiat de centrul ecranului, fara UI/crosshair.
+    cursorX, cursorY = 0.5, 0.5
+    return findPlayerFromCursor()
+end
 
 local function projectWorldPoint(coords)
     local onScreen, sx, sy = World3dToScreen2d(coords.x, coords.y, coords.z)
@@ -315,7 +366,7 @@ local function getPedScreenBox(ped)
     }
 end
 
-local function findPlayerFromCursor()
+findPlayerFromCursor = function()
     local myPed = PlayerPedId()
     local myCoords = GetEntityCoords(myPed)
     local bestTarget, bestPed, bestScore = nil, nil, 999999.0
@@ -366,7 +417,8 @@ RegisterNUICallback('selectorClick', function(_, cb)
         selectorTarget = nil
         selectorTargetPed = nil
         sendNui({ action = 'closeSelector' })
-        if panelOpen then setFocus(true) else setFocus(false) end
+        setFocus(false)
+        TriggerServerEvent('driftzone_gangpanel:server:requestOpen')
     else
         notify('warning', 'Selecteaza o persoana apropiata.')
     end
@@ -375,26 +427,50 @@ end)
 
 CreateThread(function()
     while true do
-        if selectorOpen and selectorTargetPed and DoesEntityExist(selectorTargetPed) then
-            local coords = GetEntityCoords(selectorTargetPed)
-            local cfg = Config.PlayerSelector and Config.PlayerSelector.Marker or {}
-            DrawMarker(cfg.type or 25, coords.x, coords.y, coords.z - 0.95 + (cfg.zOffset or 0.035), 0.0, 0.0, 0.0, 0.0, 0.0, markerRotation, cfg.radius or 1.05, cfg.radius or 1.05, 0.035, cfg.r or 4, cfg.g or 199, cfg.b or 247, cfg.a or 190, false, true, 2, false, nil, nil, false)
-            markerRotation = markerRotation + 3.2
-            if markerRotation >= 360.0 then markerRotation = 0.0 end
+        if selectorOpen then
+            selectorTarget, selectorTargetPed = findPlayerFromAim()
+
+            DisableControlAction(0, 24, true)
+            DisableControlAction(0, 25, true)
+            DisableControlAction(0, 200, true)
+            DisableControlAction(0, 202, true)
+
+            if IsDisabledControlJustPressed(0, 200) or IsDisabledControlJustPressed(0, 202) then
+                selectorOpen = false
+                selectorPayload = nil
+                selectorTarget = nil
+                selectorTargetPed = nil
+                setFocus(false)
+                notify('info', 'Selectarea a fost anulata.')
+            elseif IsControlJustPressed(0, 38) or IsDisabledControlJustPressed(0, 24) then
+                if selectorPayload and selectorTarget then
+                    selectorPayload.target = selectorTarget
+                    TriggerServerEvent('driftzone_gangpanel:server:offerTaxToPlayer', selectorPayload)
+                    selectorOpen = false
+                    selectorPayload = nil
+                    selectorTarget = nil
+                    selectorTargetPed = nil
+                    setFocus(false)
+                    TriggerServerEvent('driftzone_gangpanel:server:requestOpen')
+                else
+                    notify('warning', 'Nu ai selectat nicio persoana apropiata.')
+                end
+            end
+
             Wait(0)
         else
-            Wait(180)
+            Wait(220)
         end
     end
 end)
 
 CreateThread(function()
     while true do
-        if panelOpen or selectorOpen then
+        if panelOpen then
             DisableControlAction(0, 200, true)
             if IsDisabledControlJustPressed(0, 200) then closePanel() end
             if IsControlJustPressed(0, 243) or IsDisabledControlJustPressed(0, 243) then setFocus(not cursorVisible) end
-            if panelOpen then playTablet() end
+            playTablet()
             Wait(0)
         else
             Wait(350)

@@ -9,6 +9,7 @@ Config.UsersTable = 'users'
 Config.UsersIdColumn = 'uid'
 Config.UsernameColumn = 'username'
 Config.SyndicateColumn = 'sindicate'
+Config.SyndicateColumnFallback = 'syndicate'
 Config.CashColumn = 'cash'
 Config.BankColumn = 'bank'
 Config.RankColumn = 'rank'
@@ -47,7 +48,9 @@ Config.UpdateLastSeenEveryMs = 60000
 Config.MaxMembersPerGang = 120
 
 Config.PlayerSelector = {
+    -- Selectare fara NUI/crosshair. Te uiti la jucator si apesi E sau click stanga.
     MaxDistance = 6.0,
+    RayDistance = 18.0,
     ScreenRadius = 0.075,
     PaddingX = 0.035,
     PaddingY = 0.050,

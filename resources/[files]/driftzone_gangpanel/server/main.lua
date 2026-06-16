@@ -133,9 +133,31 @@ local function isOnlineUid(uid)
     return getPlayerByUid(uid) ~= nil
 end
 
+local function truthy(value)
+    local text = tostring(value or ''):lower()
+    return value == true or tonumber(value) == 1 or text == 'yes' or text == 'true' or text == 'on'
+end
+
 local function isSyndicateUid(uid)
     local row = getUserByUid(uid)
-    return row and tonumber(row[Config.SyndicateColumn or 'sindicate'] or 0) == 1
+    if not row then return false end
+
+    local keys = {
+        Config.SyndicateColumn or 'sindicate',
+        Config.SyndicateColumnFallback or 'syndicate',
+        'sindicate',
+        'syndicate',
+        'sindicat'
+    }
+
+    for i = 1, #keys do
+        local key = keys[i]
+        if key and row[key] ~= nil and truthy(row[key]) then
+            return true
+        end
+    end
+
+    return false
 end
 
 local function getGang(gangId)
@@ -934,12 +956,31 @@ CreateThread(function()
     end
 end)
 
+local function tryQuery(query)
+    pcall(function() MySQL.query.await(query, {}) end)
+end
+
+local function ensureRuntimeSchema()
+    -- Safe runtime guard: daca DB-ul e vechi, adauga coloanele critice fara sa opreasca resource-ul.
+    tryQuery([[ALTER TABLE `users` ADD COLUMN `sindicate` TINYINT(1) NOT NULL DEFAULT 0]])
+    tryQuery([[ALTER TABLE `users` ADD COLUMN `syndicate` TINYINT(1) NOT NULL DEFAULT 0]])
+    tryQuery([[ALTER TABLE `users` ADD COLUMN `rank` VARCHAR(64) NOT NULL DEFAULT '']])
+    tryQuery([[ALTER TABLE `users` ADD COLUMN `rankcolor` VARCHAR(16) NOT NULL DEFAULT '']])
+    tryQuery([[ALTER TABLE `users` ADD COLUMN `bank` BIGINT NOT NULL DEFAULT 0]])
+    tryQuery([[ALTER TABLE `gangs` ADD COLUMN `type` VARCHAR(64) NOT NULL DEFAULT 'Mafie Neoficiala']])
+    tryQuery([[ALTER TABLE `gangs` ADD COLUMN `revenue` BIGINT NOT NULL DEFAULT 0]])
+    tryQuery([[ALTER TABLE `gangs` ADD COLUMN `active` TINYINT(1) NOT NULL DEFAULT 1]])
+    tryQuery([[UPDATE `gangs` SET `type` = 'Mafie Neoficiala' WHERE `type` = 'Neo' OR `type` = '' OR `type` IS NULL]])
+    tryQuery([[UPDATE `gangs` SET `type` = 'Mafie Oficiala' WHERE `type` = 'Oficiala']])
+end
+
 CreateThread(function()
     Wait(1200)
+    ensureRuntimeSchema()
     pcall(function()
-        MySQL.update.await(('INSERT INTO %s (`item_id`, `item_name`, `image`, `tradable`, `stackable`, `usable`, `giveable`, `max_stack`, `created_at`, `updated_at`) VALUES (?, ?, \'\', 1, 1, 0, 1, 100000000, NOW(), NOW()) ON DUPLICATE KEY UPDATE item_name=VALUES(item_name), stackable=1, giveable=1, max_stack=VALUES(max_stack), updated_at=NOW()'):format(sqlName('inventory_items')), {
+        MySQL.update.await(([[INSERT INTO %s (`item_id`, `item_name`, `image`, `tradable`, `stackable`, `usable`, `giveable`, `max_stack`, `created_at`, `updated_at`) VALUES (?, ?, '', 1, 1, 0, 1, 100000000, NOW(), NOW()) ON DUPLICATE KEY UPDATE item_name=VALUES(item_name), stackable=1, giveable=1, max_stack=VALUES(max_stack), updated_at=NOW()]]):format(sqlName('inventory_items')), {
             Config.Withdrawal.DirtyMoneyItem or 'dirtymoney', 'Dirty Money'
         })
     end)
-    print('[DRIFTZONE_GANGPANEL] V3 loaded.')
+    print('[DRIFTZONE_GANGPANEL] V4 premium loaded.')
 end)
