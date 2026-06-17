@@ -1,35 +1,47 @@
 local model = `dz_logo`
+local spawnedLogo = nil
 
-local coords = vector3(-1336.180176, -3044.254882, 15.600000)
-local heading = 90.0
+RegisterCommand('testlogo', function()
+    local ped = PlayerPedId()
+    local coords = GetEntityCoords(ped)
+    local forward = GetEntityForwardVector(ped)
 
-CreateThread(function()
+    local spawnCoords = vector3(
+        coords.x + forward.x * 3.0,
+        coords.y + forward.y * 3.0,
+        coords.z + 1.0
+    )
+
     RequestModel(model)
 
-    local timeout = GetGameTimer() + 8000
+    local timeout = GetGameTimer() + 10000
     while not HasModelLoaded(model) and GetGameTimer() < timeout do
         Wait(50)
     end
 
     if not HasModelLoaded(model) then
-        print('[driftzone_logo_prop] Nu s-a incarcat modelul dz_logo.')
+        print('[driftzone_logo_prop] Modelul dz_logo NU s-a incarcat.')
         return
     end
 
-    local obj = CreateObject(
+    if spawnedLogo and DoesEntityExist(spawnedLogo) then
+        DeleteEntity(spawnedLogo)
+    end
+
+    spawnedLogo = CreateObject(
         model,
-        coords.x,
-        coords.y,
-        coords.z,
+        spawnCoords.x,
+        spawnCoords.y,
+        spawnCoords.z,
         false,
         false,
         false
     )
 
-    SetEntityHeading(obj, heading)
-    FreezeEntityPosition(obj, true)
-    SetEntityInvincible(obj, true)
-    SetEntityAsMissionEntity(obj, true, true)
+    SetEntityHeading(spawnedLogo, GetEntityHeading(ped))
+    FreezeEntityPosition(spawnedLogo, true)
+    SetEntityInvincible(spawnedLogo, true)
+    SetEntityAsMissionEntity(spawnedLogo, true, true)
 
     print('[driftzone_logo_prop] Logo spawnat.')
-end)
+end, false)
