@@ -624,6 +624,7 @@ Commands.mute = function(src, args)
         notify(src, 'info', tostring(message or ('UID ' .. uid .. ' a primit mute.')))
         logAdminCommand(src, 'mute', args or {}, 'success', tostring(message or 'ok'))
     else
+        notify(src, 'warning', tostring(message or 'Nu am putut da mute. Verifica driftzone_chat si SQL-ul.'))
         logAdminCommand(src, 'mute', args or {}, 'failed', tostring(message or 'chat export failed'))
     end
 end
@@ -638,6 +639,7 @@ Commands.unmute = function(src, args)
         notify(src, 'info', tostring(message or ('UID ' .. uid .. ' a primit unmute.')))
         logAdminCommand(src, 'unmute', args or {}, 'success', tostring(message or 'ok'))
     else
+        notify(src, 'warning', tostring(message or 'Nu am putut da unmute. Verifica driftzone_chat.'))
         logAdminCommand(src, 'unmute', args or {}, 'failed', tostring(message or 'chat export failed'))
     end
 end
@@ -645,13 +647,25 @@ end
 Commands.lockchat = function(src)
     local admin = requireAdmin(src, 'lockchat') if not admin then return end
     local ok, message = callChatExport(src, 'SetChatLocked', true, admin.uid, admin.username)
-    if ok then notify(src, 'info', tostring(message or 'Chat blocat.')) end
+    if ok then
+        notify(src, 'info', tostring(message or 'Chat blocat.'))
+        logAdminCommand(src, 'lockchat', {}, 'success', tostring(message or 'ok'))
+    else
+        notify(src, 'warning', tostring(message or 'Nu am putut bloca chat-ul.'))
+        logAdminCommand(src, 'lockchat', {}, 'failed', tostring(message or 'chat export failed'))
+    end
 end
 
 Commands.unlockchat = function(src)
     local admin = requireAdmin(src, 'unlockchat') if not admin then return end
     local ok, message = callChatExport(src, 'SetChatLocked', false, admin.uid, admin.username)
-    if ok then notify(src, 'info', tostring(message or 'Chat deblocat.')) end
+    if ok then
+        notify(src, 'info', tostring(message or 'Chat deblocat.'))
+        logAdminCommand(src, 'unlockchat', {}, 'success', tostring(message or 'ok'))
+    else
+        notify(src, 'warning', tostring(message or 'Nu am putut debloca chat-ul.'))
+        logAdminCommand(src, 'unlockchat', {}, 'failed', tostring(message or 'chat export failed'))
+    end
 end
 
 Commands.warn = function(src, args)
@@ -1020,12 +1034,18 @@ AddEventHandler('driftzone_admin:server:runFromChat', function(src, command, arg
     runAdminCommand(src, command, args or {})
 end)
 
-for commandName, _ in pairs(AdminCommands) do
-    local cmd = tostring(commandName)
-    RegisterCommand(cmd, function(src, args)
+local function registerServerAdminCommand(commandName)
+    commandName = tostring(commandName or ''):lower()
+    if commandName == '' then return end
+
+    RegisterCommand(commandName, function(src, args)
         if src == 0 then return end
-        runAdminCommand(src, cmd, args or {})
+        runAdminCommand(src, commandName, args or {})
     end, false)
+end
+
+for commandName, _ in pairs(AdminCommands) do
+    registerServerAdminCommand(commandName)
 end
 
 RegisterNetEvent('driftzone_admin:server:tptowResult', function(success, coords)

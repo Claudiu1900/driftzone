@@ -22,10 +22,17 @@ local function setPanel(state)
     SetNuiFocusKeepInput(false)
 end
 
-for _, command in ipairs(AdminCommands) do
-    RegisterCommand(command, function(_, args)
-        TriggerServerEvent('driftzone_admin:server:run', command, args or {})
+local function registerAdminCommand(commandName)
+    commandName = tostring(commandName or ''):lower()
+    if commandName == '' then return end
+
+    RegisterCommand(commandName, function(_, args)
+        TriggerServerEvent('driftzone_admin:server:run', commandName, args or {})
     end, false)
+end
+
+for _, command in ipairs(AdminCommands) do
+    registerAdminCommand(command)
 end
 
 RegisterNetEvent('driftzone_admin:client:coordsPanel', function(data)

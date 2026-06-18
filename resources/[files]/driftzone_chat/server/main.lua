@@ -401,9 +401,13 @@ local function muteUid(uid, minutes, reason, adminUid, adminName)
 
     ensureMuteColumns()
 
+    -- MariaDB/oxmysql poate refuza uneori INTERVAL ? MINUTE.
+    -- Folosim minutele deja validate si puse direct numeric in SQL.
+    local expireSql = ('DATE_ADD(NOW(), INTERVAL %d MINUTE)'):format(minutes)
+
     local ok, result = dbExec(([[
         UPDATE %s
-        SET %s = DATE_ADD(NOW(), INTERVAL ? MINUTE),
+        SET %s = %s,
             %s = ?,
             %s = ?,
             %s = ?,
@@ -413,15 +417,20 @@ local function muteUid(uid, minutes, reason, adminUid, adminName)
     ]]):format(
         sqlName(getUsersTable()),
         sqlName(getMuteColumn()),
+        expireSql,
         sqlName(getMuteReasonColumn()),
         sqlName(getMuteByColumn()),
         sqlName(getMuteByNameColumn()),
         sqlName(getMuteAtColumn()),
         sqlName(getUidColumn())
-    ), { minutes, reason, adminUid > 0 and adminUid or nil, adminName, uid })
+    ), { reason, adminUid > 0 and adminUid or nil, adminName, uid })
 
     if not ok then
         return false, tostring(result or 'Eroare DB.')
+    end
+
+    if tonumber(result or 0) == 0 then
+        return false, ('UID %s nu exista in users.'):format(uid)
     end
 
     local target = getPlayerByUid(uid)
@@ -804,6 +813,7 @@ RegisterNetEvent('driftzone_chat:server:requestStart', function()
     local src = source
 
     TriggerClientEvent('driftzone_chat:client:setEnabled', src, GlobalChatEnabled and not DisabledPlayers[src])
+    TriggerClientEvent('driftzone_chat:client:setLocked', src, GlobalChatLocked == true)
     refreshMuteForSource(src)
 end)
 

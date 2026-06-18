@@ -74,3 +74,8 @@ ensure driftzone_admin
 ## Chat mute
 
 `/mute` si `/unmute` folosesc exporturile din `driftzone_chat`; mute-ul este salvat in `users.mute`.
+
+
+## Fix chat commands
+
+`/mute`, `/unmute`, `/lockchat`, `/unlockchat` folosesc exporturile din `driftzone_chat`. Pune `ensure driftzone_chat` inainte de `ensure driftzone_admin`.

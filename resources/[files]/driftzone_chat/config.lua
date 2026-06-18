@@ -35,8 +35,26 @@ Config.AdminRanks = {
 -- Pentru scripturi care au RegisterCommand pe client: merge automat prin ExecuteCommand pe client.
 -- Pentru scripturi care au export RunCommand server-side: le pui aici, in config.
 Config.CommandRoutes = {
-    -- Comenzile se executa universal prin ExecuteCommand pe client,
-    -- exact ca in F8/default chat. Nu mai trebuie listate aici.
+    -- Admin commands sunt rulate server-side prin exportul RunCommand din driftzone_admin.
+    -- Pentru restul comenzilor nelistate, chat-ul face fallback automat pe client ExecuteCommand.
+    driftzone_admin = {
+        'ah','ap','aduty','staff','goto','bring','mark','gotomark',
+        'kick','slap','freeze','unfreeze','mute','unmute','lockchat','unlockchat',
+        'warn','rwarn','warns','resetwarns','coords','gotocoords','tptow','nc','spectate',
+        'veh','fix','ban','tempban','unban','giveveh','takeveh','transferveh','changeplate',
+        'lockveh','unlockveh','giveadm','wipe','givecash','givedzcoins','givevip','removevip',
+        'resettickets','addoutfit','cleanup','cancelcleanup','addveh','removeveh','configveh','vehs'
+    },
+
+    driftzone_garage = { 'garage', 'garaj', 'park' },
+    driftzone_stats = { 'stats', 'statistici' },
+    driftzone_outfits = { 'outfit', 'outfits', 'addoutfit' },
+    driftzone_keybinds = { 'keybind', 'keybinds' },
+    driftzone_tickets = { 'ticket', 'tickets', 'cancelticket' },
+    driftzone_codes = { 'code', 'codes', 'createcode', 'creatercode', 'delcode', 'codeslist' },
+    driftzone_clothes = { 'haine', 'clothes', 'fixskin', 'setcl', 'bancl' },
+    driftzone_vs = { 'vs', 'dv', 'gotoveh', 'bringveh', 'fixveh' },
+    driftzone_character = { 'character', 'fixcharacter' }
 }
 
 -- Comenzi speciale care nu au RunCommand export.

@@ -2,6 +2,7 @@ local chatOpened = false
 local chatReady = false
 local chatEnabled = true
 local chatMuted = false
+local chatLocked = false
 local chatStarted = false
 local pendingMessages = {}
 local escBlock = false
@@ -199,6 +200,11 @@ RegisterNetEvent('driftzone_chat:client:setEnabled', function(enabled)
     })
 end)
 
+
+RegisterNetEvent('driftzone_chat:client:setLocked', function(locked)
+    chatLocked = locked == true
+end)
+
 RegisterNetEvent('driftzone_chat:client:setMuted', function(muted)
     chatMuted = muted == true
 
@@ -235,9 +241,11 @@ RegisterNUICallback('submit', function(data, cb)
         if text:sub(1, 1) == '/' then
             local commandLine = text:sub(2):gsub('^%s+', ''):gsub('%s+$', '')
             if commandLine ~= '' then
-                -- Comenzile trebuie rulate local, exact ca in F8/default chat.
-                -- Asa merg automat toate RegisterCommand-urile din orice resource.
-                ExecuteCommand(commandLine)
+                -- Trimitem comanda la server. Serverul ruleaza direct comenzile routate
+                -- (ex: driftzone_admin prin export RunCommand), iar pentru comenzile
+                -- client-side trimite inapoi driftzone_chat:client:executeCommand.
+                -- Asa nu se mai pierd comenzile din chat si nu se dubleaza executia.
+                TriggerServerEvent('driftzone_chat:server:submit', '/' .. commandLine)
             end
         else
             TriggerServerEvent('driftzone_chat:server:submit', text)
