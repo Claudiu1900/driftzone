@@ -5,7 +5,7 @@ local teleporting = false
 
 local AdminCommands = {
     'aduty','staff','goto','bring','kick','slap','warn','rwarn','warns','resetwarns','coords','gotocoords','tptow','nc','veh','fix','ban','tempban','unban',
-    'ah','ap','lockchat','unlockchat','freeze','unfreeze','mute','unmute','spectate','mark','gotomark','giveveh','takeveh','transferveh','changeplate','addoutfit','cleanup','cancelcleanup','addveh','removeveh','lockveh','unlockveh','giveadm','wipe','givecash','givedzcoins','givevip','removevip','resettickets','configveh','vehs'
+    'ah','ap','cc','lockchat','unlockchat','freeze','unfreeze','mute','unmute','spectate','mark','gotomark','giveveh','takeveh','transferveh','changeplate','addoutfit','cleanup','cancelcleanup','addveh','removeveh','lockveh','unlockveh','giveadm','wipe','givecash','givedzcoins','givevip','removevip','resettickets','configveh','vehs'
 }
 
 local function notify(type, message, duration)

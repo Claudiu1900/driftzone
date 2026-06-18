@@ -1,75 +1,89 @@
 # driftzone_vehicleconfig
 
-Sistem optimizat pentru lock/unlock masini si engine toggle.
+Sistem lock/unlock + engine pentru masini personale.
+
+## Fix important
+
+Lock/unlock NU mai merge pe orice masina.
+
+Acum verifica:
+- SQL ID masina = `ownedvehicles.id`;
+- owner masina = `ownedvehicles.owner_id`;
+- doar owner-ul sau un UID care are cheie temporara poate incuia/descuia.
+
+## Taste
+
+```txt
+TAB = porneste/opreste motorul
+F3 = incuie/descuie masina personala
+```
 
 ## Comenzi
 
 ```txt
-/vehiclelock
 /engine
+/vehiclelock
 ```
 
-## Ce face
+## Pentru garaj / spawn masina
 
-- `/vehiclelock` blocheaza/deblocheaza masina de langa tine.
-- Cand masina este blocata, alti jucatori nu se pot urca in ea.
-- `/engine` porneste/opreste motorul. Merge doar daca esti sofer intr-o masina.
-- `/engine` nu trimite notificari.
-- Sistemul tine lock state dupa netId, SQL ID si plate.
-
-## Server.cfg
-
-```cfg
-ensure driftzone_vehicleconfig
-```
-
-## Trigger lock/unlock dupa SQL ID masina
+Dupa ce spawnezi masina owned, cheama:
 
 ```lua
-TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', sqlId, true)  -- lock
-TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', sqlId, false) -- unlock
+TriggerEvent('driftzone_vehicleconfig:client:registerSpawnedVehicle', vehicle, ownedVehicleSqlId)
 ```
 
-Sau:
+sau cu Net ID:
+
+```lua
+TriggerEvent('driftzone_vehicleconfig:client:registerSpawnedVehicle', VehToNet(vehicle), ownedVehicleSqlId)
+```
+
+Asta face automat:
+- seteaza SQL ID-ul pe entity state;
+- incuie masina default;
+- opreste motorul default;
+- sterge cheile temporare vechi pentru masina aia.
+
+## Cheie temporara pentru alt UID
+
+Server-side:
+
+```lua
+exports.driftzone_vehicleconfig:GiveTemporaryKey(sqlId, uid, netId_optional)
+```
+
+sau:
+
+```lua
+TriggerEvent('driftzone_vehicleconfig:server:giveTemporaryKey', sqlId, uid, netId_optional)
+```
+
+Cheia temporara:
+- nu se salveaza in DB;
+- dispare cand playerul iese;
+- dispare cand masina se respawneaza cu `registerSpawnedVehicle`.
+
+## Lock/unlock dupa SQL ID
 
 ```lua
 exports.driftzone_vehicleconfig:SetVehicleLockBySqlId(sqlId, true)
 exports.driftzone_vehicleconfig:SetVehicleLockBySqlId(sqlId, false)
 ```
 
-## Trigger motor oprit cand scoti masina din garaj
-
-Dupa ce creezi masina in garaj, pune unul dintre astea:
-
-Client-side:
+sau:
 
 ```lua
-TriggerEvent('driftzone_vehicleconfig:client:setEngineOff', vehicle)
+TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', sqlId, true)
+TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', sqlId, false)
 ```
 
-sau cu netId:
+## Structura DB folosita
 
-```lua
-TriggerEvent('driftzone_vehicleconfig:client:setEngineOff', VehToNet(vehicle))
+```sql
+ownedvehicles.id
+ownedvehicles.owner_id
+ownedvehicles.vehicle_plate
 ```
 
-Server-side:
-
-```lua
-TriggerEvent('driftzone_vehicleconfig:server:setEngineOff', netId)
-```
-
-## Important pentru SQL ID
-
-Resource-ul cauta SQL ID-ul in Entity(vehicle).state pe cheile:
-
-```lua
-dz_garage_db_id
-vehicleDbId
-ownedVehicleId
-dz_vs_sql_id
-sqlId
-vehicle_id
-```
-
-Daca garajul tau foloseste alta cheie, adauga cheia in `Config.SqlIdStateKeys`.
+Nu necesita SQL nou.

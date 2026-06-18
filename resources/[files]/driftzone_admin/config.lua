@@ -19,6 +19,7 @@ Config.Commands = {
     ap = 6,
     lockchat = 5,
     unlockchat = 6,
+    cc = 3,
 
     aduty = 1,
     staff = 0,
@@ -110,6 +111,7 @@ Config.Cooldowns = {
     unmute = 1500,
     lockchat = 1500,
     unlockchat = 1500,
+    cc = 1000,
     spectate = 1500,
     mark = 700,
     gotomark = 700,
@@ -167,6 +169,7 @@ Config.CommandMeta = {
     ap = { label = 'Admin Panel', category = 'system', syntax = '/ap', description = 'Deschide panoul admin cu comenzi directe.' },
     lockchat = { label = 'Lock Chat', category = 'system', syntax = '/lockchat', description = 'Blocheaza chat-ul pentru playeri.' },
     unlockchat = { label = 'Unlock Chat', category = 'system', syntax = '/unlockchat', description = 'Deblocheaza chat-ul.' },
+    cc = { label = 'Clear Chat', category = 'system', syntax = '/cc', description = 'Sterge toate mesajele din chat pentru toata lumea.' },
 
     aduty = { label = 'Admin Duty', category = 'system', syntax = '/aduty', description = 'Porneste/opreste aduty.' },
     staff = { label = 'Staff Online', category = 'system', syntax = '/staff', description = 'Arata staff-ul online.' },

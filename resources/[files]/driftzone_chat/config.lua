@@ -39,7 +39,7 @@ Config.CommandRoutes = {
     -- Pentru restul comenzilor nelistate, chat-ul face fallback automat pe client ExecuteCommand.
     driftzone_admin = {
         'ah','ap','aduty','staff','goto','bring','mark','gotomark',
-        'kick','slap','freeze','unfreeze','mute','unmute','lockchat','unlockchat',
+        'kick','slap','freeze','unfreeze','mute','unmute','cc','lockchat','unlockchat',
         'warn','rwarn','warns','resetwarns','coords','gotocoords','tptow','nc','spectate',
         'veh','fix','ban','tempban','unban','giveveh','takeveh','transferveh','changeplate',
         'lockveh','unlockveh','giveadm','wipe','givecash','givedzcoins','givevip','removevip',

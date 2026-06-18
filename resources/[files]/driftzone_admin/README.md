@@ -6,6 +6,7 @@ Include comenzile:
 - `/unmute uid` - admin_level 3 + aduty
 - `/lockchat` - admin_level 5 + aduty
 - `/unlockchat` - admin_level 6 + aduty
+- `/cc` - sterge chat-ul, admin_level 3 + aduty
 - `/ah`, `/ap`, `/freeze`, `/unfreeze`, `/spectate`, `/mark`, `/gotomark`
 - `/lockveh`, `/unlockveh` integrate cu driftzone_vehicleconfig
 

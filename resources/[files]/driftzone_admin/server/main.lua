@@ -668,6 +668,19 @@ Commands.unlockchat = function(src)
     end
 end
 
+
+Commands.cc = function(src)
+    local admin = requireAdmin(src, 'cc') if not admin then return end
+
+    -- Curata mesajele NUI pentru toti jucatorii. Nu trimitem mesaj nou in chat dupa clear,
+    -- ca sa ramana chat-ul gol.
+    TriggerClientEvent('driftzone_chat:client:clear', -1)
+
+    -- Doar notificare vizuala pentru admin, fara mesaj in chat.
+    TriggerClientEvent(Config.NotifyEvent or 'client:notify', src, 'info', 3500, 'Chat-ul a fost sters.')
+    logAdminCommand(src, 'cc', {}, 'success', 'chat cleared')
+end
+
 Commands.warn = function(src, args)
     local admin = requireAdmin(src, 'warn') if not admin then return end
     local uid = tonumber(args[1]); if not uid then return notify(src, 'warning', 'Folosire: /warn uid motiv') end

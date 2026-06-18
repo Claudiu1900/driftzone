@@ -4,6 +4,7 @@
 
 - `/lockchat` blocheaza chat-ul direct in driftzone_chat si nu mai trece prin toggle.
 - `/unlockchat` deblocheaza chat-ul direct.
+- `/cc` sterge toate mesajele din chat pentru toata lumea.
 - Chat-ul este default deblocat la pornirea resource-ului.
 - Cand chat-ul este blocat, pot scrie doar adminii care sunt ON DUTY.
 - `/mute uid minute motiv` foloseste `users.mute`, `users.mute_reason`, `users.mute_by`, `users.mute_by_name`, `users.mute_at`.
