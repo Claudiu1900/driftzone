@@ -134,11 +134,16 @@ Config.EmptyClothingDefaults = {
 -- dar reaplica hainele de mai multe ori ca sa nu ramana playerul cu default skin.
 Config.ClothesLoad = {
     Enabled = true,
-    RetryCount = 30,
-    RetryDelayMs = 700,
-    ApplyRepeatCount = 8,
-    ApplyRepeatDelayMs = 500,
-    ClientRetryDelays = { 250, 700, 1200, 2000, 3200, 5000, 7000, 9500, 12500, 16000, 20000 }
+    RetryCount = 12,
+    RetryDelayMs = 800,
+
+    -- 0 = nu reaplica aceeasi haina de mai multe ori.
+    -- Asa nu mai apare bugul in care un payload vechi pune haina inapoi dupa ce ai scos-o.
+    ApplyRepeatCount = 0,
+    ApplyRepeatDelayMs = 0,
+
+    -- Se cer cateva reload-uri doar pentru momentul de join/spawn, cand UID-ul poate veni cu delay.
+    ClientRetryDelays = { 500, 1500, 3000, 6000, 9500 }
 }
 
 

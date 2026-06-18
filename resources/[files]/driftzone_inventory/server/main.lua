@@ -7,6 +7,7 @@ local OpenPlayers = {}
 local GiveSessions = {}
 local Drops = {}
 local NextDropId = 0
+local ClothesApplyRevision = {}
 local ensureGradientItemColumns
 local jsonDecode
 local DIRTY_MONEY_STORAGE_KEY = '__dirtymoney'
@@ -1131,11 +1132,58 @@ local function buildUserClothesApplyPayload(uid)
     return out
 end
 
+local function sendClothesPayloadToClient(src, payload)
+    src = tonumber(src or 0) or 0
+    if src <= 0 or not GetPlayerName(src) then return end
+
+    ClothesApplyRevision[src] = (tonumber(ClothesApplyRevision[src] or 0) or 0) + 1
+
+    TriggerClientEvent(
+        'driftzone_inventory:client:applyClothes',
+        src,
+        payload or {},
+        buildClothingCategoriesPayload(),
+        ClothesApplyRevision[src]
+    )
+end
+
+local function buildSingleClothingApplyPayload(uid, category)
+    category = normalizeClothingCategory(category)
+    if not category then return {} end
+
+    local saved = getUserClothes(uid)
+    local item = saved[category]
+
+    if item and item.item_id then
+        return {
+            [category] = {
+                category = category,
+                item_id = item.item_id,
+                drawable = item.drawable,
+                texture = item.texture,
+                clothes_type = item.clothes_type,
+                component_id = item.component_id,
+                prop_id = item.prop_id,
+                empty = false
+            }
+        }
+    end
+
+    return { [category] = buildEmptyClothingApplyEntry(category) }
+end
+
 local function pushClothesToClient(src, uid)
     if not src or src <= 0 then return end
     uid = uid or getUid(src)
     if not uid then return end
-    TriggerClientEvent('driftzone_inventory:client:applyClothes', src, buildUserClothesApplyPayload(uid), buildClothingCategoriesPayload())
+    sendClothesPayloadToClient(src, buildUserClothesApplyPayload(uid))
+end
+
+local function pushSingleClothingToClient(src, uid, category)
+    if not src or src <= 0 then return end
+    uid = uid or getUid(src)
+    if not uid then return end
+    sendClothesPayloadToClient(src, buildSingleClothingApplyPayload(uid, category))
 end
 
 local function equipClothingFromSlot(src, uid, category, slotIndex)
@@ -1197,7 +1245,7 @@ local function equipClothingFromSlot(src, uid, category, slotIndex)
     })
 
     saveInventory(uid)
-    pushClothesToClient(src, uid)
+    pushSingleClothingToClient(src, uid, category)
     return true, ('Ai echipat %s.'):format(meta.item_name or meta.item_id)
 end
 
@@ -1216,8 +1264,7 @@ local function unequipClothingToSlot(src, uid, category, toSlot)
 
     saveUserClothing(uid, category, nil)
     saveInventory(uid)
-    -- Dupa ce slotul ramane gol, trimitem si default-ul din Config.EmptyClothingDefaults.
-    pushClothesToClient(src, uid)
+    pushSingleClothingToClient(src, uid, category)
     return true, 'Haina a fost scoasa si scoasa de pe caracter.'
 end
 
@@ -1265,7 +1312,10 @@ end
 local function pushInventory(src, mode, target, forceReload)
     local uid = getUid(src)
     if not uid then return end
-    if forceReload == true then ItemsCache = nil end
+    if forceReload == true then
+        ItemsCache = nil
+        ClothesItemsCache = nil
+    end
     local inv = forceReload == true and reloadInventory(uid) or ensureInventory(uid)
     TriggerClientEvent('driftzone_inventory:client:open', src, {
         slots = Config.Slots,
@@ -2083,6 +2133,7 @@ AddEventHandler('playerDropped', function()
     local uid = getUid(src)
     if uid and Inventories[uid] then saveInventory(uid) end
     OpenPlayers[src] = nil
+    ClothesApplyRevision[src] = nil
 end)
 
 exports('GiveItem', function(uid, itemId, amount)

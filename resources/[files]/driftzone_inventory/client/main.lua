@@ -11,6 +11,7 @@ local selectorTargetPed = nil
 local markerRotation = 0.0
 local nearbyDrops = {}
 local closeAll
+local clothesApplyRevision = 0
 
 local function notify(typ, msg, duration)
     TriggerEvent(Config.NotifyEvent or 'client:notify', typ or 'info', duration or 4500, tostring(msg or ''))
@@ -150,18 +151,18 @@ local function requestClothesLoadDelayed(ms)
     end)
 end
 
-RegisterNetEvent('driftzone_inventory:client:applyClothes', function(payload)
-    payload = payload or {}
-    applyClothesPayload(payload)
+RegisterNetEvent('driftzone_inventory:client:applyClothes', function(payload, _, revision)
+    revision = tonumber(revision or 0) or 0
 
-    -- Reaplica hainele/default-urile ca sa bata spawn/model-load intarziat.
-    local count = tonumber((Config.ClothesLoad or {}).ApplyRepeatCount or 8) or 8
-    local delay = tonumber((Config.ClothesLoad or {}).ApplyRepeatDelayMs or 500) or 500
-    for i = 1, count do
-        SetTimeout(delay * i, function()
-            applyClothesPayload(payload)
-        end)
+    -- Daca ajunge tarziu un payload vechi, il ignoram ca sa nu reaplice haina dupa ce a fost scoasa.
+    if revision > 0 then
+        if revision < clothesApplyRevision then return end
+        clothesApplyRevision = revision
+    else
+        clothesApplyRevision = clothesApplyRevision + 1
     end
+
+    applyClothesPayload(payload or {})
 end)
 
 RegisterNetEvent('driftzone_inventory:client:playActionAnimation', function(actionName)

@@ -1,29 +1,40 @@
-# driftzone_inventory - Clothes Equipment FINAL
+# driftzone_inventory - Clothes Equipment V2
 
-Resource complet cu inventar, money/dirtymoney, quick slots si sistem de haine echipabile.
+Resource complet cu inventory, money/dirtymoney, quick slots si sistem de haine pe sloturi.
 
-## Update in aceasta versiune
+## Fixuri incluse in versiunea asta
 
-- Manechinul din stanga este refacut dupa poza de referinta: fundal alb + outline negru curat.
-- Cardul de haine este mai mare si nu mai are textul `CLOTHES`.
-- Cand scoti o haina din slotul de echipare, haina este scoasa si de pe caracter.
-- Cand un slot de haine este gol, clientul aplica drawable/texture default din `shared/config.lua`.
-- Default-urile se modifica din `Config.EmptyClothingDefaults`. Pentru prop-uri, `drawable = -1` inseamna `ClearPedProp`.
-- La join/spawn se reaplica hainele si default-urile de mai multe ori, ca sa nu ramana playerul cu skin gresit dupa spawn.
+- Fix pentru bugul cand scoteai o haina din slot si ramanea pusa pe caracter.
+- Nu mai reaplica acelasi payload de haine de 8-10 ori. Aplicarea se face o singura data, iar payload-urile vechi sunt ignorate prin revision ID.
+- Cand slotul de haina ramane gol, se aplica default-ul din `shared/config.lua` -> `Config.EmptyClothingDefaults`.
+- `body.svg` are background transparent si foloseste manechinul din poza trimisa.
+- UI refacut vizual: glass panels, sloturi rotunjite, efecte mai curate si layout optimizat.
+- Cand deschizi inventarul, se face reload din DB pentru inventar + item metadata + clothes metadata.
 
 ## Config important
 
-In `shared/config.lua` ai:
+In `shared/config.lua` modifici ce se pune pe player cand scoti o haina:
 
 ```lua
 Config.EmptyClothingDefaults = {
     jacket = { drawable = 15, texture = 0 },
-    hat = { drawable = -1, texture = 0 }
+    top = { drawable = 15, texture = 0 },
+    torso = { drawable = 15, texture = 0 },
+    hat = { drawable = -1, texture = 0 },
+    glasses = { drawable = -1, texture = 0 }
 }
 ```
 
-Schimbi aici ID-ul de drawable/texture pentru fiecare categorie atunci cand slotul este gol.
+Pentru props, `drawable = -1` inseamna `ClearPedProp`.
 
 ## SQL
 
-Ruleaza `SQL.sql` doar daca nu ai rulat deja tabelele pentru haine. Nu recreeaza inventarul vechi.
+Ruleaza `SQL.sql` doar daca nu ai tabelele `clothes_items` si `users_clothes`.
+
+## Comenzi
+
+- `/inventory`
+- `/additem` admin 6+ aduty
+- `/items` admin 6+ aduty
+- `/addclothes` admin 6+ aduty
+- `/clothesitems` admin 6+ aduty

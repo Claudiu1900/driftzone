@@ -458,3 +458,242 @@ input[type=number] {
 @media (max-width: 1280px) {
     .inventory-root { gap: 12px; transform: scale(.92); transform-origin: center; }
 }
+
+/* ================================
+   DRIFTZONE INVENTORY UI V2
+   Cleaner glass UI + transparent body
+================================ */
+:root {
+    --main: #04c7f7;
+    --main2: #7df0ff;
+    --panel: rgba(2, 6, 13, .78);
+    --panel2: rgba(7, 17, 31, .72);
+    --line: rgba(125, 240, 255, .24);
+    --slot: rgba(255, 255, 255, .055);
+    --slot2: rgba(4, 199, 247, .095);
+    --text: rgba(255, 255, 255, .96);
+    --muted: rgba(255, 255, 255, .56);
+}
+
+.inventory-root {
+    gap: 24px;
+    padding: 28px;
+    background:
+        radial-gradient(circle at 50% 48%, rgba(4,199,247,.13), transparent 32%),
+        radial-gradient(circle at 18% 52%, rgba(125,240,255,.08), transparent 27%),
+        linear-gradient(115deg, rgba(0,0,0,.16), rgba(0,0,0,.30));
+}
+
+.inventory-shell,
+.currency-shell,
+.quick-shell,
+.clothing-shell,
+.dropped-panel,
+.add-shell,
+.items-shell {
+    border-radius: 24px;
+    border: 1px solid var(--line);
+    background:
+        linear-gradient(145deg, rgba(255,255,255,.115), rgba(255,255,255,.025)),
+        linear-gradient(180deg, var(--panel2), var(--panel));
+    box-shadow:
+        0 28px 90px rgba(0,0,0,.58),
+        0 0 42px rgba(4,199,247,.12),
+        inset 0 1px 0 rgba(255,255,255,.10);
+    backdrop-filter: blur(12px);
+}
+
+.inventory-stack {
+    gap: 14px;
+}
+
+.inventory-shell {
+    padding: 20px;
+}
+
+.currency-shell,
+.quick-shell {
+    padding: 14px 16px;
+}
+
+.inventory-grid {
+    grid-template-columns: repeat(7, 84px);
+    grid-template-rows: repeat(7, 84px);
+    gap: 9px;
+}
+
+.slot,
+.money-slot,
+.quick-slot,
+.drop-item,
+.clothing-slot {
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.105);
+    background:
+        radial-gradient(circle at 25% 10%, rgba(255,255,255,.105), transparent 30%),
+        linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.022));
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.08),
+        0 10px 24px rgba(0,0,0,.22);
+}
+
+.slot { width: 84px; height: 84px; }
+.money-slot { width: 84px; height: 84px; }
+.quick-slot { height: 98px; }
+.drop-item { width: 94px; height: 94px; }
+
+.slot:hover,
+.slot.selected,
+.slot.drag-over,
+.money-slot:hover,
+.money-slot.selected,
+.money-slot.drag-over,
+.quick-slot:hover,
+.quick-slot.selected,
+.quick-slot.drag-over,
+.clothing-slot:hover,
+.clothing-slot.drag-over,
+.clothing-slot.filled,
+.drop-item:hover {
+    border-color: rgba(4,199,247,.84);
+    background:
+        radial-gradient(circle at 30% 0%, rgba(125,240,255,.20), transparent 34%),
+        linear-gradient(145deg, rgba(4,199,247,.16), rgba(255,255,255,.035));
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.11),
+        0 0 22px rgba(4,199,247,.16),
+        0 14px 34px rgba(0,0,0,.34);
+}
+
+.item-img,
+.item-fallback,
+.item-box {
+    border-radius: 17px;
+}
+
+.item-img {
+    object-fit: cover;
+    transform: translateZ(0);
+}
+
+.item-fallback {
+    background:
+        radial-gradient(circle at 50% 20%, rgba(125,240,255,.22), transparent 34%),
+        linear-gradient(145deg, rgba(4,199,247,.22), rgba(255,255,255,.035));
+    color: white;
+    text-shadow: 0 0 18px rgba(4,199,247,.52);
+}
+
+.amount {
+    right: 7px;
+    bottom: 7px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.72);
+    border: 1px solid rgba(125,240,255,.25);
+    box-shadow: 0 0 14px rgba(4,199,247,.14);
+}
+
+.quick-empty svg {
+    filter: drop-shadow(0 0 12px rgba(4,199,247,.18));
+}
+
+.clothing-shell {
+    width: 382px;
+    height: 810px;
+    padding: 18px;
+}
+
+.body-equipment {
+    border-radius: 22px;
+    border: 1px solid rgba(125,240,255,.18);
+    background:
+        radial-gradient(circle at 50% 45%, rgba(4,199,247,.075), transparent 42%),
+        linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.06),
+        inset 0 0 42px rgba(4,199,247,.05);
+}
+
+.body-equipment::before {
+    inset: 18px;
+    border-radius: 18px;
+    border-color: rgba(255,255,255,.045);
+}
+
+.body-outline {
+    width: 305px;
+    height: 760px;
+    opacity: .82;
+    filter: invert(1) drop-shadow(0 0 14px rgba(4,199,247,.14));
+}
+
+.clothing-slot {
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at 50% 0%, rgba(4,199,247,.20), transparent 44%),
+        rgba(2,8,18,.74);
+}
+
+.clothing-empty {
+    border-radius: 20px;
+    background: linear-gradient(145deg, rgba(4,199,247,.12), rgba(255,255,255,.025));
+}
+
+.clothing-empty img {
+    width: 31px;
+    height: 31px;
+    opacity: .86;
+    filter: drop-shadow(0 0 10px rgba(4,199,247,.16));
+}
+
+.context-menu,
+.amount-modal {
+    border-radius: 18px;
+    border-color: rgba(125,240,255,.30);
+    background: rgba(2,8,17,.94);
+    backdrop-filter: blur(12px);
+}
+
+.context-menu button,
+.amount-row button,
+.amount-actions button,
+.save-btn,
+.ghost-btn,
+.items-close {
+    border-radius: 13px;
+}
+
+.save-btn {
+    background: linear-gradient(135deg, var(--main), var(--main2));
+    box-shadow: 0 0 24px rgba(4,199,247,.20);
+}
+
+.ghost-btn,
+.items-close {
+    background: rgba(255,255,255,.075);
+    border: 1px solid rgba(255,255,255,.08);
+}
+
+.items-row {
+    border-radius: 15px;
+}
+
+input,
+select {
+    border-radius: 12px;
+}
+
+.drag-ghost {
+    border-radius: 18px;
+}
+
+.dropped-list {
+    grid-template-columns: repeat(2, 94px);
+}
+
+@media (max-width: 1366px) {
+    .inventory-root { transform: scale(.88); transform-origin: center; }
+}
