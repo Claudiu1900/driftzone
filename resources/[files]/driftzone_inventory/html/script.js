@@ -3,8 +3,11 @@
 const inventoryRoot = document.getElementById('inventoryRoot');
 const selectorRoot = document.getElementById('selectorRoot');
 const addItemRoot = document.getElementById('addItemRoot');
+const itemsRoot = document.getElementById('itemsRoot');
 const grid = document.getElementById('grid');
+const moneyShell = document.getElementById('moneyShell');
 const moneyPanel = document.getElementById('moneyPanel');
+const quickShell = document.getElementById('quickShell');
 const quickBar = document.getElementById('quickBar');
 const droppedPanel = document.getElementById('droppedPanel');
 const droppedList = document.getElementById('droppedList');
@@ -33,11 +36,30 @@ const imagePreview = document.getElementById('imagePreview');
 const previewImg = document.getElementById('previewImg');
 const addStatus = document.getElementById('addStatus');
 
+const itemsSearch = document.getElementById('itemsSearch');
+const itemsList = document.getElementById('itemsList');
+const itemsStatus = document.getElementById('itemsStatus');
+const adminOriginalItemId = document.getElementById('adminOriginalItemId');
+const adminItemId = document.getElementById('adminItemId');
+const adminItemName = document.getElementById('adminItemName');
+const adminItemImage = document.getElementById('adminItemImage');
+const adminItemTradable = document.getElementById('adminItemTradable');
+const adminItemStackable = document.getElementById('adminItemStackable');
+const adminItemUsable = document.getElementById('adminItemUsable');
+const adminItemGiveable = document.getElementById('adminItemGiveable');
+const adminItemMaxStack = document.getElementById('adminItemMaxStack');
+const adminItemIsGradient = document.getElementById('adminItemIsGradient');
+const adminItemGradientId = document.getElementById('adminItemGradientId');
+const adminImagePreview = document.getElementById('adminImagePreview');
+const adminPreviewImg = document.getElementById('adminPreviewImg');
+
 let slots = 49;
 let inventory = {};
 let moneySlots = {};
 let quickSlots = {};
 let dropped = [];
+let adminItems = [];
+let selectedAdminItemId = null;
 let selectedSlot = null;
 let selectorActive = false;
 let pendingGive = null;
@@ -89,9 +111,10 @@ function closeLocal() {
     hide(inventoryRoot);
     hide(selectorRoot);
     hide(addItemRoot);
+    hide(itemsRoot);
     hide(contextMenu);
     hide(amountModal);
-    hide(moneyPanel);
+    hide(moneyShell);
     selectedSlot = null;
     selectorActive = false;
     pendingGive = null;
@@ -132,11 +155,11 @@ function renderMoneySlots() {
     }
     if (html.length <= 0) {
         moneyPanel.innerHTML = '';
-        hide(moneyPanel);
+        hide(moneyShell);
         return;
     }
     moneyPanel.innerHTML = html.join('');
-    show(moneyPanel);
+    show(moneyShell);
 }
 
 function quickEmptySvg(index) {
@@ -493,6 +516,7 @@ function openInventory(data = {}) {
     selectedSlot = null;
     hide(selectorRoot);
     hide(addItemRoot);
+    hide(itemsRoot);
     hide(contextMenu);
     hide(amountModal);
     show(inventoryRoot);
@@ -505,12 +529,14 @@ function updateDropped(data = {}) {
     if (!inventoryRoot.classList.contains('hidden')) renderDropped();
 }
 
-function openSelector() { hide(inventoryRoot); hide(addItemRoot); selectorActive = true; show(selectorRoot); }
+function openSelector() { hide(inventoryRoot); hide(addItemRoot); hide(itemsRoot); selectorActive = true; show(selectorRoot); }
 function closeSelector() { selectorActive = false; hide(selectorRoot); }
 
 function openAddItem() {
     hide(inventoryRoot);
     hide(selectorRoot);
+    hide(itemsRoot);
+    selectorActive = false;
     show(addItemRoot);
     itemId.value = '';
     itemName.value = '';
@@ -595,6 +621,178 @@ function submitAddItem() {
     });
 }
 
+
+function adminBoolValue(value, fallback = 0) {
+    if (value === true) return '1';
+    if (value === false) return '0';
+    const n = Number(value);
+    return Number.isFinite(n) ? (n === 1 ? '1' : '0') : String(fallback);
+}
+
+function openItemsPanel(data = {}) {
+    document.documentElement.style.setProperty('--main', data.mainColor || '#04c7f7');
+    adminItems = Array.isArray(data.items) ? data.items : [];
+    selectedAdminItemId = data.selected || (adminItems[0] ? String(adminItems[0].item_id || '') : null);
+    hide(inventoryRoot);
+    hide(selectorRoot);
+    hide(addItemRoot);
+    hide(contextMenu);
+    hide(amountModal);
+    selectorActive = false;
+    show(itemsRoot);
+    if (itemsSearch) itemsSearch.value = '';
+    renderAdminItemsList();
+    if (selectedAdminItemId) selectAdminItem(selectedAdminItemId);
+    else clearAdminEditor();
+}
+
+function renderAdminItemsList() {
+    if (!itemsList) return;
+    const q = String(itemsSearch?.value || '').trim().toLowerCase();
+    const filtered = adminItems.filter((item) => {
+        const hay = `${item.item_id || ''} ${item.item_name || ''}`.toLowerCase();
+        return !q || hay.includes(q);
+    });
+
+    if (filtered.length <= 0) {
+        itemsList.innerHTML = '<div class="items-empty">Nu exista iteme.</div>';
+        return;
+    }
+
+    itemsList.innerHTML = filtered.map((item) => {
+        const id = String(item.item_id || '');
+        const active = id === selectedAdminItemId ? ' active' : '';
+        const usable = bool(item.usable) ? 'USABLE' : 'NO USE';
+        return `<button class="items-row${active}" data-item-id="${esc(id)}"><span>${esc(item.item_name || id)}</span><small>${esc(id)} · ${usable}</small></button>`;
+    }).join('');
+}
+
+function clearAdminEditor() {
+    if (!adminItemId) return;
+    adminOriginalItemId.value = '';
+    adminItemId.value = '';
+    adminItemName.value = '';
+    adminItemImage.value = '';
+    adminItemTradable.value = '1';
+    adminItemStackable.value = '1';
+    adminItemUsable.value = '0';
+    adminItemGiveable.value = '1';
+    adminItemMaxStack.value = '100';
+    adminItemIsGradient.value = '0';
+    adminItemGradientId.value = '0';
+    hide(adminImagePreview);
+    if (itemsStatus) {
+        itemsStatus.textContent = 'Selecteaza un item din lista.';
+        itemsStatus.className = 'add-status';
+    }
+}
+
+function selectAdminItem(itemIdValue) {
+    const id = String(itemIdValue || '');
+    const item = adminItems.find((entry) => String(entry.item_id || '') === id);
+    if (!item) return clearAdminEditor();
+
+    selectedAdminItemId = id;
+    adminOriginalItemId.value = id;
+    adminItemId.value = id;
+    adminItemName.value = String(item.item_name || id);
+    adminItemImage.value = String(item.image || '');
+    adminItemTradable.value = adminBoolValue(item.tradable, 1);
+    adminItemStackable.value = adminBoolValue(item.stackable, 1);
+    adminItemUsable.value = adminBoolValue(item.usable, 0);
+    adminItemGiveable.value = adminBoolValue(item.giveable, 1);
+    adminItemMaxStack.value = String(Math.max(1, Math.floor(Number(item.max_stack || 100))));
+    adminItemIsGradient.value = adminBoolValue(item.is_gradient, 0);
+    adminItemGradientId.value = String(Math.max(0, Math.floor(Number(item.gradient_id || 0))));
+    previewAdminImage();
+    if (itemsStatus) {
+        itemsStatus.textContent = `Editezi: ${item.item_name || id}`;
+        itemsStatus.className = 'add-status';
+    }
+    renderAdminItemsList();
+}
+
+function previewAdminImage() {
+    const url = String(adminItemImage?.value || '').trim();
+    if (!url) { hide(adminImagePreview); if (adminPreviewImg) adminPreviewImg.src = ''; return; }
+    adminPreviewImg.src = url;
+    show(adminImagePreview);
+}
+
+function syncAdminGradientItemId() {
+    if (!adminItemIsGradient || !adminItemGradientId) return;
+    if (Number(adminItemIsGradient.value || 0) !== 1) return;
+    const gid = Math.max(0, Math.floor(Number(adminItemGradientId.value || 0)));
+    if (gid > 0 && !adminOriginalItemId.value) adminItemId.value = `${gid}_gradient`;
+}
+
+function toggleAdminGradientItem() {
+    if (!adminItemIsGradient) return;
+    const enabled = Number(adminItemIsGradient.value || 0) === 1;
+    if (enabled) {
+        adminItemUsable.value = '1';
+        adminItemGiveable.value = '1';
+        adminItemStackable.value = '1';
+        if (!adminItemGradientId.value || Number(adminItemGradientId.value) <= 0) adminItemGradientId.value = '1';
+        syncAdminGradientItemId();
+        if (!adminItemName.value.trim()) adminItemName.value = `Gradient ${adminItemGradientId.value}`;
+    }
+}
+
+function submitAdminItem() {
+    if (!adminOriginalItemId.value) {
+        if (itemsStatus) {
+            itemsStatus.textContent = 'Selecteaza un item inainte sa salvezi.';
+            itemsStatus.className = 'add-status error';
+        }
+        return;
+    }
+
+    const isGradient = Number(adminItemIsGradient ? adminItemIsGradient.value || 0 : 0);
+    const gradientId = Math.max(0, Math.floor(Number(adminItemGradientId ? adminItemGradientId.value || 0 : 0)));
+    if (isGradient === 1) {
+        if (gradientId <= 0) {
+            itemsStatus.textContent = 'Pune Gradient ID mai mare decat 0.';
+            itemsStatus.className = 'add-status error';
+            return;
+        }
+        adminItemUsable.value = '1';
+        adminItemGiveable.value = '1';
+        adminItemStackable.value = '1';
+        if (!adminItemName.value.trim()) adminItemName.value = `Gradient ${gradientId}`;
+    }
+
+    if (itemsStatus) {
+        itemsStatus.textContent = 'Se salveaza modificarile...';
+        itemsStatus.className = 'add-status';
+    }
+
+    nui('submitAdminItem', {
+        original_id: adminOriginalItemId.value.trim(),
+        item_id: adminItemId.value.trim(),
+        item_name: adminItemName.value.trim(),
+        image: adminItemImage.value.trim(),
+        tradable: Number(adminItemTradable.value || 1),
+        stackable: Number(adminItemStackable.value || 1),
+        usable: Number(adminItemUsable.value || 0),
+        giveable: Number(adminItemGiveable.value || 1),
+        max_stack: Number(adminItemMaxStack.value || 100),
+        is_gradient: isGradient,
+        gradient_id: gradientId
+    });
+}
+
+function handleItemsResult(msg = {}) {
+    if (Array.isArray(msg.items)) adminItems = msg.items;
+    const selected = msg.itemId || selectedAdminItemId;
+    renderAdminItemsList();
+    if (selected) selectAdminItem(selected);
+    if (itemsStatus) {
+        itemsStatus.textContent = msg.message || '';
+        itemsStatus.className = `add-status ${msg.ok ? 'success' : 'error'}`;
+    }
+}
+
 window.addEventListener('message', (event) => {
     const msg = event.data || {};
     if (msg.action === 'openInventory') openInventory(msg.data || {});
@@ -603,6 +801,8 @@ window.addEventListener('message', (event) => {
     if (msg.action === 'closeSelector') closeSelector();
     if (msg.action === 'closeAll') closeLocal();
     if (msg.action === 'openAddItem') openAddItem(msg.data || {});
+    if (msg.action === 'openItems') openItemsPanel(msg.data || {});
+    if (msg.action === 'itemsResult') handleItemsResult(msg);
     if (msg.action === 'addItemResult') {
         addStatus.textContent = msg.message || '';
         addStatus.className = `add-status ${msg.ok ? 'success' : 'error'}`;
@@ -692,6 +892,14 @@ moneyPanel.addEventListener('contextmenu', (e) => {
     openContextMenu(e.clientX, e.clientY, item);
 });
 
+if (itemsList) {
+    itemsList.addEventListener('click', (e) => {
+        const row = e.target.closest('.items-row');
+        if (!row) return;
+        selectAdminItem(row.dataset.itemId || '');
+    });
+}
+
 quickBar.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     const slotEl = e.target.closest('.quick-slot');
@@ -738,5 +946,10 @@ window.dropSelected = dropSelected;
 window.closeUi = closeUi;
 window.previewImage = previewImage;
 window.submitAddItem = submitAddItem;
+window.renderAdminItemsList = renderAdminItemsList;
+window.previewAdminImage = previewAdminImage;
+window.submitAdminItem = submitAdminItem;
+window.syncAdminGradientItemId = syncAdminGradientItemId;
+window.toggleAdminGradientItem = toggleAdminGradientItem;
 window.syncGradientItemId = syncGradientItemId;
 window.toggleGradientItem = toggleGradientItem;

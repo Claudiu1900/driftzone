@@ -410,6 +410,12 @@ local function setQuickSlot(inv, quickIndex, slotIndex)
     if quickIndex < 1 or quickIndex > 5 then return false end
 
     if slotIndex >= 1 and slotIndex <= (Config.Slots or 49) then
+        for i = 1, 5 do
+            local key = tostring(i)
+            if key ~= tostring(quickIndex) and tonumber(inv[QUICK_SLOTS_STORAGE_KEY][key] or 0) == slotIndex then
+                inv[QUICK_SLOTS_STORAGE_KEY][key] = nil
+            end
+        end
         inv[QUICK_SLOTS_STORAGE_KEY][tostring(quickIndex)] = slotIndex
     else
         inv[QUICK_SLOTS_STORAGE_KEY][tostring(quickIndex)] = nil
@@ -923,6 +929,89 @@ local function distanceOk(a, b)
     return #(ca - cb) <= (Config.MaxGiveDistance or 4.0)
 end
 
+
+local function buildAdminItemsList()
+    ensureGradientItemColumns()
+    local rows = MySQL.query.await(('SELECT item_id, item_name, image, tradable, stackable, usable, giveable, max_stack, is_gradient, gradient_id FROM %s ORDER BY item_name ASC, item_id ASC'):format(sqlName(Config.ItemsTable)), {}) or {}
+    local out = {}
+
+    for _, row in ipairs(rows) do
+        out[#out + 1] = {
+            item_id = tostring(row.item_id or ''),
+            item_name = tostring(row.item_name or row.item_id or ''),
+            image = tostring(row.image or ''),
+            tradable = tonumber(row.tradable or 1) == 1 and 1 or 0,
+            stackable = tonumber(row.stackable or 1) == 1 and 1 or 0,
+            usable = tonumber(row.usable or 0) == 1 and 1 or 0,
+            giveable = tonumber(row.giveable or 1) == 1 and 1 or 0,
+            max_stack = math.max(1, math.floor(tonumber(row.max_stack or 100) or 100)),
+            is_gradient = tonumber(row.is_gradient or 0) == 1 and 1 or 0,
+            gradient_id = math.max(0, math.floor(tonumber(row.gradient_id or 0) or 0))
+        }
+    end
+
+    return out
+end
+
+local function saveInventoryItemFromAdmin(admin, data)
+    data = type(data) == 'table' and data or {}
+    local originalId = trim(data.original_id)
+    local itemId = trim(data.item_id):lower():gsub('%s+', '_')
+    local name = trim(data.item_name)
+    local image = trim(data.image)
+    local tradable = tonumber(data.tradable or 1) == 1 and 1 or 0
+    local stackable = tonumber(data.stackable or 1) == 1 and 1 or 0
+    local usable = tonumber(data.usable or 0) == 1 and 1 or 0
+    local giveable = tonumber(data.giveable or 1) == 1 and 1 or 0
+    local maxStack = math.max(1, math.floor(tonumber(data.max_stack or 100) or 100))
+    local isGradient = tonumber(data.is_gradient or 0) == 1 and 1 or 0
+    local gradientId = math.max(0, math.floor(tonumber(data.gradient_id or 0) or 0))
+
+    if originalId ~= '' and itemId ~= originalId then
+        return false, 'Item ID nu poate fi schimbat din /items ca sa nu strice itemele deja existente.', originalId
+    end
+
+    if isGradient == 1 then
+        if gradientId <= 0 then
+            return false, 'Trebuie sa pui ID-ul gradientului.', itemId
+        end
+        if originalId == '' then itemId = tostring(gradientId) .. tostring(Config.GradientItemSuffix or '_gradient') end
+        if name == '' then name = ('Gradient %s'):format(gradientId) end
+        usable = 1
+        giveable = 1
+        stackable = 1
+    end
+
+    if itemId == '' or not itemId:match('^[a-z0-9_%-]+$') then
+        return false, 'Item ID invalid.', itemId
+    end
+
+    if isCurrencyItem(itemId) then
+        stackable = 1
+        maxStack = currencyMaxStack()
+    end
+
+    if name == '' then
+        return false, 'Item Name obligatoriu.', itemId
+    end
+
+    ensureGradientItemColumns()
+
+    local okSave, errSave = pcall(function()
+        MySQL.update.await(('INSERT INTO %s (item_id, item_name, image, tradable, stackable, usable, giveable, max_stack, is_gradient, gradient_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE item_name = VALUES(item_name), image = VALUES(image), tradable = VALUES(tradable), stackable = VALUES(stackable), usable = VALUES(usable), giveable = VALUES(giveable), max_stack = VALUES(max_stack), is_gradient = VALUES(is_gradient), gradient_id = VALUES(gradient_id), updated_at = NOW()'):format(sqlName(Config.ItemsTable)), {
+            itemId, name, image, tradable, stackable, usable, giveable, maxStack, isGradient, gradientId
+        })
+    end)
+
+    if not okSave then
+        print('[DRIFTZONE_INVENTORY] item save error: ' .. tostring(errSave))
+        return false, 'Eroare SQL la salvare. Verifica consola.', itemId
+    end
+
+    ItemsCache = nil
+    return true, 'Item salvat cu succes: ' .. itemId, itemId
+end
+
 RegisterCommand(Config.Command or 'inventory', function(src)
     if src <= 0 then return end
     if not isLogged(src) then return notify(src, 'warning', 'Trebuie sa fii logat.') end
@@ -934,6 +1023,15 @@ RegisterCommand('additem', function(src)
     local admin = requireAdmin(src, Config.Admin.additem or 6)
     if not admin then return end
     TriggerClientEvent('driftzone_inventory:client:addItemPanel', src, { mainColor = Config.MainColor })
+end, false)
+
+RegisterCommand('items', function(src)
+    local admin = requireAdmin(src, Config.Admin.items or 6)
+    if not admin then return end
+    TriggerClientEvent('driftzone_inventory:client:itemsPanel', src, {
+        mainColor = Config.MainColor,
+        items = buildAdminItemsList()
+    })
 end, false)
 
 RegisterCommand('giveitem', function(src, args)
@@ -1054,58 +1152,19 @@ RegisterNetEvent('driftzone_inventory:server:addItemSubmit', function(data)
     local admin = requireAdmin(src, Config.Admin.additem or 6)
     if not admin then return end
 
-    data = type(data) == 'table' and data or {}
-    local itemId = trim(data.item_id):lower():gsub('%s+', '_')
-    local name = trim(data.item_name)
-    local image = trim(data.image)
-    local tradable = tonumber(data.tradable or 1) == 1 and 1 or 0
-    local stackable = tonumber(data.stackable or 1) == 1 and 1 or 0
-    local usable = tonumber(data.usable or 0) == 1 and 1 or 0
-    local giveable = tonumber(data.giveable or 1) == 1 and 1 or 0
-    local maxStack = math.max(1, math.floor(tonumber(data.max_stack or 100) or 100))
-    local isGradient = tonumber(data.is_gradient or 0) == 1 and 1 or 0
-    local gradientId = math.max(0, math.floor(tonumber(data.gradient_id or 0) or 0))
+    local ok, msg, itemId = saveInventoryItemFromAdmin(admin, data)
+    if ok then logAction('admin_additem', admin.uid, 0, itemId, 0, data or {}) end
+    TriggerClientEvent('driftzone_inventory:client:addItemResult', src, ok == true, msg or '')
+end)
 
-    if isGradient == 1 then
-        if gradientId <= 0 then
-            return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Trebuie sa pui ID-ul gradientului.')
-        end
-        itemId = tostring(gradientId) .. tostring(Config.GradientItemSuffix or '_gradient')
-        if name == '' then name = ('Gradient %s'):format(gradientId) end
-        usable = 1
-        giveable = 1
-        stackable = 1
-    end
+RegisterNetEvent('driftzone_inventory:server:updateItemSubmit', function(data)
+    local src = source
+    local admin = requireAdmin(src, Config.Admin.items or 6)
+    if not admin then return end
 
-    if itemId == '' or not itemId:match('^[a-z0-9_%-]+$') then
-        return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Item ID invalid.')
-    end
-
-    if isCurrencyItem(itemId) then
-        stackable = 1
-        maxStack = currencyMaxStack()
-    end
-
-    if name == '' then
-        return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Item Name obligatoriu.')
-    end
-
-    ensureGradientItemColumns()
-
-    local okSave, errSave = pcall(function()
-        MySQL.update.await(('INSERT INTO %s (item_id, item_name, image, tradable, stackable, usable, giveable, max_stack, is_gradient, gradient_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE item_name = VALUES(item_name), image = VALUES(image), tradable = VALUES(tradable), stackable = VALUES(stackable), usable = VALUES(usable), giveable = VALUES(giveable), max_stack = VALUES(max_stack), is_gradient = VALUES(is_gradient), gradient_id = VALUES(gradient_id), updated_at = NOW()'):format(sqlName(Config.ItemsTable)), {
-            itemId, name, image, tradable, stackable, usable, giveable, maxStack, isGradient, gradientId
-        })
-    end)
-
-    if not okSave then
-        print('[DRIFTZONE_INVENTORY] additem save error: ' .. tostring(errSave))
-        return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Eroare SQL la salvare. Verifica consola.')
-    end
-
-    ItemsCache = nil
-    logAction('admin_additem', admin.uid, 0, itemId, 0, data)
-    TriggerClientEvent('driftzone_inventory:client:addItemResult', src, true, 'Item salvat cu succes: ' .. itemId)
+    local ok, msg, itemId = saveInventoryItemFromAdmin(admin, data)
+    if ok then logAction('admin_edititem', admin.uid, 0, itemId, 0, data or {}) end
+    TriggerClientEvent('driftzone_inventory:client:itemsResult', src, ok == true, msg or '', buildAdminItemsList(), itemId)
 end)
 
 RegisterNetEvent('driftzone_inventory:server:startGiveToPlayer', function(targetServerId)

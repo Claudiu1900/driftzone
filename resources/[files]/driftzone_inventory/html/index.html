@@ -8,11 +8,19 @@
 </head>
 <body>
     <main id="inventoryRoot" class="inventory-root hidden">
-        <section class="inventory-shell">
-            <div id="moneyPanel" class="money-panel hidden"></div>
-            <div id="grid" class="inventory-grid"></div>
-            <div id="quickBar" class="quick-bar"></div>
-        </section>
+        <div class="inventory-stack">
+            <section id="moneyShell" class="currency-shell hidden">
+                <div id="moneyPanel" class="money-panel"></div>
+            </section>
+
+            <section class="inventory-shell">
+                <div id="grid" class="inventory-grid"></div>
+            </section>
+
+            <section id="quickShell" class="quick-shell">
+                <div id="quickBar" class="quick-bar"></div>
+            </section>
+        </div>
 
         <aside id="droppedPanel" class="dropped-panel hidden">
             <div id="droppedList" class="dropped-list"></div>
@@ -63,6 +71,48 @@
             <div class="add-buttons">
                 <button class="save-btn" onclick="submitAddItem()">SAVE ITEM</button>
                 <button class="ghost-btn" onclick="closeUi()">CLOSE</button>
+            </div>
+        </section>
+    </main>
+
+    <main id="itemsRoot" class="items-root hidden">
+        <section class="items-shell">
+            <div class="items-header">
+                <div>
+                    <div class="items-title">ITEMS</div>
+                    <div class="items-subtitle">Admin panel pentru inventory_items</div>
+                </div>
+                <button class="items-close" onclick="closeUi()">CLOSE</button>
+            </div>
+
+            <div class="items-layout">
+                <aside class="items-list-wrap">
+                    <input id="itemsSearch" class="items-search" placeholder="Cauta item..." oninput="renderAdminItemsList()">
+                    <div id="itemsList" class="items-list"></div>
+                </aside>
+
+                <section class="items-editor">
+                    <div class="items-editor-title">EDIT ITEM</div>
+                    <input id="adminOriginalItemId" type="hidden">
+                    <div class="form-grid">
+                        <label>Item ID<input id="adminItemId" placeholder="water" readonly></label>
+                        <label>Item Name<input id="adminItemName" placeholder="Apă"></label>
+                        <label class="wide">Image<input id="adminItemImage" placeholder="https://..." oninput="previewAdminImage()"></label>
+                        <label>Tradable<select id="adminItemTradable"><option value="1">1</option><option value="0">0</option></select></label>
+                        <label>Stackable<select id="adminItemStackable"><option value="1">1</option><option value="0">0</option></select></label>
+                        <label>Usable<select id="adminItemUsable"><option value="0">0</option><option value="1">1</option></select></label>
+                        <label>Giveable<select id="adminItemGiveable"><option value="1">1</option><option value="0">0</option></select></label>
+                        <label>Max Stack<input id="adminItemMaxStack" type="number" min="1" value="100"></label>
+                        <label>Gradient Item<select id="adminItemIsGradient" onchange="toggleAdminGradientItem()"><option value="0">0</option><option value="1">1</option></select></label>
+                        <label>Gradient ID<input id="adminItemGradientId" type="number" min="0" value="0" oninput="syncAdminGradientItemId()"></label>
+                    </div>
+                    <div id="adminImagePreview" class="image-preview hidden"><img id="adminPreviewImg"></div>
+                    <div id="itemsStatus" class="add-status">Selecteaza un item din lista.</div>
+                    <div class="add-buttons">
+                        <button class="save-btn" onclick="submitAdminItem()">SAVE CHANGES</button>
+                        <button class="ghost-btn" onclick="closeUi()">CLOSE</button>
+                    </div>
+                </section>
             </div>
         </section>
     </main>

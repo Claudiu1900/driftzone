@@ -33,6 +33,7 @@ Config.LogsTable = 'inventory_logs'
 
 Config.Admin = {
     additem = 6,
+    items = 6,
     giveitem = 6,
     takeitem = 6,
     wipeinventory = 6

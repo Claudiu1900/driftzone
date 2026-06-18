@@ -1,6 +1,7 @@
 local inventoryOpen = false
 local addItemOpen = false
 local selectorOpen = false
+local itemsOpen = false
 local pendingGive = nil
 local cursorX, cursorY = 0.5, 0.5
 local selectorTarget = nil
@@ -127,6 +128,7 @@ local function openInventory(data)
     inventoryOpen = true
     addItemOpen = false
     selectorOpen = false
+    itemsOpen = false
     pendingGive = nil
     setFocus(true)
     sendNui({ action = 'openInventory', data = data or {} })
@@ -138,6 +140,7 @@ closeAll = function()
     inventoryOpen = false
     addItemOpen = false
     selectorOpen = false
+    itemsOpen = false
     pendingGive = nil
     setFocus(false)
     sendNui({ action = 'closeAll' })
@@ -147,6 +150,7 @@ local function openSelector(data)
     inventoryOpen = false
     addItemOpen = false
     selectorOpen = true
+    itemsOpen = false
     selectorTarget = nil
     selectorTargetPed = nil
     pendingGive = data or pendingGive
@@ -174,12 +178,26 @@ RegisterNetEvent('driftzone_inventory:client:addItemPanel', function(data)
     inventoryOpen = false
     addItemOpen = true
     selectorOpen = false
+    itemsOpen = false
     setFocus(true)
     sendNui({ action = 'openAddItem', data = data or {} })
 end)
 
 RegisterNetEvent('driftzone_inventory:client:addItemResult', function(ok, message)
     sendNui({ action = 'addItemResult', ok = ok == true, message = tostring(message or '') })
+end)
+
+RegisterNetEvent('driftzone_inventory:client:itemsPanel', function(data)
+    inventoryOpen = false
+    addItemOpen = false
+    selectorOpen = false
+    itemsOpen = true
+    setFocus(true)
+    sendNui({ action = 'openItems', data = data or {} })
+end)
+
+RegisterNetEvent('driftzone_inventory:client:itemsResult', function(ok, message, items, itemId)
+    sendNui({ action = 'itemsResult', ok = ok == true, message = tostring(message or ''), items = items or {}, itemId = itemId })
 end)
 
 RegisterNetEvent('driftzone_inventory:client:itemUsed', function(itemId)
@@ -378,10 +396,15 @@ RegisterNUICallback('submitAddItem', function(data, cb)
     cb({ ok = true })
 end)
 
+RegisterNUICallback('submitAdminItem', function(data, cb)
+    TriggerServerEvent('driftzone_inventory:server:updateItemSubmit', data or {})
+    cb({ ok = true })
+end)
+
 for i = 1, 5 do
     local quickIndex = i
     RegisterCommand(('dz_inv_quick_%s'):format(quickIndex), function()
-        if addItemOpen or selectorOpen then return end
+        if addItemOpen or selectorOpen or itemsOpen then return end
         TriggerServerEvent('driftzone_inventory:server:useQuickSlot', quickIndex)
     end, false)
 
