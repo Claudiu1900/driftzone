@@ -705,6 +705,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
 
     SpawnLocks[src] = true
     VehicleSpawnLocks[vehicleId] = src
+    local spawnedEntity = 0
 
     local ok, err = pcall(function()
         local rows = MySQL.query.await([[
@@ -755,6 +756,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
         local gradientRaw = normalizeGradient(row.gradient or '')
 
         local entity = CreateVehicle(hash, spot.x, spot.y, spot.z, spot.h or 0.0, true, true)
+        spawnedEntity = entity
 
         local timeout = GetGameTimer() + 6000
         while not vehicleExists(entity) and GetGameTimer() < timeout do Wait(50) end
@@ -766,7 +768,6 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
 
         SetEntityRoutingBucket(entity, bucket)
         SetEntityHeading(entity, tonumber(spot.h or 0.0) or 0.0)
-        SetVehicleOnGroundProperly(entity)
         SetVehicleNumberPlateText(entity, plate)
         SetVehicleDoorsLocked(entity, 2)
 
@@ -779,6 +780,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
         end
 
         if not netId or netId == 0 then
+            if vehicleExists(entity) then DeleteEntity(entity) end
             cleanupVehicle(vehicleId)
             notify(src, 'warning', 'Vehiculul a fost creat, dar nu a primit Network ID.')
             return
@@ -884,6 +886,12 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
 
     if not ok then
         print(('[DRIFTZONE_GARAGE] spawn error src=%s vehicleId=%s: %s'):format(src, vehicleId, tostring(err)))
+
+        if spawnedEntity and spawnedEntity ~= 0 and DoesEntityExist(spawnedEntity) then
+            DeleteEntity(spawnedEntity)
+        end
+
+        cleanupVehicle(vehicleId)
         notify(src, 'error', 'A aparut o eroare la scoaterea masinii.')
     end
 end)

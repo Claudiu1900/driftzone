@@ -4,7 +4,7 @@
  radial-gradient(circle at 15% 15%,rgba(4,199,247,.25),transparent 28%),
  radial-gradient(circle at 84% 70%,rgba(33,84,255,.12),transparent 30%),
  linear-gradient(180deg,rgba(0,0,0,.50),rgba(0,0,0,.68));}
-.panel{backdrop-filter:blur(16px);border-color:rgba(4,199,247,.22)}
+.panel{border-color:rgba(4,199,247,.22)}
 .garage-panel:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,199,247,.08),transparent 22%,transparent 78%,rgba(4,199,247,.06));pointer-events:none}
 .vehicle-card{background:
  linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.035)),
@@ -18,3 +18,29 @@
 .coords-card{background:linear-gradient(145deg,rgba(4,199,247,.07),rgba(255,255,255,.035));}
 .editor{overflow-y:auto;padding-right:4px}
 .editor::-webkit-scrollbar{width:5px}.editor::-webkit-scrollbar-thumb{background:var(--main);border-radius:99px}
+
+/* V2.2 sharper UI - no backdrop blur, less rounded corners */
+.panel{
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+    border-radius:12px !important;
+    background:linear-gradient(145deg,rgba(4,199,247,.10),rgba(255,255,255,.018)),rgba(4,9,16,.96) !important;
+}
+.close-btn{border-radius:8px !important}
+.hero-stats div{border-radius:10px !important}
+.search{border-radius:9px !important}
+.vehicle-card{border-radius:10px !important}
+.vehicle-image{border-radius:0 !important}
+.bottom-bar{border-radius:10px !important}
+.tabs button,button{border-radius:8px !important}
+.garage-list{border-radius:10px !important}
+.garage-row{border-radius:8px !important}
+.coords-card{border-radius:10px !important}
+input,select{border-radius:7px !important}
+.spot-row span{border-radius:7px !important}
+.empty{border-radius:10px !important}
+.pill{border-radius:6px !important}
+.vehicle-card:hover{transform:translateY(-1px)}
+.root{background:
+ radial-gradient(circle at 12% 10%,rgba(4,199,247,.18),transparent 25%),
+ linear-gradient(180deg,rgba(0,0,0,.52),rgba(0,0,0,.72)) !important;}

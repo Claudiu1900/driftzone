@@ -66,3 +66,11 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - Masinile spawnate nu mai au godmode.
 - Playerul nu mai este teleportat automat in masina dupa spawn.
 - Heading-ul locului de parcare este fortat server-side si client-side.
+
+
+## Update V2.2
+
+- Fix crash: `SetVehicleOnGroundProperly` scos de pe server, ramane doar client-side.
+- Daca spawn-ul da eroare dupa ce vehiculul a fost creat, masina este stearsa automat ca sa nu ramana ghost car fara owner.
+- UI fara `backdrop-filter`.
+- UI cu colturi mai putin rotunjite.
