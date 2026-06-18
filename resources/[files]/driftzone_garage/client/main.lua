@@ -5,6 +5,8 @@ local ownedVehicleBlips = {}
 local protectedVehicles = {}
 local garageBlocked = false
 local garageBlockedReason = 'Garaj indisponibil.'
+local currentGarageId = 0
+local cachedGarages = {}
 
 local sendNui
 local setGarageFocus
@@ -54,9 +56,11 @@ setGarageFocus = function(state)
     if garageOpened then TriggerEvent('driftzone_hud:visible', false) else TriggerEvent('driftzone_hud:visible', true) end
 end
 
-local function openGarageNui(vehicles, hasVip)
+local function openGarageNui(vehicles, hasVip, garage)
     if not canOpenGarage() then return end
-    local payload = { action = 'open', vehicles = vehicles or {}, hasVip = hasVip == true }
+    garage = type(garage) == 'table' and garage or {}
+    currentGarageId = tonumber(garage.id or 0) or 0
+    local payload = { action = 'open', vehicles = vehicles or {}, hasVip = hasVip == true, garage = garage }
     if sendNui(payload) then setGarageFocus(true) else pendingOpenPayload = payload end
 end
 
@@ -456,6 +460,11 @@ local function prepareVehicleByNetId(netId, data)
 
     SetPedIntoVehicle(PlayerPedId(), entity, -1)
 
+    -- Integrare driftzone_vehicleconfig: seteaza SQL ID, lock default real si motor oprit.
+    pcall(function()
+        TriggerEvent('driftzone_vehicleconfig:client:registerSpawnedVehicle', entity, tonumber(data.id or 0))
+    end)
+
     -- Aplicari repetate pentru bug-ul unde uneori masina apare fara tuning din cauza streaming/control.
     local delays = { 150, 450, 900, 1600, 2800 }
 
@@ -469,13 +478,14 @@ local function prepareVehicleByNetId(netId, data)
     TriggerServerEvent('driftzone_garage:server:spawnPrepared', tonumber(data.id or 0))
 end
 
-RegisterNetEvent('driftzone_garage:client:open', function(vehicles, hasVip)
+RegisterNetEvent('driftzone_garage:client:open', function(vehicles, hasVip, garage)
     if not canOpenGarage() then return end
-    openGarageNui(vehicles or {}, hasVip == true)
+    openGarageNui(vehicles or {}, hasVip == true, garage or {})
 end)
 
-RegisterNetEvent('driftzone_garage:client:update', function(vehicles, hasVip)
-    sendNui({ action = 'update', vehicles = vehicles or {}, hasVip = hasVip == true })
+RegisterNetEvent('driftzone_garage:client:update', function(vehicles, hasVip, garage)
+    if garage then currentGarageId = tonumber(garage.id or currentGarageId or 0) or 0 end
+    sendNui({ action = 'update', vehicles = vehicles or {}, hasVip = hasVip == true, garage = garage })
 end)
 
 RegisterNetEvent('driftzone_garage:client:spawnedSuccess', function()
@@ -525,7 +535,9 @@ end)
 
 RegisterNUICallback('spawn', function(data, cb)
     local vehicleId = tonumber(data.id or data.vehicleId or 0)
-    if vehicleId and vehicleId > 0 then TriggerServerEvent('driftzone_garage:server:spawn', vehicleId) end
+    if vehicleId and vehicleId > 0 then
+        TriggerServerEvent('driftzone_garage:server:spawn', vehicleId, tonumber(data.garageId or currentGarageId or 0) or 0)
+    end
     cb({ ok = true })
 end)
 
@@ -539,7 +551,19 @@ RegisterCommand('garage', function() if canOpenGarage() then TriggerServerEvent(
 RegisterCommand('garaj', function() if canOpenGarage() then TriggerServerEvent('driftzone_garage:server:open') end end, false)
 RegisterCommand('park', function() TriggerEvent('driftzone_garage:client:parkCurrent') end, false)
 
--- Fara RegisterKeyMapping pe M. Garajul se deschide doar din comanda/interactiune.
+RegisterCommand('addgarage', function()
+    TriggerServerEvent('driftzone_garage:server:adminOpen', 'add')
+end, false)
+
+RegisterCommand('editgarages', function()
+    TriggerServerEvent('driftzone_garage:server:adminOpen', 'edit')
+end, false)
+
+RegisterCommand('resetgarages', function()
+    TriggerServerEvent('driftzone_garage:server:resetGarages')
+end, false)
+
+-- Garajul se deschide doar daca esti in radiusul unui garaj DB.
 
 RegisterNetEvent('driftzone_garage:client:openFromInteraction', function()
     if not canOpenGarage() then return end
@@ -587,16 +611,7 @@ exports('IsBlocked', function()
 end)
 
 
-CreateThread(function()
-    Wait(1500)
-    pcall(function()
-        exports.driftzone_interactions:AddInteraction({
-            id = 'driftzone_garage_main', coords = vector3(215.8, -810.2, 30.7), range = 3.0,
-            key = 'E', text = 'Apasa tasta E pentru a deschide garajul', subText = 'DriftZone Garage', marker = true,
-            event = 'driftzone_garage:client:openFromInteraction'
-        })
-    end)
-end)
+-- Interactiuni hardcodate scoase. Garajele sunt incarcate din tabela `garages`.
 
 CreateThread(function()
     while true do
@@ -651,6 +666,139 @@ CreateThread(function()
         Wait(garageOpened and 4000 or 3000)
     end
 end)
+
+
+RegisterNetEvent('driftzone_garage:client:syncGarages', function(garages)
+    cachedGarages = type(garages) == 'table' and garages or {}
+    sendNui({ action = 'garagesData', garages = cachedGarages })
+end)
+
+RegisterNetEvent('driftzone_garage:client:openAdmin', function(payload)
+    payload = type(payload) == 'table' and payload or {}
+    cachedGarages = type(payload.garages) == 'table' and payload.garages or cachedGarages
+    sendNui({ action = 'admin', mode = payload.mode or 'edit', garages = cachedGarages })
+    setGarageFocus(true)
+end)
+
+RegisterNUICallback('adminSaveGarage', function(data, cb)
+    TriggerServerEvent('driftzone_garage:server:adminSaveGarage', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('adminDeleteGarage', function(data, cb)
+    TriggerServerEvent('driftzone_garage:server:adminDeleteGarage', tonumber(data and data.id or 0) or 0)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('adminReloadGarages', function(_, cb)
+    TriggerServerEvent('driftzone_garage:server:resetGarages')
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('getPlayerPosition', function(_, cb)
+    local ped = PlayerPedId()
+    local coords = GetEntityCoords(ped)
+    cb({
+        ok = true,
+        x = coords.x + 0.0,
+        y = coords.y + 0.0,
+        z = coords.z + 0.0,
+        h = GetEntityHeading(ped) + 0.0
+    })
+end)
+
+local function drawText3D(x, y, z, text, scale)
+    local onScreen, sx, sy = World3dToScreen2d(x, y, z)
+    if not onScreen then return end
+
+    SetTextScale(scale or 0.34, scale or 0.34)
+    SetTextFont(4)
+    SetTextProportional(1)
+    SetTextColour(4, 199, 247, 255)
+    SetTextCentre(true)
+    SetTextOutline()
+    SetTextEntry('STRING')
+    AddTextComponentString(tostring(text or 'Garage'))
+    DrawText(sx, sy)
+end
+
+local function drawGarageSign(garage, playerCoords)
+    if type(garage) ~= 'table' then return end
+    local coords = garage.coords or {}
+    local gx, gy, gz = tonumber(coords.x), tonumber(coords.y), tonumber(coords.z)
+    if not gx or not gy or not gz then return end
+
+    local dist = #(playerCoords - vector3(gx, gy, gz))
+    local textDistance = tonumber((Config.Draw and Config.Draw.textDistance) or 28.0) or 28.0
+
+    if dist > textDistance then return end
+
+    DrawMarker(
+        (Config.Draw and Config.Draw.markerType) or 36,
+        gx, gy, gz + 1.08,
+        0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0,
+        0.75, 0.75, 0.75,
+        4, 199, 247, 210,
+        false, true, 2, false, nil, nil, false
+    )
+
+    drawText3D(gx, gy, gz + 0.62, tostring(garage.name or 'Garage'), 0.36)
+
+    if garage.visible_radius == true then
+        local radius = tonumber(garage.radius or 4.0) or 4.0
+        DrawMarker(
+            (Config.Draw and Config.Draw.radiusMarkerType) or 1,
+            gx, gy, gz - 0.96,
+            0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0,
+            radius * 2.0, radius * 2.0, 0.35,
+            4, 199, 247, (Config.Draw and Config.Draw.radiusAlpha) or 34,
+            false, false, 2, false, nil, nil, false
+        )
+    end
+end
+
+CreateThread(function()
+    Wait(1800)
+    TriggerServerEvent('driftzone_garage:server:requestGarages')
+end)
+
+CreateThread(function()
+    while true do
+        local ped = PlayerPedId()
+        local waitTime = 900
+
+        if ped and ped ~= 0 and #cachedGarages > 0 then
+            local coords = GetEntityCoords(ped)
+
+            for _, garage in ipairs(cachedGarages) do
+                drawGarageSign(garage, coords)
+                local g = garage.coords or {}
+                local gx, gy, gz = tonumber(g.x), tonumber(g.y), tonumber(g.z)
+
+                if gx and gy and gz then
+                    local radius = tonumber(garage.radius or 4.0) or 4.0
+                    local dist = #(coords - vector3(gx, gy, gz))
+
+                    if dist <= math.max(radius, 4.0) then
+                        waitTime = 0
+
+                        if IsControlJustPressed(0, 38) then -- E
+                            if canOpenGarage() then
+                                TriggerServerEvent('driftzone_garage:server:open')
+                            end
+                            Wait(350)
+                        end
+                    end
+                end
+            end
+        end
+
+        Wait(waitTime)
+    end
+end)
+
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end

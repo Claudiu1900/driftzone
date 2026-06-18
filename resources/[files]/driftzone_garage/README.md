@@ -1,6 +1,37 @@
-# driftzone_garage
+# driftzone_garage V2
 
-Garaj FiveM optimizat, cu UI-ul vechi pastrat, sistem VIP, tuning fortat si cooldown la spawn.
+Garaj refacut cu UI premium, garaje din DB si locuri de parcare.
+
+## Ce e nou
+
+- UI complet refacut, mai curat si mai modern.
+- `/garage` merge doar daca playerul este in radiusul unui garaj.
+- Spawn-ul nu se mai face langa player, ci pe primul loc liber al garajului.
+- Daca toate locurile sunt ocupate: `Nu este niciun loc liber momentan.`
+- Garajele sunt in tabela `garages`.
+- La coordonatele garajului apare marker albastru de masina + numele garajului.
+- Radius vizibil/transparent pe fiecare garaj.
+- `/addgarage` admin_level 6+ si aduty yes.
+- `/editgarages` admin_level 6+ si aduty yes.
+- `/resetgarages` admin_level 6+ si aduty yes, reincarca garajele din DB.
+- Integrare `driftzone_vehicleconfig`: dupa spawn trimite trigger pentru SQL ID, lock default real si motor oprit.
+- Tuning-ul si gradientul vechi sunt pastrate si reaplicate ca in versiunea anterioara.
+
+## Instalare
+
+Ruleaza o data SQL-ul:
+
+```sql
+SQL.sql
+```
+
+Apoi in server.cfg:
+
+```cfg
+ensure oxmysql
+ensure driftzone_vehicleconfig
+ensure driftzone_garage
+```
 
 ## Comenzi
 
@@ -8,139 +39,19 @@ Garaj FiveM optimizat, cu UI-ul vechi pastrat, sistem VIP, tuning fortat si cool
 /garage
 /garaj
 /park
+/addgarage
+/editgarages
+/resetgarages
 ```
 
-Nu exista keybind pe M.
+## Tabela garages
 
-## VIP
+`parking_spots` este JSON:
 
-- `users.vip` trebuie sa aiba o valoare valida ca playerul sa fie considerat VIP.
-- `ownedvehicles.vip = 1` inseamna masina VIP.
-- Masinile VIP apar doar in tab-ul VIP si doar daca playerul are VIP activ.
-
-## Tuning fortat
-
-Bug rezolvat: masina nu mai trebuie sa iasa fara tuning.
-
-La spawn, garajul:
-- citeste `ownedvehicles.vehicle_tunning`;
-- pune tuning-ul in statebag:
-  - `dz_garage_tuning`
-  - `vehicleTunning`
-  - `dz_vehicle_tunning`
-- aplica tuning direct client-side;
-- trimite si event catre `driftzone_tunning`;
-- reaplica tuning-ul de mai multe ori dupa spawn pentru race conditions de streaming/network control.
-
-## Cooldown
-
-- `Config.SpawnCooldownMs = 3000`
-- playerul nu poate spama spawn masini mai repede de 3 secunde.
-
-## Optimizari
-
-- spawn lock server-side pentru spam dublu;
-- cooldown server-side + debounce NUI;
-- tuning raw normalizat;
-- statebag complet pentru masini din garaj;
-- protectia masinilor si blip scan raman rarite;
-- cleanup complet la `playerDropped` si `onResourceStop`.
-
-## Instalare
-
-Inlocuieste folderul:
-
-```txt
-resources/[files]/driftzone_garage
+```json
+[
+  { "x": 229.70, "y": -800.12, "z": 30.57, "h": 158.0 }
+]
 ```
 
-sau unde il ai tu in `resources`.
-
-Asigura-te ca in `server.cfg` ai:
-
-```cfg
-ensure oxmysql
-ensure [files]
-```
-
-sau direct:
-
-```cfg
-ensure driftzone_garage
-```
-
-`oxmysql` trebuie sa fie pornit inainte de `[files]`.
-
-## Git update
-
-Pe PC, dupa ce inlocuiesti folderul:
-
-```bash
-git add -A resources/[files]/driftzone_garage
-git commit -m "Fix garage forced tuning and spawn cooldown"
-git push
-```
-
-Pe VPS:
-
-```bash
-cd ~/server-data
-git pull
-```
-
-Din txAdmin sau consola:
-
-```txt
-restart driftzone_garage
-```
-
-Daca masina are deja tuning salvat in `ownedvehicles.vehicle_tunning`, acum il forteaza la fiecare spawn.
-
-
-## Block pentru curse
-
-Garajul poate fi blocat temporar din alte scripturi, de exemplu in timpul curselor.
-Cat timp este blocat, nu se mai deschide nici din comanda, nici din trigger, nici din interaction.
-Jucatorul primeste notificarea: `Garaj indisponibil.`
-
-Server-side:
-
-```lua
-exports['driftzone_garage']:SetGarageBlocked(source, true, 'Garaj indisponibil.')
-exports['driftzone_garage']:SetGarageBlocked(source, false)
-```
-
-Client-side:
-
-```lua
-TriggerEvent('driftzone_garage:client:setBlocked', true, 'Garaj indisponibil.')
-TriggerEvent('driftzone_garage:client:setBlocked', false)
-```
-
-Compatibil:
-
-```lua
-TriggerEvent('driftzone_garage:client:block', 'Garaj indisponibil.')
-TriggerEvent('driftzone_garage:client:unblock')
-```
-
-## Gradient / Chameleon la spawn
-
-La fiecare masina scoasa din garaj, resource-ul citeste `ownedvehicles.gradient`, il pune in statebag si il reaplica dupa tuning. Gradientul se aplica dupa `vehicle_tunning`, ca tuning-ul sa nu suprascrie chameleon-ul.
-
-Necesita coloana:
-
-```sql
-ALTER TABLE `ownedvehicles` ADD COLUMN IF NOT EXISTS `gradient` LONGTEXT NULL;
-```
-
-Asigura-te ca `driftzone_gradients` este pornit inainte sau macar ca fisierele lui chameleon/meta sunt incarcate pe server.
-
-
-## Update final
-
-- Meniul nu afiseaza ID-ul de spawn/SQL la masina.
-- Spawn-ul are lock pe jucator si pe masina, deci acelasi vehicul nu se mai poate spawna de doua ori chiar daca apesi de multe ori cat se incarca.
-- Despawn/parcare verifica owner-ul curent din `ownedvehicles`, deci daca masina a fost data prin trade cat timp era spawnata, noul owner o poate despawna.
-- Garajul aplica in continuare `ownedvehicles.gradient` la fiecare spawn.
-- Scanarile client-side au fost rarite pentru mai putin load.
+ID-ul garajului este AUTO_INCREMENT si incepe de la 1.

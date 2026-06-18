@@ -4,28 +4,27 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Garage - forced tuning + spawn cooldown + optimized'
-version '1.0.3'
+description 'DriftZone Garage - DB garages, parking spots, admin editor, premium UI'
+version '2.0.0'
 
 ui_page 'html/index.html'
 
 files {
     'html/index.html',
     'html/style.css',
-    'html/script.js'
+    'html/script.js',
+    'html/assets/car.svg'
 }
 
-server_scripts {
-    '@oxmysql/lib/MySQL.lua',
-    'server/main.lua'
+shared_scripts {
+    'config/config.lua'
 }
 
 client_scripts {
     'client/main.lua'
 }
 
-shared_scripts {
-    'config/config.lua',
-    'config/config_settings.js',
-    'data/events.js'
+server_scripts {
+    '@oxmysql/lib/MySQL.lua',
+    'server/main.lua'
 }
