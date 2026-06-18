@@ -55,3 +55,14 @@ ensure driftzone_garage
 ```
 
 ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
+
+
+## Update V2.1
+
+- Coordonatele in admin panel se introduc direct intr-un singur camp: `x, y, z`.
+- Locurile de parcare se introduc direct intr-un singur camp: `x, y, z, heading`.
+- Sign-ul de garaj afiseaza doar simbolul de masina, fara nume/text.
+- Markerul si radiusul se deseneaza stabil, fara flicker.
+- Masinile spawnate nu mai au godmode.
+- Playerul nu mai este teleportat automat in masina dupa spawn.
+- Heading-ul locului de parcare este fortat server-side si client-side.

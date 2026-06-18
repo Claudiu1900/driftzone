@@ -71,9 +71,9 @@ Config.Block = {
 
 Config.Draw = {
     markerType = 36,
-    markerScale = vector3(0.75, 0.75, 0.75),
+    markerScale = vector3(0.82, 0.82, 0.82),
     radiusMarkerType = 1,
-    radiusAlpha = 34,
-    textDistance = 28.0,
+    radiusAlpha = 58,
+    signDistance = 45.0,
     interactDistance = 4.0
 }

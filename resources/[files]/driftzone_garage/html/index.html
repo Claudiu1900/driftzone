@@ -84,19 +84,17 @@
 
                     <div class="coords-card">
                         <div class="section-head">
-                            <div><b>Coordonate garaj</b><span>Aici apare sign-ul de masina si de aici se deschide meniul.</span></div>
+                            <div><b>Coordonate garaj</b><span>Scrie direct: x, y, z. Aici apare doar simbolul de garaj, fara nume.</span></div>
                             <button class="ghost" onclick="useCurrentPositionForGarage()">Foloseste pozitia mea</button>
                         </div>
-                        <div class="form-grid three">
-                            <label>X<input id="gX" type="number" step="0.000001"></label>
-                            <label>Y<input id="gY" type="number" step="0.000001"></label>
-                            <label>Z<input id="gZ" type="number" step="0.000001"></label>
-                        </div>
+                        <label>Coordonate x, y, z
+                            <input id="gCoords" class="wide-input" placeholder="215.15, -809.95, 30.73">
+                        </label>
                     </div>
 
                     <div class="coords-card">
                         <div class="section-head">
-                            <div><b>Locuri de parcare</b><span>Masina se spawneaza pe primul loc liber. Daca toate sunt ocupate, apare eroare.</span></div>
+                            <div><b>Locuri de parcare</b><span>Scrie direct: x, y, z, heading. Masina foloseste exact heading-ul de aici.</span></div>
                             <button onclick="addSpotFromPosition()">+ Loc din pozitia mea</button>
                         </div>
                         <div id="spotsList" class="spots-list"></div>

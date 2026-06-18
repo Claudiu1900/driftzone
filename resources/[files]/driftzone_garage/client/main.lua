@@ -116,22 +116,8 @@ local function requestControl(entity, timeoutMs)
 end
 
 local function setVehicleProtection(entity)
+    -- Dezactivat intentionat: masinile din garaj NU mai primesc godmode.
     if not DoesEntityExist(entity) then return end
-    requestControl(entity, 750)
-    SetEntityInvincible(entity, true)
-    SetEntityCanBeDamaged(entity, false)
-    SetVehicleCanBreak(entity, false)
-    SetVehicleEngineCanDegrade(entity, false)
-    SetVehicleStrong(entity, true)
-    SetVehicleTyresCanBurst(entity, false)
-    SetVehicleWheelsCanBreak(entity, false)
-    SetVehicleHasBeenOwnedByPlayer(entity, true)
-    SetVehicleEngineHealth(entity, 1000.0)
-    SetVehicleBodyHealth(entity, 1000.0)
-    SetVehiclePetrolTankHealth(entity, 1000.0)
-    SetVehicleDirtLevel(entity, 0.0)
-    SetVehicleEngineOn(entity, true, true, false)
-    protectedVehicles[entity] = true
 end
 
 local function repairOnce(entity)
@@ -144,21 +130,12 @@ local function repairOnce(entity)
     SetVehicleBodyHealth(entity, 1000.0)
     SetVehiclePetrolTankHealth(entity, 1000.0)
     SetVehicleOnGroundProperly(entity)
-    SetVehicleEngineOn(entity, true, true, false)
+    -- Fara engine forced ON.
 end
 
 local function softMaintain(entity)
+    -- Dezactivat intentionat: fara godmode/protectie permanenta.
     if not DoesEntityExist(entity) then return end
-    SetEntityInvincible(entity, true)
-    SetEntityCanBeDamaged(entity, false)
-    SetVehicleCanBreak(entity, false)
-    SetVehicleEngineCanDegrade(entity, false)
-    SetVehicleStrong(entity, true)
-    SetVehicleTyresCanBurst(entity, false)
-    SetVehicleWheelsCanBreak(entity, false)
-    if GetVehicleEngineHealth(entity) < 950.0 then SetVehicleEngineHealth(entity, 1000.0) end
-    if GetVehicleBodyHealth(entity) < 950.0 then SetVehicleBodyHealth(entity, 1000.0) end
-    if GetVehiclePetrolTankHealth(entity) < 950.0 then SetVehiclePetrolTankHealth(entity, 1000.0) end
 end
 
 local function getVehicleFromNetId(netId)
@@ -452,13 +429,15 @@ local function prepareVehicleByNetId(netId, data)
     requestControl(entity, 5000)
     SetVehicleNumberPlateText(entity, tostring(data.plate or 'DRIFT'):sub(1, 8))
 
+    local heading = tonumber(data.heading or data.h or 0.0) or 0.0
+    SetEntityHeading(entity, heading)
+    SetVehicleOnGroundProperly(entity)
+
+    -- Fara godmode si fara teleport in masina.
     repairOnce(entity)
-    setVehicleProtection(entity)
 
-    -- Prima aplicare se face inainte de a pune playerul in masina.
+    -- Prima aplicare se face fara sa bage playerul in masina.
     forceGarageTuningByNetId(netId, data)
-
-    SetPedIntoVehicle(PlayerPedId(), entity, -1)
 
     -- Integrare driftzone_vehicleconfig: seteaza SQL ID, lock default real si motor oprit.
     pcall(function()
@@ -471,7 +450,7 @@ local function prepareVehicleByNetId(netId, data)
     for i = 1, #delays do
         Wait(delays[i])
         if not DoesEntityExist(entity) then break end
-        setVehicleProtection(entity)
+        SetEntityHeading(entity, heading)
         forceGarageTuningByNetId(netId, data)
     end
 
@@ -644,7 +623,7 @@ CreateThread(function()
                     local state = Entity(vehicle).state
                     if state.dz_garage_vehicle == true and tonumber(state.dz_garage_owner_uid or 0) == tonumber(localUid) then
                         valid[vehicle] = true
-                        if state.dz_garage_godmode == true then protectedVehicles[vehicle] = true softMaintain(vehicle) end
+                        -- Fara godmode / protection loop pe masini spawnate.
                         if isPlayerInsideVehicle(vehicle) then removeBlip(vehicle) else createBlip(vehicle, tostring(state.dz_garage_name or 'Vehiculul tau'), state.dz_garage_is_vip == true) end
                     end
                 end
@@ -658,14 +637,7 @@ CreateThread(function()
     end
 end)
 
-CreateThread(function()
-    while true do
-        for entity, _ in pairs(protectedVehicles) do
-            if DoesEntityExist(entity) then softMaintain(entity) else protectedVehicles[entity] = nil end
-        end
-        Wait(garageOpened and 4000 or 3000)
-    end
-end)
+-- Protection loop scos: fara godmode pe masini spawnate.
 
 
 RegisterNetEvent('driftzone_garage:client:syncGarages', function(garages)
@@ -723,40 +695,44 @@ local function drawText3D(x, y, z, text, scale)
 end
 
 local function drawGarageSign(garage, playerCoords)
-    if type(garage) ~= 'table' then return end
+    if type(garage) ~= 'table' then return false end
+
     local coords = garage.coords or {}
     local gx, gy, gz = tonumber(coords.x), tonumber(coords.y), tonumber(coords.z)
-    if not gx or not gy or not gz then return end
+    if not gx or not gy or not gz then return false end
 
     local dist = #(playerCoords - vector3(gx, gy, gz))
-    local textDistance = tonumber((Config.Draw and Config.Draw.textDistance) or 28.0) or 28.0
+    local signDistance = tonumber((Config.Draw and Config.Draw.signDistance) or 45.0) or 45.0
 
-    if dist > textDistance then return end
+    if dist > signDistance then return false end
 
+    local scale = (Config.Draw and Config.Draw.markerScale) or vector3(0.82, 0.82, 0.82)
+
+    -- Doar simbolul de garaj, fara nume/text 3D.
     DrawMarker(
         (Config.Draw and Config.Draw.markerType) or 36,
-        gx, gy, gz + 1.08,
+        gx, gy, gz + 1.05,
         0.0, 0.0, 0.0,
         0.0, 0.0, 0.0,
-        0.75, 0.75, 0.75,
-        4, 199, 247, 210,
+        scale.x or 0.82, scale.y or 0.82, scale.z or 0.82,
+        4, 199, 247, 230,
         false, true, 2, false, nil, nil, false
     )
-
-    drawText3D(gx, gy, gz + 0.62, tostring(garage.name or 'Garage'), 0.36)
 
     if garage.visible_radius == true then
         local radius = tonumber(garage.radius or 4.0) or 4.0
         DrawMarker(
             (Config.Draw and Config.Draw.radiusMarkerType) or 1,
-            gx, gy, gz - 0.96,
+            gx, gy, gz - 1.02,
             0.0, 0.0, 0.0,
             0.0, 0.0, 0.0,
-            radius * 2.0, radius * 2.0, 0.35,
-            4, 199, 247, (Config.Draw and Config.Draw.radiusAlpha) or 34,
+            radius * 2.0, radius * 2.0, 0.28,
+            4, 199, 247, (Config.Draw and Config.Draw.radiusAlpha) or 58,
             false, false, 2, false, nil, nil, false
         )
     end
+
+    return true
 end
 
 CreateThread(function()
@@ -773,7 +749,7 @@ CreateThread(function()
             local coords = GetEntityCoords(ped)
 
             for _, garage in ipairs(cachedGarages) do
-                drawGarageSign(garage, coords)
+                local drawn = drawGarageSign(garage, coords)
                 local g = garage.coords or {}
                 local gx, gy, gz = tonumber(g.x), tonumber(g.y), tonumber(g.z)
 
@@ -781,9 +757,12 @@ CreateThread(function()
                     local radius = tonumber(garage.radius or 4.0) or 4.0
                     local dist = #(coords - vector3(gx, gy, gz))
 
-                    if dist <= math.max(radius, 4.0) then
+                    -- Daca markerul/radiusul e vizibil, desenam in fiecare frame ca sa nu flickereze.
+                    if drawn or dist <= math.max(radius, 4.0) then
                         waitTime = 0
+                    end
 
+                    if dist <= math.max(radius, 4.0) then
                         if IsControlJustPressed(0, 38) then -- E
                             if canOpenGarage() then
                                 TriggerServerEvent('driftzone_garage:server:open')

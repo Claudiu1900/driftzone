@@ -55,6 +55,32 @@ function num(value, digits = 2) {
     return Number.isFinite(n) ? n.toFixed(digits) : '0.00';
 }
 
+function coordLine(x, y, z, h = null) {
+    const parts = [num(x, 6), num(y, 6), num(z, 6)];
+    if (h !== null && h !== undefined) parts.push(num(h, 2));
+    return parts.join(', ');
+}
+
+function parseCoordLine(value, needsHeading = false) {
+    const parts = String(value || '')
+        .replace(/;/g, ',')
+        .split(/[,\s]+/)
+        .map(v => v.trim())
+        .filter(Boolean)
+        .map(Number);
+
+    if (parts.length < 3 || parts.some(v => !Number.isFinite(v))) {
+        return null;
+    }
+
+    return {
+        x: parts[0],
+        y: parts[1],
+        z: parts[2],
+        h: Number.isFinite(parts[3]) ? parts[3] : (needsHeading ? 0 : undefined)
+    };
+}
+
 function showRoot() { root.classList.remove('hidden'); }
 function hideRoot() { root.classList.add('hidden'); }
 function showGaragePanel() { showRoot(); garagePanel.classList.remove('hidden'); adminPanel.classList.add('hidden'); }
@@ -287,9 +313,7 @@ function newGarage() {
     document.getElementById('gName').value = '';
     document.getElementById('gRadius').value = '4';
     document.getElementById('gVisible').value = '1';
-    document.getElementById('gX').value = '';
-    document.getElementById('gY').value = '';
-    document.getElementById('gZ').value = '';
+    document.getElementById('gCoords').value = '';
     document.getElementById('adminStatus').textContent = 'Garage nou. Pune coordonatele si minim un loc de parcare.';
     renderSpots();
     renderGarageList();
@@ -311,9 +335,7 @@ function loadGarage(id) {
     document.getElementById('gName').value = selectedGarage.name || '';
     document.getElementById('gRadius').value = String(selectedGarage.radius || 4);
     document.getElementById('gVisible').value = selectedGarage.visible_radius === false ? '0' : '1';
-    document.getElementById('gX').value = num(c.x, 6);
-    document.getElementById('gY').value = num(c.y, 6);
-    document.getElementById('gZ').value = num(c.z, 6);
+    document.getElementById('gCoords').value = coordLine(c.x, c.y, c.z);
 
     document.getElementById('adminStatus').textContent = `Editezi garajul #${selectedGarage.id}.`;
     renderSpots();
@@ -329,20 +351,29 @@ function renderSpots() {
     }
 
     box.innerHTML = editorSpots.map((s, i) => `
-        <div class="spot-row">
+        <div class="spot-row single">
             <span>#${i + 1}</span>
-            <input type="number" step="0.000001" value="${num(s.x, 6)}" onchange="spotChange(${i}, 'x', this.value)">
-            <input type="number" step="0.000001" value="${num(s.y, 6)}" onchange="spotChange(${i}, 'y', this.value)">
-            <input type="number" step="0.000001" value="${num(s.z, 6)}" onchange="spotChange(${i}, 'z', this.value)">
-            <input type="number" step="0.01" value="${num(s.h, 2)}" onchange="spotChange(${i}, 'h', this.value)">
+            <input class="spot-line" value="${coordLine(s.x, s.y, s.z, s.h)}" onchange="spotLineChange(${i}, this.value)" placeholder="x, y, z, heading">
             <button class="danger mini" onclick="removeSpot(${i})">×</button>
         </div>
     `).join('');
 }
 
-function spotChange(i, key, value) {
+function spotLineChange(i, value) {
     if (!editorSpots[i]) return;
-    editorSpots[i][key] = Number(value || 0);
+
+    const parsed = parseCoordLine(value, true);
+    if (!parsed) {
+        renderSpots();
+        return;
+    }
+
+    editorSpots[i] = {
+        x: parsed.x,
+        y: parsed.y,
+        z: parsed.z,
+        h: parsed.h || 0
+    };
 }
 
 function removeSpot(i) {
@@ -354,9 +385,7 @@ async function useCurrentPositionForGarage() {
     const res = await nui('getPlayerPosition');
     if (!res || !res.ok) return;
 
-    document.getElementById('gX').value = num(res.x, 6);
-    document.getElementById('gY').value = num(res.y, 6);
-    document.getElementById('gZ').value = num(res.z, 6);
+    document.getElementById('gCoords').value = coordLine(res.x, res.y, res.z);
 }
 
 async function addSpotFromPosition() {
@@ -374,16 +403,18 @@ async function addSpotFromPosition() {
 }
 
 function collectGaragePayload() {
+    const parsedCoords = parseCoordLine(document.getElementById('gCoords').value, false);
+
     return {
         id: Number(document.getElementById('gId').value || 0),
         name: document.getElementById('gName').value.trim(),
         radius: Number(document.getElementById('gRadius').value || 4),
         visible_radius: document.getElementById('gVisible').value === '1',
-        coords: {
-            x: Number(document.getElementById('gX').value || 0),
-            y: Number(document.getElementById('gY').value || 0),
-            z: Number(document.getElementById('gZ').value || 0)
-        },
+        coords: parsedCoords ? {
+            x: parsedCoords.x,
+            y: parsedCoords.y,
+            z: parsedCoords.z
+        } : { x: 0, y: 0, z: 0 },
         parking_spots: editorSpots
     };
 }
@@ -393,6 +424,11 @@ function saveGarage() {
 
     if (!payload.name) {
         document.getElementById('adminStatus').textContent = 'Pune nume la garaj.';
+        return;
+    }
+
+    if (!parseCoordLine(document.getElementById('gCoords').value, false)) {
+        document.getElementById('adminStatus').textContent = 'Coordonatele garajului trebuie sa fie: x, y, z.';
         return;
     }
 

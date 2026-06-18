@@ -510,7 +510,7 @@ local function setGarageVehicleState(entity, data)
     state:set('dz_garage_plate', tostring(data.plate or ''), true)
     state:set('vehicle_plate', tostring(data.plate or ''), true)
     state:set('dz_garage_is_vip', data.vip == true, true)
-    state:set('dz_garage_godmode', true, true)
+    state:set('dz_garage_godmode', false, true)
     state:set('dz_garage_id', tonumber(data.garageId or 0) or 0, true)
 
     state:set('dz_garage_tuning', tuningRaw, true)
@@ -765,6 +765,8 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
         end
 
         SetEntityRoutingBucket(entity, bucket)
+        SetEntityHeading(entity, tonumber(spot.h or 0.0) or 0.0)
+        SetVehicleOnGroundProperly(entity)
         SetVehicleNumberPlateText(entity, plate)
         SetVehicleDoorsLocked(entity, 2)
 
@@ -794,7 +796,8 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
             tuning = tuningRaw,
             gradient = gradientRaw,
             garageId = garage.id,
-            parkingIndex = spotIndex
+            parkingIndex = spotIndex,
+            heading = tonumber(spot.h or 0.0) or 0.0
         }
 
         setGarageVehicleState(entity, {
@@ -807,7 +810,8 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
             vip = isVipVehicle,
             tuning = tuningRaw,
             gradient = gradientRaw,
-            garageId = garage.id
+            garageId = garage.id,
+            heading = tonumber(spot.h or 0.0) or 0.0
         })
 
         pcall(function()
@@ -826,7 +830,8 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
             plate = plate,
             tuning = tuningRaw,
             gradient = gradientRaw,
-            forceTuning = true
+            forceTuning = true,
+            heading = tonumber(spot.h or 0.0) or 0.0
         })
 
         SetTimeout(1200, function()
