@@ -1,11 +1,14 @@
 local Inventories = {}
 local ItemsCache = nil
 local ItemsCacheExpires = 0
+local ClothesItemsCache = nil
+local ClothesItemsCacheExpires = 0
 local OpenPlayers = {}
 local GiveSessions = {}
 local Drops = {}
 local NextDropId = 0
 local ensureGradientItemColumns
+local jsonDecode
 local DIRTY_MONEY_STORAGE_KEY = '__dirtymoney'
 local QUICK_SLOTS_STORAGE_KEY = '__quick_slots'
 
@@ -39,6 +42,55 @@ end
 
 local function currencyMaxStack()
     return math.max(1, math.floor(tonumber(Config.CurrencyMaxStack or 2147483647) or 2147483647))
+end
+
+
+local function normalizeClothingCategory(key)
+    key = trim(key):lower():gsub('%s+', '_')
+    local aliases = Config.ClothingAliases or {}
+    key = aliases[key] or key
+    local cats = Config.ClothingCategories or {}
+    if cats[key] then return key end
+    return nil
+end
+
+local function getClothingCategoryConfig(key)
+    key = normalizeClothingCategory(key)
+    if not key then return nil, nil end
+    local cfg = (Config.ClothingCategories or {})[key]
+    return key, cfg
+end
+
+local function clothingCategoryOrder()
+    local order = Config.ClothingCategoryOrder or {}
+    local out = {}
+    for _, key in ipairs(order) do
+        key = normalizeClothingCategory(key)
+        if key and (Config.ClothingCategories or {})[key] then out[#out + 1] = key end
+    end
+    return out
+end
+
+local function buildClothingCategoriesPayload()
+    local out = {}
+    for _, key in ipairs(clothingCategoryOrder()) do
+        local cfg = (Config.ClothingCategories or {})[key] or {}
+        out[#out + 1] = {
+            key = key,
+            label = tostring(cfg.label or key),
+            icon = tostring(cfg.icon or (key .. '.svg')),
+            type = tostring(cfg.type or 'component'),
+            componentId = tonumber(cfg.componentId or -1) or -1,
+            propId = tonumber(cfg.propId or -1) or -1
+        }
+    end
+    return out
+end
+
+local function clothingJson(raw)
+    local data = jsonDecode(raw or '{}')
+    if type(data) == 'table' then return data end
+    return {}
 end
 
 local function normalizeQuickSlots(value)
@@ -118,7 +170,7 @@ local function jsonEncode(data)
     return '[]'
 end
 
-local function jsonDecode(raw)
+jsonDecode = function(raw)
     if type(raw) == 'table' then return raw end
     local ok, res = pcall(json.decode, tostring(raw or '[]'))
     if ok and type(res) == 'table' then return res end
@@ -347,6 +399,59 @@ local function clearInventory(uid)
     return saveInventory(uid)
 end
 
+
+local function loadClothesItems(force)
+    local now = GetGameTimer()
+    if not force and ClothesItemsCache and ClothesItemsCacheExpires > now then return ClothesItemsCache end
+
+    ClothesItemsCache = {}
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await(('SELECT * FROM %s ORDER BY category_key ASC, item_name ASC, item_id ASC'):format(sqlName(Config.ClothesItemsTable or 'clothes_items')), {}) or {}
+    end)
+
+    if not ok then
+        ClothesItemsCacheExpires = now + 5000
+        return ClothesItemsCache
+    end
+
+    for _, row in ipairs(rows or {}) do
+        local itemId = trim(row.item_id)
+        local category, cfg = getClothingCategoryConfig(row.category_key)
+        if itemId ~= '' and category and cfg then
+            local ctype = tostring(row.clothes_type or cfg.type or 'component')
+            local componentId = tonumber(row.component_id or cfg.componentId or -1) or -1
+            local propId = tonumber(row.prop_id or cfg.propId or -1) or -1
+            ClothesItemsCache[itemId] = {
+                item_id = itemId,
+                item_name = row.item_name or itemId,
+                image = row.image or '',
+                tradable = tonumber(row.tradable or 1) == 1,
+                stackable = tonumber(row.stackable or 0) == 1,
+                usable = tonumber(row.usable or 1) == 1,
+                giveable = tonumber(row.giveable or 1) == 1,
+                max_stack = math.max(1, tonumber(row.max_stack or 1) or 1),
+                is_clothing = true,
+                clothes_category = category,
+                clothes_drawable = math.floor(tonumber(row.drawable or 0) or 0),
+                clothes_texture = math.max(0, math.floor(tonumber(row.texture or 0) or 0)),
+                clothes_type = ctype,
+                component_id = componentId,
+                prop_id = propId
+            }
+        end
+    end
+
+    ClothesItemsCacheExpires = now + 5000
+    return ClothesItemsCache
+end
+
+local function getClothesItem(itemId)
+    itemId = trim(itemId)
+    if itemId == '' then return nil end
+    return loadClothesItems(false)[itemId]
+end
+
 local function loadItems(force)
     local now = GetGameTimer()
     if not force and ItemsCache and ItemsCacheExpires > now then return ItemsCache end
@@ -389,6 +494,8 @@ end
 local function getItem(itemId)
     itemId = trim(itemId)
     local item = loadItems(false)[itemId]
+    if item then return item end
+    item = getClothesItem(itemId)
     if item then return item end
     return currencyMeta(itemId)
 end
@@ -545,14 +652,13 @@ local function hydrateCurrencyItems(uid, inv)
 end
 
 local function hydrateInventory(inv)
-    local items = loadItems(false)
     local out = {}
     inv = normalizeInventory(inv)
 
     for i = 1, Config.Slots do
         local slot = inv[i]
-        if slot and items[slot.item_id] and not isCurrencyItem(slot.item_id) then
-            local meta = items[slot.item_id]
+        local meta = slot and getItem(slot.item_id) or nil
+        if slot and meta and not isCurrencyItem(slot.item_id) then
             out[i] = {
                 slot = i,
                 item_id = slot.item_id,
@@ -566,7 +672,11 @@ local function hydrateInventory(inv)
                 max_stack = meta.max_stack,
                 is_gradient = meta.is_gradient,
                 gradient_id = meta.gradient_id,
-                is_take_gradient = meta.is_take_gradient
+                is_take_gradient = meta.is_take_gradient,
+                is_clothing = meta.is_clothing or nil,
+                clothes_category = meta.clothes_category or nil,
+                clothes_drawable = meta.clothes_drawable or nil,
+                clothes_texture = meta.clothes_texture or nil
             }
         else
             out[i] = nil
@@ -742,7 +852,9 @@ local function hydrateDropItems(items)
                     usable = meta.usable,
                     giveable = meta.giveable,
                     max_stack = meta.max_stack,
-                    special_currency = meta.is_currency == true or nil
+                    special_currency = meta.is_currency == true or nil,
+                    is_clothing = meta.is_clothing or nil,
+                    clothes_category = meta.clothes_category or nil
                 }
             end
         end
@@ -856,6 +968,249 @@ local function addItemToUidPreferred(uid, itemId, amount, preferredSlot)
     return true, 'Item adaugat.'
 end
 
+
+local function ensureUserClothesRow(uid)
+    uid = tonumber(uid)
+    if not uid or uid <= 0 then return false end
+    local ok = pcall(function()
+        MySQL.insert.await(('INSERT IGNORE INTO %s (uid) VALUES (?)'):format(sqlName(Config.UsersClothesTable or 'users_clothes')), { uid })
+    end)
+    return ok == true
+end
+
+local function getUserClothes(uid)
+    uid = tonumber(uid)
+    local out = {}
+    if not uid or uid <= 0 then return out end
+    ensureUserClothesRow(uid)
+
+    local ok, row = pcall(function()
+        return MySQL.single.await(('SELECT * FROM %s WHERE uid = ? LIMIT 1'):format(sqlName(Config.UsersClothesTable or 'users_clothes')), { uid })
+    end)
+    if not ok or not row then return out end
+
+    for _, category in ipairs(clothingCategoryOrder()) do
+        local raw = row[category]
+        local data = raw and clothingJson(raw) or {}
+        if type(data) == 'table' and trim(data.item_id) ~= '' then
+            local meta = getClothesItem(data.item_id)
+            if meta then
+                out[category] = {
+                    item_id = meta.item_id,
+                    item_name = meta.item_name,
+                    image = meta.image,
+                    category_key = category,
+                    drawable = meta.clothes_drawable,
+                    texture = meta.clothes_texture,
+                    clothes_type = meta.clothes_type,
+                    component_id = meta.component_id,
+                    prop_id = meta.prop_id
+                }
+            else
+                local _, cfg = getClothingCategoryConfig(category)
+                out[category] = {
+                    item_id = trim(data.item_id),
+                    item_name = tostring(data.item_name or data.item_id),
+                    image = tostring(data.image or ''),
+                    category_key = category,
+                    drawable = math.floor(tonumber(data.drawable or 0) or 0),
+                    texture = math.max(0, math.floor(tonumber(data.texture or 0) or 0)),
+                    clothes_type = tostring(data.clothes_type or (cfg and cfg.type) or 'component'),
+                    component_id = tonumber(data.component_id or (cfg and cfg.componentId) or -1) or -1,
+                    prop_id = tonumber(data.prop_id or (cfg and cfg.propId) or -1) or -1
+                }
+            end
+        end
+    end
+
+    return out
+end
+
+local function saveUserClothing(uid, category, data)
+    uid = tonumber(uid)
+    category = normalizeClothingCategory(category)
+    if not uid or uid <= 0 or not category then return false end
+    ensureUserClothesRow(uid)
+
+    local value = nil
+    if type(data) == 'table' and trim(data.item_id) ~= '' then
+        value = jsonEncode({
+            item_id = trim(data.item_id),
+            item_name = tostring(data.item_name or data.item_id or ''),
+            image = tostring(data.image or ''),
+            drawable = math.floor(tonumber(data.drawable or 0) or 0),
+            texture = math.max(0, math.floor(tonumber(data.texture or 0) or 0)),
+            clothes_type = tostring(data.clothes_type or 'component'),
+            component_id = tonumber(data.component_id or -1) or -1,
+            prop_id = tonumber(data.prop_id or -1) or -1
+        })
+    end
+
+    local ok = pcall(function()
+        MySQL.update.await(('UPDATE %s SET %s = ?, updated_at = NOW() WHERE uid = ?'):format(sqlName(Config.UsersClothesTable or 'users_clothes'), sqlName(category)), { value, uid })
+    end)
+
+    return ok == true
+end
+
+local function clothingToInventoryMeta(data)
+    if type(data) ~= 'table' or trim(data.item_id) == '' then return nil end
+    return { item_id = trim(data.item_id), amount = 1 }
+end
+
+local function buildUserClothesForUi(uid)
+    local saved = getUserClothes(uid)
+    local out = {}
+    for category, item in pairs(saved) do
+        out[category] = {
+            slot = category,
+            item_id = item.item_id,
+            item_name = item.item_name,
+            image = item.image,
+            amount = 1,
+            tradable = true,
+            stackable = false,
+            usable = true,
+            giveable = true,
+            max_stack = 1,
+            is_clothing = true,
+            equipped = true,
+            clothes_category = category,
+            clothes_drawable = item.drawable,
+            clothes_texture = item.texture
+        }
+    end
+    return out
+end
+
+local function buildUserClothesApplyPayload(uid)
+    local saved = getUserClothes(uid)
+    local out = {}
+    for category, item in pairs(saved) do
+        out[category] = {
+            category = category,
+            item_id = item.item_id,
+            drawable = item.drawable,
+            texture = item.texture,
+            clothes_type = item.clothes_type,
+            component_id = item.component_id,
+            prop_id = item.prop_id
+        }
+    end
+    return out
+end
+
+local function pushClothesToClient(src, uid)
+    if not src or src <= 0 then return end
+    uid = uid or getUid(src)
+    if not uid then return end
+    TriggerClientEvent('driftzone_inventory:client:applyClothes', src, buildUserClothesApplyPayload(uid), buildClothingCategoriesPayload())
+end
+
+local function equipClothingFromSlot(src, uid, category, slotIndex)
+    category = normalizeClothingCategory(category)
+    slotIndex = tonumber(slotIndex or 0) or 0
+    if not category or slotIndex < 1 or slotIndex > Config.Slots then return false, 'Slot sau categorie invalida.' end
+
+    local inv = ensureInventory(uid)
+    local slot = inv[slotIndex]
+    if not slot or (tonumber(slot.amount or 0) or 0) <= 0 then return false, 'Nu ai item in slotul selectat.' end
+
+    local meta = getItem(slot.item_id)
+    if not meta or not meta.is_clothing then return false, 'Itemul nu este haina.' end
+    if normalizeClothingCategory(meta.clothes_category) ~= category then
+        return false, ('Itemul merge doar pe categoria %s.'):format(tostring(meta.clothes_category or ''))
+    end
+
+    local saved = getUserClothes(uid)
+    local old = saved[category]
+    if old and old.item_id and (tonumber(slot.amount or 1) or 1) > 1 and not hasFreeSlotOrStack(uid, old.item_id, 1) then
+        return false, 'Nu ai slot liber pentru haina veche.'
+    end
+
+    slot.amount = (tonumber(slot.amount or 1) or 1) - 1
+    local sourceBecameEmpty = slot.amount <= 0
+    if sourceBecameEmpty then
+        inv[slotIndex] = nil
+        clearQuickRefs(inv, slotIndex)
+    end
+
+    if old and old.item_id then
+        if sourceBecameEmpty and not inv[slotIndex] then
+            inv[slotIndex] = clothingToInventoryMeta(old)
+        else
+            local okOld, msgOld = addItemToUidPreferred(uid, old.item_id, 1, 0)
+            if not okOld then
+                -- rollback simplu: punem itemul inapoi
+                if inv[slotIndex] and inv[slotIndex].item_id == meta.item_id then
+                    inv[slotIndex].amount = inv[slotIndex].amount + 1
+                elseif not inv[slotIndex] then
+                    inv[slotIndex] = { item_id = meta.item_id, amount = 1 }
+                end
+                saveInventory(uid)
+                return false, msgOld or 'Nu am putut scoate haina veche.'
+            end
+            inv = ensureInventory(uid)
+        end
+    end
+
+    saveUserClothing(uid, category, {
+        item_id = meta.item_id,
+        item_name = meta.item_name,
+        image = meta.image,
+        drawable = meta.clothes_drawable,
+        texture = meta.clothes_texture,
+        clothes_type = meta.clothes_type,
+        component_id = meta.component_id,
+        prop_id = meta.prop_id
+    })
+
+    saveInventory(uid)
+    pushClothesToClient(src, uid)
+    return true, ('Ai echipat %s.'):format(meta.item_name or meta.item_id)
+end
+
+local function unequipClothingToSlot(src, uid, category, toSlot)
+    category = normalizeClothingCategory(category)
+    toSlot = tonumber(toSlot or 0) or 0
+    if not category then return false, 'Categorie invalida.' end
+
+    local saved = getUserClothes(uid)
+    local old = saved[category]
+    if not old or not old.item_id then return false, 'Nu ai haina echipata acolo.' end
+
+    if not hasFreeSlotOrStack(uid, old.item_id, 1) then return false, 'Nu ai slot liber in inventar.' end
+    local okAdd, msgAdd = addItemToUidPreferred(uid, old.item_id, 1, toSlot)
+    if not okAdd then return false, msgAdd or 'Nu pot pune haina in inventar.' end
+
+    saveUserClothing(uid, category, nil)
+    saveInventory(uid)
+    pushClothesToClient(src, uid)
+    return true, 'Haina a fost scoasa.'
+end
+
+local function requestClothesLoadForPlayer(src, attempt)
+    src = tonumber(src or 0) or 0
+    attempt = tonumber(attempt or 0) or 0
+    if src <= 0 or not GetPlayerName(src) then return false end
+    if Config.ClothesLoad and Config.ClothesLoad.Enabled == false then return false end
+
+    local uid = getUid(src)
+    if not uid then
+        local max = tonumber((Config.ClothesLoad or {}).RetryCount or 18) or 18
+        local delay = tonumber((Config.ClothesLoad or {}).RetryDelayMs or 850) or 850
+        if attempt < max then
+            SetTimeout(delay, function()
+                requestClothesLoadForPlayer(src, attempt + 1)
+            end)
+        end
+        return false
+    end
+
+    pushClothesToClient(src, uid)
+    return true
+end
+
 local function pushNearbyDrops(src)
     local coords = getPlayerCoords(src)
     if not coords then return end
@@ -886,6 +1241,8 @@ local function pushInventory(src, mode, target, forceReload)
         inventory = hydrateInventory(inv),
         moneyItems = hydrateCurrencyItems(uid, inv),
         quickSlots = hydrateQuickSlots(inv),
+        clothesSlots = buildUserClothesForUi(uid),
+        clothingCategories = buildClothingCategoriesPayload(),
         mainColor = Config.MainColor,
         mode = mode or 'normal',
         target = target or nil,
@@ -1012,6 +1369,80 @@ local function saveInventoryItemFromAdmin(admin, data)
     return true, 'Item salvat cu succes: ' .. itemId, itemId
 end
 
+
+local function buildAdminClothesList()
+    local rows = {}
+    pcall(function()
+        rows = MySQL.query.await(('SELECT * FROM %s ORDER BY category_key ASC, item_name ASC, item_id ASC'):format(sqlName(Config.ClothesItemsTable or 'clothes_items')), {}) or {}
+    end)
+
+    local out = {}
+    for _, row in ipairs(rows or {}) do
+        local category, cfg = getClothingCategoryConfig(row.category_key)
+        if category and cfg then
+            out[#out + 1] = {
+                item_id = tostring(row.item_id or ''),
+                item_name = tostring(row.item_name or row.item_id or ''),
+                image = tostring(row.image or ''),
+                category_key = category,
+                category_label = tostring(cfg.label or category),
+                drawable = math.floor(tonumber(row.drawable or 0) or 0),
+                texture = math.max(0, math.floor(tonumber(row.texture or 0) or 0)),
+                clothes_type = tostring(row.clothes_type or cfg.type or 'component'),
+                component_id = tonumber(row.component_id or cfg.componentId or -1) or -1,
+                prop_id = tonumber(row.prop_id or cfg.propId or -1) or -1,
+                tradable = tonumber(row.tradable or 1) == 1 and 1 or 0,
+                stackable = tonumber(row.stackable or 0) == 1 and 1 or 0,
+                usable = tonumber(row.usable or 1) == 1 and 1 or 0,
+                giveable = tonumber(row.giveable or 1) == 1 and 1 or 0,
+                max_stack = math.max(1, math.floor(tonumber(row.max_stack or 1) or 1))
+            }
+        end
+    end
+    return out
+end
+
+local function saveClothesItemFromAdmin(admin, data)
+    data = type(data) == 'table' and data or {}
+    local originalId = trim(data.original_id)
+    local itemId = trim(data.item_id):lower():gsub('%s+', '_')
+    local name = trim(data.item_name)
+    local image = trim(data.image)
+    local category, cfg = getClothingCategoryConfig(data.category_key)
+    local drawable = math.floor(tonumber(data.drawable or data.clothes_id or 0) or 0)
+    local texture = math.max(0, math.floor(tonumber(data.texture or 0) or 0))
+    local tradable = tonumber(data.tradable or 1) == 1 and 1 or 0
+    local stackable = tonumber(data.stackable or 0) == 1 and 1 or 0
+    local usable = tonumber(data.usable or 1) == 1 and 1 or 0
+    local giveable = tonumber(data.giveable or 1) == 1 and 1 or 0
+    local maxStack = math.max(1, math.floor(tonumber(data.max_stack or 1) or 1))
+
+    if originalId ~= '' and itemId ~= originalId then
+        return false, 'Item ID nu poate fi schimbat la editare.', originalId
+    end
+    if itemId == '' or not itemId:match('^[a-z0-9_%-]+$') then return false, 'Item ID invalid.', itemId end
+    if name == '' then return false, 'Item Name obligatoriu.', itemId end
+    if not category or not cfg then return false, 'Categorie invalida.', itemId end
+
+    local ctype = tostring(cfg.type or 'component')
+    local componentId = tonumber(cfg.componentId or -1) or -1
+    local propId = tonumber(cfg.propId or -1) or -1
+
+    local okSave, errSave = pcall(function()
+        MySQL.update.await(('INSERT INTO %s (item_id, item_name, image, category_key, drawable, texture, clothes_type, component_id, prop_id, tradable, stackable, usable, giveable, max_stack, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE item_name = VALUES(item_name), image = VALUES(image), category_key = VALUES(category_key), drawable = VALUES(drawable), texture = VALUES(texture), clothes_type = VALUES(clothes_type), component_id = VALUES(component_id), prop_id = VALUES(prop_id), tradable = VALUES(tradable), stackable = VALUES(stackable), usable = VALUES(usable), giveable = VALUES(giveable), max_stack = VALUES(max_stack), updated_at = NOW()'):format(sqlName(Config.ClothesItemsTable or 'clothes_items')), {
+            itemId, name, image, category, drawable, texture, ctype, componentId, propId, tradable, stackable, usable, giveable, maxStack
+        })
+    end)
+
+    if not okSave then
+        print('[DRIFTZONE_INVENTORY] clothes item save error: ' .. tostring(errSave))
+        return false, 'Eroare SQL la salvare. Verifica SQL.sql si consola.', itemId
+    end
+
+    ClothesItemsCache = nil
+    return true, 'Haina salvata cu succes: ' .. itemId, itemId
+end
+
 RegisterCommand(Config.Command or 'inventory', function(src)
     if src <= 0 then return end
     if not isLogged(src) then return notify(src, 'warning', 'Trebuie sa fii logat.') end
@@ -1031,6 +1462,26 @@ RegisterCommand('items', function(src)
     TriggerClientEvent('driftzone_inventory:client:itemsPanel', src, {
         mainColor = Config.MainColor,
         items = buildAdminItemsList()
+    })
+end, false)
+
+
+RegisterCommand('addclothes', function(src)
+    local admin = requireAdmin(src, Config.Admin.addclothes or 6)
+    if not admin then return end
+    TriggerClientEvent('driftzone_inventory:client:addClothesPanel', src, {
+        mainColor = Config.MainColor,
+        categories = buildClothingCategoriesPayload()
+    })
+end, false)
+
+RegisterCommand('clothesitems', function(src)
+    local admin = requireAdmin(src, Config.Admin.clothesitems or 6)
+    if not admin then return end
+    TriggerClientEvent('driftzone_inventory:client:clothesItemsPanel', src, {
+        mainColor = Config.MainColor,
+        categories = buildClothingCategoriesPayload(),
+        items = buildAdminClothesList()
     })
 end, false)
 
@@ -1167,6 +1618,51 @@ RegisterNetEvent('driftzone_inventory:server:updateItemSubmit', function(data)
     TriggerClientEvent('driftzone_inventory:client:itemsResult', src, ok == true, msg or '', buildAdminItemsList(), itemId)
 end)
 
+
+RegisterNetEvent('driftzone_inventory:server:addClothesSubmit', function(data)
+    local src = source
+    local admin = requireAdmin(src, Config.Admin.addclothes or 6)
+    if not admin then return end
+
+    local ok, msg, itemId = saveClothesItemFromAdmin(admin, data)
+    if ok then logAction('admin_addclothes', admin.uid, 0, itemId, 0, data or {}) end
+    TriggerClientEvent('driftzone_inventory:client:clothesResult', src, ok == true, msg or '')
+end)
+
+RegisterNetEvent('driftzone_inventory:server:updateClothesItemSubmit', function(data)
+    local src = source
+    local admin = requireAdmin(src, Config.Admin.clothesitems or 6)
+    if not admin then return end
+
+    local ok, msg, itemId = saveClothesItemFromAdmin(admin, data)
+    if ok then logAction('admin_editclothes', admin.uid, 0, itemId, 0, data or {}) end
+    TriggerClientEvent('driftzone_inventory:client:clothesItemsResult', src, ok == true, msg or '', buildAdminClothesList(), itemId)
+end)
+
+RegisterNetEvent('driftzone_inventory:server:equipClothingSlot', function(category, slotIndex)
+    local src = source
+    local uid = getUid(src)
+    if not uid then return end
+
+    local ok, msg = equipClothingFromSlot(src, uid, category, slotIndex)
+    notify(src, ok and 'success' or 'warning', msg or '')
+    pushInventory(src, 'normal')
+end)
+
+RegisterNetEvent('driftzone_inventory:server:unequipClothingSlot', function(category, toSlot)
+    local src = source
+    local uid = getUid(src)
+    if not uid then return end
+
+    local ok, msg = unequipClothingToSlot(src, uid, category, toSlot)
+    notify(src, ok and 'success' or 'warning', msg or '')
+    pushInventory(src, 'normal')
+end)
+
+RegisterNetEvent('driftzone_inventory:server:requestClothesLoad', function()
+    requestClothesLoadForPlayer(source, 0)
+end)
+
 RegisterNetEvent('driftzone_inventory:server:startGiveToPlayer', function(targetServerId)
     local src = source
     targetServerId = tonumber(targetServerId or 0) or 0
@@ -1271,6 +1767,13 @@ local function useInventorySlot(src, uid, slotIndex)
     if not slot then return end
     local item = getItem(slot.item_id)
     if not item or not item.usable then return notify(src, 'warning', 'Acest item nu se poate folosi.') end
+
+    if item.is_clothing then
+        local ok, msg = equipClothingFromSlot(src, uid, item.clothes_category, slotIndex)
+        notify(src, ok and 'success' or 'warning', msg or '')
+        pushInventory(src, 'normal')
+        return
+    end
 
     if item.item_id == tostring(Config.TakeGradientItemId or 'takegradient') or item.is_take_gradient then
         local gradientRes = tostring(Config.GradientResource or 'driftzone_gradients')
@@ -1566,6 +2069,14 @@ exports('HasSpaceForItem', function(uid, itemId, amount)
     return hasFreeSlotOrStack(uid, itemId, amount)
 end)
 
+exports('ReloadClothes', function(src)
+    return requestClothesLoadForPlayer(src, 0)
+end)
+
+exports('GetClothes', function(uid)
+    return getUserClothes(uid)
+end)
+
 
 local function tableNameRaw(name)
     return tostring(name or ''):gsub('`', '')
@@ -1602,6 +2113,48 @@ local function ensureColumn(tableName, columnName, definition)
     return true
 end
 
+
+local function ensureClothesTables()
+    local cols = {}
+    for _, category in ipairs(clothingCategoryOrder()) do
+        cols[#cols + 1] = ('`%s` LONGTEXT NULL'):format(category)
+    end
+
+    local sql = ([[
+        CREATE TABLE IF NOT EXISTS %s (
+            `uid` INT NOT NULL,
+            %s,
+            `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`uid`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ]]):format(sqlName(Config.UsersClothesTable or 'users_clothes'), table.concat(cols, ',\n            '))
+
+    MySQL.query.await(sql, {})
+
+    MySQL.query.await(([[
+        CREATE TABLE IF NOT EXISTS %s (
+            `item_id` VARCHAR(64) NOT NULL,
+            `item_name` VARCHAR(128) NOT NULL,
+            `image` TEXT NULL,
+            `category_key` VARCHAR(32) NOT NULL,
+            `drawable` INT NOT NULL DEFAULT 0,
+            `texture` INT NOT NULL DEFAULT 0,
+            `clothes_type` VARCHAR(16) NOT NULL DEFAULT 'component',
+            `component_id` INT NOT NULL DEFAULT -1,
+            `prop_id` INT NOT NULL DEFAULT -1,
+            `tradable` TINYINT NOT NULL DEFAULT 1,
+            `stackable` TINYINT NOT NULL DEFAULT 0,
+            `usable` TINYINT NOT NULL DEFAULT 1,
+            `giveable` TINYINT NOT NULL DEFAULT 1,
+            `max_stack` INT NOT NULL DEFAULT 1,
+            `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`item_id`),
+            KEY `idx_category_key` (`category_key`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ]]):format(sqlName(Config.ClothesItemsTable or 'clothes_items')), {})
+end
+
 ensureGradientItemColumns = function()
     ensureColumn(Config.ItemsTable, 'is_gradient', 'TINYINT NOT NULL DEFAULT 0')
     ensureColumn(Config.ItemsTable, 'gradient_id', 'INT NOT NULL DEFAULT 0')
@@ -1610,5 +2163,18 @@ end
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     ensureGradientItemColumns()
+    local okClothes, errClothes = pcall(ensureClothesTables)
+    if not okClothes then
+        print('[DRIFTZONE_INVENTORY] Clothes SQL setup failed: ' .. tostring(errClothes))
+    end
+    ClothesItemsCache = nil
+    for _, id in ipairs(GetPlayers()) do
+        local target = tonumber(id)
+        if target and target > 0 then
+            SetTimeout(1500, function()
+                requestClothesLoadForPlayer(target, 0)
+            end)
+        end
+    end
     print('[DRIFTZONE_INVENTORY] Loaded.')
 end)

@@ -1,4 +1,4 @@
--- DriftZone Clothes SQL
+-- DriftZone Clothes SQL - expanded categories compatible
 ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `clothes` LONGTEXT NULL;
 
 CREATE TABLE IF NOT EXISTS `unallowed_clothes` (

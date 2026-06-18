@@ -3,21 +3,27 @@ local LOGS_DB = MAIN_DB
 local ADMIN_REQUIRED = 7
 
 local ALLOWED_KEYS = {
-    'hair', 'hat', 'mask', 'glasses', 'jacket', 'torso', 'top', 'insignia', 'pants', 'shoes', 'bag'
+    'hair', 'jacket', 'top', 'vest', 'pants', 'shoes', 'hat', 'mask', 'accessories',
+    'watches', 'bracelets', 'glasses', 'ears', 'bag', 'torso', 'insignia'
 }
 
 local CATEGORY_BY_NUMBER = {
     [1] = 'hair',
-    [2] = 'hat',
-    [3] = 'mask',
-    [4] = 'glasses',
-    [5] = 'jacket',
-    [6] = 'torso',
-    [7] = 'top',
-    [8] = 'insignia',
-    [9] = 'pants',
-    [10] = 'shoes',
-    [11] = 'bag'
+    [2] = 'jacket',
+    [3] = 'top',
+    [4] = 'vest',
+    [5] = 'pants',
+    [6] = 'shoes',
+    [7] = 'hat',
+    [8] = 'mask',
+    [9] = 'accessories',
+    [10] = 'watches',
+    [11] = 'bracelets',
+    [12] = 'glasses',
+    [13] = 'ears',
+    [14] = 'bag',
+    [15] = 'torso',
+    [16] = 'insignia'
 }
 
 local function notify(src, notifyType, message, duration)
@@ -84,7 +90,7 @@ local function getAdminData(src)
     }
 end
 
-local function requireAdmin7(src)
+local function requireAdmin(src)
     if not isLogged(src) then
         notify(src, 'warning', 'Trebuie sa fii logat.')
         return nil
@@ -293,7 +299,7 @@ local function saveClothes(uid, rawClothes)
 end
 
 local function openMenu(src)
-    local admin = requireAdmin7(src)
+    local admin = requireAdmin(src)
     if not admin then return end
 
     local uid = getUid(src)
@@ -317,8 +323,7 @@ local function applySavedClothes(src, attempt)
 
     local uid = getUid(src)
 
-    -- La join, UID-ul/state-ul poate aparea cu delay dupa driftzone_auth.
-    -- De asta reincercam de cateva ori, ca hainele sa se incarce automat dupa login/spawn.
+    -- Reload manual: UID-ul/state-ul poate aparea cu delay dupa driftzone_auth, asa ca reincercam cateva secunde.
     if not uid then
         if attempt < 10 then
             SetTimeout(1000, function()
@@ -344,9 +349,9 @@ end
 
 local function sendUsage(src, command)
     if command == 'setcl' then
-        notify(src, 'info', '/setcl (id) (categorie 1-11) (numar haina) | 1 hair, 2 hat, 3 mask, 4 glasses, 5 jacket, 6 torso, 7 top, 8 insignia, 9 pants, 10 shoes, 11 bag', 9000)
+        notify(src, 'info', '/setcl (id) (categorie 1-16) (numar haina) | 1 hair, 2 jacket, 3 top, 4 vest, 5 pants, 6 shoes, 7 hat, 8 mask, 9 accessories, 10 watches, 11 bracelets, 12 glasses, 13 ears, 14 bag, 15 torso/arms, 16 insignia', 12000)
     elseif command == 'bancl' then
-        notify(src, 'info', '/bancl (categorie 1-11) (numar haina) | 1 hair, 2 hat, 3 mask, 4 glasses, 5 jacket, 6 torso, 7 top, 8 insignia, 9 pants, 10 shoes, 11 bag', 9000)
+        notify(src, 'info', '/bancl (categorie 1-16) (numar haina) | 1 hair, 2 jacket, 3 top, 4 vest, 5 pants, 6 shoes, 7 hat, 8 mask, 9 accessories, 10 watches, 11 bracelets, 12 glasses, 13 ears, 14 bag, 15 torso/arms, 16 insignia', 12000)
     elseif command == 'fixskin' then
         notify(src, 'info', '/fixskin (id)', 6000)
     end
@@ -356,7 +361,7 @@ local function runCommand(src, command, args)
     command = tostring(command or ''):lower()
     args = args or {}
 
-    local admin = requireAdmin7(src)
+    local admin = requireAdmin(src)
     if not admin then return end
 
     if command == 'haine' or command == 'clothes' then
@@ -479,7 +484,7 @@ end)
 
 RegisterNetEvent('driftzone_clothes:server:save', function(payload)
     local src = source
-    local admin = requireAdmin7(src)
+    local admin = requireAdmin(src)
     if not admin then return end
 
     local uid = getUid(src)
@@ -504,7 +509,7 @@ end)
 
 RegisterNetEvent('driftzone_clothes:server:abandon', function()
     local src = source
-    local admin = requireAdmin7(src)
+    local admin = requireAdmin(src)
     if not admin then return end
 
     local uid = getUid(src)
@@ -538,7 +543,7 @@ end)
 -- TriggerServerEvent('driftzone_clothes:server:adminReloadPlayerClothes', targetIdSauUid)
 RegisterNetEvent('driftzone_clothes:server:adminReloadPlayerClothes', function(targetId)
     local src = source
-    local admin = requireAdmin7(src)
+    local admin = requireAdmin(src)
     if not admin then return end
 
     local target = getPlayerByAnyId(targetId)
@@ -563,7 +568,7 @@ RegisterCommand('reloadclothes', function(src, args)
     if src == 0 then return end
 
     if args and args[1] then
-        local admin = requireAdmin7(src)
+        local admin = requireAdmin(src)
         if not admin then return end
 
         local target = getPlayerByAnyId(args[1])
@@ -603,5 +608,5 @@ CreateThread(function()
         print(err)
     end
 
-    print('[DRIFTZONE_CLOTHES] Server-side loaded. Auto-load on join + reload triggers enabled.')
+    print('[DRIFTZONE_CLOTHES] Server-side loaded. Manual reload triggers enabled. Auto-load on join disabled.')
 end)

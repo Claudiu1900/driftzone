@@ -2,6 +2,8 @@ local inventoryOpen = false
 local addItemOpen = false
 local selectorOpen = false
 local itemsOpen = false
+local addClothesOpen = false
+local clothesItemsOpen = false
 local pendingGive = nil
 local cursorX, cursorY = 0.5, 0.5
 local selectorTarget = nil
@@ -99,6 +101,64 @@ local function playActionAnimation(actionName)
     playNativeAction(anim)
 end
 
+
+local function getClothingCategoryConfig(key)
+    key = tostring(key or '')
+    local cfg = Config.ClothingCategories and Config.ClothingCategories[key] or nil
+    return cfg
+end
+
+local function applyClothingEntry(entry)
+    if type(entry) ~= 'table' then return false end
+    local ped = PlayerPedId()
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return false end
+
+    local category = tostring(entry.category or entry.category_key or '')
+    local cfg = getClothingCategoryConfig(category) or {}
+    local ctype = tostring(entry.clothes_type or cfg.type or 'component')
+    local drawable = math.floor(tonumber(entry.drawable or 0) or 0)
+    local texture = math.max(0, math.floor(tonumber(entry.texture or 0) or 0))
+
+    if ctype == 'prop' then
+        local propId = tonumber(entry.prop_id or cfg.propId or -1) or -1
+        if propId < 0 then return false end
+        if drawable < 0 then
+            ClearPedProp(ped, propId)
+        else
+            SetPedPropIndex(ped, propId, drawable, texture, true)
+        end
+        return true
+    end
+
+    local componentId = tonumber(entry.component_id or cfg.componentId or -1) or -1
+    if componentId < 0 then return false end
+    if drawable < 0 then drawable = 0 end
+    SetPedComponentVariation(ped, componentId, drawable, texture, 0)
+    return true
+end
+
+local function applyClothesPayload(payload)
+    if type(payload) ~= 'table' then return end
+    for _, entry in pairs(payload) do
+        applyClothingEntry(entry)
+    end
+end
+
+local function requestClothesLoadDelayed(ms)
+    SetTimeout(tonumber(ms or 0) or 0, function()
+        TriggerServerEvent('driftzone_inventory:server:requestClothesLoad')
+    end)
+end
+
+RegisterNetEvent('driftzone_inventory:client:applyClothes', function(payload)
+    applyClothesPayload(payload or {})
+
+    -- Reaplica de cateva ori ca sa bata spawn/model-load intarziat.
+    SetTimeout(350, function() applyClothesPayload(payload or {}) end)
+    SetTimeout(1200, function() applyClothesPayload(payload or {}) end)
+    SetTimeout(2800, function() applyClothesPayload(payload or {}) end)
+end)
+
 RegisterNetEvent('driftzone_inventory:client:playActionAnimation', function(actionName)
     playActionAnimation(tostring(actionName or ''))
 end)
@@ -129,6 +189,8 @@ local function openInventory(data)
     addItemOpen = false
     selectorOpen = false
     itemsOpen = false
+    addClothesOpen = false
+    clothesItemsOpen = false
     pendingGive = nil
     setFocus(true)
     sendNui({ action = 'openInventory', data = data or {} })
@@ -141,6 +203,8 @@ closeAll = function()
     addItemOpen = false
     selectorOpen = false
     itemsOpen = false
+    addClothesOpen = false
+    clothesItemsOpen = false
     pendingGive = nil
     setFocus(false)
     sendNui({ action = 'closeAll' })
@@ -151,6 +215,8 @@ local function openSelector(data)
     addItemOpen = false
     selectorOpen = true
     itemsOpen = false
+    addClothesOpen = false
+    clothesItemsOpen = false
     selectorTarget = nil
     selectorTargetPed = nil
     pendingGive = data or pendingGive
@@ -179,6 +245,8 @@ RegisterNetEvent('driftzone_inventory:client:addItemPanel', function(data)
     addItemOpen = true
     selectorOpen = false
     itemsOpen = false
+    addClothesOpen = false
+    clothesItemsOpen = false
     setFocus(true)
     sendNui({ action = 'openAddItem', data = data or {} })
 end)
@@ -192,12 +260,45 @@ RegisterNetEvent('driftzone_inventory:client:itemsPanel', function(data)
     addItemOpen = false
     selectorOpen = false
     itemsOpen = true
+    addClothesOpen = false
+    clothesItemsOpen = false
     setFocus(true)
     sendNui({ action = 'openItems', data = data or {} })
 end)
 
 RegisterNetEvent('driftzone_inventory:client:itemsResult', function(ok, message, items, itemId)
     sendNui({ action = 'itemsResult', ok = ok == true, message = tostring(message or ''), items = items or {}, itemId = itemId })
+end)
+
+
+RegisterNetEvent('driftzone_inventory:client:addClothesPanel', function(data)
+    inventoryOpen = false
+    addItemOpen = false
+    selectorOpen = false
+    itemsOpen = false
+    addClothesOpen = true
+    clothesItemsOpen = false
+    setFocus(true)
+    sendNui({ action = 'openAddClothes', data = data or {} })
+end)
+
+RegisterNetEvent('driftzone_inventory:client:clothesResult', function(ok, message)
+    sendNui({ action = 'clothesResult', ok = ok == true, message = tostring(message or '') })
+end)
+
+RegisterNetEvent('driftzone_inventory:client:clothesItemsPanel', function(data)
+    inventoryOpen = false
+    addItemOpen = false
+    selectorOpen = false
+    itemsOpen = false
+    addClothesOpen = false
+    clothesItemsOpen = true
+    setFocus(true)
+    sendNui({ action = 'openClothesItems', data = data or {} })
+end)
+
+RegisterNetEvent('driftzone_inventory:client:clothesItemsResult', function(ok, message, items, itemId)
+    sendNui({ action = 'clothesItemsResult', ok = ok == true, message = tostring(message or ''), items = items or {}, itemId = itemId })
 end)
 
 RegisterNetEvent('driftzone_inventory:client:itemUsed', function(itemId)
@@ -270,6 +371,48 @@ RegisterNUICallback('useQuickSlot', function(data, cb)
     cb({ ok = true })
 end)
 
+
+RegisterNUICallback('equipClothingSlot', function(data, cb)
+    TriggerServerEvent('driftzone_inventory:server:equipClothingSlot', data and data.category, data and data.slot)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('unequipClothingSlot', function(data, cb)
+    TriggerServerEvent('driftzone_inventory:server:unequipClothingSlot', data and data.category, data and data.to)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('submitAddClothes', function(data, cb)
+    TriggerServerEvent('driftzone_inventory:server:addClothesSubmit', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('submitAdminClothesItem', function(data, cb)
+    TriggerServerEvent('driftzone_inventory:server:updateClothesItemSubmit', data or {})
+    cb({ ok = true })
+end)
+
+
+
+CreateThread(function()
+    if Config.ClothesLoad and Config.ClothesLoad.Enabled == false then return end
+    local delays = Config.ClothesLoad and Config.ClothesLoad.ClientRetryDelays or { 500, 1200, 2200, 3500, 5200, 7500, 10000, 13500, 17000 }
+    local last = 0
+    for _, delay in ipairs(delays) do
+        delay = tonumber(delay or 0) or 0
+        Wait(math.max(0, delay - last))
+        last = delay
+        TriggerServerEvent('driftzone_inventory:server:requestClothesLoad')
+    end
+end)
+
+AddEventHandler('playerSpawned', function()
+    if Config.ClothesLoad and Config.ClothesLoad.Enabled == false then return end
+    requestClothesLoadDelayed(250)
+    requestClothesLoadDelayed(1000)
+    requestClothesLoadDelayed(2500)
+    requestClothesLoadDelayed(5000)
+end)
 
 local function projectWorldPoint(coords)
     local onScreen, sx, sy = World3dToScreen2d(coords.x, coords.y, coords.z)
@@ -404,7 +547,7 @@ end)
 for i = 1, 5 do
     local quickIndex = i
     RegisterCommand(('dz_inv_quick_%s'):format(quickIndex), function()
-        if addItemOpen or selectorOpen or itemsOpen then return end
+        if addItemOpen or selectorOpen or itemsOpen or addClothesOpen or clothesItemsOpen then return end
         TriggerServerEvent('driftzone_inventory:server:useQuickSlot', quickIndex)
     end, false)
 
@@ -498,7 +641,7 @@ end)
 
 CreateThread(function()
     while true do
-        if inventoryOpen or addItemOpen or selectorOpen then
+        if inventoryOpen or addItemOpen or selectorOpen or itemsOpen or addClothesOpen or clothesItemsOpen then
             DisableControlAction(0, 1, true)
             DisableControlAction(0, 2, true)
             DisableControlAction(0, 24, true)

@@ -4,6 +4,10 @@ const inventoryRoot = document.getElementById('inventoryRoot');
 const selectorRoot = document.getElementById('selectorRoot');
 const addItemRoot = document.getElementById('addItemRoot');
 const itemsRoot = document.getElementById('itemsRoot');
+const addClothesRoot = document.getElementById('addClothesRoot');
+const clothesItemsRoot = document.getElementById('clothesItemsRoot');
+const clothingShell = document.getElementById('clothingShell');
+const clothingSlotsEl = document.getElementById('clothingSlots');
 const grid = document.getElementById('grid');
 const moneyShell = document.getElementById('moneyShell');
 const moneyPanel = document.getElementById('moneyPanel');
@@ -35,6 +39,20 @@ const itemGradientId = document.getElementById('itemGradientId');
 const imagePreview = document.getElementById('imagePreview');
 const previewImg = document.getElementById('previewImg');
 const addStatus = document.getElementById('addStatus');
+const clothesCategory = document.getElementById('clothesCategory');
+const clothesDrawable = document.getElementById('clothesDrawable');
+const clothesTexture = document.getElementById('clothesTexture');
+const clothesItemId = document.getElementById('clothesItemId');
+const clothesItemName = document.getElementById('clothesItemName');
+const clothesItemImage = document.getElementById('clothesItemImage');
+const clothesTradable = document.getElementById('clothesTradable');
+const clothesStackable = document.getElementById('clothesStackable');
+const clothesUsable = document.getElementById('clothesUsable');
+const clothesGiveable = document.getElementById('clothesGiveable');
+const clothesMaxStack = document.getElementById('clothesMaxStack');
+const clothesImagePreview = document.getElementById('clothesImagePreview');
+const clothesPreviewImg = document.getElementById('clothesPreviewImg');
+const clothesStatus = document.getElementById('clothesStatus');
 
 const itemsSearch = document.getElementById('itemsSearch');
 const itemsList = document.getElementById('itemsList');
@@ -52,11 +70,33 @@ const adminItemIsGradient = document.getElementById('adminItemIsGradient');
 const adminItemGradientId = document.getElementById('adminItemGradientId');
 const adminImagePreview = document.getElementById('adminImagePreview');
 const adminPreviewImg = document.getElementById('adminPreviewImg');
+const clothesItemsFilter = document.getElementById('clothesItemsFilter');
+const clothesItemsSearch = document.getElementById('clothesItemsSearch');
+const clothesItemsList = document.getElementById('clothesItemsList');
+const clothesItemsStatus = document.getElementById('clothesItemsStatus');
+const adminOriginalClothesId = document.getElementById('adminOriginalClothesId');
+const adminClothesItemId = document.getElementById('adminClothesItemId');
+const adminClothesItemName = document.getElementById('adminClothesItemName');
+const adminClothesCategory = document.getElementById('adminClothesCategory');
+const adminClothesDrawable = document.getElementById('adminClothesDrawable');
+const adminClothesTexture = document.getElementById('adminClothesTexture');
+const adminClothesImage = document.getElementById('adminClothesImage');
+const adminClothesTradable = document.getElementById('adminClothesTradable');
+const adminClothesStackable = document.getElementById('adminClothesStackable');
+const adminClothesUsable = document.getElementById('adminClothesUsable');
+const adminClothesGiveable = document.getElementById('adminClothesGiveable');
+const adminClothesMaxStack = document.getElementById('adminClothesMaxStack');
+const adminClothesImagePreview = document.getElementById('adminClothesImagePreview');
+const adminClothesPreviewImg = document.getElementById('adminClothesPreviewImg');
 
 let slots = 49;
 let inventory = {};
 let moneySlots = {};
 let quickSlots = {};
+let clothingSlots = {};
+let clothingCategories = [];
+let adminClothesItems = [];
+let selectedAdminClothesId = null;
 let dropped = [];
 let adminItems = [];
 let selectedAdminItemId = null;
@@ -86,6 +126,38 @@ function esc(value) {
 }
 function amountText(v) { return Number(v || 0).toLocaleString('en-US'); }
 function bool(v) { return v === true || Number(v) === 1 || String(v).toLowerCase() === 'true'; }
+const DEFAULT_CLOTHING_CATEGORIES = [
+    { key: 'hat', label: 'Hat', icon: 'hat.svg' },
+    { key: 'glasses', label: 'Glasses', icon: 'glasses.svg' },
+    { key: 'mask', label: 'Mask', icon: 'mask.svg' },
+    { key: 'accessories', label: 'Accessories', icon: 'accessories.svg' },
+    { key: 'jacket', label: 'Jacket', icon: 'jacket.svg' },
+    { key: 'top', label: 'Top', icon: 'top.svg' },
+    { key: 'torso', label: 'Torso', icon: 'torso.svg' },
+    { key: 'vest', label: 'Vest', icon: 'vest.svg' },
+    { key: 'bag', label: 'Bag', icon: 'bag.svg' },
+    { key: 'pants', label: 'Pants', icon: 'pants.svg' },
+    { key: 'shoes', label: 'Shoes', icon: 'shoes.svg' },
+    { key: 'watches', label: 'Watches', icon: 'watches.svg' },
+    { key: 'bracelets', label: 'Bracelets', icon: 'bracelets.svg' }
+];
+function isClothingItem(item) { return item && bool(item.is_clothing); }
+function normalizeCategoryKey(key) { return String(key || '').toLowerCase().trim(); }
+function getCategoryLabel(key) {
+    const cat = (clothingCategories.length ? clothingCategories : DEFAULT_CLOTHING_CATEGORIES).find((entry) => entry.key === key);
+    return cat ? cat.label : key;
+}
+function populateCategorySelect(selectEl, selected = '') {
+    if (!selectEl) return;
+    const cats = clothingCategories.length ? clothingCategories : DEFAULT_CLOTHING_CATEGORIES;
+    selectEl.innerHTML = cats.map((cat) => `<option value="${esc(cat.key)}">${esc(cat.label || cat.key)}</option>`).join('');
+    if (selected) selectEl.value = selected;
+}
+function populateFilterSelect() {
+    if (!clothesItemsFilter) return;
+    const cats = clothingCategories.length ? clothingCategories : DEFAULT_CLOTHING_CATEGORIES;
+    clothesItemsFilter.innerHTML = '<option value="all">All categories</option>' + cats.map((cat) => `<option value="${esc(cat.key)}">${esc(cat.label || cat.key)}</option>`).join('');
+}
 function isMoneySlotKey(slot) {
     const key = String(slot ?? '');
     return key === 'money' || key === 'dirtymoney';
@@ -112,6 +184,10 @@ function closeLocal() {
     hide(selectorRoot);
     hide(addItemRoot);
     hide(itemsRoot);
+    hide(addClothesRoot);
+    hide(clothesItemsRoot);
+    hide(addClothesRoot);
+    hide(clothesItemsRoot);
     hide(contextMenu);
     hide(amountModal);
     hide(moneyShell);
@@ -187,10 +263,28 @@ function renderQuickSlots() {
     quickBar.innerHTML = html.join('');
 }
 
+
+function clothingEmptySvg(cat) {
+    const icon = esc(cat.icon || `${cat.key}.svg`);
+    const label = esc(cat.label || cat.key);
+    return `<div class="clothing-empty"><img src="icons/${icon}" draggable="false" onerror="this.style.display='none'"><span>${label}</span></div>`;
+}
+
+function renderClothingSlots() {
+    if (!clothingSlotsEl) return;
+    const cats = clothingCategories.length ? clothingCategories : DEFAULT_CLOTHING_CATEGORIES;
+    clothingSlotsEl.innerHTML = cats.map((cat) => {
+        const key = normalizeCategoryKey(cat.key);
+        const item = clothingSlots[key];
+        return `<div class="clothing-slot cat-${esc(key)}${item ? ' filled' : ''}" data-clothing="${esc(key)}" title="${esc(cat.label || key)}">${item ? itemVisual(item) : clothingEmptySvg(cat)}</div>`;
+    }).join('');
+}
+
 function renderAllSlots() {
     renderMoneySlots();
     renderInventory();
     renderQuickSlots();
+    renderClothingSlots();
 }
 
 function beginDragFromMoneySlot(e, slotEl) {
@@ -224,6 +318,26 @@ function beginDragFromQuickSlot(e, quickEl) {
         quickIndex,
         slot: quick.slotIndex,
         item: quick.item,
+        startX: e.clientX,
+        startY: e.clientY,
+        active: false,
+        clickBlocked: false
+    };
+    e.preventDefault();
+}
+
+
+function beginDragFromClothingSlot(e, clothingEl) {
+    const category = normalizeCategoryKey(clothingEl.dataset.clothing || '');
+    const item = clothingSlots[category];
+    if (!item) return;
+    selectedSlot = null;
+    hide(contextMenu);
+    hide(amountModal);
+    drag = {
+        type: 'clothing',
+        category,
+        item,
         startX: e.clientX,
         startY: e.clientY,
         active: false,
@@ -339,11 +453,16 @@ function updateDrag(e) {
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const slot = target ? target.closest('.slot') : null;
     const quick = target ? target.closest('.quick-slot') : null;
+    const clothing = target ? target.closest('.clothing-slot') : null;
     const panel = target ? target.closest('.dropped-panel') : null;
     if (drag.type === 'currency') {
         setHover(panel || null);
     } else if ((drag.type === 'inventory' || drag.type === 'quick') && quick && drag.item && bool(drag.item.usable)) {
         setHover(quick);
+    } else if (drag.type === 'inventory' && clothing && isClothingItem(drag.item) && normalizeCategoryKey(drag.item.clothes_category) === normalizeCategoryKey(clothing.dataset.clothing || '')) {
+        setHover(clothing);
+    } else if (drag.type === 'clothing' && slot) {
+        setHover(slot);
     } else {
         setHover(slot || (panel && drag.type === 'inventory' ? panel : null));
     }
@@ -363,12 +482,28 @@ function finishDrag(e) {
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const slotEl = target ? target.closest('.slot') : null;
     const quickEl = target ? target.closest('.quick-slot') : null;
+    const clothingEl = target ? target.closest('.clothing-slot') : null;
     const droppedEl = target ? target.closest('.dropped-panel') : null;
 
     if (quickEl && (current.type === 'inventory' || current.type === 'quick')) {
         const quickIndex = Number(quickEl.dataset.quick || 0);
         if (quickIndex >= 1 && quickIndex <= 5 && current.item && bool(current.item.usable)) {
             nui('setQuickSlot', { index: quickIndex, slot: current.slot });
+        }
+        return;
+    }
+
+    if (clothingEl && current.type === 'inventory') {
+        const category = normalizeCategoryKey(clothingEl.dataset.clothing || '');
+        if (current.item && isClothingItem(current.item) && normalizeCategoryKey(current.item.clothes_category) === category) {
+            nui('equipClothingSlot', { category, slot: current.slot });
+        }
+        return;
+    }
+
+    if (current.type === 'clothing') {
+        if (slotEl) {
+            nui('unequipClothingSlot', { category: current.category, to: Number(slotEl.dataset.slot || 0) });
         }
         return;
     }
@@ -502,21 +637,29 @@ function openInventory(data = {}) {
     inventory = {};
     moneySlots = {};
     quickSlots = {};
+    clothingSlots = {};
+    clothingCategories = Array.isArray(data.clothingCategories) ? data.clothingCategories : DEFAULT_CLOTHING_CATEGORIES;
     dropped = Array.isArray(data.dropped) ? data.dropped : [];
     const inv = data.inventory || {};
     const currency = data.moneyItems || data.currencyItems || {};
     const quick = data.quickSlots || {};
+    const clothes = data.clothesSlots || {};
     if (Array.isArray(inv)) inv.forEach((item, idx) => { if (item) inventory[idx + 1] = item; });
     else Object.keys(inv).forEach((key) => { if (inv[key]) inventory[Number(key)] = inv[key]; });
     if (Array.isArray(currency)) currency.forEach((item) => { if (item && item.item_id) moneySlots[String(item.item_id)] = item; });
     else Object.keys(currency).forEach((key) => { if (currency[key]) moneySlots[String(key)] = currency[key]; });
     if (Array.isArray(quick)) quick.forEach((slot, idx) => { if (Number(slot || 0) > 0) quickSlots[String(idx + 1)] = Number(slot); });
     else Object.keys(quick).forEach((key) => { if (Number(quick[key] || 0) > 0) quickSlots[String(key)] = Number(quick[key]); });
+    Object.keys(clothes).forEach((key) => { if (clothes[key]) clothingSlots[normalizeCategoryKey(key)] = clothes[key]; });
     document.documentElement.style.setProperty('--main', data.mainColor || '#04c7f7');
     selectedSlot = null;
     hide(selectorRoot);
     hide(addItemRoot);
     hide(itemsRoot);
+    hide(addClothesRoot);
+    hide(clothesItemsRoot);
+    hide(addClothesRoot);
+    hide(clothesItemsRoot);
     hide(contextMenu);
     hide(amountModal);
     show(inventoryRoot);
@@ -529,13 +672,15 @@ function updateDropped(data = {}) {
     if (!inventoryRoot.classList.contains('hidden')) renderDropped();
 }
 
-function openSelector() { hide(inventoryRoot); hide(addItemRoot); hide(itemsRoot); selectorActive = true; show(selectorRoot); }
+function openSelector() { hide(inventoryRoot); hide(addItemRoot); hide(itemsRoot); hide(addClothesRoot); hide(clothesItemsRoot); selectorActive = true; show(selectorRoot); }
 function closeSelector() { selectorActive = false; hide(selectorRoot); }
 
 function openAddItem() {
     hide(inventoryRoot);
     hide(selectorRoot);
     hide(itemsRoot);
+    hide(addClothesRoot);
+    hide(clothesItemsRoot);
     selectorActive = false;
     show(addItemRoot);
     itemId.value = '';
@@ -636,6 +781,8 @@ function openItemsPanel(data = {}) {
     hide(inventoryRoot);
     hide(selectorRoot);
     hide(addItemRoot);
+    hide(addClothesRoot);
+    hide(clothesItemsRoot);
     hide(contextMenu);
     hide(amountModal);
     selectorActive = false;
@@ -793,6 +940,171 @@ function handleItemsResult(msg = {}) {
     }
 }
 
+
+function openAddClothesPanel(data = {}) {
+    document.documentElement.style.setProperty('--main', data.mainColor || '#04c7f7');
+    clothingCategories = Array.isArray(data.categories) ? data.categories : DEFAULT_CLOTHING_CATEGORIES;
+    hide(inventoryRoot); hide(selectorRoot); hide(addItemRoot); hide(itemsRoot); hide(clothesItemsRoot);
+    selectorActive = false;
+    populateCategorySelect(clothesCategory);
+    show(addClothesRoot);
+    if (clothesDrawable) clothesDrawable.value = '0';
+    if (clothesTexture) clothesTexture.value = '0';
+    if (clothesItemId) clothesItemId.value = '';
+    if (clothesItemName) clothesItemName.value = '';
+    if (clothesItemImage) clothesItemImage.value = '';
+    if (clothesTradable) clothesTradable.value = '1';
+    if (clothesStackable) clothesStackable.value = '0';
+    if (clothesUsable) clothesUsable.value = '1';
+    if (clothesGiveable) clothesGiveable.value = '1';
+    if (clothesMaxStack) clothesMaxStack.value = '1';
+    hide(clothesImagePreview);
+    clothesStatus.textContent = 'Completează haina.';
+    clothesStatus.className = 'add-status';
+    setTimeout(() => clothesItemId && clothesItemId.focus(), 80);
+}
+
+function previewClothesImage() {
+    const url = String(clothesItemImage?.value || '').trim();
+    if (!url) { hide(clothesImagePreview); if (clothesPreviewImg) clothesPreviewImg.src = ''; return; }
+    clothesPreviewImg.src = url;
+    show(clothesImagePreview);
+}
+
+function submitAddClothes() {
+    if (clothesStatus) { clothesStatus.textContent = 'Se salveaza haina...'; clothesStatus.className = 'add-status'; }
+    nui('submitAddClothes', {
+        category_key: clothesCategory.value,
+        drawable: Number(clothesDrawable.value || 0),
+        texture: Number(clothesTexture.value || 0),
+        item_id: clothesItemId.value.trim(),
+        item_name: clothesItemName.value.trim(),
+        image: clothesItemImage.value.trim(),
+        tradable: Number(clothesTradable.value || 1),
+        stackable: Number(clothesStackable.value || 0),
+        usable: Number(clothesUsable.value || 1),
+        giveable: Number(clothesGiveable.value || 1),
+        max_stack: Number(clothesMaxStack.value || 1)
+    });
+}
+
+function openClothesItemsPanel(data = {}) {
+    document.documentElement.style.setProperty('--main', data.mainColor || '#04c7f7');
+    clothingCategories = Array.isArray(data.categories) ? data.categories : DEFAULT_CLOTHING_CATEGORIES;
+    adminClothesItems = Array.isArray(data.items) ? data.items : [];
+    selectedAdminClothesId = data.selected || (adminClothesItems[0] ? String(adminClothesItems[0].item_id || '') : null);
+    hide(inventoryRoot); hide(selectorRoot); hide(addItemRoot); hide(itemsRoot); hide(addClothesRoot); hide(contextMenu); hide(amountModal);
+    selectorActive = false;
+    show(clothesItemsRoot);
+    populateFilterSelect();
+    populateCategorySelect(adminClothesCategory);
+    if (clothesItemsSearch) clothesItemsSearch.value = '';
+    renderAdminClothesList();
+    if (selectedAdminClothesId) selectAdminClothesItem(selectedAdminClothesId);
+    else clearAdminClothesEditor();
+}
+
+function renderAdminClothesList() {
+    if (!clothesItemsList) return;
+    const q = String(clothesItemsSearch?.value || '').trim().toLowerCase();
+    const filter = String(clothesItemsFilter?.value || 'all');
+    const filtered = adminClothesItems.filter((item) => {
+        const hay = `${item.item_id || ''} ${item.item_name || ''} ${item.category_key || ''}`.toLowerCase();
+        const categoryOk = filter === 'all' || String(item.category_key || '') === filter;
+        return categoryOk && (!q || hay.includes(q));
+    });
+    if (filtered.length <= 0) { clothesItemsList.innerHTML = '<div class="items-empty">Nu exista haine.</div>'; return; }
+    clothesItemsList.innerHTML = filtered.map((item) => {
+        const id = String(item.item_id || '');
+        const active = id === selectedAdminClothesId ? ' active' : '';
+        return `<button class="clothes-row items-row${active}" data-clothes-id="${esc(id)}"><span>${esc(item.item_name || id)}</span><small>${esc(getCategoryLabel(item.category_key))} · drawable ${esc(item.drawable)}</small></button>`;
+    }).join('');
+}
+
+function clearAdminClothesEditor() {
+    if (!adminClothesItemId) return;
+    adminOriginalClothesId.value = '';
+    adminClothesItemId.value = '';
+    adminClothesItemName.value = '';
+    populateCategorySelect(adminClothesCategory);
+    adminClothesDrawable.value = '0';
+    adminClothesTexture.value = '0';
+    adminClothesImage.value = '';
+    adminClothesTradable.value = '1';
+    adminClothesStackable.value = '0';
+    adminClothesUsable.value = '1';
+    adminClothesGiveable.value = '1';
+    adminClothesMaxStack.value = '1';
+    hide(adminClothesImagePreview);
+    clothesItemsStatus.textContent = 'Selecteaza o haina din lista.';
+    clothesItemsStatus.className = 'add-status';
+}
+
+function selectAdminClothesItem(itemIdValue) {
+    const id = String(itemIdValue || '');
+    const item = adminClothesItems.find((entry) => String(entry.item_id || '') === id);
+    if (!item) return clearAdminClothesEditor();
+    selectedAdminClothesId = id;
+    adminOriginalClothesId.value = id;
+    adminClothesItemId.value = id;
+    adminClothesItemName.value = String(item.item_name || id);
+    populateCategorySelect(adminClothesCategory, String(item.category_key || 'jacket'));
+    adminClothesDrawable.value = String(Number(item.drawable || 0));
+    adminClothesTexture.value = String(Number(item.texture || 0));
+    adminClothesImage.value = String(item.image || '');
+    adminClothesTradable.value = adminBoolValue(item.tradable, 1);
+    adminClothesStackable.value = adminBoolValue(item.stackable, 0);
+    adminClothesUsable.value = adminBoolValue(item.usable, 1);
+    adminClothesGiveable.value = adminBoolValue(item.giveable, 1);
+    adminClothesMaxStack.value = String(Math.max(1, Math.floor(Number(item.max_stack || 1))));
+    previewAdminClothesImage();
+    clothesItemsStatus.textContent = `Editezi: ${item.item_name || id}`;
+    clothesItemsStatus.className = 'add-status';
+    renderAdminClothesList();
+}
+
+function previewAdminClothesImage() {
+    const url = String(adminClothesImage?.value || '').trim();
+    if (!url) { hide(adminClothesImagePreview); if (adminClothesPreviewImg) adminClothesPreviewImg.src = ''; return; }
+    adminClothesPreviewImg.src = url;
+    show(adminClothesImagePreview);
+}
+
+function submitAdminClothesItem() {
+    if (!adminOriginalClothesId.value) {
+        clothesItemsStatus.textContent = 'Selecteaza o haina inainte sa salvezi.';
+        clothesItemsStatus.className = 'add-status error';
+        return;
+    }
+    clothesItemsStatus.textContent = 'Se salveaza modificarile...';
+    clothesItemsStatus.className = 'add-status';
+    nui('submitAdminClothesItem', {
+        original_id: adminOriginalClothesId.value.trim(),
+        item_id: adminClothesItemId.value.trim(),
+        item_name: adminClothesItemName.value.trim(),
+        category_key: adminClothesCategory.value,
+        drawable: Number(adminClothesDrawable.value || 0),
+        texture: Number(adminClothesTexture.value || 0),
+        image: adminClothesImage.value.trim(),
+        tradable: Number(adminClothesTradable.value || 1),
+        stackable: Number(adminClothesStackable.value || 0),
+        usable: Number(adminClothesUsable.value || 1),
+        giveable: Number(adminClothesGiveable.value || 1),
+        max_stack: Number(adminClothesMaxStack.value || 1)
+    });
+}
+
+function handleClothesItemsResult(msg = {}) {
+    if (Array.isArray(msg.items)) adminClothesItems = msg.items;
+    const selected = msg.itemId || selectedAdminClothesId;
+    renderAdminClothesList();
+    if (selected) selectAdminClothesItem(selected);
+    if (clothesItemsStatus) {
+        clothesItemsStatus.textContent = msg.message || '';
+        clothesItemsStatus.className = `add-status ${msg.ok ? 'success' : 'error'}`;
+    }
+}
+
 window.addEventListener('message', (event) => {
     const msg = event.data || {};
     if (msg.action === 'openInventory') openInventory(msg.data || {});
@@ -802,10 +1114,17 @@ window.addEventListener('message', (event) => {
     if (msg.action === 'closeAll') closeLocal();
     if (msg.action === 'openAddItem') openAddItem(msg.data || {});
     if (msg.action === 'openItems') openItemsPanel(msg.data || {});
+    if (msg.action === 'openAddClothes') openAddClothesPanel(msg.data || {});
+    if (msg.action === 'openClothesItems') openClothesItemsPanel(msg.data || {});
     if (msg.action === 'itemsResult') handleItemsResult(msg);
+    if (msg.action === 'clothesItemsResult') handleClothesItemsResult(msg);
     if (msg.action === 'addItemResult') {
         addStatus.textContent = msg.message || '';
         addStatus.className = `add-status ${msg.ok ? 'success' : 'error'}`;
+    }
+    if (msg.action === 'clothesResult') {
+        clothesStatus.textContent = msg.message || '';
+        clothesStatus.className = `add-status ${msg.ok ? 'success' : 'error'}`;
     }
 });
 
@@ -828,6 +1147,14 @@ quickBar.addEventListener('mousedown', (e) => {
     const slot = e.target.closest('.quick-slot');
     if (!slot) return;
     beginDragFromQuickSlot(e, slot);
+});
+
+
+clothingSlotsEl.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    const slot = e.target.closest('.clothing-slot');
+    if (!slot) return;
+    beginDragFromClothingSlot(e, slot);
 });
 
 droppedList.addEventListener('mousedown', (e) => {
@@ -900,6 +1227,15 @@ if (itemsList) {
     });
 }
 
+
+if (clothesItemsList) {
+    clothesItemsList.addEventListener('click', (e) => {
+        const row = e.target.closest('.clothes-row');
+        if (!row) return;
+        selectAdminClothesItem(row.dataset.clothesId || '');
+    });
+}
+
 quickBar.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     const slotEl = e.target.closest('.quick-slot');
@@ -953,3 +1289,8 @@ window.syncAdminGradientItemId = syncAdminGradientItemId;
 window.toggleAdminGradientItem = toggleAdminGradientItem;
 window.syncGradientItemId = syncGradientItemId;
 window.toggleGradientItem = toggleGradientItem;
+window.previewClothesImage = previewClothesImage;
+window.submitAddClothes = submitAddClothes;
+window.renderAdminClothesList = renderAdminClothesList;
+window.previewAdminClothesImage = previewAdminClothesImage;
+window.submitAdminClothesItem = submitAdminClothesItem;

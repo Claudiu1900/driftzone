@@ -349,3 +349,128 @@ input[type=number] {
     color: rgba(255,255,255,.62);
     background: rgba(255,255,255,.045);
 }
+
+/* clothes equipment slots */
+.clothing-shell {
+    width: 285px;
+    height: 646px;
+    padding: 14px;
+    border: 1px solid rgba(4,199,247,.30);
+    background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.025)), var(--panel);
+    box-shadow: 0 34px 100px rgba(0,0,0,.52), 0 0 38px rgba(4,199,247,.10);
+    color: white;
+}
+.clothing-title {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    color: var(--main);
+    font-size: 12px;
+    font-weight: 1000;
+    letter-spacing: 2px;
+}
+.body-equipment {
+    position: relative;
+    height: 565px;
+    margin-top: 6px;
+    border: 1px solid rgba(255,255,255,.08);
+    background: radial-gradient(circle at center, rgba(4,199,247,.08), rgba(255,255,255,.025));
+    overflow: hidden;
+}
+.body-outline {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 172px;
+    height: 500px;
+    transform: translate(-50%, -50%);
+    opacity: .30;
+    filter: drop-shadow(0 0 15px rgba(4,199,247,.18));
+    pointer-events: none;
+}
+.clothing-slots {
+    position: absolute;
+    inset: 0;
+}
+.clothing-slot {
+    position: absolute;
+    width: 54px;
+    height: 54px;
+    border: 1px solid rgba(255,255,255,.13);
+    background: rgba(255,255,255,.045);
+    box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    overflow: hidden;
+    transform: translate(-50%, -50%);
+    transition: border-color .12s ease, background .12s ease, transform .12s ease;
+}
+.clothing-slot:hover,
+.clothing-slot.drag-over,
+.clothing-slot.filled {
+    border-color: rgba(4,199,247,.70);
+    background: rgba(4,199,247,.13);
+}
+.clothing-slot.drag-over {
+    transform: translate(-50%, -50%) scale(.95);
+}
+.clothing-empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(145deg, rgba(4,199,247,.10), rgba(255,255,255,.025));
+}
+.clothing-empty img {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    opacity: .72;
+}
+.clothing-empty span {
+    position: absolute;
+    left: 3px;
+    right: 3px;
+    bottom: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(255,255,255,.50);
+    font-size: 8px;
+    font-weight: 900;
+    text-align: center;
+    text-transform: uppercase;
+}
+.clothing-hint {
+    margin-top: 8px;
+    color: rgba(255,255,255,.48);
+    font-size: 10px;
+    font-weight: 850;
+    text-align: center;
+}
+.cat-hat { left: 50%; top: 8%; }
+.cat-glasses { left: 68%; top: 17%; }
+.cat-mask { left: 50%; top: 24%; }
+.cat-accessories { left: 32%; top: 30%; }
+.cat-jacket { left: 50%; top: 39%; }
+.cat-top { left: 31%; top: 42%; }
+.cat-torso { left: 69%; top: 42%; }
+.cat-vest { left: 50%; top: 50%; }
+.cat-bag { left: 20%; top: 49%; }
+.cat-pants { left: 50%; top: 66%; }
+.cat-shoes { left: 50%; top: 87%; }
+.cat-watches { left: 81%; top: 55%; }
+.cat-bracelets { left: 19%; top: 57%; }
+.clothing-slot .item-box,
+.clothing-slot .item-img,
+.clothing-slot .item-fallback,
+.clothing-slot .amount {
+    pointer-events: none;
+}
+.clothing-slot .item-box { cursor: grab; }
+
+.clothes-add-shell { width: 650px; }
+.clothes-items-shell { width: 1040px; }
+.clothes-row small { color: rgba(255,255,255,.48); }
+
+@media (max-width: 1280px) {
+    .inventory-root { gap: 12px; transform: scale(.92); transform-origin: center; }
+}

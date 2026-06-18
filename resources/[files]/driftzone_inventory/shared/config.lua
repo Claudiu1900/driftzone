@@ -34,6 +34,8 @@ Config.LogsTable = 'inventory_logs'
 Config.Admin = {
     additem = 6,
     items = 6,
+    addclothes = 6,
+    clothesitems = 6,
     giveitem = 6,
     takeitem = 6,
     wipeinventory = 6
@@ -58,6 +60,65 @@ Config.GradientResource = 'driftzone_gradients'
 Config.GradientItemSuffix = '_gradient'
 
 Config.TakeGradientItemId = 'takegradient'
+
+
+-- =========================
+-- CLOTHES ITEMS / EQUIPMENT
+-- =========================
+Config.ClothesItemsTable = 'clothes_items'
+Config.UsersClothesTable = 'users_clothes'
+
+-- Categoria decide unde se pune haina pe corp si ce native GTA foloseste.
+-- componentId = SetPedComponentVariation, propId = SetPedPropIndex/ClearPedProp.
+Config.ClothingCategoryOrder = {
+    'hat', 'glasses', 'mask', 'accessories', 'jacket', 'top', 'torso',
+    'vest', 'bag', 'pants', 'shoes', 'watches', 'bracelets'
+}
+
+Config.ClothingAliases = {
+    jaket = 'jacket',
+    jacheta = 'jacket',
+    palarie = 'hat',
+    hats = 'hat',
+    ochelari = 'glasses',
+    masca = 'mask',
+    accesorii = 'accessories',
+    acecessories = 'accessories',
+    accessory = 'accessories',
+    ceas = 'watches',
+    watch = 'watches',
+    bratari = 'bracelets',
+    bracelet = 'bracelets',
+    pantaloni = 'pants',
+    pantofi = 'shoes',
+    geanta = 'bag',
+    arms = 'torso'
+}
+
+Config.ClothingCategories = {
+    jacket = { label = 'Jacket', icon = 'jacket.svg', type = 'component', componentId = 11 },
+    top = { label = 'Top', icon = 'top.svg', type = 'component', componentId = 8 },
+    torso = { label = 'Torso / Arms', icon = 'torso.svg', type = 'component', componentId = 3 },
+    mask = { label = 'Mask', icon = 'mask.svg', type = 'component', componentId = 1 },
+    shoes = { label = 'Shoes', icon = 'shoes.svg', type = 'component', componentId = 6 },
+    pants = { label = 'Pants', icon = 'pants.svg', type = 'component', componentId = 4 },
+    accessories = { label = 'Accessories', icon = 'accessories.svg', type = 'component', componentId = 7 },
+    watches = { label = 'Watches', icon = 'watches.svg', type = 'prop', propId = 6 },
+    bracelets = { label = 'Bracelets', icon = 'bracelets.svg', type = 'prop', propId = 7 },
+    vest = { label = 'Vest', icon = 'vest.svg', type = 'component', componentId = 9 },
+    bag = { label = 'Bag', icon = 'bag.svg', type = 'component', componentId = 5 },
+    hat = { label = 'Hat', icon = 'hat.svg', type = 'prop', propId = 0 },
+    glasses = { label = 'Glasses', icon = 'glasses.svg', type = 'prop', propId = 1 }
+}
+
+-- Forteaza reincarcarea hainelor salvate dupa login/spawn. Nu poate opri spawn-ul GTA,
+-- dar reaplica hainele de mai multe ori ca sa nu ramana playerul cu default skin.
+Config.ClothesLoad = {
+    Enabled = true,
+    RetryCount = 18,
+    RetryDelayMs = 850,
+    ClientRetryDelays = { 500, 1200, 2200, 3500, 5200, 7500, 10000, 13500, 17000 }
+}
 
 
 -- =========================

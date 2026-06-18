@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Clothes - fixed load on join and reload trigger'
-version '1.0.2'
+description 'DriftZone Clothes - expanded clothing categories, manual reload only'
+version '1.0.3'
 
 ui_page 'html/index.html'
 

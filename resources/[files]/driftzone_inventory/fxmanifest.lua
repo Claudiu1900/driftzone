@@ -3,15 +3,16 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Inventory - optimized hooks, synced drops, animations'
-version '1.2.0'
+description 'DriftZone Inventory - items, money, quick slots, clothes equipment'
+version '1.3.0'
 
 ui_page 'html/index.html'
 
 files {
     'html/index.html',
     'html/style.css',
-    'html/script.js'
+    'html/script.js',
+    'html/icons/*.svg'
 }
 
 shared_scripts {

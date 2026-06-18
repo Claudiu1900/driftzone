@@ -10,17 +10,22 @@ local camDistance = 2.45
 local camHeight = 0.75
 
 local categories = {
-    { key = 'hair',    label = 'Par',      icon = 'hair.svg',    type = 'component', componentId = 2 },
-    { key = 'hat',     label = 'Palarie',  icon = 'hat.svg',     type = 'prop',      propId = 0 },
-    { key = 'mask',    label = 'Masca',    icon = 'mask.svg',    type = 'component', componentId = 1 },
-    { key = 'glasses', label = 'Ochelari', icon = 'glasses.svg', type = 'prop',      propId = 1 },
-    { key = 'jacket',  label = 'Jacheta',  icon = 'jacket.svg',  type = 'component', componentId = 11 },
-    { key = 'torso',   label = 'Torso',    icon = 'torso.svg',   type = 'component', componentId = 3 },
-    { key = 'top',     label = 'Top',      icon = 'top.svg',     type = 'component', componentId = 8 },
-    { key = 'bag',     label = 'Geanta',   icon = 'bag.svg',     type = 'component', componentId = 5 },
-    { key = 'insignia',label = 'Insigne',  icon = 'badge.svg',   type = 'component', componentId = 10 },
-    { key = 'pants',   label = 'Pantaloni',icon = 'pants.svg',   type = 'component', componentId = 4 },
-    { key = 'shoes',   label = 'Pantofi',  icon = 'shoes.svg',   type = 'component', componentId = 6 }
+    { key = 'hair',        label = 'Par',            icon = 'hair.svg',        type = 'component', componentId = 2 },
+    { key = 'jacket',      label = 'Jacheta',        icon = 'jacket.svg',      type = 'component', componentId = 11 },
+    { key = 'top',         label = 'Top',            icon = 'top.svg',         type = 'component', componentId = 8 },
+    { key = 'vest',        label = 'Vesta',          icon = 'vest.svg',        type = 'component', componentId = 9 },
+    { key = 'pants',       label = 'Pantaloni',      icon = 'pants.svg',       type = 'component', componentId = 4 },
+    { key = 'shoes',       label = 'Pantofi',        icon = 'shoes.svg',       type = 'component', componentId = 6 },
+    { key = 'hat',         label = 'Palarii',        icon = 'hat.svg',         type = 'prop',      propId = 0 },
+    { key = 'mask',        label = 'Masca',          icon = 'mask.svg',        type = 'component', componentId = 1 },
+    { key = 'accessories', label = 'Accesorii',      icon = 'accessories.svg', type = 'component', componentId = 7 },
+    { key = 'watches',     label = 'Ceasuri',        icon = 'watches.svg',     type = 'prop',      propId = 6 },
+    { key = 'bracelets',   label = 'Bratari',        icon = 'bracelets.svg',   type = 'prop',      propId = 7 },
+    { key = 'glasses',     label = 'Ochelari',       icon = 'glasses.svg',     type = 'prop',      propId = 1 },
+    { key = 'ears',        label = 'Urechi',         icon = 'ears.svg',        type = 'prop',      propId = 2 },
+    { key = 'bag',         label = 'Geanta',         icon = 'bag.svg',         type = 'component', componentId = 5 },
+    { key = 'torso',       label = 'Brate / Manusi', icon = 'arms.svg',        type = 'component', componentId = 3 },
+    { key = 'insignia',    label = 'Insigne',        icon = 'badge.svg',       type = 'component', componentId = 10 }
 }
 
 local function notify(notifyType, message, duration)
@@ -31,11 +36,6 @@ local function requestSavedClothesReload()
     TriggerServerEvent('driftzone_clothes:server:reloadSaved')
 end
 
-local function requestSavedClothesReloadDelayed(ms)
-    SetTimeout(ms or 0, function()
-        requestSavedClothesReload()
-    end)
-end
 
 local function sendNui(data)
     if not browserReady then return end
@@ -475,12 +475,13 @@ RegisterNetEvent('driftzone_clothes:client:resetSkin', function()
 
     local ped = PlayerPedId()
 
-    for _, componentId in ipairs({ 1, 2, 3, 4, 6, 8, 11 }) do
+    for _, componentId in ipairs({ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }) do
         SetPedComponentVariation(ped, componentId, 0, 0, 0)
     end
 
-    ClearPedProp(ped, 0)
-    ClearPedProp(ped, 1)
+    for _, propId in ipairs({ 0, 1, 2, 6, 7 }) do
+        ClearPedProp(ped, propId)
+    end
 
     sendNui({ action = 'close' })
     unfreeze()
@@ -538,22 +539,10 @@ RegisterCommand('clothes', function()
     TriggerServerEvent('driftzone_clothes:server:open')
 end, false)
 
-CreateThread(function()
-    -- Mai multe incercari pentru ca driftzone_auth seteaza UID-ul cu delay dupa join.
-    local delays = { 1200, 2500, 4500, 7000, 10000, 14000 }
-
-    for i = 1, #delays do
-        Wait(i == 1 and delays[i] or (delays[i] - delays[i - 1]))
-        requestSavedClothesReload()
-    end
-end)
-
 AddEventHandler('playerSpawned', function()
+    -- Nu incarcam automat users.clothes la join/spawn.
+    -- Pastrez doar unfreeze ca protectie daca meniul a ramas blocat dupa reconnect/resource restart.
     unfreeze()
-
-    requestSavedClothesReloadDelayed(1000)
-    requestSavedClothesReloadDelayed(3000)
-    requestSavedClothesReloadDelayed(6000)
 end)
 
 CreateThread(function()

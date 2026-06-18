@@ -1,6 +1,17 @@
-# driftzone_inventory - DriftZone Inventory
+# driftzone_inventory - Money, Quick Slots, Items Panel, Clothes Equipment
 
-Inventory DriftZone optimizat pentru framework propriu.
+Resource complet DriftZone Inventory cu:
+
+- sloturi speciale `money` / `dirtymoney`;
+- `money` sincronizat cu `users.cash`;
+- 5 quick-use slots cu tastele 1-5;
+- `/items` pentru editarea itemelor din `inventory_items`;
+- sistem de haine direct in inventar;
+- sloturi de haine pe corp in partea stanga a inventarului;
+- `/addclothes` pentru adaugare haine in `clothes_items`;
+- `/clothesitems` pentru listare/editare haine din `clothes_items`;
+- tabela `users_clothes` pentru hainele echipate pe fiecare categorie;
+- auto-load fortat la haine dupa join/spawn, cu retry-uri.
 
 ## Instalare
 
@@ -10,37 +21,51 @@ ensure driftzone_auth
 ensure driftzone_inventory
 ```
 
-Ruleaza `SQL.sql` daca nu ai tabelele sau daca vrei sa se adauge/actualizeze itemele default.
+Ruleaza `SQL.sql`. Acest SQL contine doar partea noua de haine: `clothes_items` si `users_clothes`.
 
-## Ce include versiunea aceasta
+## Comenzi admin
 
-- `money` este item in `inventory_items`, dar suma reala vine din `users.cash`.
-- Cand dai GIVE/DROP/PICKUP la `money`, se modifica `users.cash`.
-- `dirtymoney` ramane currency special in inventory si are stack practic nelimitat.
-- `money` si `dirtymoney` respecta setarile din `inventory_items` pentru `usable`, `giveable`, nume si imagine.
-- Currency sloturile sunt intr-un card separat de inventarul normal.
-- Inventarul normal ramane 7x7.
-- Sub inventar exista 5 quick-use sloturi intr-un card separat.
-- In quick sloturi poti pune doar iteme cu `usable = 1`.
-- Daca un item este mutat dintr-un quick slot in alt quick slot, dispare automat din quick slotul vechi.
-- Tastele `1`, `2`, `3`, `4`, `5` folosesc itemul pus in quick slotul respectiv.
-- Comanda `/items` deschide lista completa din `inventory_items` si permite editarea itemelor.
-- `/items` este doar pentru admin `admin_level >= 6` si `aduty` activ (`yes`, `true` sau `1`).
-- `/additem` ramane separat si functioneaza ca inainte.
-
-## Comenzi
+Toate cer `admin_level >= 6` si `aduty` activ (`1`, `yes`, `true` sau `on`).
 
 ```txt
-/inventory
-/additem
+/addclothes
+/clothesitems
 /items
+/additem
 /giveitem uid item_id amount
 /takeitem uid item_id amount
 /wipeinventory uid
 ```
 
+## Categorii haine suportate
+
+- `jacket` - component 11
+- `top` - component 8
+- `torso` - component 3
+- `mask` - component 1
+- `shoes` - component 6
+- `pants` - component 4
+- `accessories` - component 7
+- `watches` - prop 6
+- `bracelets` - prop 7
+- `vest` - component 9
+- `bag` - component 5
+- `hat` - prop 0
+- `glasses` - prop 1
+
+Aliasuri acceptate in config: `jaket`, `jacheta`, `acecessories`, `accesorii`, `bratari`, `palarie`, etc.
+
+## Cum functioneaza hainele
+
+1. Adminul creeaza item de haina cu `/addclothes`.
+2. Itemul este salvat in `clothes_items`.
+3. Itemul poate fi dat cu `/giveitem uid item_id amount`.
+4. Jucatorul trage itemul in slotul corect de pe corp.
+5. Resource-ul aplica haina pe ped si salveaza in `users_clothes`.
+6. La spawn/join, hainele din `users_clothes` sunt reaplicate automat de mai multe ori.
+
 ## Note
 
-- La `/items`, `item_id` este blocat la editare ca sa nu se strice itemele deja existente in inventarele jucatorilor.
-- Quick sloturile sunt salvate in `inventory_json`, fara tabel nou.
-- `money` nu este salvat in `inventory_json`; valoarea lui este citita din `users.cash`.
+- Itemele de haine nu sunt salvate in `inventory_items`; sunt citite direct din `clothes_items`.
+- `money` ramane item logic, dar valoarea reala este `users.cash`.
+- Quick slots raman salvate in `inventory_json`.

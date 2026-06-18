@@ -8,6 +8,15 @@
 </head>
 <body>
     <main id="inventoryRoot" class="inventory-root hidden">
+        <section id="clothingShell" class="clothing-shell">
+            <div class="clothing-title">CLOTHES</div>
+            <div class="body-equipment">
+                <img class="body-outline" src="icons/body.svg" draggable="false" alt="Body">
+                <div id="clothingSlots" class="clothing-slots"></div>
+            </div>
+            <div class="clothing-hint">Trage hainele pe slotul corect</div>
+        </section>
+
         <div class="inventory-stack">
             <section id="moneyShell" class="currency-shell hidden">
                 <div id="moneyPanel" class="money-panel"></div>
@@ -75,6 +84,31 @@
         </section>
     </main>
 
+    <main id="addClothesRoot" class="add-root hidden">
+        <section class="add-shell clothes-add-shell">
+            <div class="add-title">ADD CLOTHES ITEM</div>
+            <div class="form-grid">
+                <label>Clothes Category<select id="clothesCategory"></select></label>
+                <label>Clothes ID / Drawable<input id="clothesDrawable" type="number" min="-1" value="0"></label>
+                <label>Texture<input id="clothesTexture" type="number" min="0" value="0"></label>
+                <label>Item ID<input id="clothesItemId" placeholder="clothes1"></label>
+                <label>Item Name<input id="clothesItemName" placeholder="Black Jacket"></label>
+                <label class="wide">Image<input id="clothesItemImage" placeholder="https://..." oninput="previewClothesImage()"></label>
+                <label>Tradable<select id="clothesTradable"><option value="1">1</option><option value="0">0</option></select></label>
+                <label>Stackable<select id="clothesStackable"><option value="0">0</option><option value="1">1</option></select></label>
+                <label>Usable<select id="clothesUsable"><option value="1">1</option><option value="0">0</option></select></label>
+                <label>Giveable<select id="clothesGiveable"><option value="1">1</option><option value="0">0</option></select></label>
+                <label>Max Stack<input id="clothesMaxStack" type="number" min="1" value="1"></label>
+            </div>
+            <div id="clothesImagePreview" class="image-preview hidden"><img id="clothesPreviewImg"></div>
+            <div id="clothesStatus" class="add-status">Completează haina.</div>
+            <div class="add-buttons">
+                <button class="save-btn" onclick="submitAddClothes()">SAVE CLOTHES</button>
+                <button class="ghost-btn" onclick="closeUi()">CLOSE</button>
+            </div>
+        </section>
+    </main>
+
     <main id="itemsRoot" class="items-root hidden">
         <section class="items-shell">
             <div class="items-header">
@@ -110,6 +144,50 @@
                     <div id="itemsStatus" class="add-status">Selecteaza un item din lista.</div>
                     <div class="add-buttons">
                         <button class="save-btn" onclick="submitAdminItem()">SAVE CHANGES</button>
+                        <button class="ghost-btn" onclick="closeUi()">CLOSE</button>
+                    </div>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <main id="clothesItemsRoot" class="items-root hidden">
+        <section class="items-shell clothes-items-shell">
+            <div class="items-header">
+                <div>
+                    <div class="items-title">CLOTHES ITEMS</div>
+                    <div class="items-subtitle">Admin panel pentru clothes_items</div>
+                </div>
+                <button class="items-close" onclick="closeUi()">CLOSE</button>
+            </div>
+
+            <div class="items-layout">
+                <aside class="items-list-wrap">
+                    <select id="clothesItemsFilter" class="items-search" onchange="renderAdminClothesList()"><option value="all">All categories</option></select>
+                    <input id="clothesItemsSearch" class="items-search" placeholder="Cauta haina..." oninput="renderAdminClothesList()">
+                    <div id="clothesItemsList" class="items-list"></div>
+                </aside>
+
+                <section class="items-editor">
+                    <div class="items-editor-title">EDIT CLOTHES</div>
+                    <input id="adminOriginalClothesId" type="hidden">
+                    <div class="form-grid">
+                        <label>Item ID<input id="adminClothesItemId" placeholder="clothes1" readonly></label>
+                        <label>Item Name<input id="adminClothesItemName" placeholder="Black Jacket"></label>
+                        <label>Category<select id="adminClothesCategory"></select></label>
+                        <label>Drawable<input id="adminClothesDrawable" type="number" min="-1" value="0"></label>
+                        <label>Texture<input id="adminClothesTexture" type="number" min="0" value="0"></label>
+                        <label class="wide">Image<input id="adminClothesImage" placeholder="https://..." oninput="previewAdminClothesImage()"></label>
+                        <label>Tradable<select id="adminClothesTradable"><option value="1">1</option><option value="0">0</option></select></label>
+                        <label>Stackable<select id="adminClothesStackable"><option value="0">0</option><option value="1">1</option></select></label>
+                        <label>Usable<select id="adminClothesUsable"><option value="1">1</option><option value="0">0</option></select></label>
+                        <label>Giveable<select id="adminClothesGiveable"><option value="1">1</option><option value="0">0</option></select></label>
+                        <label>Max Stack<input id="adminClothesMaxStack" type="number" min="1" value="1"></label>
+                    </div>
+                    <div id="adminClothesImagePreview" class="image-preview hidden"><img id="adminClothesPreviewImg"></div>
+                    <div id="clothesItemsStatus" class="add-status">Selecteaza o haina din lista.</div>
+                    <div class="add-buttons">
+                        <button class="save-btn" onclick="submitAdminClothesItem()">SAVE CHANGES</button>
                         <button class="ghost-btn" onclick="closeUi()">CLOSE</button>
                     </div>
                 </section>

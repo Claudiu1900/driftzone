@@ -1,77 +1,70 @@
-CREATE TABLE IF NOT EXISTS `inventory_items` (
+-- DriftZone Inventory - SQL doar pentru sistemul de haine din inventar
+-- Ruleaza acest SQL peste baza deja existenta. Nu recreeaza inventory_items/inventory.
+
+CREATE TABLE IF NOT EXISTS `clothes_items` (
   `item_id` VARCHAR(64) NOT NULL,
   `item_name` VARCHAR(128) NOT NULL,
   `image` TEXT NULL,
+  `category_key` VARCHAR(32) NOT NULL,
+  `drawable` INT NOT NULL DEFAULT 0,
+  `texture` INT NOT NULL DEFAULT 0,
+  `clothes_type` VARCHAR(16) NOT NULL DEFAULT 'component',
+  `component_id` INT NOT NULL DEFAULT -1,
+  `prop_id` INT NOT NULL DEFAULT -1,
   `tradable` TINYINT NOT NULL DEFAULT 1,
-  `stackable` TINYINT NOT NULL DEFAULT 1,
-  `usable` TINYINT NOT NULL DEFAULT 0,
+  `stackable` TINYINT NOT NULL DEFAULT 0,
+  `usable` TINYINT NOT NULL DEFAULT 1,
   `giveable` TINYINT NOT NULL DEFAULT 1,
-  `max_stack` INT NOT NULL DEFAULT 100,
-  `is_gradient` TINYINT NOT NULL DEFAULT 0,
-  `gradient_id` INT NOT NULL DEFAULT 0,
+  `max_stack` INT NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`item_id`)
+  PRIMARY KEY (`item_id`),
+  KEY `idx_category_key` (`category_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS `inventory` (
+CREATE TABLE IF NOT EXISTS `users_clothes` (
   `uid` INT NOT NULL,
-  `inventory_json` LONGTEXT NULL,
+  `jacket` LONGTEXT NULL,
+  `top` LONGTEXT NULL,
+  `torso` LONGTEXT NULL,
+  `mask` LONGTEXT NULL,
+  `shoes` LONGTEXT NULL,
+  `pants` LONGTEXT NULL,
+  `accessories` LONGTEXT NULL,
+  `watches` LONGTEXT NULL,
+  `bracelets` LONGTEXT NULL,
+  `vest` LONGTEXT NULL,
+  `bag` LONGTEXT NULL,
+  `hat` LONGTEXT NULL,
+  `glasses` LONGTEXT NULL,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`uid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS `inventory_logs` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `action` VARCHAR(64) NOT NULL,
-  `admin_uid` INT NOT NULL DEFAULT 0,
-  `target_uid` INT NOT NULL DEFAULT 0,
-  `item_id` VARCHAR(64) NULL,
-  `amount` INT NOT NULL DEFAULT 0,
-  `details` LONGTEXT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_target_uid` (`target_uid`),
-  KEY `idx_action` (`action`),
-  KEY `idx_item_id` (`item_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Compatibilitate daca tabela exista deja dar lipseste vreo coloana.
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `jacket` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `top` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `torso` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `mask` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `shoes` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `pants` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `accessories` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `watches` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `bracelets` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `vest` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `bag` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `hat` LONGTEXT NULL;
+ALTER TABLE `users_clothes` ADD COLUMN IF NOT EXISTS `glasses` LONGTEXT NULL;
 
-ALTER TABLE `inventory_items` ADD COLUMN IF NOT EXISTS `is_gradient` TINYINT NOT NULL DEFAULT 0;
-ALTER TABLE `inventory_items` ADD COLUMN IF NOT EXISTS `gradient_id` INT NOT NULL DEFAULT 0;
-
-INSERT INTO `inventory_items` (`item_id`, `item_name`, `image`, `tradable`, `stackable`, `usable`, `giveable`, `max_stack`, `is_gradient`, `gradient_id`)
-VALUES
-('water', 'Apă', '', 1, 1, 1, 1, 20, 0, 0),
-('repairkit', 'Repair Kit', '', 1, 1, 1, 1, 10, 0, 0),
-('1_gradient', 'Gradient 1', '', 1, 1, 1, 1, 1, 1, 1)
-ON DUPLICATE KEY UPDATE `item_name` = VALUES(`item_name`);
-
-
--- Item pentru scoaterea gradientului de pe masina.
-INSERT INTO `inventory_items`
-(`item_id`, `item_name`, `image`, `tradable`, `stackable`, `usable`, `giveable`, `max_stack`, `is_gradient`, `gradient_id`, `created_at`, `updated_at`)
-VALUES
-('takegradient', 'Scoate Gradient', '', 1, 1, 1, 1, 100, 0, 0, NOW(), NOW())
-ON DUPLICATE KEY UPDATE
-    item_name = VALUES(item_name),
-    usable = 1,
-    giveable = 1,
-    stackable = 1,
-    updated_at = NOW();
-
-
--- money este item in inventory_items pentru nume/imagine/use/give/drop, dar suma lui reala vine din users.cash.
--- dirtymoney ramane item special in inventar si nu are limita practica de stack.
-INSERT INTO `inventory_items`
-(`item_id`, `item_name`, `image`, `tradable`, `stackable`, `usable`, `giveable`, `max_stack`, `is_gradient`, `gradient_id`, `created_at`, `updated_at`)
-VALUES
-('money', 'Money', '', 1, 1, 0, 1, 2147483647, 0, 0, NOW(), NOW()),
-('dirtymoney', 'Dirty Money', '', 1, 1, 0, 1, 2147483647, 0, 0, NOW(), NOW())
-ON DUPLICATE KEY UPDATE
-    item_name = VALUES(item_name),
-    tradable = VALUES(tradable),
-    stackable = 1,
-    usable = VALUES(usable),
-    giveable = VALUES(giveable),
-    max_stack = 2147483647,
-    updated_at = NOW();
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `image` TEXT NULL;
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `category_key` VARCHAR(32) NOT NULL DEFAULT 'jacket';
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `drawable` INT NOT NULL DEFAULT 0;
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `texture` INT NOT NULL DEFAULT 0;
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `clothes_type` VARCHAR(16) NOT NULL DEFAULT 'component';
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `component_id` INT NOT NULL DEFAULT -1;
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `prop_id` INT NOT NULL DEFAULT -1;
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `tradable` TINYINT NOT NULL DEFAULT 1;
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `stackable` TINYINT NOT NULL DEFAULT 0;
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `usable` TINYINT NOT NULL DEFAULT 1;
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `giveable` TINYINT NOT NULL DEFAULT 1;
+ALTER TABLE `clothes_items` ADD COLUMN IF NOT EXISTS `max_stack` INT NOT NULL DEFAULT 1;
