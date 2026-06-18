@@ -30,12 +30,14 @@ Config.QuickSlots = 5
 Config.InventoryTable = 'inventory'
 Config.ItemsTable = 'inventory_items'
 Config.LogsTable = 'inventory_logs'
+Config.InventoryPositionTable = 'inventory_position'
 
 Config.Admin = {
     additem = 6,
     items = 6,
     addclothes = 6,
     clothesitems = 6,
+    inventorypos = 6,
     giveitem = 6,
     takeitem = 6,
     wipeinventory = 6

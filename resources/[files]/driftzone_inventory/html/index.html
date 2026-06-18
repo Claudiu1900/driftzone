@@ -8,6 +8,17 @@
 </head>
 <body>
     <main id="inventoryRoot" class="inventory-root hidden">
+        <div id="inventoryPosToolbar" class="inventory-pos-toolbar hidden">
+            <div>
+                <strong>INVENTORY POSITION</strong>
+                <span id="inventoryPosStatus">Trage sloturile de haine exact unde le vrei.</span>
+            </div>
+            <div class="inventory-pos-actions">
+                <button onclick="saveInventoryPositions()">SAVE</button>
+                <button onclick="closeUi()">CLOSE</button>
+            </div>
+        </div>
+
         <section id="clothingShell" class="clothing-shell">
             <div class="body-equipment">
                 <img class="body-outline" src="icons/body.svg" draggable="false" alt="Body">

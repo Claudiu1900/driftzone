@@ -294,6 +294,26 @@ RegisterNetEvent('driftzone_inventory:client:open', function(data)
     openInventory(data or {})
 end)
 
+RegisterNetEvent('driftzone_inventory:client:openInventoryPosition', function(data)
+    inventoryOpen = true
+    addItemOpen = false
+    selectorOpen = false
+    itemsOpen = false
+    addClothesOpen = false
+    clothesItemsOpen = false
+    pendingGive = nil
+    setFocus(true)
+    sendNui({ action = 'openInventoryPosition', data = data or {} })
+end)
+
+RegisterNetEvent('driftzone_inventory:client:updateClothingCategories', function(categories)
+    sendNui({ action = 'updateClothingCategories', categories = categories or {} })
+end)
+
+RegisterNetEvent('driftzone_inventory:client:inventoryPositionResult', function(ok, message)
+    sendNui({ action = 'inventoryPositionResult', ok = ok == true, message = tostring(message or '') })
+end)
+
 RegisterNetEvent('driftzone_inventory:client:addItemPanel', function(data)
     inventoryOpen = false
     addItemOpen = true
@@ -443,6 +463,11 @@ end)
 
 RegisterNUICallback('submitAdminClothesItem', function(data, cb)
     TriggerServerEvent('driftzone_inventory:server:updateClothesItemSubmit', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('saveInventoryPositions', function(data, cb)
+    TriggerServerEvent('driftzone_inventory:server:saveInventoryPositions', data and data.positions or {})
     cb({ ok = true })
 end)
 

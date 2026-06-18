@@ -774,3 +774,78 @@ select {
 .clothing-slots {
     contain: layout paint style !important;
 }
+
+/* admin inventory position editor */
+.inventory-pos-toolbar {
+    position: fixed;
+    left: 50%;
+    top: 24px;
+    z-index: 120;
+    transform: translateX(-50%);
+    width: 620px;
+    max-width: calc(100vw - 40px);
+    min-height: 56px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border: 1px solid rgba(4,199,247,.45);
+    background: rgba(3,8,15,.94);
+    color: white;
+    box-shadow: 0 18px 46px rgba(0,0,0,.42);
+}
+.inventory-pos-toolbar strong {
+    display: block;
+    color: var(--main);
+    font-size: 12px;
+    font-weight: 1000;
+    letter-spacing: 1.4px;
+}
+.inventory-pos-toolbar span {
+    display: block;
+    margin-top: 4px;
+    color: rgba(255,255,255,.62);
+    font-size: 11px;
+    font-weight: 850;
+}
+.inventory-pos-toolbar span.success { color: #6dffc1; }
+.inventory-pos-toolbar span.error { color: var(--danger); }
+.inventory-pos-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.inventory-pos-actions button {
+    height: 36px;
+    min-width: 86px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.08);
+    color: white;
+    font-size: 11px;
+    font-weight: 1000;
+    cursor: pointer;
+}
+.inventory-pos-actions button:first-child {
+    background: var(--main);
+    color: #00131c;
+    border-color: var(--main);
+}
+.inventory-position-mode .inventory-root {
+    padding-top: 74px;
+}
+.inventory-position-mode .clothing-slot {
+    cursor: grab;
+    outline: 1px dashed rgba(4,199,247,.55);
+    outline-offset: 3px;
+}
+.inventory-position-mode .clothing-slot.position-moving {
+    cursor: grabbing;
+    border-color: var(--main);
+    background: rgba(4,199,247,.22);
+}
+.inventory-position-mode .dropped-panel,
+.inventory-position-mode .context-menu,
+.inventory-position-mode .amount-modal {
+    display: none !important;
+}

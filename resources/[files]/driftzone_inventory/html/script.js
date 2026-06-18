@@ -7,6 +7,8 @@ const itemsRoot = document.getElementById('itemsRoot');
 const addClothesRoot = document.getElementById('addClothesRoot');
 const clothesItemsRoot = document.getElementById('clothesItemsRoot');
 const clothingShell = document.getElementById('clothingShell');
+const inventoryPosToolbar = document.getElementById('inventoryPosToolbar');
+const inventoryPosStatus = document.getElementById('inventoryPosStatus');
 const clothingSlotsEl = document.getElementById('clothingSlots');
 const grid = document.getElementById('grid');
 const moneyShell = document.getElementById('moneyShell');
@@ -95,6 +97,7 @@ let moneySlots = {};
 let quickSlots = {};
 let clothingSlots = {};
 let clothingCategories = [];
+let positionMode = false;
 let adminClothesItems = [];
 let selectedAdminClothesId = null;
 let dropped = [];
@@ -147,6 +150,51 @@ function getCategoryLabel(key) {
     const cat = (clothingCategories.length ? clothingCategories : DEFAULT_CLOTHING_CATEGORIES).find((entry) => entry.key === key);
     return cat ? cat.label : key;
 }
+
+function getCategoryByKey(key) {
+    key = normalizeCategoryKey(key);
+    return (clothingCategories.length ? clothingCategories : DEFAULT_CLOTHING_CATEGORIES).find((entry) => normalizeCategoryKey(entry.key) === key) || null;
+}
+
+function setPositionStatus(text, good = null) {
+    if (!inventoryPosStatus) return;
+    inventoryPosStatus.textContent = text || '';
+    inventoryPosStatus.classList.remove('success', 'error');
+    if (good === true) inventoryPosStatus.classList.add('success');
+    if (good === false) inventoryPosStatus.classList.add('error');
+}
+
+function setPositionMode(state) {
+    positionMode = state === true;
+    document.body.classList.toggle('inventory-position-mode', positionMode);
+    if (inventoryPosToolbar) {
+        if (positionMode) show(inventoryPosToolbar);
+        else hide(inventoryPosToolbar);
+    }
+    if (positionMode) setPositionStatus('Trage sloturile de haine exact unde le vrei.');
+}
+
+function collectInventoryPositions() {
+    const result = {};
+    const cats = clothingCategories.length ? clothingCategories : DEFAULT_CLOTHING_CATEGORIES;
+    cats.forEach((cat) => {
+        const key = normalizeCategoryKey(cat.key);
+        if (!key) return;
+        result[key] = {
+            left: Number.isFinite(Number(cat.slotLeft)) ? Number(cat.slotLeft) : 50,
+            top: Number.isFinite(Number(cat.slotTop)) ? Number(cat.slotTop) : 50,
+            slotSize: Number.isFinite(Number(cat.slotSize)) ? Number(cat.slotSize) : 62
+        };
+    });
+    return result;
+}
+
+function saveInventoryPositions() {
+    if (!positionMode) return;
+    setPositionStatus('Se salveaza pozitiile...');
+    nui('saveInventoryPositions', { positions: collectInventoryPositions() });
+}
+
 function populateCategorySelect(selectEl, selected = '') {
     if (!selectEl) return;
     const cats = clothingCategories.length ? clothingCategories : DEFAULT_CLOTHING_CATEGORIES;
@@ -196,6 +244,7 @@ function closeLocal() {
     pendingGive = null;
     amountAction = null;
     cancelDrag();
+    setPositionMode(false);
 }
 
 function itemInitial(name) {
@@ -287,7 +336,9 @@ function renderClothingSlots() {
             styleParts.push(`width:${safeSize}px`, `height:${safeSize}px`);
         }
         const style = styleParts.length ? ` style="${styleParts.join(';')}"` : '';
-        return `<div class="clothing-slot cat-${esc(key)}${item ? ' filled' : ''}" data-clothing="${esc(key)}" title="${esc(cat.label || key)}"${style}>${item ? itemVisual(item) : clothingEmptySvg(cat)}</div>`;
+        const modeClass = positionMode ? ' position-edit' : '';
+        const title = positionMode ? `${cat.label || key} - drag pentru pozitie` : `${cat.label || key}`;
+        return `<div class="clothing-slot cat-${esc(key)}${item ? ' filled' : ''}${modeClass}" data-clothing="${esc(key)}" title="${esc(title)}"${style}>${item ? itemVisual(item) : clothingEmptySvg(cat)}</div>`;
     }).join('');
 }
 
@@ -299,6 +350,7 @@ function renderAllSlots() {
 }
 
 function beginDragFromMoneySlot(e, slotEl) {
+    if (positionMode) return;
     const slot = String(slotEl.dataset.moneySlot || '');
     const item = getItemBySlot(slot);
     if (!item) return;
@@ -318,6 +370,7 @@ function beginDragFromMoneySlot(e, slotEl) {
 }
 
 function beginDragFromQuickSlot(e, quickEl) {
+    if (positionMode) return;
     const quickIndex = Number(quickEl.dataset.quick || 0);
     const quick = getQuickItem(quickIndex);
     if (!quick) return;
@@ -340,11 +393,29 @@ function beginDragFromQuickSlot(e, quickEl) {
 
 function beginDragFromClothingSlot(e, clothingEl) {
     const category = normalizeCategoryKey(clothingEl.dataset.clothing || '');
-    const item = clothingSlots[category];
-    if (!item) return;
+    if (!category) return;
     selectedSlot = null;
     hide(contextMenu);
     hide(amountModal);
+
+    if (positionMode) {
+        drag = {
+            type: 'positionSlot',
+            category,
+            el: clothingEl,
+            startX: e.clientX,
+            startY: e.clientY,
+            active: true,
+            clickBlocked: true
+        };
+        document.body.classList.add('is-dragging');
+        clothingEl.classList.add('position-moving');
+        e.preventDefault();
+        return;
+    }
+
+    const item = clothingSlots[category];
+    if (!item) return;
     drag = {
         type: 'clothing',
         category,
@@ -415,6 +486,7 @@ function cancelDrag() {
 }
 
 function beginDragFromSlot(e, slotEl) {
+    if (positionMode) return;
     const slot = Number(slotEl.dataset.slot || 0);
     const item = getItemBySlot(slot);
     if (!item) return;
@@ -434,6 +506,7 @@ function beginDragFromSlot(e, slotEl) {
 }
 
 function beginDragFromDrop(e, dropEl) {
+    if (positionMode) return;
     hide(contextMenu);
     hide(amountModal);
     drag = {
@@ -451,6 +524,25 @@ function beginDragFromDrop(e, dropEl) {
 
 function updateDrag(e) {
     if (!drag) return;
+
+    if (drag.type === 'positionSlot') {
+        const wrap = clothingSlotsEl ? clothingSlotsEl.getBoundingClientRect() : null;
+        const cat = getCategoryByKey(drag.category);
+        if (wrap && cat) {
+            const left = Math.max(0, Math.min(100, ((e.clientX - wrap.left) / Math.max(1, wrap.width)) * 100));
+            const top = Math.max(0, Math.min(100, ((e.clientY - wrap.top) / Math.max(1, wrap.height)) * 100));
+            cat.slotLeft = Math.round(left * 100) / 100;
+            cat.slotTop = Math.round(top * 100) / 100;
+            if (drag.el) {
+                drag.el.style.left = `${cat.slotLeft}%`;
+                drag.el.style.top = `${cat.slotTop}%`;
+            }
+            setPositionStatus(`${getCategoryLabel(drag.category)}: ${cat.slotLeft.toFixed(2)}% / ${cat.slotTop.toFixed(2)}%`);
+        }
+        e.preventDefault();
+        return;
+    }
+
     const dx = e.clientX - drag.startX;
     const dy = e.clientY - drag.startY;
     if (!drag.active && Math.sqrt(dx * dx + dy * dy) > 5) {
@@ -484,6 +576,13 @@ function finishDrag(e) {
     document.body.classList.remove('is-dragging');
     const wasActive = drag.active;
     const current = drag;
+    if (current.type === 'positionSlot') {
+        if (current.el) current.el.classList.remove('position-moving');
+        drag = null;
+        setPositionStatus('Pozitie mutata. Apasa SAVE ca sa ramana salvata.', true);
+        e.preventDefault();
+        return;
+    }
     if (lastHoverEl) lastHoverEl.classList.remove('drag-over');
     lastHoverEl = null;
     destroyGhost();
@@ -644,13 +743,14 @@ function dropSelected() {
 }
 
 function openInventory(data = {}) {
+    setPositionMode(data.positionMode === true || data.mode === 'position');
     slots = Number(data.slots || 49);
     inventory = {};
     moneySlots = {};
     quickSlots = {};
     clothingSlots = {};
     clothingCategories = Array.isArray(data.clothingCategories) ? data.clothingCategories : DEFAULT_CLOTHING_CATEGORIES;
-    dropped = Array.isArray(data.dropped) ? data.dropped : [];
+    dropped = positionMode ? [] : (Array.isArray(data.dropped) ? data.dropped : []);
     const inv = data.inventory || {};
     const currency = data.moneyItems || data.currencyItems || {};
     const quick = data.quickSlots || {};
@@ -679,7 +779,7 @@ function openInventory(data = {}) {
 }
 
 function updateDropped(data = {}) {
-    dropped = Array.isArray(data.dropped) ? data.dropped : [];
+    dropped = positionMode ? [] : (Array.isArray(data.dropped) ? data.dropped : []);
     if (!inventoryRoot.classList.contains('hidden')) renderDropped();
 }
 
@@ -1119,6 +1219,7 @@ function handleClothesItemsResult(msg = {}) {
 window.addEventListener('message', (event) => {
     const msg = event.data || {};
     if (msg.action === 'openInventory') openInventory(msg.data || {});
+    if (msg.action === 'openInventoryPosition') openInventory(Object.assign({}, msg.data || {}, { positionMode: true, mode: 'position' }));
     if (msg.action === 'updateDropped') updateDropped(msg.data || {});
     if (msg.action === 'openSelector') openSelector();
     if (msg.action === 'closeSelector') closeSelector();
@@ -1129,6 +1230,11 @@ window.addEventListener('message', (event) => {
     if (msg.action === 'openClothesItems') openClothesItemsPanel(msg.data || {});
     if (msg.action === 'itemsResult') handleItemsResult(msg);
     if (msg.action === 'clothesItemsResult') handleClothesItemsResult(msg);
+    if (msg.action === 'inventoryPositionResult') setPositionStatus(msg.message || (msg.ok ? 'Pozitii salvate.' : 'Nu s-au putut salva pozitiile.'), msg.ok === true);
+    if (msg.action === 'updateClothingCategories') {
+        clothingCategories = Array.isArray(msg.categories) ? msg.categories : clothingCategories;
+        renderClothingSlots();
+    }
     if (msg.action === 'addItemResult') {
         addStatus.textContent = msg.message || '';
         addStatus.className = `add-status ${msg.ok ? 'success' : 'error'}`;

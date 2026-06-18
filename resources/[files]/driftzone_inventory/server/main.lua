@@ -3,6 +3,8 @@ local ItemsCache = nil
 local ItemsCacheExpires = 0
 local ClothesItemsCache = nil
 local ClothesItemsCacheExpires = 0
+local InventoryPositionsCache = nil
+local InventoryPositionsCacheExpires = 0
 local OpenPlayers = {}
 local GiveSessions = {}
 local Drops = {}
@@ -72,11 +74,63 @@ local function clothingCategoryOrder()
     return out
 end
 
-local function buildClothingCategoriesPayload()
+local function clampNumber(value, minValue, maxValue, fallback)
+    value = tonumber(value)
+    if not value then value = fallback end
+    value = tonumber(value or fallback or minValue) or minValue
+    if value < minValue then value = minValue end
+    if value > maxValue then value = maxValue end
+    return value
+end
+
+local function loadInventoryPositions(force)
+    local now = GetGameTimer()
+    if force ~= true and InventoryPositionsCache and InventoryPositionsCacheExpires > now then
+        return InventoryPositionsCache
+    end
+
+    local positions = {}
+    local ok, rows = pcall(function()
+        return MySQL.query.await(('SELECT category_key, left_pct, top_pct, slot_size FROM %s'):format(sqlName(Config.InventoryPositionTable or 'inventory_position')), {}) or {}
+    end)
+
+    if ok and type(rows) == 'table' then
+        for _, row in ipairs(rows) do
+            local key = normalizeClothingCategory(row.category_key)
+            if key then
+                positions[key] = {
+                    left = clampNumber(row.left_pct, 0, 100, 50),
+                    top = clampNumber(row.top_pct, 0, 100, 50),
+                    slotSize = math.floor(clampNumber(row.slot_size, 44, 90, 62))
+                }
+            end
+        end
+    end
+
+    InventoryPositionsCache = positions
+    InventoryPositionsCacheExpires = now + 30000
+    return positions
+end
+
+local function getConfiguredClothingPosition(key, dbPositions)
+    key = normalizeClothingCategory(key)
+    local cfg = key and (Config.ClothingCategories or {})[key] or {}
+    local db = key and dbPositions and dbPositions[key] or nil
+    local pos = key and (Config.ClothingSlotPositions or {})[key] or {}
+
+    return {
+        left = clampNumber(db and db.left or pos.left or cfg.slotLeft or 50, 0, 100, 50),
+        top = clampNumber(db and db.top or pos.top or cfg.slotTop or 50, 0, 100, 50),
+        slotSize = math.floor(clampNumber(db and db.slotSize or pos.slotSize or cfg.slotSize or 62, 44, 90, 62))
+    }
+end
+
+local function buildClothingCategoriesPayload(forcePositionsReload)
     local out = {}
+    local dbPositions = loadInventoryPositions(forcePositionsReload == true)
     for _, key in ipairs(clothingCategoryOrder()) do
         local cfg = (Config.ClothingCategories or {})[key] or {}
-        local pos = (Config.ClothingSlotPositions or {})[key] or {}
+        local pos = getConfiguredClothingPosition(key, dbPositions)
         out[#out + 1] = {
             key = key,
             label = tostring(cfg.label or key),
@@ -84,9 +138,9 @@ local function buildClothingCategoriesPayload()
             type = tostring(cfg.type or 'component'),
             componentId = tonumber(cfg.componentId or -1) or -1,
             propId = tonumber(cfg.propId or -1) or -1,
-            slotLeft = tonumber(pos.left or cfg.slotLeft or 50) or 50,
-            slotTop = tonumber(pos.top or cfg.slotTop or 50) or 50,
-            slotSize = tonumber(pos.slotSize or cfg.slotSize or 62) or 62
+            slotLeft = pos.left,
+            slotTop = pos.top,
+            slotSize = pos.slotSize
         }
     end
     return out
@@ -1559,6 +1613,68 @@ local function saveClothesItemFromAdmin(admin, data)
     return true, 'Haina salvata cu succes: ' .. itemId, itemId
 end
 
+
+local function buildInventoryPositionPayload(src, admin)
+    local uid = getUid(src)
+    if not uid then return nil end
+
+    ItemsCache = nil
+    ClothesItemsCache = nil
+    InventoryPositionsCache = nil
+
+    local inv = reloadInventory(uid)
+    return {
+        slots = Config.Slots,
+        columns = Config.Columns,
+        inventory = hydrateInventory(inv),
+        moneyItems = hydrateCurrencyItems(uid, inv),
+        quickSlots = hydrateQuickSlots(inv),
+        clothesSlots = buildUserClothesForUi(uid),
+        clothingCategories = buildClothingCategoriesPayload(true),
+        mainColor = Config.MainColor,
+        mode = 'position',
+        positionMode = true,
+        admin = admin and { uid = admin.uid, name = admin.name or admin.username or GetPlayerName(src) } or nil,
+        dropped = {}
+    }
+end
+
+local function saveInventorySlotPositions(admin, rawPositions)
+    if type(rawPositions) ~= 'table' then return false, 'Pozitii invalide.' end
+
+    local saved = 0
+    for _, key in ipairs(clothingCategoryOrder()) do
+        local pos = rawPositions[key] or rawPositions[tostring(key)]
+        if type(pos) == 'table' then
+            local left = clampNumber(pos.left or pos.slotLeft or pos.x, 0, 100, nil)
+            local top = clampNumber(pos.top or pos.slotTop or pos.y, 0, 100, nil)
+            local size = math.floor(clampNumber(pos.slotSize or pos.size, 44, 90, 62))
+
+            MySQL.update.await(([=[
+                INSERT INTO %s (category_key, left_pct, top_pct, slot_size, updated_by, updated_at)
+                VALUES (?, ?, ?, ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE
+                    left_pct = VALUES(left_pct),
+                    top_pct = VALUES(top_pct),
+                    slot_size = VALUES(slot_size),
+                    updated_by = VALUES(updated_by),
+                    updated_at = NOW()
+            ]=]):format(sqlName(Config.InventoryPositionTable or 'inventory_position')), {
+                key,
+                left,
+                top,
+                size,
+                tonumber(admin and admin.uid or 0) or 0
+            })
+            saved = saved + 1
+        end
+    end
+
+    InventoryPositionsCache = nil
+    InventoryPositionsCacheExpires = 0
+    return true, ('Pozitii salvate: %s.'):format(saved)
+end
+
 RegisterCommand(Config.Command or 'inventory', function(src)
     if src <= 0 then return end
     if not isLogged(src) then return notify(src, 'warning', 'Trebuie sa fii logat.') end
@@ -1599,6 +1715,16 @@ RegisterCommand('clothesitems', function(src)
         categories = buildClothingCategoriesPayload(),
         items = buildAdminClothesList()
     })
+end, false)
+
+RegisterCommand('inventorypos', function(src)
+    local admin = requireAdmin(src, Config.Admin.inventorypos or 6)
+    if not admin then return end
+
+    local payload = buildInventoryPositionPayload(src, admin)
+    if not payload then return notify(src, 'warning', 'Nu ti-am gasit UID-ul.') end
+
+    TriggerClientEvent('driftzone_inventory:client:openInventoryPosition', src, payload)
 end, false)
 
 RegisterCommand('giveitem', function(src, args)
@@ -1665,6 +1791,29 @@ RegisterCommand('wipeinventory', function(src, args)
         pushInventory(target, 'normal')
     end
 end, false)
+
+
+RegisterNetEvent('driftzone_inventory:server:saveInventoryPositions', function(rawPositions)
+    local src = source
+    local admin = requireAdmin(src, Config.Admin.inventorypos or 6)
+    if not admin then return end
+
+    local ok, savedOk, savedMsg = pcall(function()
+        return saveInventorySlotPositions(admin, rawPositions or {})
+    end)
+
+    if not ok then
+        print('[DRIFTZONE_INVENTORY] inventory position save error: ' .. tostring(savedOk))
+        TriggerClientEvent('driftzone_inventory:client:inventoryPositionResult', src, false, 'Eroare SQL la salvarea pozitiilor.')
+        return
+    end
+
+    TriggerClientEvent('driftzone_inventory:client:inventoryPositionResult', src, savedOk == true, savedMsg or (savedOk and 'Pozitii salvate.' or 'Nu s-au putut salva pozitiile.'))
+
+    if savedOk then
+        TriggerClientEvent('driftzone_inventory:client:updateClothingCategories', -1, buildClothingCategoriesPayload(true))
+    end
+end)
 
 RegisterNetEvent('driftzone_inventory:server:requestOpen', function()
     local src = source
@@ -2272,6 +2421,21 @@ local function ensureClothesTables()
     ]]):format(sqlName(Config.ClothesItemsTable or 'clothes_items')), {})
 end
 
+
+local function ensureInventoryPositionTable()
+    MySQL.query.await(([=[
+        CREATE TABLE IF NOT EXISTS %s (
+            `category_key` VARCHAR(32) NOT NULL,
+            `left_pct` DECIMAL(5,2) NOT NULL DEFAULT 50.00,
+            `top_pct` DECIMAL(5,2) NOT NULL DEFAULT 50.00,
+            `slot_size` INT NOT NULL DEFAULT 62,
+            `updated_by` INT NOT NULL DEFAULT 0,
+            `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`category_key`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ]=]):format(sqlName(Config.InventoryPositionTable or 'inventory_position')), {})
+end
+
 ensureGradientItemColumns = function()
     ensureColumn(Config.ItemsTable, 'is_gradient', 'TINYINT NOT NULL DEFAULT 0')
     ensureColumn(Config.ItemsTable, 'gradient_id', 'INT NOT NULL DEFAULT 0')
@@ -2280,6 +2444,10 @@ end
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     ensureGradientItemColumns()
+    local okPos, errPos = pcall(ensureInventoryPositionTable)
+    if not okPos then
+        print('[DRIFTZONE_INVENTORY] Inventory position SQL setup failed: ' .. tostring(errPos))
+    end
     local okClothes, errClothes = pcall(ensureClothesTables)
     if not okClothes then
         print('[DRIFTZONE_INVENTORY] Clothes SQL setup failed: ' .. tostring(errClothes))
