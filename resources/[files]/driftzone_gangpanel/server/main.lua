@@ -910,7 +910,7 @@ RegisterNetEvent('driftzone_gangpanel:server:requestWithdrawal', function(gangId
         local leaderSrc = getPlayerByUid(access.uid)
         if leaderSrc then
             TriggerClientEvent('driftzone_gangpanel:client:setWithdrawalPickup', leaderSrc, { id = wid, amount = revenue, x = loc.x, y = loc.y, z = loc.z })
-            notify(leaderSrc, 'info', 'Locatia pentru ridicarea banilor a fost marcata pe GPS.')
+            notify(leaderSrc, 'info', 'Locatia pentru ridicarea banilor a fost marcata cu un blip albastru.')
         end
     end)
 end)

@@ -3,6 +3,9 @@ local panelOpen = false
 local pendingOpen = nil
 local cursorVisible = false
 local tabletObj = nil
+local tabletPlaying = false
+local lastTabletEnsure = 0
+local withdrawalBlip = nil
 local selectorOpen = false
 local selectorPayload = nil
 local selectorTarget = nil
@@ -30,9 +33,36 @@ local function setFocus(state)
 end
 
 
-local function withdrawalInteractionId(data)
-    local id = type(data) == 'table' and (data.id or data.withdrawalId) or data
-    return ('gang_withdrawal_%s'):format(tostring(id or '0'))
+local function removeWithdrawalBlip()
+    if withdrawalBlip and DoesBlipExist(withdrawalBlip) then
+        RemoveBlip(withdrawalBlip)
+    end
+    withdrawalBlip = nil
+end
+
+local function createWithdrawalBlip(data)
+    removeWithdrawalBlip()
+    if type(data) ~= 'table' or not data.x then return end
+
+    local cfg = Config.Withdrawal or {}
+    local bcfg = cfg.CustomBlip or {}
+    local blip = AddBlipForCoord(data.x + 0.0, data.y + 0.0, data.z + 0.0)
+    SetBlipSprite(blip, tonumber(bcfg.Sprite or cfg.BlipSprite or 500) or 500)
+    SetBlipColour(blip, tonumber(bcfg.Color or cfg.BlipColor or 3) or 3)
+    SetBlipScale(blip, tonumber(bcfg.Scale or cfg.BlipScale or 0.82) or 0.82)
+    SetBlipAsShortRange(blip, bcfg.ShortRange == true)
+    SetBlipHighDetail(blip, true)
+
+    if bcfg.Route == true or cfg.BlipRoute == true then
+        SetBlipRoute(blip, true)
+        SetBlipRouteColour(blip, tonumber(bcfg.RouteColor or cfg.BlipRouteColor or 3) or 3)
+    end
+
+    BeginTextCommandSetBlipName('STRING')
+    AddTextComponentString(tostring(bcfg.Name or cfg.BlipName or 'Ridicare pachet'))
+    EndTextCommandSetBlipName(blip)
+
+    withdrawalBlip = blip
 end
 
 local function addWithdrawalInteraction(data)
@@ -40,39 +70,23 @@ local function addWithdrawalInteraction(data)
     local wid = tonumber(data.id or data.withdrawalId or 0) or 0
     if wid <= 0 then return end
 
-    activeWithdrawal = data
+    activeWithdrawal = {
+        id = wid,
+        amount = tonumber(data.amount or 0) or 0,
+        x = data.x + 0.0,
+        y = data.y + 0.0,
+        z = data.z + 0.0
+    }
     claimHintVisible = false
     sendNui({ action = 'claimHint', visible = false })
 
-    local payload = {
-        id = withdrawalInteractionId(data),
-        coords = { x = data.x + 0.0, y = data.y + 0.0, z = data.z + 0.0 },
-        range = Config.Withdrawal.ClaimDistance or 2.0,
-        key = 'E',
-        text = Config.Withdrawal.InteractionText or 'Revendica pachetul',
-        subText = Config.Withdrawal.InteractionSubText or ('Ridicare: $' .. tostring(data.amount or 0)),
-        event = 'driftzone_gangpanel:client:claimWithdrawalFromInteraction',
-        data = { withdrawalId = wid, amount = data.amount or 0 },
-        marker = true,
-        markerType = Config.Withdrawal.MarkerType or 2,
-        markerColor = Config.Withdrawal.MarkerColor or { r = 4, g = 199, b = 247, a = 210 },
-        markerSize = Config.Withdrawal.MarkerScale or { x = 0.42, y = 0.42, z = 0.42 },
-        autoRemoveOnUse = false,
-        setWaypoint = Config.Withdrawal.SetGpsWaypoint ~= false,
-        blip = { sprite = 500, color = 3, scale = 0.72, name = 'Ridicare pachet', shortRange = false }
-    }
-
-    -- Local-only: eventul este trimis doar clientului lider de server, deci waypointul/promptul este doar pentru el.
-    TriggerEvent('driftzone_interactions:client:addPersonalWaypoint', payload)
-
-    if payload.setWaypoint then
-        SetNewWaypoint(data.x + 0.0, data.y + 0.0)
-    end
+    -- Nu folosim waypoint clasic si nu chemam resurse externe.
+    -- Blipul este local, albastru si apare doar jucatorului care trebuie sa ridice pachetul.
+    createWithdrawalBlip(activeWithdrawal)
 end
 
-local function removeWithdrawalInteraction(dataOrId)
-    local id = withdrawalInteractionId(dataOrId)
-    TriggerEvent('driftzone_interactions:client:remove', id)
+local function removeWithdrawalInteraction(_)
+    removeWithdrawalBlip()
 end
 
 local function loadAnimDict(dict, timeout)
@@ -102,34 +116,71 @@ end
 local function stopTablet()
     local ped = PlayerPedId()
     local anim = Config.TabletAnimation or {}
+
+    tabletPlaying = false
+    lastTabletEnsure = 0
+
     if ped and ped ~= 0 then
-        if anim.dict and anim.anim then StopAnimTask(ped, anim.dict, anim.anim, 1.0) end
+        if anim.dict and anim.anim then
+            StopAnimTask(ped, anim.dict, anim.anim, 2.0)
+            Wait(0)
+            StopAnimTask(ped, anim.dict, anim.anim, 2.0)
+        end
         ClearPedSecondaryTask(ped)
     end
+
     if tabletObj and DoesEntityExist(tabletObj) then
+        DetachEntity(tabletObj, true, true)
         DeleteEntity(tabletObj)
     end
     tabletObj = nil
 end
 
-local function playTablet()
+local function ensureTablet(force)
     local anim = Config.TabletAnimation or {}
     if anim.enabled == false then return end
     local ped = PlayerPedId()
     if not ped or ped == 0 or IsPedDeadOrDying(ped, true) then return end
-    if anim.dict and anim.anim and loadAnimDict(anim.dict) then
-        TaskPlayAnim(ped, anim.dict, anim.anim, 4.0, -4.0, -1, tonumber(anim.flag or 49) or 49, 0.0, false, false, false)
+
+    local now = GetGameTimer()
+    if not force and now - lastTabletEnsure < 1200 then return end
+    lastTabletEnsure = now
+
+    local dict = tostring(anim.dict or '')
+    local name = tostring(anim.anim or '')
+    if dict ~= '' and name ~= '' then
+        if not IsEntityPlayingAnim(ped, dict, name, 3) then
+            if loadAnimDict(dict, tonumber(anim.timeout or 1800) or 1800) then
+                TaskPlayAnim(ped, dict, name, 3.0, -3.0, -1, tonumber(anim.flag or 49) or 49, 0.0, false, false, false)
+                tabletPlaying = true
+            end
+        else
+            tabletPlaying = true
+        end
     end
-    if anim.prop and not tabletObj then
-        local hash = loadModel(anim.prop)
+
+    if anim.prop and (not tabletObj or not DoesEntityExist(tabletObj)) then
+        local hash = loadModel(anim.prop, tonumber(anim.modelTimeout or 1800) or 1800)
         if hash then
             local coords = GetEntityCoords(ped)
             tabletObj = CreateObject(hash, coords.x, coords.y, coords.z + 0.2, true, true, false)
+            SetEntityCollision(tabletObj, false, false)
             local p = anim.placement or {}
-            AttachEntityToEntity(tabletObj, ped, GetPedBoneIndex(ped, tonumber(anim.bone or 28422) or 28422), p.x or 0.03, p.y or -0.05, p.z or 0.0, p.rx or 0.0, p.ry or 0.0, p.rz or 0.0, true, true, false, true, 1, true)
+            AttachEntityToEntity(
+                tabletObj,
+                ped,
+                GetPedBoneIndex(ped, tonumber(anim.bone or 28422) or 28422),
+                p.x or 0.03, p.y or -0.05, p.z or 0.0,
+                p.rx or 0.0, p.ry or 0.0, p.rz or 0.0,
+                true, true, false, true, 1, true
+            )
             SetModelAsNoLongerNeeded(hash)
         end
     end
+end
+
+local function playTablet()
+    ensureTablet(true)
 end
 
 local function openPanel(data)
@@ -518,7 +569,7 @@ CreateThread(function()
             DisableControlAction(0, 200, true)
             if IsDisabledControlJustPressed(0, 200) then closePanel() end
             if IsControlJustPressed(0, 243) or IsDisabledControlJustPressed(0, 243) then setFocus(not cursorVisible) end
-            playTablet()
+            ensureTablet(false)
             Wait(0)
         else
             Wait(350)
@@ -528,7 +579,7 @@ end)
 
 CreateThread(function()
     while true do
-        if activeWithdrawal and activeWithdrawal.x and ((Config.Withdrawal or {}).UseInteractions == false) then
+        if activeWithdrawal and activeWithdrawal.x then
             local ped = PlayerPedId()
             local coords = GetEntityCoords(ped)
             local target = vector3(activeWithdrawal.x + 0.0, activeWithdrawal.y + 0.0, activeWithdrawal.z + 0.0)
@@ -568,5 +619,6 @@ end)
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
     stopTablet()
+    removeWithdrawalBlip()
     SetNuiFocus(false, false)
 end)

@@ -64,11 +64,26 @@ Config.PlayerSelector = {
 }
 
 Config.Withdrawal = {
-    UseInteractions = true,
+    -- Retragerile sunt locale in gangpanel: blip + marker albastru, fara waypoint clasic si fara dependinta de driftzone_interactions.
+    UseInteractions = false,
     InteractionEventPrefix = 'driftzone_interactions',
     InteractionText = 'Revendica pachetul',
     InteractionSubText = 'Apasa E pentru a ridica banii murdari',
-    SetGpsWaypoint = true,
+    SetGpsWaypoint = false,
+    BlipName = 'Ridicare pachet',
+    BlipSprite = 500,
+    BlipColor = 3,
+    BlipScale = 0.82,
+    BlipRoute = false,
+    CustomBlip = {
+        Sprite = 500,
+        Color = 3,
+        Scale = 0.82,
+        Name = 'Ridicare pachet',
+        ShortRange = false,
+        Route = false,
+        RouteColor = 3
+    },
     MinDelaySeconds = 300,
     MaxDelaySeconds = 600,
     DirtyMoneyItem = 'dirtymoney',
@@ -90,12 +105,15 @@ Config.Withdrawal = {
 
 Config.TabletAnimation = {
     enabled = true,
+    -- animatia ruleaza o singura data in loop cat meniul este deschis; se opreste fortat la close.
     dict = 'amb@code_human_in_bus_passenger_idles@female@tablet@base',
     anim = 'base',
     flag = 49,
+    timeout = 1800,
+    modelTimeout = 1800,
     prop = 'prop_cs_tablet',
     bone = 28422,
-    placement = { x = 0.03, y = -0.05, z = 0.0, rx = 0.0, ry = 0.0, rz = 0.0 }
+    placement = { x = 0.03, y = -0.02, z = -0.03, rx = 10.0, ry = 0.0, rz = 0.0 }
 }
 
 Config.Hooks = {}

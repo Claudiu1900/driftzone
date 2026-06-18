@@ -5,7 +5,7 @@ local teleporting = false
 
 local AdminCommands = {
     'aduty','staff','goto','bring','kick','slap','warn','rwarn','warns','resetwarns','coords','gotocoords','tptow','nc','veh','fix','ban','tempban','unban',
-    'giveveh','takeveh','transferveh','changeplate','addoutfit','cleanup','cancelcleanup','addveh','removeveh','lockveh','unlockveh','giveadm','wipe','givecash','givedzcoins','givevip','removevip','resettickets','configveh','vehs'
+    'ah','ap','freeze','unfreeze','spectate','mark','gotomark','giveveh','takeveh','transferveh','changeplate','addoutfit','cleanup','cancelcleanup','addveh','removeveh','lockveh','unlockveh','giveadm','wipe','givecash','givedzcoins','givevip','removevip','resettickets','configveh','vehs'
 }
 
 local function notify(type, message, duration)
@@ -237,6 +237,12 @@ RegisterNetEvent('driftzone_admin:client:spawnOwnedVehicle', function(data)
         SetNetworkIdExistsOnAllMachines(netId, true)
     end
     Wait(350)
+
+    -- Integrare cu driftzone_vehicleconfig: masina spawnata din /vehs primeste SQL ID, owner, motor oprit si lock default.
+    if GetResourceState('driftzone_vehicleconfig') == 'started' then
+        TriggerEvent('driftzone_vehicleconfig:client:registerSpawnedVehicle', veh, tonumber(data.vehicleId or data.id or 0) or 0, tonumber(data.uid or data.owner_id or 0) or 0)
+    end
+
     TriggerServerEvent('driftzone_admin:server:ownedVehSpawnResult', true, data, netId or 0)
 end)
 
@@ -316,4 +322,155 @@ CreateThread(function()
             Wait(350)
         end
     end
+end)
+
+
+-- =============================
+-- DriftZone Admin V3 additions
+-- =============================
+local frozen = false
+local savedMark = nil
+local spectating = false
+local spectateTarget = nil
+local spectateReturn = nil
+local spectateWasInVehicle = false
+
+local function setEntityFrozenState(state)
+    frozen = state == true
+    local ped = PlayerPedId()
+    FreezeEntityPosition(ped, frozen)
+    SetEntityInvincible(ped, frozen)
+    if frozen then
+        ClearPedTasksImmediately(ped)
+    end
+end
+
+RegisterNetEvent('driftzone_admin:client:setFrozen', function(state)
+    setEntityFrozenState(state == true)
+    notify(state and 'warning' or 'info', state and 'Ai primit freeze.' or 'Ai primit unfreeze.')
+end)
+
+CreateThread(function()
+    while true do
+        if frozen then
+            DisableAllControlActions(0)
+            EnableControlAction(0, 1, true)
+            EnableControlAction(0, 2, true)
+            EnableControlAction(0, 245, true)
+            Wait(0)
+        else
+            Wait(500)
+        end
+    end
+end)
+
+RegisterNetEvent('driftzone_admin:client:mark', function()
+    local ped = PlayerPedId()
+    local c = GetEntityCoords(ped)
+    savedMark = { x = c.x, y = c.y, z = c.z, h = GetEntityHeading(ped) }
+    notify('info', ('Mark salvat: %.2f %.2f %.2f'):format(c.x, c.y, c.z))
+end)
+
+RegisterNetEvent('driftzone_admin:client:gotoMark', function()
+    if not savedMark then
+        notify('warning', 'Nu ai niciun mark salvat. Foloseste /mark.')
+        return
+    end
+    local ped = PlayerPedId()
+    local ent = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or ped
+    SetEntityCoordsNoOffset(ent, savedMark.x + 0.0, savedMark.y + 0.0, savedMark.z + 0.0, false, false, false)
+    SetEntityHeading(ent, savedMark.h or 0.0)
+    notify('info', 'Te-ai teleportat la mark.')
+end)
+
+local function stopSpectate()
+    if not spectating then return end
+    local ped = PlayerPedId()
+    NetworkSetInSpectatorMode(false, ped)
+    SetEntityVisible(ped, true, false)
+    SetEntityCollision(ped, true, true)
+    FreezeEntityPosition(ped, false)
+    SetEntityInvincible(ped, false)
+    SetEveryoneIgnorePlayer(PlayerId(), false)
+    SetPoliceIgnorePlayer(PlayerId(), false)
+    if spectateReturn then
+        local ent = ped
+        if spectateWasInVehicle and IsPedInAnyVehicle(ped, false) then ent = GetVehiclePedIsIn(ped, false) end
+        SetEntityCoordsNoOffset(ent, spectateReturn.x, spectateReturn.y, spectateReturn.z, false, false, false)
+        SetEntityHeading(ent, spectateReturn.h or 0.0)
+    end
+    spectating = false
+    spectateTarget = nil
+    spectateReturn = nil
+    spectateWasInVehicle = false
+    notify('info', 'Spectate oprit.')
+end
+
+RegisterNetEvent('driftzone_admin:client:stopSpectate', function()
+    stopSpectate()
+end)
+
+RegisterNetEvent('driftzone_admin:client:startSpectate', function(targetServerId)
+    targetServerId = tonumber(targetServerId or 0) or 0
+    if targetServerId <= 0 then return end
+    if spectating then stopSpectate() Wait(150) end
+    local ped = PlayerPedId()
+    local c = GetEntityCoords(ped)
+    spectateReturn = { x = c.x, y = c.y, z = c.z, h = GetEntityHeading(ped) }
+    spectateWasInVehicle = IsPedInAnyVehicle(ped, false)
+    spectateTarget = targetServerId
+    spectating = true
+    SetEntityVisible(ped, false, false)
+    SetEntityCollision(ped, false, false)
+    FreezeEntityPosition(ped, true)
+    SetEntityInvincible(ped, true)
+    SetEveryoneIgnorePlayer(PlayerId(), true)
+    SetPoliceIgnorePlayer(PlayerId(), true)
+    notify('info', 'Spectate pornit. Foloseste iar /spectate ca sa iesi.')
+end)
+
+CreateThread(function()
+    while true do
+        if spectating and spectateTarget then
+            local player = GetPlayerFromServerId(spectateTarget)
+            if player == -1 then
+                stopSpectate()
+            else
+                local targetPed = GetPlayerPed(player)
+                local ped = PlayerPedId()
+                if targetPed and targetPed ~= 0 and DoesEntityExist(targetPed) then
+                    local tc = GetEntityCoords(targetPed)
+                    SetEntityCoordsNoOffset(ped, tc.x, tc.y, tc.z - 2.0, false, false, false)
+                    SetEntityVisible(ped, false, false)
+                    SetEntityCollision(ped, false, false)
+                    FreezeEntityPosition(ped, true)
+                    NetworkSetInSpectatorMode(true, targetPed)
+                end
+            end
+            Wait(0)
+        else
+            Wait(500)
+        end
+    end
+end)
+
+RegisterNetEvent('driftzone_admin:client:openAdminHelp', function(payload)
+    setPanel(true)
+    sendNui({ action = 'adminHelp', data = payload or {} })
+end)
+
+RegisterNetEvent('driftzone_admin:client:openAdminPanel', function(payload)
+    setPanel(true)
+    sendNui({ action = 'adminPanel', data = payload or {} })
+end)
+
+RegisterNUICallback('runAdminCommand', function(data, cb)
+    TriggerServerEvent('driftzone_admin:server:runFromPanel', data and data.command, data and data.args or '')
+    cb({ ok = true })
+end)
+
+AddEventHandler('onClientResourceStop', function(resource)
+    if resource ~= GetCurrentResourceName() then return end
+    if spectating then stopSpectate() end
+    if frozen then FreezeEntityPosition(PlayerPedId(), false) end
 end)

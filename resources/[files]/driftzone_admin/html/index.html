@@ -2,85 +2,66 @@
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
-    <title>DriftZone Admin Utils</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Admin</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="coordsPanel" class="panel small hidden">
-        <div class="title">DRIFTZONE COORDS</div>
-        <label>COORDS</label><input id="coordsInput" readonly>
-        <div class="grid three">
-            <div><label>X</label><input id="xInput" readonly></div>
-            <div><label>Y</label><input id="yInput" readonly></div>
-            <div><label>Z</label><input id="zInput" readonly></div>
-        </div>
-        <div class="grid two">
-            <div><label>HEADING</label><input id="headingInput" readonly></div>
-            <div><label>DIMENSION</label><input id="dimensionInput" readonly></div>
-        </div>
-        <div class="buttons"><button onclick="copyCoords()">COPY</button><button class="ghost" onclick="closeAll()">CLOSE</button></div>
-        <div id="status" class="status">Auto-copy pornit...</div>
-    </div>
+    <main id="shell" class="hidden">
+        <section id="adminHelpPanel" class="admin-window hidden"></section>
+        <section id="adminPanel" class="admin-window admin-panel hidden"></section>
 
-    <div id="addVehPanel" class="panel add hidden">
-        <div class="title">ADD VEHICLE</div>
-        <div class="grid two">
-            <div><label>MODEL</label><input id="carModelInput" placeholder="s15"></div>
-            <div><label>NAME</label><input id="carNameInput" placeholder="Nissan Silvia S15"></div>
-        </div>
-        <div class="grid three">
-            <div><label>CASH PRICE</label><input id="carPriceInput" type="number" min="0" value="0"></div>
-            <div><label>DZ COINS PRICE</label><input id="carDzcoinsInput" type="number" min="0" value="0"></div>
-            <div><label>CATEGORY NR</label><input id="carCategoryInput" type="number" min="1" value="1"></div>
-        </div>
-        <div class="grid two">
-            <div><label>SHOWROOM BUTTON</label><select id="carSectionInput" onchange="syncSubcategories()"><option>DRIFT</option><option>HS</option><option>PREMIUM</option><option>CUSTOM</option></select></div>
-            <div><label>SUBCATEGORY</label><select id="carSubcategoryInput"></select></div>
-        </div>
-        <div class="grid five">
-            <div><label>VIP</label><select id="carVipInput"><option value="0">0</option><option value="1">1</option></select></div>
-            <div><label>APEAR</label><select id="carApearInput"><option value="1">1</option><option value="0">0</option></select></div>
-            <div><label>SELLING</label><select id="carSellingInput"><option value="1">1</option><option value="0">0</option></select></div>
-            <div><label>TRADEABLE</label><select id="carTradebleInput"><option value="1">1</option><option value="0">0</option></select></div>
-            <div><label>TUNABLE</label><select id="carTunableInput"><option value="1">1</option><option value="0">0</option></select></div>
-        </div>
-        <div class="grid two">
-            <div><label>TYPE</label><select id="carTypeInput"><option value="drift">drift</option><option value="hs">hs</option><option value="premium">premium</option><option value="custom">custom</option></select></div>
-            <div><label>IMAGE</label><input id="carImageInput" placeholder="https://..." oninput="previewCarImage()"></div>
-        </div>
-        <div id="imagePreviewBox" class="image-preview hidden"><img id="carImagePreview"></div>
-        <div class="buttons"><button onclick="submitAddCar()">SAVE VEHICLE</button><button class="ghost" onclick="closeAll()">CLOSE</button></div>
-        <div id="addCarStatus" class="status">Completeaza campurile.</div>
-    </div>
+        <section id="coordsPanel" class="panel small hidden">
+            <div class="topbar"><div><span>DriftZone</span><h2>Coords</h2></div><button class="ghost" onclick="closeAll()">ESC</button></div>
+            <label>COORDS</label><input id="coordsInput" readonly>
+            <div class="grid three">
+                <div><label>X</label><input id="xInput" readonly></div>
+                <div><label>Y</label><input id="yInput" readonly></div>
+                <div><label>Z</label><input id="zInput" readonly></div>
+            </div>
+            <div class="grid two">
+                <div><label>HEADING</label><input id="headingInput" readonly></div>
+                <div><label>DIMENSION</label><input id="dimensionInput" readonly></div>
+            </div>
+            <div class="buttons"><button onclick="copyCoords()">COPY</button><button class="ghost" onclick="closeAll()">CLOSE</button></div>
+            <div id="status" class="status">Auto-copy pornit...</div>
+        </section>
 
-    <div id="configVehPanel" class="panel wide hidden">
-        <div class="topbar"><div class="title">CONFIG VEHICLES</div><button class="ghost smallbtn" onclick="closeAll()">CLOSE</button></div>
-        <input id="configSearch" class="search" placeholder="Cauta masina..." oninput="renderConfigVeh()">
-        <div id="configList" class="list"></div>
-        <div id="configStatus" class="status"></div>
-    </div>
+        <section id="addVehPanel" class="panel add hidden">
+            <div class="topbar"><div><span>Admin</span><h2>Add Vehicle</h2></div><button class="ghost" onclick="closeAll()">ESC</button></div>
+            <div class="grid two"><div><label>MODEL</label><input id="carModelInput" placeholder="s15"></div><div><label>NAME</label><input id="carNameInput" placeholder="Nissan Silvia S15"></div></div>
+            <div class="grid three"><div><label>CASH PRICE</label><input id="carPriceInput" type="number" min="0" value="0"></div><div><label>DZ COINS PRICE</label><input id="carDzcoinsInput" type="number" min="0" value="0"></div><div><label>CATEGORY NR</label><input id="carCategoryInput" type="number" min="1" value="1"></div></div>
+            <div class="grid two"><div><label>SHOWROOM BUTTON</label><select id="carSectionInput" onchange="syncSubcategories()"><option>DRIFT</option><option>HS</option><option>PREMIUM</option><option>CUSTOM</option></select></div><div><label>SUBCATEGORY</label><select id="carSubcategoryInput"></select></div></div>
+            <div class="grid five"><div><label>VIP</label><select id="carVipInput"><option value="0">0</option><option value="1">1</option></select></div><div><label>APEAR</label><select id="carApearInput"><option value="1">1</option><option value="0">0</option></select></div><div><label>SELLING</label><select id="carSellingInput"><option value="1">1</option><option value="0">0</option></select></div><div><label>TRADEABLE</label><select id="carTradebleInput"><option value="1">1</option><option value="0">0</option></select></div><div><label>TUNABLE</label><select id="carTunableInput"><option value="1">1</option><option value="0">0</option></select></div></div>
+            <div class="grid two"><div><label>TYPE</label><select id="carTypeInput"><option value="drift">drift</option><option value="hs">hs</option><option value="premium">premium</option><option value="custom">custom</option></select></div><div><label>IMAGE</label><input id="carImageInput" placeholder="https://..." oninput="previewCarImage()"></div></div>
+            <div id="imagePreviewBox" class="image-preview hidden"><img id="carImagePreview"></div>
+            <div class="buttons"><button onclick="submitAddCar()">SAVE VEHICLE</button><button class="ghost" onclick="closeAll()">CLOSE</button></div>
+            <div id="addCarStatus" class="status">Completeaza campurile.</div>
+        </section>
 
-    <div id="ownedVehPanel" class="panel owned hidden">
-        <div class="topbar"><div class="title" id="ownedTitle">VEHS</div><button class="ghost smallbtn" onclick="closeAll()">CLOSE</button></div>
-        <input id="ownedSearch" class="search" placeholder="Cauta dupa model, plate, sql id..." oninput="renderOwnedVehs()">
-        <div id="ownedList" class="owned-list"></div>
-        <div id="ownedStatus" class="status"></div>
-    </div>
+        <section id="configVehPanel" class="panel wide hidden">
+            <div class="topbar"><div><span>Admin</span><h2>Config Vehicles</h2></div><button class="ghost" onclick="closeAll()">ESC</button></div>
+            <input id="configSearch" class="search" placeholder="Cauta masina..." oninput="renderConfigVeh()">
+            <div id="configList" class="list"></div>
+            <div id="configStatus" class="status"></div>
+        </section>
 
+        <section id="ownedVehPanel" class="panel owned hidden">
+            <div class="topbar"><div><span id="ownedKicker">Admin</span><h2 id="ownedTitle">VEHS</h2></div><button class="ghost" onclick="closeAll()">ESC</button></div>
+            <input id="ownedSearch" class="search" placeholder="Cauta dupa model, plate, sql id..." oninput="renderOwnedVehs()">
+            <div id="ownedList" class="owned-list"></div>
+            <div id="ownedStatus" class="status"></div>
+        </section>
+    </main>
 
-
-    <div id="confirmModal" class="confirm-modal hidden">
+    <section id="confirmModal" class="confirm-modal hidden">
         <div class="confirm-box">
             <div id="confirmTitle" class="confirm-title">Confirmare</div>
             <div id="confirmMessage" class="confirm-message">Esti sigur?</div>
             <input id="confirmInput" class="confirm-input hidden" placeholder="UID">
-            <div class="confirm-actions">
-                <button id="confirmCancel" class="ghost" onclick="confirmModalCancel()">RENUNTA</button>
-                <button id="confirmOk" class="danger" onclick="confirmModalOk()">CONFIRMA</button>
-            </div>
+            <div class="confirm-actions"><button id="confirmCancel" class="ghost" onclick="confirmModalCancel()">RENUNTA</button><button id="confirmOk" class="danger" onclick="confirmModalOk()">CONFIRMA</button></div>
         </div>
-    </div>
-
+    </section>
     <script src="script.js"></script>
 </body>
 </html>

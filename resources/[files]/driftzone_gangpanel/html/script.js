@@ -96,7 +96,8 @@ function render() {
 
     nav.innerHTML = navItems().map(([id, label, sub]) => `
         <button class="${activePage === id ? 'active' : ''}" onclick="setPage('${id}')">
-            <b>${label}</b><small>${sub}</small>
+            <img src="assets/icons/${id}.svg" alt="" draggable="false" onerror="this.style.display='none'">
+            <span><b>${label}</b><small>${sub}</small></span>
         </button>
     `).join('');
 

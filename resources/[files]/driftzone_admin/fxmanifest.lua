@@ -4,8 +4,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Admin System'
-version '2.1.0'
+description 'DriftZone Admin System - AH/AP, freeze, spectate, marks, vehicle tools'
+version '3.0.0'
 
 ui_page 'html/index.html'
 
@@ -16,7 +16,6 @@ files {
 }
 
 shared_scripts {
-    'locales/staging.js',
     'config.lua'
 }
 
