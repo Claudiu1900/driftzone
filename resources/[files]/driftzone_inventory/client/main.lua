@@ -109,12 +109,49 @@ local function getClothingCategoryConfig(key)
     return cfg
 end
 
+local function acceptClothesRevision(revision)
+    revision = tonumber(revision or 0) or 0
+    if revision <= 0 then
+        clothesApplyRevision = clothesApplyRevision + 1
+        return true
+    end
+
+    if revision < clothesApplyRevision then
+        return false
+    end
+
+    clothesApplyRevision = revision
+    return true
+end
+
+local function buildDefaultClothingEntry(category, override)
+    category = tostring(category or '')
+    local cfg = getClothingCategoryConfig(category) or {}
+    local defaults = Config.EmptyClothingDefaults or Config.EmptyClothes or {}
+    local def = defaults[category] or {}
+    override = type(override) == 'table' and override or {}
+
+    return {
+        category = category,
+        empty = true,
+        clothes_type = tostring(override.clothes_type or def.type or cfg.type or 'component'),
+        drawable = math.floor(tonumber(override.drawable or def.drawable or 0) or 0),
+        texture = math.max(0, math.floor(tonumber(override.texture or def.texture or 0) or 0)),
+        component_id = tonumber(override.component_id or override.componentId or def.component_id or def.componentId or cfg.componentId or -1) or -1,
+        prop_id = tonumber(override.prop_id or override.propId or def.prop_id or def.propId or cfg.propId or -1) or -1
+    }
+end
+
 local function applyClothingEntry(entry)
     if type(entry) ~= 'table' then return false end
     local ped = PlayerPedId()
     if not ped or ped == 0 or not DoesEntityExist(ped) then return false end
 
     local category = tostring(entry.category or entry.category_key or '')
+    if entry.empty == true then
+        entry = buildDefaultClothingEntry(category, entry)
+    end
+
     local cfg = getClothingCategoryConfig(category) or {}
     local ctype = tostring(entry.clothes_type or cfg.type or 'component')
     local drawable = math.floor(tonumber(entry.drawable or 0) or 0)
@@ -152,17 +189,15 @@ local function requestClothesLoadDelayed(ms)
 end
 
 RegisterNetEvent('driftzone_inventory:client:applyClothes', function(payload, _, revision)
-    revision = tonumber(revision or 0) or 0
-
-    -- Daca ajunge tarziu un payload vechi, il ignoram ca sa nu reaplice haina dupa ce a fost scoasa.
-    if revision > 0 then
-        if revision < clothesApplyRevision then return end
-        clothesApplyRevision = revision
-    else
-        clothesApplyRevision = clothesApplyRevision + 1
-    end
-
+    if not acceptClothesRevision(revision) then return end
     applyClothesPayload(payload or {})
+end)
+
+RegisterNetEvent('driftzone_inventory:client:clearClothingCategory', function(category, entry, revision)
+    if not acceptClothesRevision(revision) then return end
+    category = tostring(category or '')
+    if category == '' then return end
+    applyClothingEntry(buildDefaultClothingEntry(category, entry or {}))
 end)
 
 RegisterNetEvent('driftzone_inventory:client:playActionAnimation', function(actionName)

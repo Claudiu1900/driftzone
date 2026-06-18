@@ -1147,6 +1147,21 @@ local function sendClothesPayloadToClient(src, payload)
     )
 end
 
+local function clearClothingCategoryOnClient(src, category)
+    src = tonumber(src or 0) or 0
+    category = normalizeClothingCategory(category)
+    if src <= 0 or not GetPlayerName(src) or not category then return end
+
+    ClothesApplyRevision[src] = (tonumber(ClothesApplyRevision[src] or 0) or 0) + 1
+    TriggerClientEvent(
+        'driftzone_inventory:client:clearClothingCategory',
+        src,
+        category,
+        buildEmptyClothingApplyEntry(category),
+        ClothesApplyRevision[src]
+    )
+end
+
 local function buildSingleClothingApplyPayload(uid, category)
     category = normalizeClothingCategory(category)
     if not category then return {} end
@@ -1264,7 +1279,9 @@ local function unequipClothingToSlot(src, uid, category, toSlot)
 
     saveUserClothing(uid, category, nil)
     saveInventory(uid)
-    pushSingleClothingToClient(src, uid, category)
+
+    -- Aplicare directa, o singura data, ca sa nu mai ramana pe caracter dupa ce slotul devine gol.
+    clearClothingCategoryOnClient(src, category)
     return true, 'Haina a fost scoasa si scoasa de pe caracter.'
 end
 

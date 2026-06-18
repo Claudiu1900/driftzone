@@ -500,7 +500,6 @@ input[type=number] {
         0 28px 90px rgba(0,0,0,.58),
         0 0 42px rgba(4,199,247,.12),
         inset 0 1px 0 rgba(255,255,255,.10);
-    backdrop-filter: blur(12px);
 }
 
 .inventory-stack {
@@ -654,7 +653,6 @@ input[type=number] {
     border-radius: 18px;
     border-color: rgba(125,240,255,.30);
     background: rgba(2,8,17,.94);
-    backdrop-filter: blur(12px);
 }
 
 .context-menu button,
@@ -696,4 +694,86 @@ select {
 
 @media (max-width: 1366px) {
     .inventory-root { transform: scale(.88); transform-origin: center; }
+}
+
+
+/* DriftZone optimized low-lag override */
+.inventory-root {
+    background: transparent !important;
+    gap: 18px !important;
+}
+.inventory-shell,
+.currency-shell,
+.quick-shell,
+.clothing-shell,
+.dropped-panel,
+.add-shell,
+.items-shell,
+.context-menu,
+.amount-modal {
+    box-shadow: 0 14px 34px rgba(0,0,0,.42) !important;
+    background: rgba(4, 8, 16, .94) !important;
+}
+.slot,
+.money-slot,
+.quick-slot,
+.clothing-slot,
+.drop-item {
+    box-shadow: none !important;
+    will-change: auto !important;
+    transition: border-color .08s linear, background-color .08s linear !important;
+    transform: none !important;
+    background: rgba(255,255,255,.045) !important;
+}
+.slot:hover,
+.slot.selected,
+.slot.drag-over,
+.money-slot:hover,
+.money-slot.selected,
+.money-slot.drag-over,
+.quick-slot:hover,
+.quick-slot.selected,
+.quick-slot.drag-over,
+.clothing-slot:hover,
+.clothing-slot.drag-over,
+.clothing-slot.filled,
+.drop-item:hover {
+    box-shadow: none !important;
+    background: rgba(4,199,247,.14) !important;
+}
+.slot.drag-over,
+.money-slot.drag-over,
+.quick-slot.drag-over,
+.clothing-slot.drag-over {
+    transform: none !important;
+}
+.item-img,
+.item-fallback,
+.item-box,
+.quick-empty svg,
+.clothing-empty img,
+.body-outline {
+    filter: none !important;
+    text-shadow: none !important;
+}
+.item-fallback {
+    background: rgba(4,199,247,.18) !important;
+}
+.body-equipment {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+.body-equipment::before { display: none !important; }
+.body-outline {
+    opacity: .95 !important;
+}
+.drag-ghost {
+    box-shadow: none !important;
+    will-change: transform !important;
+}
+.inventory-grid,
+.quick-bar,
+.dropped-list,
+.clothing-slots {
+    contain: layout paint style !important;
 }
