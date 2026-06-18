@@ -69,8 +69,16 @@ Sunt oprite automat dupa durata setata in config ca sa nu ramana in loop.
 
 ## Sloturi speciale money / dirtymoney
 
-- `money` nu se salveaza in `inventory_items` si nu se tine in `inventory_json`; suma vine direct din `users.cash`.
+- `money` exista in `inventory_items` pentru nume, imagine, usable/giveable/drop, dar suma reala vine direct din `users.cash`.
+- Cand dai GIVE/DROP/PICKUP la `money`, serverul modifica `users.cash`, nu `inventory_json`.
 - `dirtymoney` se afiseaza sus in stanga, deasupra inventarului, in slot special.
-- `money` si `dirtymoney` nu pot fi mutate prin drag & drop in inventar si nu pot fi date cu GIVE din UI; pot fi doar aruncate pe jos.
-- Cand iei `money` de pe jos, suma intra inapoi in `users.cash`.
+- `money` si `dirtymoney` respecta `usable` si `giveable` din `inventory_items`.
 - Stack-ul pentru `money` si `dirtymoney` este fara limita practica (`Config.CurrencyMaxStack`).
+
+## Quick items 1-5
+
+- Sub inventar sunt 5 sloturi mari pe toata latimea inventarului.
+- Poti trage acolo doar iteme cu `usable = 1` din `inventory_items`.
+- Tastele `1`, `2`, `3`, `4`, `5` folosesc itemul salvat in quick slotul respectiv.
+- Daca tragi un quick slot in afara barei, slotul se goleste.
+- Sloturile goale au SVG intern cu numerele 1-5.

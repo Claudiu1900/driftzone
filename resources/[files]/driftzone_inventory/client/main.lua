@@ -235,8 +235,20 @@ RegisterNUICallback('pickupDrop', function(data, cb)
 end)
 
 RegisterNUICallback('startGiveSelector', function(data, cb)
-    pendingGive = { slot = tonumber(data and data.slot or 0) or 0, amount = tonumber(data and data.amount or 1) or 1 }
+    local rawSlot = data and data.slot or 0
+    local slot = tonumber(rawSlot) or tostring(rawSlot or '')
+    pendingGive = { slot = slot, amount = tonumber(data and data.amount or 1) or 1 }
     openSelector(pendingGive)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('setQuickSlot', function(data, cb)
+    TriggerServerEvent('driftzone_inventory:server:setQuickSlot', data and data.index, data and data.slot)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('useQuickSlot', function(data, cb)
+    TriggerServerEvent('driftzone_inventory:server:useQuickSlot', data and data.index)
     cb({ ok = true })
 end)
 
@@ -365,6 +377,16 @@ RegisterNUICallback('submitAddItem', function(data, cb)
     TriggerServerEvent('driftzone_inventory:server:addItemSubmit', data or {})
     cb({ ok = true })
 end)
+
+for i = 1, 5 do
+    local quickIndex = i
+    RegisterCommand(('dz_inv_quick_%s'):format(quickIndex), function()
+        if addItemOpen or selectorOpen then return end
+        TriggerServerEvent('driftzone_inventory:server:useQuickSlot', quickIndex)
+    end, false)
+
+    RegisterKeyMapping(('dz_inv_quick_%s'):format(quickIndex), ('DriftZone Inventory Quick Slot %s'):format(quickIndex), 'keyboard', tostring(quickIndex))
+end
 
 CreateThread(function()
     while true do

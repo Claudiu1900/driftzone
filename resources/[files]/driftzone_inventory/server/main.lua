@@ -7,6 +7,7 @@ local Drops = {}
 local NextDropId = 0
 local ensureGradientItemColumns
 local DIRTY_MONEY_STORAGE_KEY = '__dirtymoney'
+local QUICK_SLOTS_STORAGE_KEY = '__quick_slots'
 
 local function sqlName(name)
     return ('`%s`'):format(tostring(name or ''):gsub('`', ''))
@@ -40,6 +41,27 @@ local function currencyMaxStack()
     return math.max(1, math.floor(tonumber(Config.CurrencyMaxStack or 2147483647) or 2147483647))
 end
 
+local function normalizeQuickSlots(value)
+    local out = {}
+    if type(value) ~= 'table' then return out end
+
+    for i = 1, 5 do
+        local raw = value[i] or value[tostring(i)]
+        local slot = tonumber(raw or 0) or 0
+        if slot >= 1 and slot <= (Config.Slots or 49) then
+            out[tostring(i)] = slot
+        end
+    end
+
+    return out
+end
+
+local function hasTableValues(t)
+    if type(t) ~= 'table' then return false end
+    for _, _ in pairs(t) do return true end
+    return false
+end
+
 local function currencyMeta(itemId)
     itemId = trim(itemId)
     if isMoneyItem(itemId) then
@@ -50,7 +72,7 @@ local function currencyMeta(itemId)
             tradable = true,
             stackable = true,
             usable = false,
-            giveable = false,
+            giveable = true,
             max_stack = currencyMaxStack(),
             is_currency = true,
             cash_source = true
@@ -65,7 +87,7 @@ local function currencyMeta(itemId)
             tradable = true,
             stackable = true,
             usable = false,
-            giveable = false,
+            giveable = true,
             max_stack = currencyMaxStack(),
             is_currency = true
         }
@@ -230,6 +252,7 @@ local function normalizeInventory(inv)
     end
 
     local dirtyAmount = readStoredDirty(inv[DIRTY_MONEY_STORAGE_KEY] or inv._dirtymoney or inv.dirtymoney)
+    local quickSlots = normalizeQuickSlots(inv[QUICK_SLOTS_STORAGE_KEY] or inv._quick_slots or inv.quick_slots)
 
     for i = 1, Config.Slots do
         local item = inv[i] or inv[tostring(i)]
@@ -249,6 +272,7 @@ local function normalizeInventory(inv)
     end
 
     if dirtyAmount > 0 then out[DIRTY_MONEY_STORAGE_KEY] = dirtyAmount end
+    if hasTableValues(quickSlots) then out[QUICK_SLOTS_STORAGE_KEY] = quickSlots end
     return out
 end
 
@@ -263,6 +287,9 @@ local function serializeInventory(inv)
     if dirtyAmount > 0 then
         out[DIRTY_MONEY_STORAGE_KEY] = { item_id = dirtyMoneyItemId(), amount = dirtyAmount }
     end
+
+    local quickSlots = normalizeQuickSlots(inv[QUICK_SLOTS_STORAGE_KEY])
+    if hasTableValues(quickSlots) then out[QUICK_SLOTS_STORAGE_KEY] = quickSlots end
 
     return jsonEncode(out)
 end
@@ -346,15 +373,13 @@ local function loadItems(force)
         end
     end
 
-    ItemsCache[moneyItemId()] = nil
-
-    local dirtyId = dirtyMoneyItemId()
-    if ItemsCache[dirtyId] then
-        ItemsCache[dirtyId].stackable = true
-        ItemsCache[dirtyId].usable = false
-        ItemsCache[dirtyId].giveable = false
-        ItemsCache[dirtyId].max_stack = currencyMaxStack()
-        ItemsCache[dirtyId].is_currency = true
+    for _, currencyId in ipairs({ moneyItemId(), dirtyMoneyItemId() }) do
+        if ItemsCache[currencyId] then
+            ItemsCache[currencyId].stackable = true
+            ItemsCache[currencyId].max_stack = currencyMaxStack()
+            ItemsCache[currencyId].is_currency = true
+            if isMoneyItem(currencyId) then ItemsCache[currencyId].cash_source = true end
+        end
     end
 
     ItemsCacheExpires = now + 5000
@@ -373,6 +398,104 @@ local function getDirtyMoneyAmount(inv)
     return math.max(0, math.floor(tonumber(inv[DIRTY_MONEY_STORAGE_KEY] or 0) or 0))
 end
 
+local function getQuickSlots(inv)
+    inv = normalizeInventory(inv)
+    return normalizeQuickSlots(inv[QUICK_SLOTS_STORAGE_KEY])
+end
+
+local function setQuickSlot(inv, quickIndex, slotIndex)
+    inv[QUICK_SLOTS_STORAGE_KEY] = normalizeQuickSlots(inv[QUICK_SLOTS_STORAGE_KEY])
+    quickIndex = tonumber(quickIndex or 0) or 0
+    slotIndex = tonumber(slotIndex or 0) or 0
+    if quickIndex < 1 or quickIndex > 5 then return false end
+
+    if slotIndex >= 1 and slotIndex <= (Config.Slots or 49) then
+        inv[QUICK_SLOTS_STORAGE_KEY][tostring(quickIndex)] = slotIndex
+    else
+        inv[QUICK_SLOTS_STORAGE_KEY][tostring(quickIndex)] = nil
+    end
+
+    if not hasTableValues(inv[QUICK_SLOTS_STORAGE_KEY]) then
+        inv[QUICK_SLOTS_STORAGE_KEY] = nil
+    end
+
+    return true
+end
+
+local function clearQuickRefs(inv, slotIndex)
+    slotIndex = tonumber(slotIndex or 0) or 0
+    if slotIndex < 1 then return end
+
+    local quickSlots = normalizeQuickSlots(inv[QUICK_SLOTS_STORAGE_KEY])
+    local changed = false
+    for i = 1, 5 do
+        local key = tostring(i)
+        if tonumber(quickSlots[key] or 0) == slotIndex then
+            quickSlots[key] = nil
+            changed = true
+        end
+    end
+
+    if changed then
+        inv[QUICK_SLOTS_STORAGE_KEY] = hasTableValues(quickSlots) and quickSlots or nil
+    end
+end
+
+local function swapQuickRefs(inv, aSlot, bSlot)
+    aSlot = tonumber(aSlot or 0) or 0
+    bSlot = tonumber(bSlot or 0) or 0
+    if aSlot < 1 or bSlot < 1 or aSlot == bSlot then return end
+
+    local quickSlots = normalizeQuickSlots(inv[QUICK_SLOTS_STORAGE_KEY])
+    local changed = false
+    for i = 1, 5 do
+        local key = tostring(i)
+        local value = tonumber(quickSlots[key] or 0) or 0
+        if value == aSlot then
+            quickSlots[key] = bSlot
+            changed = true
+        elseif value == bSlot then
+            quickSlots[key] = aSlot
+            changed = true
+        end
+    end
+
+    if changed then inv[QUICK_SLOTS_STORAGE_KEY] = quickSlots end
+end
+
+local function replaceQuickRefs(inv, oldSlot, newSlot)
+    oldSlot = tonumber(oldSlot or 0) or 0
+    newSlot = tonumber(newSlot or 0) or 0
+    if oldSlot < 1 or newSlot < 1 or oldSlot == newSlot then return end
+
+    local quickSlots = normalizeQuickSlots(inv[QUICK_SLOTS_STORAGE_KEY])
+    local changed = false
+    for i = 1, 5 do
+        local key = tostring(i)
+        if tonumber(quickSlots[key] or 0) == oldSlot then
+            quickSlots[key] = newSlot
+            changed = true
+        end
+    end
+
+    if changed then inv[QUICK_SLOTS_STORAGE_KEY] = quickSlots end
+end
+
+local function hydrateQuickSlots(inv)
+    inv = normalizeInventory(inv)
+    local quickSlots = getQuickSlots(inv)
+    local out = {}
+
+    for i = 1, 5 do
+        local slotIndex = tonumber(quickSlots[tostring(i)] or 0) or 0
+        local slot = slotIndex > 0 and inv[slotIndex] or nil
+        local meta = slot and getItem(slot.item_id) or nil
+        if meta and meta.usable then out[tostring(i)] = slotIndex end
+    end
+
+    return out
+end
+
 local function hydrateCurrencyItems(uid, inv)
     local out = {}
     local cash = getUserCash(uid)
@@ -384,10 +507,10 @@ local function hydrateCurrencyItems(uid, inv)
             item_name = meta.item_name,
             image = meta.image,
             amount = cash,
-            tradable = true,
+            tradable = meta.tradable,
             stackable = true,
-            usable = false,
-            giveable = false,
+            usable = meta.usable,
+            giveable = meta.giveable,
             max_stack = currencyMaxStack(),
             special_currency = true,
             cash_source = true
@@ -403,10 +526,10 @@ local function hydrateCurrencyItems(uid, inv)
             item_name = meta.item_name,
             image = meta.image,
             amount = dirtyAmount,
-            tradable = true,
+            tradable = meta.tradable,
             stackable = true,
-            usable = false,
-            giveable = false,
+            usable = meta.usable,
+            giveable = meta.giveable,
             max_stack = currencyMaxStack(),
             special_currency = true
         }
@@ -568,7 +691,10 @@ local function takeItemFromUid(uid, itemId, amount)
             local take = math.min(remaining, slot.amount)
             slot.amount = slot.amount - take
             remaining = remaining - take
-            if slot.amount <= 0 then inv[i] = nil end
+            if slot.amount <= 0 then
+                inv[i] = nil
+                clearQuickRefs(inv, i)
+            end
             if remaining <= 0 then break end
         end
     end
@@ -753,6 +879,7 @@ local function pushInventory(src, mode, target, forceReload)
         columns = Config.Columns,
         inventory = hydrateInventory(inv),
         moneyItems = hydrateCurrencyItems(uid, inv),
+        quickSlots = hydrateQuickSlots(inv),
         mainColor = Config.MainColor,
         mode = mode or 'normal',
         target = target or nil,
@@ -896,6 +1023,7 @@ RegisterNetEvent('driftzone_inventory:server:move', function(fromSlot, toSlot)
     if not a then return end
 
     local meta = getItem(a.item_id)
+    local swapped = false
     if b and meta and meta.stackable and b.item_id == a.item_id then
         local maxStack = meta.max_stack or 100
         local free = math.max(0, maxStack - b.amount)
@@ -903,14 +1031,20 @@ RegisterNetEvent('driftzone_inventory:server:move', function(fromSlot, toSlot)
         if move > 0 then
             b.amount = b.amount + move
             a.amount = a.amount - move
-            if a.amount <= 0 then inv[fromSlot] = nil end
+            if a.amount <= 0 then
+                inv[fromSlot] = nil
+                replaceQuickRefs(inv, fromSlot, toSlot)
+            end
         else
             inv[fromSlot], inv[toSlot] = inv[toSlot], inv[fromSlot]
+            swapped = true
         end
     else
         inv[fromSlot], inv[toSlot] = inv[toSlot], inv[fromSlot]
+        swapped = true
     end
 
+    if swapped then swapQuickRefs(inv, fromSlot, toSlot) end
     saveInventory(uid)
     pushInventory(src, 'normal')
 end)
@@ -947,14 +1081,8 @@ RegisterNetEvent('driftzone_inventory:server:addItemSubmit', function(data)
         return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Item ID invalid.')
     end
 
-    if isMoneyItem(itemId) then
-        return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'money vine din users.cash si nu se adauga in inventory_items.')
-    end
-
-    if isDirtyMoneyItem(itemId) then
+    if isCurrencyItem(itemId) then
         stackable = 1
-        usable = 0
-        giveable = 0
         maxStack = currencyMaxStack()
     end
 
@@ -999,7 +1127,10 @@ RegisterNetEvent('driftzone_inventory:server:giveSelected', function(targetServe
     local src = source
     local fromUid = getUid(src)
     targetServerId = tonumber(targetServerId or 0) or 0
-    slotIndex = tonumber(slotIndex or 0) or 0
+    local rawSlot = tostring(slotIndex or '')
+    local specialItemId = nil
+    if isMoneyItem(rawSlot) then specialItemId = moneyItemId() end
+    if isDirtyMoneyItem(rawSlot) then specialItemId = dirtyMoneyItemId() end
     amount = math.floor(tonumber(amount or 1) or 1)
 
     if not fromUid then return end
@@ -1008,35 +1139,55 @@ RegisterNetEvent('driftzone_inventory:server:giveSelected', function(targetServe
 
     local toUid = getUid(targetServerId)
     if not toUid then return notify(src, 'warning', 'Jucatorul nu este logat.') end
-    if slotIndex < 1 or slotIndex > Config.Slots or amount <= 0 then return end
+    if amount <= 0 then return end
 
-    local inv = ensureInventory(fromUid)
-    local slot = inv[slotIndex]
-    if not slot or slot.amount < amount then return notify(src, 'warning', 'Nu ai suficiente bucati.') end
+    local item = nil
+    local itemId = nil
 
-    local item = getItem(slot.item_id)
-    if not item then return notify(src, 'warning', 'Item invalid.') end
-    if not item.giveable then return notify(src, 'warning', 'Acest item nu poate fi oferit.') end
-    if not hasFreeSlotOrStack(toUid, item.item_id, amount) then return notify(src, 'warning', 'Jucatorul nu are sloturi disponibile.') end
+    if specialItemId then
+        item = getItem(specialItemId)
+        if not item then return notify(src, 'warning', 'Item invalid.') end
+        if not item.giveable then return notify(src, 'warning', 'Acest item nu poate fi oferit.') end
+        itemId = item.item_id
 
-    slot.amount = slot.amount - amount
-    if slot.amount <= 0 then inv[slotIndex] = nil end
-    saveInventory(fromUid)
+        local okTake, takeMsg = takeItemFromUid(fromUid, itemId, amount)
+        if not okTake then return notify(src, 'warning', takeMsg or 'Nu ai suficiente bucati.') end
+    else
+        slotIndex = tonumber(slotIndex or 0) or 0
+        if slotIndex < 1 or slotIndex > Config.Slots then return end
 
-    local ok, msg = giveItemToUid(toUid, item.item_id, amount)
+        local inv = ensureInventory(fromUid)
+        local slot = inv[slotIndex]
+        if not slot or slot.amount < amount then return notify(src, 'warning', 'Nu ai suficiente bucati.') end
+
+        item = getItem(slot.item_id)
+        if not item then return notify(src, 'warning', 'Item invalid.') end
+        if not item.giveable then return notify(src, 'warning', 'Acest item nu poate fi oferit.') end
+        if not hasFreeSlotOrStack(toUid, item.item_id, amount) then return notify(src, 'warning', 'Jucatorul nu are sloturi disponibile.') end
+
+        itemId = item.item_id
+        slot.amount = slot.amount - amount
+        if slot.amount <= 0 then
+            inv[slotIndex] = nil
+            clearQuickRefs(inv, slotIndex)
+        end
+        saveInventory(fromUid)
+    end
+
+    local ok, msg = giveItemToUid(toUid, itemId, amount)
     if not ok then
-        giveItemToUid(fromUid, item.item_id, amount)
+        giveItemToUid(fromUid, itemId, amount)
         return notify(src, 'warning', msg or 'Nu s-a putut oferi itemul.')
     end
 
-    logAction('player_giveitem', fromUid, toUid, item.item_id, amount, { from = GetPlayerName(src), to = GetPlayerName(targetServerId) })
+    logAction('player_giveitem', fromUid, toUid, itemId, amount, { from = GetPlayerName(src), to = GetPlayerName(targetServerId) })
 
     runServerHook('OnPlayerGiveItem', {
         source = src,
         target = targetServerId,
         fromUid = fromUid,
         toUid = toUid,
-        itemId = item.item_id,
+        itemId = itemId,
         itemName = item.item_name,
         amount = amount
     })
@@ -1047,15 +1198,12 @@ RegisterNetEvent('driftzone_inventory:server:giveSelected', function(targetServe
     -- Nu mai redeschide inventarul dupa GIVE.
     TriggerClientEvent('driftzone_inventory:client:actionDone', src, 'give', {
         target = targetServerId,
-        itemId = item.item_id,
+        itemId = itemId,
         amount = amount
     })
-
 end)
 
-RegisterNetEvent('driftzone_inventory:server:useItem', function(slotIndex)
-    local src = source
-    local uid = getUid(src)
+local function useInventorySlot(src, uid, slotIndex)
     slotIndex = tonumber(slotIndex or 0) or 0
     if not uid or slotIndex < 1 or slotIndex > Config.Slots then return end
 
@@ -1119,6 +1267,77 @@ RegisterNetEvent('driftzone_inventory:server:useItem', function(slotIndex)
 
     TriggerEvent('driftzone_inventory:server:itemUsed', src, uid, item.item_id, slotIndex)
     TriggerClientEvent('driftzone_inventory:client:itemUsed', src, item.item_id)
+end
+
+local function useCurrencyItem(src, uid, itemId)
+    itemId = trim(itemId)
+    if not isCurrencyItem(itemId) then return end
+
+    local item = getItem(itemId)
+    if not item or not item.usable then return notify(src, 'warning', 'Acest item nu se poate folosi.') end
+
+    local amount = 0
+    if isMoneyItem(itemId) then
+        amount = getUserCash(uid)
+    elseif isDirtyMoneyItem(itemId) then
+        amount = getDirtyMoneyAmount(ensureInventory(uid))
+    end
+
+    if amount <= 0 then return notify(src, 'warning', 'Nu ai acest item.') end
+
+    TriggerEvent('driftzone_inventory:server:itemUsed', src, uid, item.item_id, item.item_id, { currency = true, amount = amount })
+    TriggerClientEvent('driftzone_inventory:client:itemUsed', src, item.item_id)
+end
+
+RegisterNetEvent('driftzone_inventory:server:useItem', function(slotIndex)
+    local src = source
+    local uid = getUid(src)
+    if not uid then return end
+
+    local rawSlot = tostring(slotIndex or '')
+    if isMoneyItem(rawSlot) then return useCurrencyItem(src, uid, moneyItemId()) end
+    if isDirtyMoneyItem(rawSlot) then return useCurrencyItem(src, uid, dirtyMoneyItemId()) end
+
+    useInventorySlot(src, uid, slotIndex)
+end)
+
+RegisterNetEvent('driftzone_inventory:server:useQuickSlot', function(quickIndex)
+    local src = source
+    local uid = getUid(src)
+    if not uid then return end
+
+    quickIndex = tonumber(quickIndex or 0) or 0
+    if quickIndex < 1 or quickIndex > 5 then return end
+
+    local inv = ensureInventory(uid)
+    local quickSlots = getQuickSlots(inv)
+    local slotIndex = tonumber(quickSlots[tostring(quickIndex)] or 0) or 0
+    if slotIndex < 1 or slotIndex > Config.Slots then return end
+
+    useInventorySlot(src, uid, slotIndex)
+end)
+
+RegisterNetEvent('driftzone_inventory:server:setQuickSlot', function(quickIndex, slotIndex)
+    local src = source
+    local uid = getUid(src)
+    if not uid then return end
+
+    quickIndex = tonumber(quickIndex or 0) or 0
+    slotIndex = tonumber(slotIndex or 0) or 0
+    if quickIndex < 1 or quickIndex > 5 then return end
+
+    local inv = ensureInventory(uid)
+    if slotIndex > 0 then
+        if slotIndex < 1 or slotIndex > Config.Slots then return end
+        local slot = inv[slotIndex]
+        if not slot then return notify(src, 'warning', 'Slot invalid.') end
+        local item = getItem(slot.item_id)
+        if not item or not item.usable then return notify(src, 'warning', 'Doar itemele usable pot fi puse pe quick slot.') end
+    end
+
+    setQuickSlot(inv, quickIndex, slotIndex)
+    saveInventory(uid)
+    pushInventory(src, 'normal')
 end)
 
 
@@ -1168,7 +1387,10 @@ RegisterNetEvent('driftzone_inventory:server:dropItem', function(slotIndex, amou
 
         itemId = item.item_id
         slot.amount = slot.amount - amount
-        if slot.amount <= 0 then inv[slotIndex] = nil end
+        if slot.amount <= 0 then
+            inv[slotIndex] = nil
+            clearQuickRefs(inv, slotIndex)
+        end
         saveInventory(uid)
     end
 

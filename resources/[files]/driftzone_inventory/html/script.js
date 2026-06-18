@@ -5,6 +5,7 @@ const selectorRoot = document.getElementById('selectorRoot');
 const addItemRoot = document.getElementById('addItemRoot');
 const grid = document.getElementById('grid');
 const moneyPanel = document.getElementById('moneyPanel');
+const quickBar = document.getElementById('quickBar');
 const droppedPanel = document.getElementById('droppedPanel');
 const droppedList = document.getElementById('droppedList');
 const contextMenu = document.getElementById('contextMenu');
@@ -35,6 +36,7 @@ const addStatus = document.getElementById('addStatus');
 let slots = 49;
 let inventory = {};
 let moneySlots = {};
+let quickSlots = {};
 let dropped = [];
 let selectedSlot = null;
 let selectorActive = false;
@@ -137,9 +139,35 @@ function renderMoneySlots() {
     show(moneyPanel);
 }
 
+function quickEmptySvg(index) {
+    const safe = esc(index);
+    return `<div class="quick-empty" aria-hidden="true"><svg viewBox="0 0 118 94" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="116" height="92" rx="10" fill="rgba(255,255,255,0.025)" stroke="rgba(255,255,255,0.12)"/><path d="M18 74 C30 54, 40 66, 52 46 S82 26, 100 43" fill="none" stroke="rgba(4,199,247,0.28)" stroke-width="3" stroke-linecap="round"/><circle cx="95" cy="23" r="5" fill="rgba(4,199,247,0.32)"/><text x="59" y="59" text-anchor="middle" font-size="42" font-weight="900" fill="rgba(255,255,255,0.24)" font-family="Arial, sans-serif">${safe}</text></svg></div>`;
+}
+
+function getQuickSlotIndex(index) {
+    return Number(quickSlots[String(index)] || quickSlots[Number(index)] || 0) || 0;
+}
+
+function getQuickItem(index) {
+    const slotIndex = getQuickSlotIndex(index);
+    const item = slotIndex > 0 ? inventory[slotIndex] : null;
+    return item && bool(item.usable) ? { slotIndex, item } : null;
+}
+
+function renderQuickSlots() {
+    const html = [];
+    for (let i = 1; i <= 5; i++) {
+        const quick = getQuickItem(i);
+        const selected = quick && selectedSlot === quick.slotIndex;
+        html.push(`<div class="quick-slot${quick ? ' filled' : ''}${selected ? ' selected' : ''}" data-quick="${i}" title="Quick ${i}">${quick ? itemVisual(quick.item) : quickEmptySvg(i)}</div>`);
+    }
+    quickBar.innerHTML = html.join('');
+}
+
 function renderAllSlots() {
     renderMoneySlots();
     renderInventory();
+    renderQuickSlots();
 }
 
 function beginDragFromMoneySlot(e, slotEl) {
@@ -153,6 +181,26 @@ function beginDragFromMoneySlot(e, slotEl) {
         type: 'currency',
         slot,
         item,
+        startX: e.clientX,
+        startY: e.clientY,
+        active: false,
+        clickBlocked: false
+    };
+    e.preventDefault();
+}
+
+function beginDragFromQuickSlot(e, quickEl) {
+    const quickIndex = Number(quickEl.dataset.quick || 0);
+    const quick = getQuickItem(quickIndex);
+    if (!quick) return;
+    selectedSlot = quick.slotIndex;
+    hide(contextMenu);
+    hide(amountModal);
+    drag = {
+        type: 'quick',
+        quickIndex,
+        slot: quick.slotIndex,
+        item: quick.item,
         startX: e.clientX,
         startY: e.clientY,
         active: false,
@@ -260,16 +308,19 @@ function updateDrag(e) {
     if (!drag.active && Math.sqrt(dx * dx + dy * dy) > 5) {
         drag.active = true;
         drag.clickBlocked = true;
-        createGhost(drag.type === 'inventory' ? itemVisual(drag.item) : drag.html);
+        createGhost(drag.item ? itemVisual(drag.item) : drag.html);
         document.body.classList.add('is-dragging');
     }
     if (!drag.active) return;
     scheduleGhostMove(e.clientX, e.clientY);
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const slot = target ? target.closest('.slot') : null;
+    const quick = target ? target.closest('.quick-slot') : null;
     const panel = target ? target.closest('.dropped-panel') : null;
     if (drag.type === 'currency') {
         setHover(panel || null);
+    } else if ((drag.type === 'inventory' || drag.type === 'quick') && quick && drag.item && bool(drag.item.usable)) {
+        setHover(quick);
     } else {
         setHover(slot || (panel && drag.type === 'inventory' ? panel : null));
     }
@@ -288,10 +339,24 @@ function finishDrag(e) {
 
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const slotEl = target ? target.closest('.slot') : null;
+    const quickEl = target ? target.closest('.quick-slot') : null;
     const droppedEl = target ? target.closest('.dropped-panel') : null;
 
+    if (quickEl && (current.type === 'inventory' || current.type === 'quick')) {
+        const quickIndex = Number(quickEl.dataset.quick || 0);
+        if (quickIndex >= 1 && quickIndex <= 5 && current.item && bool(current.item.usable)) {
+            nui('setQuickSlot', { index: quickIndex, slot: current.slot });
+        }
+        return;
+    }
+
+    if (current.type === 'quick') {
+        nui('setQuickSlot', { index: current.quickIndex, slot: 0 });
+        return;
+    }
+
     if (current.type === 'currency') {
-        if (slotEl) return;
+        if (slotEl || quickEl) return;
         selectedSlot = current.slot;
         const item = getItemBySlot(current.slot);
         if (isStackableMany(item)) openAmountModal('drop', current.slot, item);
@@ -331,9 +396,8 @@ function finishDrag(e) {
 
 function openContextMenu(x, y, item) {
     contextName.textContent = item.item_name || item.item_id || 'Item';
-    const currency = isCurrencyItem(item);
-    ctxUse.style.display = (!currency && bool(item.usable)) ? 'block' : 'none';
-    ctxGive.style.display = (!currency && bool(item.giveable)) ? 'block' : 'none';
+    ctxUse.style.display = bool(item.usable) ? 'block' : 'none';
+    ctxGive.style.display = bool(item.giveable) ? 'block' : 'none';
     ctxDrop.style.display = 'block';
     contextMenu.style.left = `${Math.min(x, window.innerWidth - 190)}px`;
     contextMenu.style.top = `${Math.min(y, window.innerHeight - 170)}px`;
@@ -396,7 +460,7 @@ function startGiveSelectWithAmount(slot, amount) {
 function startGiveSelect() {
     if (!selectedSlot) return;
     const item = getItemBySlot(selectedSlot);
-    if (!item || isCurrencyItem(item)) return;
+    if (!item || !bool(item.giveable)) return;
     if (isStackableMany(item)) return openAmountModal('give', selectedSlot, item);
     startGiveSelectWithAmount(selectedSlot, 1);
 }
@@ -414,13 +478,17 @@ function openInventory(data = {}) {
     slots = Number(data.slots || 49);
     inventory = {};
     moneySlots = {};
+    quickSlots = {};
     dropped = Array.isArray(data.dropped) ? data.dropped : [];
     const inv = data.inventory || {};
     const currency = data.moneyItems || data.currencyItems || {};
+    const quick = data.quickSlots || {};
     if (Array.isArray(inv)) inv.forEach((item, idx) => { if (item) inventory[idx + 1] = item; });
     else Object.keys(inv).forEach((key) => { if (inv[key]) inventory[Number(key)] = inv[key]; });
     if (Array.isArray(currency)) currency.forEach((item) => { if (item && item.item_id) moneySlots[String(item.item_id)] = item; });
     else Object.keys(currency).forEach((key) => { if (currency[key]) moneySlots[String(key)] = currency[key]; });
+    if (Array.isArray(quick)) quick.forEach((slot, idx) => { if (Number(slot || 0) > 0) quickSlots[String(idx + 1)] = Number(slot); });
+    else Object.keys(quick).forEach((key) => { if (Number(quick[key] || 0) > 0) quickSlots[String(key)] = Number(quick[key]); });
     document.documentElement.style.setProperty('--main', data.mainColor || '#04c7f7');
     selectedSlot = null;
     hide(selectorRoot);
@@ -555,6 +623,13 @@ moneyPanel.addEventListener('mousedown', (e) => {
     beginDragFromMoneySlot(e, slot);
 });
 
+quickBar.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    const slot = e.target.closest('.quick-slot');
+    if (!slot) return;
+    beginDragFromQuickSlot(e, slot);
+});
+
 droppedList.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
     const drop = e.target.closest('.drop-item');
@@ -578,6 +653,17 @@ moneyPanel.addEventListener('click', (e) => {
     if (!slotEl) return;
     const key = String(slotEl.dataset.moneySlot || '');
     selectedSlot = moneySlots[key] ? key : null;
+    hide(contextMenu);
+    renderAllSlots();
+});
+
+quickBar.addEventListener('click', (e) => {
+    if (drag && drag.clickBlocked) return;
+    const slotEl = e.target.closest('.quick-slot');
+    if (!slotEl) return;
+    const quickIndex = Number(slotEl.dataset.quick || 0);
+    const quick = getQuickItem(quickIndex);
+    selectedSlot = quick ? quick.slotIndex : null;
     hide(contextMenu);
     renderAllSlots();
 });
@@ -606,6 +692,18 @@ moneyPanel.addEventListener('contextmenu', (e) => {
     openContextMenu(e.clientX, e.clientY, item);
 });
 
+quickBar.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const slotEl = e.target.closest('.quick-slot');
+    if (!slotEl) return;
+    const quickIndex = Number(slotEl.dataset.quick || 0);
+    const quick = getQuickItem(quickIndex);
+    if (!quick) return;
+    selectedSlot = quick.slotIndex;
+    renderAllSlots();
+    openContextMenu(e.clientX, e.clientY, quick.item);
+});
+
 document.addEventListener('mousemove', (e) => {
     if (selectorActive) nui('selectorMove', { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
     updateDrag(e);
@@ -621,6 +719,11 @@ document.addEventListener('mousedown', (e) => {
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeUi();
+
+    const typing = e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName);
+    if (!typing && !inventoryRoot.classList.contains('hidden') && /^[1-5]$/.test(e.key)) {
+        nui('useQuickSlot', { index: Number(e.key) });
+    }
 });
 
 window.syncAmountFromRange = syncAmountFromRange;

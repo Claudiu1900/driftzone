@@ -16,7 +16,7 @@ Config.AdminColumnFallback = 'admin'
 Config.AdutyColumn = 'aduty'
 
 -- Sloturi speciale de bani deasupra inventarului.
--- money vine direct din users.cash, nu din inventory_items / inventory_json.
+-- money este definit in inventory_items pentru nume/imagine/use/give/drop, dar suma reala vine din users.cash.
 Config.MoneyItemId = 'money'
 Config.DirtyMoneyItemId = 'dirtymoney'
 Config.MoneyItemName = 'Money'
@@ -24,6 +24,8 @@ Config.DirtyMoneyItemName = 'Dirty Money'
 Config.MoneyImage = ''
 Config.DirtyMoneyImage = ''
 Config.CurrencyMaxStack = 2147483647
+
+Config.QuickSlots = 5
 
 Config.InventoryTable = 'inventory'
 Config.ItemsTable = 'inventory_items'
