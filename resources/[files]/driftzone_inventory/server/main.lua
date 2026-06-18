@@ -6,6 +6,7 @@ local GiveSessions = {}
 local Drops = {}
 local NextDropId = 0
 local ensureGradientItemColumns
+local DIRTY_MONEY_STORAGE_KEY = '__dirtymoney'
 
 local function sqlName(name)
     return ('`%s`'):format(tostring(name or ''):gsub('`', ''))
@@ -13,6 +14,64 @@ end
 
 local function trim(value)
     return tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
+end
+
+local function moneyItemId()
+    return tostring(Config.MoneyItemId or 'money')
+end
+
+local function dirtyMoneyItemId()
+    return tostring(Config.DirtyMoneyItemId or 'dirtymoney')
+end
+
+local function isMoneyItem(itemId)
+    return trim(itemId) == moneyItemId()
+end
+
+local function isDirtyMoneyItem(itemId)
+    return trim(itemId) == dirtyMoneyItemId()
+end
+
+local function isCurrencyItem(itemId)
+    return isMoneyItem(itemId) or isDirtyMoneyItem(itemId)
+end
+
+local function currencyMaxStack()
+    return math.max(1, math.floor(tonumber(Config.CurrencyMaxStack or 2147483647) or 2147483647))
+end
+
+local function currencyMeta(itemId)
+    itemId = trim(itemId)
+    if isMoneyItem(itemId) then
+        return {
+            item_id = moneyItemId(),
+            item_name = tostring(Config.MoneyItemName or 'Money'),
+            image = tostring(Config.MoneyImage or ''),
+            tradable = true,
+            stackable = true,
+            usable = false,
+            giveable = false,
+            max_stack = currencyMaxStack(),
+            is_currency = true,
+            cash_source = true
+        }
+    end
+
+    if isDirtyMoneyItem(itemId) then
+        return {
+            item_id = dirtyMoneyItemId(),
+            item_name = tostring(Config.DirtyMoneyItemName or 'Dirty Money'),
+            image = tostring(Config.DirtyMoneyImage or ''),
+            tradable = true,
+            stackable = true,
+            usable = false,
+            giveable = false,
+            max_stack = currencyMaxStack(),
+            is_currency = true
+        }
+    end
+
+    return nil
 end
 
 local function notify(src, typ, msg, duration)
@@ -91,6 +150,52 @@ local function getAdminData(src)
     return { uid = uid, level = level, aduty = aduty, name = row.username or GetPlayerName(src) or ('Player '..src) }
 end
 
+local function getUserCash(uid)
+    uid = tonumber(uid)
+    if not uid or uid <= 0 then return 0 end
+
+    local row = MySQL.single.await(('SELECT %s AS cash FROM %s WHERE %s = ? LIMIT 1'):format(
+        sqlName(Config.UsersCashColumn or 'cash'),
+        sqlName(Config.UsersTable),
+        sqlName(Config.UsersIdColumn)
+    ), { uid })
+
+    return math.max(0, math.floor(tonumber(row and row.cash or 0) or 0))
+end
+
+local function addUserCash(uid, amount)
+    uid = tonumber(uid)
+    amount = math.floor(tonumber(amount or 0) or 0)
+    if not uid or uid <= 0 or amount <= 0 then return false, 'Date invalide.' end
+
+    local affected = MySQL.update.await(('UPDATE %s SET %s = COALESCE(%s, 0) + ? WHERE %s = ?'):format(
+        sqlName(Config.UsersTable),
+        sqlName(Config.UsersCashColumn or 'cash'),
+        sqlName(Config.UsersCashColumn or 'cash'),
+        sqlName(Config.UsersIdColumn)
+    ), { amount, uid })
+
+    if affected and affected > 0 then return true, 'Bani adaugati.' end
+    return false, 'Nu s-a putut actualiza cash-ul.'
+end
+
+local function takeUserCash(uid, amount)
+    uid = tonumber(uid)
+    amount = math.floor(tonumber(amount or 0) or 0)
+    if not uid or uid <= 0 or amount <= 0 then return false, 'Date invalide.' end
+
+    local affected = MySQL.update.await(('UPDATE %s SET %s = COALESCE(%s, 0) - ? WHERE %s = ? AND COALESCE(%s, 0) >= ?'):format(
+        sqlName(Config.UsersTable),
+        sqlName(Config.UsersCashColumn or 'cash'),
+        sqlName(Config.UsersCashColumn or 'cash'),
+        sqlName(Config.UsersIdColumn),
+        sqlName(Config.UsersCashColumn or 'cash')
+    ), { amount, uid, amount })
+
+    if affected and affected > 0 then return true, 'Bani scosi.' end
+    return false, 'Nu ai suficienti bani.'
+end
+
 local function requireAdmin(src, minLevel)
     if not isLogged(src) then
         notify(src, 'warning', 'Trebuie sa fii logat.')
@@ -117,17 +222,33 @@ local function normalizeInventory(inv)
 
     if type(inv) ~= 'table' then return out end
 
+    local function readStoredDirty(value)
+        if type(value) == 'table' then
+            return math.max(0, math.floor(tonumber(value.amount or value.count or 0) or 0))
+        end
+        return math.max(0, math.floor(tonumber(value or 0) or 0))
+    end
+
+    local dirtyAmount = readStoredDirty(inv[DIRTY_MONEY_STORAGE_KEY] or inv._dirtymoney or inv.dirtymoney)
+
     for i = 1, Config.Slots do
         local item = inv[i] or inv[tostring(i)]
         if type(item) == 'table' then
             local itemId = trim(item.item_id or item.id or item.name)
             local amount = math.floor(tonumber(item.amount or item.count or 1) or 1)
             if itemId ~= '' and amount > 0 then
-                out[i] = { item_id = itemId, amount = amount }
+                if isMoneyItem(itemId) then
+                    -- money nu se mai tine in inventory_json; vine direct din users.cash.
+                elseif isDirtyMoneyItem(itemId) then
+                    dirtyAmount = dirtyAmount + amount
+                else
+                    out[i] = { item_id = itemId, amount = amount }
+                end
             end
         end
     end
 
+    if dirtyAmount > 0 then out[DIRTY_MONEY_STORAGE_KEY] = dirtyAmount end
     return out
 end
 
@@ -137,6 +258,12 @@ local function serializeInventory(inv)
     for i = 1, Config.Slots do
         if inv[i] then out[tostring(i)] = inv[i] end
     end
+
+    local dirtyAmount = math.floor(tonumber(inv[DIRTY_MONEY_STORAGE_KEY] or 0) or 0)
+    if dirtyAmount > 0 then
+        out[DIRTY_MONEY_STORAGE_KEY] = { item_id = dirtyMoneyItemId(), amount = dirtyAmount }
+    end
+
     return jsonEncode(out)
 end
 
@@ -219,12 +346,73 @@ local function loadItems(force)
         end
     end
 
+    ItemsCache[moneyItemId()] = nil
+
+    local dirtyId = dirtyMoneyItemId()
+    if ItemsCache[dirtyId] then
+        ItemsCache[dirtyId].stackable = true
+        ItemsCache[dirtyId].usable = false
+        ItemsCache[dirtyId].giveable = false
+        ItemsCache[dirtyId].max_stack = currencyMaxStack()
+        ItemsCache[dirtyId].is_currency = true
+    end
+
     ItemsCacheExpires = now + 5000
     return ItemsCache
 end
 
 local function getItem(itemId)
-    return loadItems(false)[trim(itemId)]
+    itemId = trim(itemId)
+    local item = loadItems(false)[itemId]
+    if item then return item end
+    return currencyMeta(itemId)
+end
+
+local function getDirtyMoneyAmount(inv)
+    inv = normalizeInventory(inv)
+    return math.max(0, math.floor(tonumber(inv[DIRTY_MONEY_STORAGE_KEY] or 0) or 0))
+end
+
+local function hydrateCurrencyItems(uid, inv)
+    local out = {}
+    local cash = getUserCash(uid)
+    if cash > 0 then
+        local meta = getItem(moneyItemId())
+        out[moneyItemId()] = {
+            slot = moneyItemId(),
+            item_id = meta.item_id,
+            item_name = meta.item_name,
+            image = meta.image,
+            amount = cash,
+            tradable = true,
+            stackable = true,
+            usable = false,
+            giveable = false,
+            max_stack = currencyMaxStack(),
+            special_currency = true,
+            cash_source = true
+        }
+    end
+
+    local dirtyAmount = getDirtyMoneyAmount(inv)
+    if dirtyAmount > 0 then
+        local meta = getItem(dirtyMoneyItemId())
+        out[dirtyMoneyItemId()] = {
+            slot = dirtyMoneyItemId(),
+            item_id = meta.item_id,
+            item_name = meta.item_name,
+            image = meta.image,
+            amount = dirtyAmount,
+            tradable = true,
+            stackable = true,
+            usable = false,
+            giveable = false,
+            max_stack = currencyMaxStack(),
+            special_currency = true
+        }
+    end
+
+    return out
 end
 
 local function hydrateInventory(inv)
@@ -234,7 +422,7 @@ local function hydrateInventory(inv)
 
     for i = 1, Config.Slots do
         local slot = inv[i]
-        if slot and items[slot.item_id] then
+        if slot and items[slot.item_id] and not isCurrencyItem(slot.item_id) then
             local meta = items[slot.item_id]
             out[i] = {
                 slot = i,
@@ -260,6 +448,7 @@ local function hydrateInventory(inv)
 end
 
 local function hasFreeSlotOrStack(uid, itemId, amount)
+    if isCurrencyItem(itemId) then return true end
     local item = getItem(itemId)
     if not item then return false end
     local inv = ensureInventory(uid)
@@ -294,6 +483,17 @@ local function giveItemToUid(uid, itemId, amount)
     itemId = trim(itemId)
     amount = math.floor(tonumber(amount or 1) or 1)
     if not uid or uid <= 0 or itemId == '' or amount <= 0 then return false, 'Date invalide.' end
+
+    if isMoneyItem(itemId) then
+        return addUserCash(uid, amount)
+    end
+
+    if isDirtyMoneyItem(itemId) then
+        local inv = ensureInventory(uid)
+        inv[DIRTY_MONEY_STORAGE_KEY] = getDirtyMoneyAmount(inv) + amount
+        saveInventory(uid)
+        return true, 'Dirty money adaugat.'
+    end
 
     local item = getItem(itemId)
     if not item then return false, 'Item ID invalid.' end
@@ -339,6 +539,20 @@ local function takeItemFromUid(uid, itemId, amount)
     amount = math.floor(tonumber(amount or 1) or 1)
     if not uid or uid <= 0 or itemId == '' or amount <= 0 then return false, 'Date invalide.' end
 
+    if isMoneyItem(itemId) then
+        return takeUserCash(uid, amount)
+    end
+
+    if isDirtyMoneyItem(itemId) then
+        local inv = ensureInventory(uid)
+        local have = getDirtyMoneyAmount(inv)
+        if have < amount then return false, 'Jucatorul nu are suficienti bani murdari.' end
+        local left = have - amount
+        inv[DIRTY_MONEY_STORAGE_KEY] = left > 0 and left or nil
+        saveInventory(uid)
+        return true, 'Dirty money scos.'
+    end
+
     local inv = ensureInventory(uid)
     local have = 0
     for i = 1, Config.Slots do
@@ -381,14 +595,13 @@ local function distanceCoords(a, b)
 end
 
 local function hydrateDropItems(items)
-    local metas = loadItems(false)
     local out = {}
     for _, slot in ipairs(items or {}) do
         if slot and slot.item_id and slot.amount and slot.amount > 0 then
-            local meta = metas[slot.item_id]
+            local meta = getItem(slot.item_id)
             if meta then
                 out[#out + 1] = {
-                    item_id = slot.item_id,
+                    item_id = meta.item_id,
                     item_name = meta.item_name,
                     image = meta.image,
                     amount = slot.amount,
@@ -396,7 +609,8 @@ local function hydrateDropItems(items)
                     stackable = meta.stackable,
                     usable = meta.usable,
                     giveable = meta.giveable,
-                    max_stack = meta.max_stack
+                    max_stack = meta.max_stack,
+                    special_currency = meta.is_currency == true or nil
                 }
             end
         end
@@ -476,6 +690,10 @@ local function addItemToUidPreferred(uid, itemId, amount, preferredSlot)
     preferredSlot = tonumber(preferredSlot or 0) or 0
     if not uid or uid <= 0 or itemId == '' or amount <= 0 then return false, 'Date invalide.' end
 
+    if isCurrencyItem(itemId) then
+        return giveItemToUid(uid, itemId, amount)
+    end
+
     local item = getItem(itemId)
     if not item then return false, 'Item ID invalid.' end
     local inv = ensureInventory(uid)
@@ -534,6 +752,7 @@ local function pushInventory(src, mode, target, forceReload)
         slots = Config.Slots,
         columns = Config.Columns,
         inventory = hydrateInventory(inv),
+        moneyItems = hydrateCurrencyItems(uid, inv),
         mainColor = Config.MainColor,
         mode = mode or 'normal',
         target = target or nil,
@@ -728,6 +947,17 @@ RegisterNetEvent('driftzone_inventory:server:addItemSubmit', function(data)
         return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Item ID invalid.')
     end
 
+    if isMoneyItem(itemId) then
+        return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'money vine din users.cash si nu se adauga in inventory_items.')
+    end
+
+    if isDirtyMoneyItem(itemId) then
+        stackable = 1
+        usable = 0
+        giveable = 0
+        maxStack = currencyMaxStack()
+    end
+
     if name == '' then
         return TriggerClientEvent('driftzone_inventory:client:addItemResult', src, false, 'Item Name obligatoriu.')
     end
@@ -903,23 +1133,44 @@ RegisterNetEvent('driftzone_inventory:server:dropItem', function(slotIndex, amou
     local uid = getUid(src)
     if not uid then return end
 
-    slotIndex = tonumber(slotIndex or 0) or 0
+    local rawSlot = tostring(slotIndex or '')
+    local specialItemId = nil
+    if isMoneyItem(rawSlot) then specialItemId = moneyItemId() end
+    if isDirtyMoneyItem(rawSlot) then specialItemId = dirtyMoneyItemId() end
+
     amount = math.floor(tonumber(amount or 1) or 1)
-    if slotIndex < 1 or slotIndex > Config.Slots or amount <= 0 then return end
+    if amount <= 0 then return end
 
     local coords = getPlayerCoords(src)
     if not coords then return end
 
-    local inv = ensureInventory(uid)
-    local slot = inv[slotIndex]
-    if not slot or slot.amount < amount then return notify(src, 'warning', 'Nu ai suficiente bucati.') end
+    local item = nil
+    local itemId = nil
 
-    local item = getItem(slot.item_id)
-    if not item then return notify(src, 'warning', 'Item invalid.') end
+    if specialItemId then
+        itemId = specialItemId
+        item = getItem(itemId)
+        if not item then return notify(src, 'warning', 'Item invalid.') end
 
-    slot.amount = slot.amount - amount
-    if slot.amount <= 0 then inv[slotIndex] = nil end
-    saveInventory(uid)
+        local okTake, takeMsg = takeItemFromUid(uid, itemId, amount)
+        if not okTake then return notify(src, 'warning', takeMsg or 'Nu ai suficiente bucati.') end
+    else
+        slotIndex = tonumber(slotIndex or 0) or 0
+        if slotIndex < 1 or slotIndex > Config.Slots then return end
+
+        local inv = ensureInventory(uid)
+        local slot = inv[slotIndex]
+        if not slot or slot.amount < amount then return notify(src, 'warning', 'Nu ai suficiente bucati.') end
+
+        item = getItem(slot.item_id)
+        if not item then return notify(src, 'warning', 'Item invalid.') end
+        if isCurrencyItem(item.item_id) then return notify(src, 'warning', 'Banii se arunca doar din slotul special.') end
+
+        itemId = item.item_id
+        slot.amount = slot.amount - amount
+        if slot.amount <= 0 then inv[slotIndex] = nil end
+        saveInventory(uid)
+    end
 
     local dropId, drop = findDropNear(coords)
     if not drop then
@@ -929,13 +1180,17 @@ RegisterNetEvent('driftzone_inventory:server:dropItem', function(slotIndex, amou
         Drops[dropId] = drop
     end
 
-    addToDrop(drop, item.item_id, amount)
-    logAction('player_dropitem', uid, 0, item.item_id, amount, { name = GetPlayerName(src), drop = dropId })
+    if not addToDrop(drop, itemId, amount) then
+        giveItemToUid(uid, itemId, amount)
+        return notify(src, 'warning', 'Nu s-a putut arunca itemul.')
+    end
+
+    logAction('player_dropitem', uid, 0, itemId, amount, { name = GetPlayerName(src), drop = dropId })
 
     runServerHook('OnPlayerDropItem', {
         source = src,
         uid = uid,
-        itemId = item.item_id,
+        itemId = itemId,
         itemName = item.item_name,
         amount = amount,
         dropId = dropId,
@@ -943,7 +1198,7 @@ RegisterNetEvent('driftzone_inventory:server:dropItem', function(slotIndex, amou
     })
 
     TriggerClientEvent('driftzone_inventory:client:actionDone', src, 'drop', {
-        itemId = item.item_id,
+        itemId = itemId,
         amount = amount,
         dropId = dropId
     })

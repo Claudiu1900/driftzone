@@ -4,6 +4,7 @@ const inventoryRoot = document.getElementById('inventoryRoot');
 const selectorRoot = document.getElementById('selectorRoot');
 const addItemRoot = document.getElementById('addItemRoot');
 const grid = document.getElementById('grid');
+const moneyPanel = document.getElementById('moneyPanel');
 const droppedPanel = document.getElementById('droppedPanel');
 const droppedList = document.getElementById('droppedList');
 const contextMenu = document.getElementById('contextMenu');
@@ -33,6 +34,7 @@ const addStatus = document.getElementById('addStatus');
 
 let slots = 49;
 let inventory = {};
+let moneySlots = {};
 let dropped = [];
 let selectedSlot = null;
 let selectorActive = false;
@@ -60,7 +62,19 @@ function esc(value) {
 }
 function amountText(v) { return Number(v || 0).toLocaleString('en-US'); }
 function bool(v) { return v === true || Number(v) === 1 || String(v).toLowerCase() === 'true'; }
-function getItemBySlot(slot) { return inventory[Number(slot || 0)] || null; }
+function isMoneySlotKey(slot) {
+    const key = String(slot ?? '');
+    return key === 'money' || key === 'dirtymoney';
+}
+function isCurrencyItem(item) {
+    const id = String(item?.item_id || '');
+    return item && (bool(item.special_currency) || bool(item.is_currency) || id === 'money' || id === 'dirtymoney');
+}
+function getItemBySlot(slot) {
+    const key = String(slot ?? '');
+    if (isMoneySlotKey(key)) return moneySlots[key] || null;
+    return inventory[Number(slot || 0)] || null;
+}
 function isStackableMany(item) { return item && bool(item.stackable) && Number(item.amount || 0) > 1; }
 function clampAmount(value, max) {
     const m = Math.max(1, Math.floor(Number(max || 1)));
@@ -75,6 +89,7 @@ function closeLocal() {
     hide(addItemRoot);
     hide(contextMenu);
     hide(amountModal);
+    hide(moneyPanel);
     selectedSlot = null;
     selectorActive = false;
     pendingGive = null;
@@ -103,6 +118,47 @@ function renderInventory() {
         html.push(`<div class="slot${selectedSlot === i ? ' selected' : ''}" data-slot="${i}">${item ? itemVisual(item) : ''}</div>`);
     }
     grid.innerHTML = html.join('');
+}
+
+function renderMoneySlots() {
+    const order = ['money', 'dirtymoney'];
+    const html = [];
+    for (const key of order) {
+        const item = moneySlots[key];
+        if (!item || Number(item.amount || 0) <= 0) continue;
+        html.push(`<div class="money-slot${selectedSlot === key ? ' selected' : ''}" data-money-slot="${key}" title="${esc(item.item_name || item.item_id || key)}">${itemVisual(item)}</div>`);
+    }
+    if (html.length <= 0) {
+        moneyPanel.innerHTML = '';
+        hide(moneyPanel);
+        return;
+    }
+    moneyPanel.innerHTML = html.join('');
+    show(moneyPanel);
+}
+
+function renderAllSlots() {
+    renderMoneySlots();
+    renderInventory();
+}
+
+function beginDragFromMoneySlot(e, slotEl) {
+    const slot = String(slotEl.dataset.moneySlot || '');
+    const item = getItemBySlot(slot);
+    if (!item) return;
+    selectedSlot = slot;
+    hide(contextMenu);
+    hide(amountModal);
+    drag = {
+        type: 'currency',
+        slot,
+        item,
+        startX: e.clientX,
+        startY: e.clientY,
+        active: false,
+        clickBlocked: false
+    };
+    e.preventDefault();
 }
 
 function renderDropped() {
@@ -212,7 +268,11 @@ function updateDrag(e) {
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const slot = target ? target.closest('.slot') : null;
     const panel = target ? target.closest('.dropped-panel') : null;
-    setHover(slot || (panel && drag.type === 'inventory' ? panel : null));
+    if (drag.type === 'currency') {
+        setHover(panel || null);
+    } else {
+        setHover(slot || (panel && drag.type === 'inventory' ? panel : null));
+    }
 }
 
 function finishDrag(e) {
@@ -229,6 +289,15 @@ function finishDrag(e) {
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const slotEl = target ? target.closest('.slot') : null;
     const droppedEl = target ? target.closest('.dropped-panel') : null;
+
+    if (current.type === 'currency') {
+        if (slotEl) return;
+        selectedSlot = current.slot;
+        const item = getItemBySlot(current.slot);
+        if (isStackableMany(item)) openAmountModal('drop', current.slot, item);
+        else nui('dropItem', { slot: current.slot, amount: 1 });
+        return;
+    }
 
     if (slotEl) {
         const to = Number(slotEl.dataset.slot || 0);
@@ -262,8 +331,9 @@ function finishDrag(e) {
 
 function openContextMenu(x, y, item) {
     contextName.textContent = item.item_name || item.item_id || 'Item';
-    ctxUse.style.display = bool(item.usable) ? 'block' : 'none';
-    ctxGive.style.display = bool(item.giveable) ? 'block' : 'none';
+    const currency = isCurrencyItem(item);
+    ctxUse.style.display = (!currency && bool(item.usable)) ? 'block' : 'none';
+    ctxGive.style.display = (!currency && bool(item.giveable)) ? 'block' : 'none';
     ctxDrop.style.display = 'block';
     contextMenu.style.left = `${Math.min(x, window.innerWidth - 190)}px`;
     contextMenu.style.top = `${Math.min(y, window.innerHeight - 170)}px`;
@@ -324,15 +394,17 @@ function startGiveSelectWithAmount(slot, amount) {
 }
 
 function startGiveSelect() {
-    if (!selectedSlot || !inventory[selectedSlot]) return;
-    const item = inventory[selectedSlot];
+    if (!selectedSlot) return;
+    const item = getItemBySlot(selectedSlot);
+    if (!item || isCurrencyItem(item)) return;
     if (isStackableMany(item)) return openAmountModal('give', selectedSlot, item);
     startGiveSelectWithAmount(selectedSlot, 1);
 }
 
 function dropSelected() {
-    if (!selectedSlot || !inventory[selectedSlot]) return;
-    const item = inventory[selectedSlot];
+    if (!selectedSlot) return;
+    const item = getItemBySlot(selectedSlot);
+    if (!item) return;
     if (isStackableMany(item)) return openAmountModal('drop', selectedSlot, item);
     nui('dropItem', { slot: selectedSlot, amount: 1 });
     hide(contextMenu);
@@ -341,10 +413,14 @@ function dropSelected() {
 function openInventory(data = {}) {
     slots = Number(data.slots || 49);
     inventory = {};
+    moneySlots = {};
     dropped = Array.isArray(data.dropped) ? data.dropped : [];
     const inv = data.inventory || {};
+    const currency = data.moneyItems || data.currencyItems || {};
     if (Array.isArray(inv)) inv.forEach((item, idx) => { if (item) inventory[idx + 1] = item; });
     else Object.keys(inv).forEach((key) => { if (inv[key]) inventory[Number(key)] = inv[key]; });
+    if (Array.isArray(currency)) currency.forEach((item) => { if (item && item.item_id) moneySlots[String(item.item_id)] = item; });
+    else Object.keys(currency).forEach((key) => { if (currency[key]) moneySlots[String(key)] = currency[key]; });
     document.documentElement.style.setProperty('--main', data.mainColor || '#04c7f7');
     selectedSlot = null;
     hide(selectorRoot);
@@ -352,7 +428,7 @@ function openInventory(data = {}) {
     hide(contextMenu);
     hide(amountModal);
     show(inventoryRoot);
-    renderInventory();
+    renderAllSlots();
     renderDropped();
 }
 
@@ -472,6 +548,13 @@ grid.addEventListener('mousedown', (e) => {
     beginDragFromSlot(e, slot);
 });
 
+moneyPanel.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    const slot = e.target.closest('.money-slot');
+    if (!slot) return;
+    beginDragFromMoneySlot(e, slot);
+});
+
 droppedList.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
     const drop = e.target.closest('.drop-item');
@@ -486,7 +569,17 @@ grid.addEventListener('click', (e) => {
     const index = Number(slotEl.dataset.slot || 0);
     selectedSlot = inventory[index] ? index : null;
     hide(contextMenu);
-    renderInventory();
+    renderAllSlots();
+});
+
+moneyPanel.addEventListener('click', (e) => {
+    if (drag && drag.clickBlocked) return;
+    const slotEl = e.target.closest('.money-slot');
+    if (!slotEl) return;
+    const key = String(slotEl.dataset.moneySlot || '');
+    selectedSlot = moneySlots[key] ? key : null;
+    hide(contextMenu);
+    renderAllSlots();
 });
 
 grid.addEventListener('contextmenu', (e) => {
@@ -497,7 +590,19 @@ grid.addEventListener('contextmenu', (e) => {
     const item = inventory[index];
     if (!item) return;
     selectedSlot = index;
-    renderInventory();
+    renderAllSlots();
+    openContextMenu(e.clientX, e.clientY, item);
+});
+
+moneyPanel.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const slotEl = e.target.closest('.money-slot');
+    if (!slotEl) return;
+    const key = String(slotEl.dataset.moneySlot || '');
+    const item = moneySlots[key];
+    if (!item) return;
+    selectedSlot = key;
+    renderAllSlots();
     openContextMenu(e.clientX, e.clientY, item);
 });
 

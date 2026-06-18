@@ -10,9 +10,20 @@ Config.MaxGiveDistance = 4.0
 
 Config.UsersTable = 'users'
 Config.UsersIdColumn = 'uid'
+Config.UsersCashColumn = 'cash'
 Config.AdminColumn = 'admin_level'
 Config.AdminColumnFallback = 'admin'
 Config.AdutyColumn = 'aduty'
+
+-- Sloturi speciale de bani deasupra inventarului.
+-- money vine direct din users.cash, nu din inventory_items / inventory_json.
+Config.MoneyItemId = 'money'
+Config.DirtyMoneyItemId = 'dirtymoney'
+Config.MoneyItemName = 'Money'
+Config.DirtyMoneyItemName = 'Dirty Money'
+Config.MoneyImage = ''
+Config.DirtyMoneyImage = ''
+Config.CurrencyMaxStack = 2147483647
 
 Config.InventoryTable = 'inventory'
 Config.ItemsTable = 'inventory_items'

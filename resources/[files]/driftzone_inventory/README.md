@@ -65,3 +65,12 @@ pickup = 'pickup'
 ```
 
 Sunt oprite automat dupa durata setata in config ca sa nu ramana in loop.
+
+
+## Sloturi speciale money / dirtymoney
+
+- `money` nu se salveaza in `inventory_items` si nu se tine in `inventory_json`; suma vine direct din `users.cash`.
+- `dirtymoney` se afiseaza sus in stanga, deasupra inventarului, in slot special.
+- `money` si `dirtymoney` nu pot fi mutate prin drag & drop in inventar si nu pot fi date cu GIVE din UI; pot fi doar aruncate pe jos.
+- Cand iei `money` de pe jos, suma intra inapoi in `users.cash`.
+- Stack-ul pentru `money` si `dirtymoney` este fara limita practica (`Config.CurrencyMaxStack`).

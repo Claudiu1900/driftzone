@@ -58,3 +58,18 @@ ON DUPLICATE KEY UPDATE
     giveable = 1,
     stackable = 1,
     updated_at = NOW();
+
+
+-- money NU se pune in inventory_items: este citit direct din users.cash.
+-- dirtymoney ramane item de inventar, dar este afisat in slot special si nu are stack limit practic.
+INSERT INTO `inventory_items`
+(`item_id`, `item_name`, `image`, `tradable`, `stackable`, `usable`, `giveable`, `max_stack`, `is_gradient`, `gradient_id`, `created_at`, `updated_at`)
+VALUES
+('dirtymoney', 'Dirty Money', '', 1, 1, 0, 0, 2147483647, 0, 0, NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+    item_name = VALUES(item_name),
+    stackable = 1,
+    usable = 0,
+    giveable = 0,
+    max_stack = 2147483647,
+    updated_at = NOW();

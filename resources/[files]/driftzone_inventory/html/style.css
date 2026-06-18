@@ -5,7 +5,12 @@ html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidde
 button, input, select { font-family: inherit; }
 
 .inventory-root { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; gap: 22px; color: var(--text); background: radial-gradient(circle at center, rgba(4,199,247,.07), transparent 34%); }
-.inventory-shell { padding: 18px; border: 1px solid rgba(4,199,247,.30); background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.025)), var(--panel); box-shadow: 0 34px 100px rgba(0,0,0,.62), 0 0 42px rgba(4,199,247,.12); }
+.inventory-shell { position: relative; padding: 18px; border: 1px solid rgba(4,199,247,.30); background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.025)), var(--panel); box-shadow: 0 34px 100px rgba(0,0,0,.62), 0 0 42px rgba(4,199,247,.12); }
+.money-panel { display: flex; justify-content: flex-start; align-items: center; gap: 8px; min-height: 82px; margin-bottom: 8px; }
+.money-slot { position: relative; width: 82px; height: 82px; overflow: hidden; border: 1px solid rgba(4,199,247,.42); background: linear-gradient(145deg, rgba(4,199,247,.14), rgba(255,255,255,.045)); box-shadow: 0 0 22px rgba(4,199,247,.10); transition: border-color .12s ease, background .12s ease, transform .12s ease; }
+.money-slot:before { content: ''; position: absolute; inset: 0; border: 1px solid rgba(255,255,255,.08); pointer-events: none; z-index: 2; }
+.money-slot:hover, .money-slot.selected, .money-slot.drag-over { border-color: var(--main); background: rgba(4,199,247,.16); }
+.money-slot.drag-over { transform: scale(.97); }
 .inventory-grid { display: grid; grid-template-columns: repeat(7, 82px); grid-template-rows: repeat(7, 82px); gap: 8px; }
 .slot { position: relative; width: 82px; height: 82px; overflow: hidden; border: 1px solid rgba(255,255,255,.105); background: rgba(255,255,255,.045); transition: border-color .12s ease, background .12s ease, transform .12s ease; }
 .slot:hover, .slot.selected, .slot.drag-over { border-color: var(--main); background: rgba(4,199,247,.11); }
