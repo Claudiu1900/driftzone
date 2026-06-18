@@ -23,8 +23,9 @@ local function setPanel(state)
 end
 
 for _, command in ipairs(AdminCommands) do
-    RegisterCommand(command, function(_, args)
-        TriggerServerEvent('driftzone_admin:server:run', command, args or {})
+    local cmd = tostring(command)
+    RegisterCommand(cmd, function(_, args)
+        TriggerServerEvent('driftzone_admin:server:run', cmd, args or {})
     end, false)
 end
 

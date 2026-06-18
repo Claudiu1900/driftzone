@@ -951,9 +951,10 @@ RegisterNetEvent('driftzone_admin:server:runFromPanel', function(command, argsTe
 end)
 
 for commandName, _ in pairs(AdminCommands) do
-    RegisterCommand(commandName, function(src, args)
+    local cmd = tostring(commandName)
+    RegisterCommand(cmd, function(src, args)
         if src == 0 then return end
-        runAdminCommand(src, commandName, args or {})
+        runAdminCommand(src, cmd, args or {})
     end, false)
 end
 
