@@ -481,7 +481,66 @@ end
 local function setChatLocked(locked, adminUid, adminName)
     GlobalChatLocked = locked == true
     sendSystemMessage(('Chat-ul a fost %s de catre %s (%s).'):format(GlobalChatLocked and 'blocat' or 'deblocat', tostring(adminName or 'Admin'), tostring(adminUid or '?')))
-    return true, GlobalChatLocked and 'Chat blocat.' or 'Chat deblocat.'
+    return true, GlobalChatLocked and 'Chat-ul a fost blocat.' or 'Chat-ul a fost deblocat.'
+end
+
+
+local function getAdminRowForChat(src)
+    src = tonumber(src or 0) or 0
+    if src <= 0 then return nil, 'source invalid' end
+
+    local uid = getPlayerUid(src)
+    if not uid then return nil, 'Nu ti-am gasit UID-ul.' end
+
+    local ok, row = pcall(function()
+        return MySQL.single.await(('SELECT uid, username, admin_level, aduty FROM %s WHERE %s = ? LIMIT 1'):format(sqlName(getUsersTable()), sqlName(getUidColumn())), { uid })
+    end)
+
+    if not ok or not row then return nil, 'Nu ti-am gasit contul in baza de date.' end
+
+    return {
+        uid = tonumber(row.uid or uid) or uid,
+        username = tostring(row.username or GetPlayerName(src) or ('UID ' .. tostring(uid))),
+        level = tonumber(row.admin_level or 0) or 0,
+        aduty = adutyValue(row.aduty)
+    }
+end
+
+local function runDirectChatAdminCommand(src, command, args)
+    command = tostring(command or ''):lower()
+    args = args or {}
+
+    if command ~= 'lockchat' and command ~= 'unlockchat' then
+        return false
+    end
+
+    local requiredLevel = command == 'lockchat' and 5 or 6
+    local admin, err = getAdminRowForChat(src)
+
+    if not admin then
+        sendError(src, err or 'Nu esti staff.')
+        return true
+    end
+
+    if admin.level < requiredLevel then
+        sendError(src, 'Nu ai gradul necesar pentru aceasta comanda.')
+        return true
+    end
+
+    if not admin.aduty then
+        sendError(src, 'Trebuie sa fii ON DUTY.')
+        return true
+    end
+
+    if command == 'lockchat' then
+        setChatLocked(true, admin.uid, admin.username)
+        sendSystem(src, 'Chat-ul a fost blocat.')
+        return true
+    end
+
+    setChatLocked(false, admin.uid, admin.username)
+    sendSystem(src, 'Chat-ul a fost deblocat.')
+    return true
 end
 
 
@@ -720,6 +779,10 @@ local function handleCommand(src, rawText)
     local command, args = splitCommand(commandLine)
 
     if command == '' then return end
+
+    if runDirectChatAdminCommand(src, command, args) then
+        return
+    end
 
     local routes = getCommandRoutes()
     local resourceName = routes[command]
@@ -1004,6 +1067,7 @@ end)
 
 AddEventHandler('onResourceStart', function(resource)
     if resource ~= GetCurrentResourceName() then return end
+    GlobalChatLocked = false
     ensureMuteColumns()
     print('[DRIFTZONE_CHAT] Loaded. Commands use client ExecuteCommand. users.mute ready.')
 end)
