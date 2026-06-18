@@ -17,6 +17,9 @@ Config.Commands = {
 Config.SearchRadius = 7.5
 Config.LockDistance = 6.0
 
+-- Cooldown lock/unlock in ms. Nu trimite notificare cand e pe cooldown.
+Config.LockCooldownMs = 3000
+
 -- Daca garajul nu seteaza SQL ID pe masina, serverul cauta masina in ownedvehicles dupa placuta.
 Config.AllowPlateFallback = true
 
@@ -24,6 +27,10 @@ Config.AllowPlateFallback = true
 Config.ForceEngineOffUntilStarted = true
 Config.DriverEngineLoopMs = 350
 Config.StateRefreshMs = 1000
+
+-- Reaplica lock-ul de cateva ori dupa spawn, ca GTA uneori il reseteaza.
+Config.SpawnLockApplyRepeats = 8
+Config.SpawnLockApplyIntervalMs = 250
 
 -- Entity(vehicle).state keys unde poate exista ownedvehicles.id.
 Config.SqlIdStateKeys = {

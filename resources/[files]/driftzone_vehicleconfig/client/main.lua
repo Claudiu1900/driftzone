@@ -6,15 +6,11 @@ local EngineStateByNet = {}
 local NearbyVehicle = 0
 local LastNearbyCheck = 0
 local LastEnterVehicle = 0
+local LastLockPress = 0
+local PendingLockRequest = false
 
 local function notify(typ, msg, duration)
     TriggerEvent(Config.NotifyEvent or 'client:notify', typ or 'info', duration or 3500, tostring(msg or ''))
-end
-
-local function dbg(msg)
-    if Config.Debug then
-        print('[driftzone_vehicleconfig:client] ' .. tostring(msg))
-    end
 end
 
 local function trimPlate(value)
@@ -90,15 +86,47 @@ end
 local function applyLockToVehicle(vehicle, locked)
     if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
 
-    requestControl(vehicle, 450)
+    requestControl(vehicle, 650)
 
     if locked then
         SetVehicleDoorsLocked(vehicle, 2)
         SetVehicleDoorsLockedForAllPlayers(vehicle, true)
+
+        for _, id in ipairs(GetActivePlayers()) do
+            SetVehicleDoorsLockedForPlayer(vehicle, id, true)
+        end
     else
         SetVehicleDoorsLocked(vehicle, 1)
         SetVehicleDoorsLockedForAllPlayers(vehicle, false)
+
+        for _, id in ipairs(GetActivePlayers()) do
+            SetVehicleDoorsLockedForPlayer(vehicle, id, false)
+        end
     end
+end
+
+local function forceLockForSpawn(vehicle, sqlId, netId, plate)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
+
+    local repeats = tonumber(Config.SpawnLockApplyRepeats or 8) or 8
+    local interval = tonumber(Config.SpawnLockApplyIntervalMs or 250) or 250
+
+    CreateThread(function()
+        for _ = 1, repeats do
+            if not DoesEntityExist(vehicle) then return end
+
+            if sqlId and sqlId > 0 then
+                Entity(vehicle).state:set('ownedVehicleId', sqlId, true)
+                LockedBySqlId[sqlId] = true
+            end
+
+            if netId and netId > 0 then LockedByNet[netId] = true end
+            if plate and plate ~= '' and sqlId and sqlId > 0 then VehicleSqlCacheByPlate[plate] = sqlId end
+
+            applyLockToVehicle(vehicle, true)
+            Wait(interval)
+        end
+    end)
 end
 
 local function setVehicleEngine(vehicle, state)
@@ -177,6 +205,12 @@ local function playLockSound(locked)
 end
 
 local function requestToggleLock()
+    local now = GetGameTimer()
+    local cooldown = tonumber(Config.LockCooldownMs or 3000) or 3000
+
+    if PendingLockRequest then return end
+    if now - LastLockPress < cooldown then return end
+
     local vehicle, dist = getClosestVehicleSmart()
 
     if vehicle == 0 or dist > (tonumber(Config.LockDistance or 6.0) or 6.0) then
@@ -193,6 +227,13 @@ local function requestToggleLock()
     end
 
     local newLocked = not isVehicleLocked(vehicle)
+
+    LastLockPress = now
+    PendingLockRequest = true
+
+    SetTimeout(1200, function()
+        PendingLockRequest = false
+    end)
 
     -- Nu aplicam local. Serverul verifica owner_id / cheia temporara si abia dupa trimite lock.
     TriggerServerEvent('driftzone_vehicleconfig:server:toggleOwnedLock', vehiclePayload(vehicle, newLocked))
@@ -250,8 +291,6 @@ RegisterNetEvent('driftzone_vehicleconfig:client:applyLock', function(data)
     local sqlId = tonumber(data.sqlId or 0) or 0
     local plate = trimPlate(data.plate or '')
     local locked = data.locked == true
-    local notifyResult = data.notify == true
-    local message = tostring(data.message or '')
 
     if sqlId > 0 then LockedBySqlId[sqlId] = locked end
     if netId > 0 then LockedByNet[netId] = locked end
@@ -272,14 +311,17 @@ RegisterNetEvent('driftzone_vehicleconfig:client:applyLock', function(data)
             end
         end
     end
+end)
 
-    if notifyResult then
-        playLockSound(locked)
-        notify(locked and 'warning' or 'success', message ~= '' and message or (locked and 'Masina a fost incuiata.' or 'Masina a fost descuiata.'))
-    end
+RegisterNetEvent('driftzone_vehicleconfig:client:lockFeedback', function(locked, message)
+    PendingLockRequest = false
+    locked = locked == true
+    playLockSound(locked)
+    notify(locked and 'warning' or 'success', tostring(message or (locked and 'Masina a fost incuiata.' or 'Masina a fost descuiata.')))
 end)
 
 RegisterNetEvent('driftzone_vehicleconfig:client:lockDenied', function(message)
+    PendingLockRequest = false
     notify('warning', message or 'Nu ai acces la masina asta.')
 end)
 
@@ -333,7 +375,7 @@ RegisterNetEvent('driftzone_vehicleconfig:client:registerSpawnedVehicle', functi
     end
 
     setVehicleEngine(vehicle, false)
-    applyLockToVehicle(vehicle, true)
+    forceLockForSpawn(vehicle, sqlId, netId, plate)
 
     TriggerServerEvent('driftzone_vehicleconfig:server:registerSpawnedVehicle', {
         netId = netId,

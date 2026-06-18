@@ -4,12 +4,7 @@ local EnginesByNet = {}
 local TemporaryKeys = {}
 local PlateSqlCache = {}
 local SourceUidCache = {}
-
-local function dbg(msg)
-    if Config.Debug then
-        print('[driftzone_vehicleconfig:server] ' .. tostring(msg))
-    end
-end
+local LockCooldowns = {}
 
 local function trimPlate(value)
     return tostring(value or ''):upper():gsub('^%s+', ''):gsub('%s+$', '')
@@ -212,7 +207,7 @@ local function canControlVehicle(src, row, netId)
     return false, uid
 end
 
-local function broadcastLock(data, notifySrc, message)
+local function broadcastLock(data)
     data = normalizePayload(data)
 
     if data.sqlId > 0 then LocksBySqlId[data.sqlId] = data.locked end
@@ -223,23 +218,30 @@ local function broadcastLock(data, notifySrc, message)
         netId = data.netId,
         sqlId = data.sqlId,
         plate = data.plate,
-        locked = data.locked,
-        notify = false
+        locked = data.locked
     })
+end
 
-    if notifySrc and notifySrc > 0 then
-        TriggerClientEvent('driftzone_vehicleconfig:client:applyLock', notifySrc, {
-            netId = data.netId,
-            sqlId = data.sqlId,
-            plate = data.plate,
-            locked = data.locked,
-            notify = true,
-            message = message or (data.locked and 'Masina a fost incuiata.' or 'Masina a fost descuiata.')
-        })
+local function feedback(src, locked, message)
+    TriggerClientEvent('driftzone_vehicleconfig:client:lockFeedback', src, locked == true, message or (locked and 'Masina a fost incuiata.' or 'Masina a fost descuiata.'))
+end
+
+local function onCooldown(src)
+    local cooldown = tonumber(Config.LockCooldownMs or 3000) or 3000
+    local now = GetGameTimer()
+    local last = LockCooldowns[src] or 0
+
+    if now - last < cooldown then
+        return true
     end
+
+    LockCooldowns[src] = now
+    return false
 end
 
 local function handleLockRequest(src, data)
+    if onCooldown(src) then return end
+
     local row, state = resolveOwnedVehicle(data)
 
     if not row then
@@ -256,14 +258,14 @@ local function handleLockRequest(src, data)
     state.sqlId = row.id
     if state.plate == '' then state.plate = row.plate or '' end
 
-    broadcastLock(state, src, state.locked and 'Masina a fost incuiata.' or 'Masina a fost descuiata.')
+    broadcastLock(state)
+    feedback(src, state.locked, state.locked and 'Masina a fost incuiata.' or 'Masina a fost descuiata.')
 end
 
 RegisterNetEvent('driftzone_vehicleconfig:server:toggleOwnedLock', function(data)
     handleLockRequest(source, data)
 end)
 
--- Compatibilitate cu versiunile mai vechi care trimiteau setLock.
 RegisterNetEvent('driftzone_vehicleconfig:server:setLock', function(data)
     handleLockRequest(source, data)
 end)
@@ -284,8 +286,7 @@ RegisterNetEvent('driftzone_vehicleconfig:server:requestVehicleState', function(
         netId = state.netId,
         sqlId = state.sqlId,
         plate = state.plate ~= '' and state.plate or row.plate,
-        locked = state.locked,
-        notify = false
+        locked = state.locked
     })
 end)
 
@@ -335,13 +336,12 @@ RegisterNetEvent('driftzone_vehicleconfig:server:registerSpawnedVehicle', functi
         PlateSqlCache[state.plate] = row.id
     end
 
-    -- Cheile temporare se sterg cand masina se respawneaza.
     TemporaryKeys[row.id] = nil
     if state.netId > 0 then
         TemporaryKeys['net:' .. tostring(state.netId)] = nil
     end
 
-    broadcastLock(state, nil)
+    broadcastLock(state)
 
     if state.netId > 0 then
         TriggerClientEvent('driftzone_vehicleconfig:client:setEngineState', -1, state.netId, false)
@@ -357,7 +357,7 @@ local function setLockBySqlId(sqlId, locked)
         sqlId = row.id,
         plate = row.plate,
         locked = locked == true
-    }, nil)
+    })
 
     return true
 end
@@ -418,6 +418,7 @@ AddEventHandler('playerDropped', function()
     local src = source
     local uid = SourceUidCache[src]
     SourceUidCache[src] = nil
+    LockCooldowns[src] = nil
 
     if not uid then return end
 
@@ -443,5 +444,5 @@ end)
 
 AddEventHandler('onResourceStart', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    print('[driftzone_vehicleconfig] loaded - owned-only lock enabled')
+    print('[driftzone_vehicleconfig] loaded - owned-only lock/cooldown/spawn lock fixed')
 end)

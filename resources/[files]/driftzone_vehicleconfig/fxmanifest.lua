@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Vehicle Config - owned-only locks, engine, temporary keys'
-version '2.1.0'
+description 'DriftZone Vehicle Config - owned-only locks, engine, cooldown, fixed spawn lock'
+version '2.2.0'
 
 shared_scripts {
     'shared/config.lua'
