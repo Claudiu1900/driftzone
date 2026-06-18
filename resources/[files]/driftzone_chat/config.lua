@@ -10,6 +10,17 @@ Config.Chat = {
     MaxMessages = 90
 }
 
+
+Config.Mutes = {
+    UsersTable = 'users',
+    UidColumn = 'uid',
+    MuteColumn = 'mute',
+    ReasonColumn = 'mute_reason',
+    MutedByColumn = 'mute_by',
+    MutedByNameColumn = 'mute_by_name',
+    MutedAtColumn = 'mute_at'
+}
+
 Config.AdminRanks = {
     [1] = { label = 'Trial Helper', color = '#0AF52A' },
     [2] = { label = 'Helper', color = '#37B048' },
@@ -24,23 +35,8 @@ Config.AdminRanks = {
 -- Pentru scripturi care au RegisterCommand pe client: merge automat prin ExecuteCommand pe client.
 -- Pentru scripturi care au export RunCommand server-side: le pui aici, in config.
 Config.CommandRoutes = {
-    driftzone_admin = {
-        'aduty', 'staff', 'kick', 'slap', 'coords', 'gotocoords', 'tptow', 'nc',
-        'veh', 'fix', 'ban', 'tempban', 'unban',
-        'givecar', 'takecar', 'transfercar', 'changeplate',
-        'addoutfit',
-        'goto', 'bring', 'warn', 'rwarn', 'warns', 'resetwarns'
-    },
-
-    driftzone_garage = { 'garage', 'garaj', 'park' },
-    driftzone_stats = { 'stats', 'statistici' },
-    driftzone_outfits = { 'outfit', 'outfits', 'addoutfit' },
-    driftzone_keybinds = { 'keybind', 'keybinds' },
-    driftzone_tickets = { 'ticket', 'tickets', 'cancelticket' },
-    driftzone_codes = { 'code', 'codes', 'createcode', 'creatercode', 'delcode', 'codeslist' },
-    driftzone_clothes = { 'haine', 'clothes', 'fixskin', 'setcl', 'bancl' },
-    driftzone_vs = { 'vs', 'dv', 'gotoveh', 'bringveh', 'fixveh' },
-    driftzone_character = { 'character', 'fixcharacter' }
+    -- Comenzile se executa universal prin ExecuteCommand pe client,
+    -- exact ca in F8/default chat. Nu mai trebuie listate aici.
 }
 
 -- Comenzi speciale care nu au RunCommand export.

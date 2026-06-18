@@ -232,7 +232,16 @@ RegisterNUICallback('submit', function(data, cb)
     closeChat(false)
 
     if text ~= '' and chatEnabled and chatStarted then
-        TriggerServerEvent('driftzone_chat:server:submit', text)
+        if text:sub(1, 1) == '/' then
+            local commandLine = text:sub(2):gsub('^%s+', ''):gsub('%s+$', '')
+            if commandLine ~= '' then
+                -- Comenzile trebuie rulate local, exact ca in F8/default chat.
+                -- Asa merg automat toate RegisterCommand-urile din orice resource.
+                ExecuteCommand(commandLine)
+            end
+        else
+            TriggerServerEvent('driftzone_chat:server:submit', text)
+        end
     end
 
     cb({ ok = true })

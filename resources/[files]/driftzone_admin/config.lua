@@ -17,6 +17,8 @@ Config.Ranks = {
 Config.Commands = {
     ah = 1,
     ap = 6,
+    lockchat = 5,
+    unlockchat = 6,
 
     aduty = 1,
     staff = 0,
@@ -30,6 +32,8 @@ Config.Commands = {
     slap = 2,
     freeze = 3,
     unfreeze = 3,
+    mute = 2,
+    unmute = 3,
 
     warn = 3,
     rwarn = 5,
@@ -102,6 +106,10 @@ Config.Cooldowns = {
     vehs = 2000,
     freeze = 1500,
     unfreeze = 1500,
+    mute = 1500,
+    unmute = 1500,
+    lockchat = 1500,
+    unlockchat = 1500,
     spectate = 1500,
     mark = 700,
     gotomark = 700,
@@ -148,6 +156,7 @@ Config.Logs = {
 }
 
 Config.AdminExtra = {
+    chatResource = 'driftzone_chat',
     lockVehicleResource = 'driftzone_vehicleconfig',
     defaultGarageSlots = 8,
     defaultOutsideVehicles = 2
@@ -156,6 +165,8 @@ Config.AdminExtra = {
 Config.CommandMeta = {
     ah = { label = 'Admin Help', category = 'system', syntax = '/ah', description = 'Deschide lista comenzilor disponibile.' },
     ap = { label = 'Admin Panel', category = 'system', syntax = '/ap', description = 'Deschide panoul admin cu comenzi directe.' },
+    lockchat = { label = 'Lock Chat', category = 'system', syntax = '/lockchat', description = 'Blocheaza chat-ul pentru playeri.' },
+    unlockchat = { label = 'Unlock Chat', category = 'system', syntax = '/unlockchat', description = 'Deblocheaza chat-ul.' },
 
     aduty = { label = 'Admin Duty', category = 'system', syntax = '/aduty', description = 'Porneste/opreste aduty.' },
     staff = { label = 'Staff Online', category = 'system', syntax = '/staff', description = 'Arata staff-ul online.' },
@@ -172,6 +183,8 @@ Config.CommandMeta = {
     slap = { label = 'Slap', category = 'punish', syntax = '/slap uid', description = 'Arunca playerul in aer.' },
     freeze = { label = 'Freeze', category = 'punish', syntax = '/freeze uid', description = 'Blocheaza miscarea playerului.' },
     unfreeze = { label = 'Unfreeze', category = 'punish', syntax = '/unfreeze uid', description = 'Deblocheaza miscarea playerului.' },
+    mute = { label = 'Mute Chat', category = 'punish', syntax = '/mute uid minute motiv', description = 'Da mute pe chat cu salvare in DB.' },
+    unmute = { label = 'Unmute Chat', category = 'punish', syntax = '/unmute uid', description = 'Scoate mute-ul de pe chat.' },
     warn = { label = 'Warn', category = 'punish', syntax = '/warn uid motiv', description = 'Adauga un warn.' },
     rwarn = { label = 'Remove Warn', category = 'punish', syntax = '/rwarn uid', description = 'Scoate un warn.' },
     warns = { label = 'Warns', category = 'punish', syntax = '/warns uid', description = 'Verifica warn-urile.' },
@@ -195,8 +208,8 @@ Config.CommandMeta = {
     takeveh = { label = 'Take Vehicle', category = 'vehicles', syntax = '/takeveh uid sql_id', description = 'Sterge masina unui UID.' },
     transferveh = { label = 'Transfer Vehicle', category = 'vehicles', syntax = '/transferveh uid_nou sql_id', description = 'Transfera masina.' },
     changeplate = { label = 'Change Plate', category = 'vehicles', syntax = '/changeplate sql_id plate', description = 'Schimba numarul masinii.' },
-    lockveh = { label = 'Lock Vehicle', category = 'vehicles', syntax = '/lockveh sql_id', description = 'Incuie masina live prin driftzone_vehicleconfig + salveaza locked in DB.' },
-    unlockveh = { label = 'Unlock Vehicle', category = 'vehicles', syntax = '/unlockveh sql_id', description = 'Descuie masina live prin driftzone_vehicleconfig + salveaza locked in DB.' },
+    lockveh = { label = 'Lock Vehicle', category = 'vehicles', syntax = '/lockveh sql_id', description = 'Blocheaza masina din DB.' },
+    unlockveh = { label = 'Unlock Vehicle', category = 'vehicles', syntax = '/unlockveh sql_id', description = 'Deblocheaza masina din DB.' },
 
     giveadm = { label = 'Give Admin', category = 'give', syntax = '/giveadm uid level', description = 'Seteaza admin_level.' },
     givecash = { label = 'Give Cash', category = 'give', syntax = '/givecash uid suma', description = 'Adauga cash.' },

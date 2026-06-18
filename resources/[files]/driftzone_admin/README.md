@@ -52,17 +52,25 @@ restart driftzone_admin
 - UI-ul nu foloseste `backdrop-filter` si este facut light pentru NUI.
 - Daca unele coloane optionale nu exista, scriptul evita update-ul unde poate si anunta in notify.
 
+## Update chat commands
 
-## Fix lockveh / unlockveh
+- `/mute uid minute motiv` - admin_level 2+ si aduty yes/1.
+- `/unmute uid` - admin_level 3+ si aduty yes/1.
+- `/lockchat` - admin_level 5+ si aduty yes/1.
+- `/unlockchat` - admin_level 6+ si aduty yes/1.
+- `/lockveh` si `/unlockveh` trimit live state catre `driftzone_vehicleconfig`.
+- `/ah` si `/ap` au fix de pozitionare pe mijlocul ecranului.
 
-- `/lockveh sql_id` si `/unlockveh sql_id` verifica daca masina exista in `ownedvehicles`.
-- Actualizeaza `ownedvehicles.locked` daca exista coloana.
-- Trimite state-ul live catre `driftzone_vehicleconfig` prin export/event `SetVehicleLockBySqlId`.
-- Daca masina este spawnata, se aplica imediat pe vehicul.
-- Daca masina este offline, state-ul ramane in DB si in cache-ul `driftzone_vehicleconfig`.
-- Pentru integrare corecta pune in `server.cfg`:
+Ordine recomandata in server.cfg:
 
 ```cfg
+ensure oxmysql
+ensure driftzone_auth
+ensure driftzone_chat
 ensure driftzone_vehicleconfig
 ensure driftzone_admin
 ```
+
+## Chat mute
+
+`/mute` si `/unmute` folosesc exporturile din `driftzone_chat`; mute-ul este salvat in `users.mute`.

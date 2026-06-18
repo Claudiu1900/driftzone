@@ -3,6 +3,7 @@ local MetaCache = {}
 local MutedPlayers = {}
 local DisabledPlayers = {}
 local CommandRouteCache = nil
+local MuteColumnsReady = false
 
 local GlobalChatEnabled = true
 local GlobalChatLocked = false
@@ -208,6 +209,272 @@ local function getPlayerUid(src)
 
     return uid
 end
+
+local function getUsersTable()
+    return (Config and Config.Mutes and Config.Mutes.UsersTable) or 'users'
+end
+
+local function getMuteColumn()
+    return (Config and Config.Mutes and Config.Mutes.MuteColumn) or 'mute'
+end
+
+local function getMuteReasonColumn()
+    return (Config and Config.Mutes and Config.Mutes.ReasonColumn) or 'mute_reason'
+end
+
+local function getMuteByColumn()
+    return (Config and Config.Mutes and Config.Mutes.MutedByColumn) or 'mute_by'
+end
+
+local function getMuteByNameColumn()
+    return (Config and Config.Mutes and Config.Mutes.MutedByNameColumn) or 'mute_by_name'
+end
+
+local function getMuteAtColumn()
+    return (Config and Config.Mutes and Config.Mutes.MutedAtColumn) or 'mute_at'
+end
+
+local function getUidColumn()
+    return (Config and Config.Mutes and Config.Mutes.UidColumn) or 'uid'
+end
+
+local function sqlName(name)
+    return ('`%s`'):format(tostring(name or ''):gsub('`', ''))
+end
+
+local function dbExec(query, params)
+    local ok, result = pcall(function()
+        if MySQL and MySQL.update and MySQL.update.await then
+            return MySQL.update.await(query, params or {})
+        end
+
+        if MySQL and MySQL.query and MySQL.query.await then
+            return MySQL.query.await(query, params or {})
+        end
+
+        return exports.oxmysql:executeSync(query, params or {})
+    end)
+
+    return ok, result
+end
+
+local function ensureMuteColumns()
+    if MuteColumnsReady then return end
+
+    local users = sqlName(getUsersTable())
+
+    pcall(function()
+        MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s DATETIME NULL DEFAULT NULL'):format(users, sqlName(getMuteColumn())), {})
+    end)
+
+    pcall(function()
+        MySQL.query.await(('ALTER TABLE %s MODIFY COLUMN %s DATETIME NULL DEFAULT NULL'):format(users, sqlName(getMuteColumn())), {})
+    end)
+
+    pcall(function()
+        MySQL.query.await(([[ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s VARCHAR(255) NOT NULL DEFAULT '']]):format(users, sqlName(getMuteReasonColumn())), {})
+    end)
+
+    pcall(function()
+        MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s INT NULL DEFAULT NULL'):format(users, sqlName(getMuteByColumn())), {})
+    end)
+
+    pcall(function()
+        MySQL.query.await(([[ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s VARCHAR(64) NOT NULL DEFAULT '']]):format(users, sqlName(getMuteByNameColumn())), {})
+    end)
+
+    pcall(function()
+        MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s DATETIME NULL DEFAULT NULL'):format(users, sqlName(getMuteAtColumn())), {})
+    end)
+
+    MuteColumnsReady = true
+end
+
+local function getPlayerByUid(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return nil end
+
+    for _, id in ipairs(GetPlayers()) do
+        local src = tonumber(id)
+        if src and getPlayerUid(src) == uid then
+            return src
+        end
+    end
+
+    return nil
+end
+
+local function deactivateExpiredMutes(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return end
+
+    ensureMuteColumns()
+
+    dbExec(([[
+        UPDATE %s
+        SET %s = NULL, %s = '', %s = NULL, %s = '', %s = NULL
+        WHERE %s = ? AND %s IS NOT NULL AND %s <= NOW()
+        LIMIT 1
+    ]]):format(
+        sqlName(getUsersTable()),
+        sqlName(getMuteColumn()),
+        sqlName(getMuteReasonColumn()),
+        sqlName(getMuteByColumn()),
+        sqlName(getMuteByNameColumn()),
+        sqlName(getMuteAtColumn()),
+        sqlName(getUidColumn()),
+        sqlName(getMuteColumn()),
+        sqlName(getMuteColumn())
+    ), { uid })
+end
+
+local function getActiveMute(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return nil end
+
+    ensureMuteColumns()
+    deactivateExpiredMutes(uid)
+
+    local ok, row = pcall(function()
+        return MySQL.single.await(([[
+            SELECT
+                %s AS uid,
+                %s AS expires_at,
+                %s AS reason,
+                %s AS muted_by,
+                %s AS muted_by_name,
+                TIMESTAMPDIFF(SECOND, NOW(), %s) AS remaining_seconds
+            FROM %s
+            WHERE %s = ? AND %s IS NOT NULL AND %s > NOW()
+            LIMIT 1
+        ]]):format(
+            sqlName(getUidColumn()),
+            sqlName(getMuteColumn()),
+            sqlName(getMuteReasonColumn()),
+            sqlName(getMuteByColumn()),
+            sqlName(getMuteByNameColumn()),
+            sqlName(getMuteColumn()),
+            sqlName(getUsersTable()),
+            sqlName(getUidColumn()),
+            sqlName(getMuteColumn()),
+            sqlName(getMuteColumn())
+        ), { uid })
+    end)
+
+    if ok and row then return row end
+    return nil
+end
+
+local function formatRemaining(seconds)
+    seconds = math.max(0, math.floor(tonumber(seconds or 0) or 0))
+    local minutes = math.floor(seconds / 60)
+    local hours = math.floor(minutes / 60)
+    minutes = minutes % 60
+
+    if hours > 0 then
+        return ('%dh %dm'):format(hours, minutes)
+    end
+
+    return ('%d minute'):format(math.max(1, minutes))
+end
+
+local function refreshMuteForSource(src)
+    src = tonumber(src or 0) or 0
+    if src <= 0 then return nil end
+
+    local uid = getPlayerUid(src)
+    local mute = uid and getActiveMute(uid) or nil
+    MutedPlayers[src] = mute ~= nil
+    TriggerClientEvent('driftzone_chat:client:setMuted', src, mute ~= nil)
+    return mute
+end
+
+local function muteUid(uid, minutes, reason, adminUid, adminName)
+    uid = tonumber(uid or 0) or 0
+    minutes = math.floor(tonumber(minutes or 0) or 0)
+    reason = cleanText(reason or 'Fara motiv', 240)
+    adminUid = tonumber(adminUid or 0) or 0
+    adminName = cleanText(adminName or 'Admin', 64)
+
+    if uid <= 0 then return false, 'UID invalid.' end
+    if minutes <= 0 then return false, 'Timp invalid.' end
+
+    ensureMuteColumns()
+
+    local ok, result = dbExec(([[
+        UPDATE %s
+        SET %s = DATE_ADD(NOW(), INTERVAL ? MINUTE),
+            %s = ?,
+            %s = ?,
+            %s = ?,
+            %s = NOW()
+        WHERE %s = ?
+        LIMIT 1
+    ]]):format(
+        sqlName(getUsersTable()),
+        sqlName(getMuteColumn()),
+        sqlName(getMuteReasonColumn()),
+        sqlName(getMuteByColumn()),
+        sqlName(getMuteByNameColumn()),
+        sqlName(getMuteAtColumn()),
+        sqlName(getUidColumn())
+    ), { minutes, reason, adminUid > 0 and adminUid or nil, adminName, uid })
+
+    if not ok then
+        return false, tostring(result or 'Eroare DB.')
+    end
+
+    local target = getPlayerByUid(uid)
+    if target then
+        MutedPlayers[target] = true
+        TriggerClientEvent('driftzone_chat:client:setMuted', target, true)
+        sendError(target, ('Ai primit mute %d minute. Motiv: %s'):format(minutes, reason))
+    end
+
+    return true, ('UID %s a primit mute %d minute.'):format(uid, minutes)
+end
+
+local function unmuteUid(uid, adminUid, adminName)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return false, 'UID invalid.' end
+
+    ensureMuteColumns()
+
+    local ok, result = dbExec(([[
+        UPDATE %s
+        SET %s = NULL, %s = '', %s = NULL, %s = '', %s = NULL
+        WHERE %s = ?
+        LIMIT 1
+    ]]):format(
+        sqlName(getUsersTable()),
+        sqlName(getMuteColumn()),
+        sqlName(getMuteReasonColumn()),
+        sqlName(getMuteByColumn()),
+        sqlName(getMuteByNameColumn()),
+        sqlName(getMuteAtColumn()),
+        sqlName(getUidColumn())
+    ), { uid })
+
+    if not ok then
+        return false, tostring(result or 'Eroare DB.')
+    end
+
+    local target = getPlayerByUid(uid)
+    if target then
+        MutedPlayers[target] = nil
+        TriggerClientEvent('driftzone_chat:client:setMuted', target, false)
+        sendSystem(target, 'Ai primit unmute.')
+    end
+
+    return true, ('UID %s a primit unmute.'):format(uid)
+end
+
+local function setChatLocked(locked, adminUid, adminName)
+    GlobalChatLocked = locked == true
+    sendSystemMessage(('Chat-ul a fost %s de catre %s (%s).'):format(GlobalChatLocked and 'blocat' or 'deblocat', tostring(adminName or 'Admin'), tostring(adminUid or '?')))
+    return true, GlobalChatLocked and 'Chat blocat.' or 'Chat deblocat.'
+end
+
 
 local function invalidateSourceMeta(src)
     src = tonumber(src)
@@ -479,21 +746,25 @@ local function handleInput(src, input)
         return
     end
 
-    if isMuted(src) then
-        sendError(src, 'Esti muted.')
-        return
-    end
-
-    local message = cleanText(rawText, getChatConfig('MaxMessageLength', 160))
-
-    if message == '' then return end
-
     local uid = getPlayerUid(src)
 
     if not uid then
         sendError(src, 'Nu ti-am gasit ID-ul.')
         return
     end
+
+    local activeMute = getActiveMute(uid)
+    MutedPlayers[src] = activeMute ~= nil
+    TriggerClientEvent('driftzone_chat:client:setMuted', src, activeMute ~= nil)
+
+    if activeMute then
+        sendError(src, ('Esti muted inca %s. Motiv: %s'):format(formatRemaining(activeMute.remaining_seconds), cleanText(activeMute.reason or 'Fara motiv', 120)))
+        return
+    end
+
+    local message = cleanText(rawText, getChatConfig('MaxMessageLength', 160))
+
+    if message == '' then return end
 
     MetaCache[uid] = nil
     local meta = getPlayerChatMeta(src, uid)
@@ -533,7 +804,7 @@ RegisterNetEvent('driftzone_chat:server:requestStart', function()
     local src = source
 
     TriggerClientEvent('driftzone_chat:client:setEnabled', src, GlobalChatEnabled and not DisabledPlayers[src])
-    TriggerClientEvent('driftzone_chat:client:setMuted', src, MutedPlayers[src] == true)
+    refreshMuteForSource(src)
 end)
 
 AddEventHandler('playerDropped', function()
@@ -602,7 +873,6 @@ RegisterNetEvent('driftchat:setMutedPlayer', function(target, muted)
     if not target then return end
 
     MutedPlayers[target] = muted == true
-
     TriggerClientEvent('driftzone_chat:client:setMuted', target, MutedPlayers[target])
 end)
 
@@ -611,17 +881,7 @@ RegisterNetEvent('driftchat:systemMessage', function(text)
 end)
 
 RegisterNetEvent('driftchat:toggleLock', function(adminName, adminUid)
-    GlobalChatLocked = not GlobalChatLocked
-
-    local stateText = GlobalChatLocked and 'blocat' or 'deblocat'
-
-    sendSystemMessage(
-        ('Chat-ul a fost %s de catre admin-ul %s (%s)!'):format(
-            stateText,
-            tostring(adminName or 'Admin'),
-            tostring(adminUid or '?')
-        )
-    )
+    setChatLocked(not GlobalChatLocked, adminUid, adminName)
 end)
 
 
@@ -714,4 +974,26 @@ AddEventHandler('onResourceStart', function(resource)
         -- Daca pornesti un resource dupa chat, nu trebuie restart la chat pentru fallback client.
         CommandRouteCache = nil
     end
+end)
+
+exports('MuteUid', function(uid, minutes, reason, adminUid, adminName)
+    return muteUid(uid, minutes, reason, adminUid, adminName)
+end)
+
+exports('UnmuteUid', function(uid, adminUid, adminName)
+    return unmuteUid(uid, adminUid, adminName)
+end)
+
+exports('SetChatLocked', function(locked, adminUid, adminName)
+    return setChatLocked(locked == true, adminUid, adminName)
+end)
+
+exports('IsChatLocked', function()
+    return GlobalChatLocked == true
+end)
+
+AddEventHandler('onResourceStart', function(resource)
+    if resource ~= GetCurrentResourceName() then return end
+    ensureMuteColumns()
+    print('[DRIFTZONE_CHAT] Loaded. Commands use client ExecuteCommand. users.mute ready.')
 end)

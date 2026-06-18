@@ -390,7 +390,6 @@ local function refreshOwnedVehs(src, uid)
     TriggerClientEvent('driftzone_admin:client:ownedVehsPanel', src, { uid = uid, name = userNameByUid(uid), vehicles = loadOwnedVehicles(uid) })
 end
 
-
 local function getVehicleConfigResource()
     local extra = Config.AdminExtra or {}
     local res = tostring(extra.lockVehicleResource or extra.vehicleConfigResource or 'driftzone_vehicleconfig')
@@ -403,7 +402,7 @@ local function setOwnedVehicleDbLock(sqlId, locked)
     if sqlId <= 0 then return false, 'sql_id invalid' end
 
     if not hasColumn('ownedvehicles', 'locked') then
-        return true, 'coloana locked nu exista, am aplicat doar state-ul live'
+        return true, 'coloana locked nu exista, aplic live prin vehicleconfig'
     end
 
     local ok, result = dbUpdate('UPDATE ownedvehicles SET locked = ? WHERE id = ? LIMIT 1', { locked == true and 1 or 0, sqlId })
@@ -423,20 +422,7 @@ local function setVehicleConfigLockBySqlId(sqlId, locked)
         local ok, result = pcall(function()
             return exports[res]:SetVehicleLockBySqlId(sqlId, lockedBool)
         end)
-
-        if ok and result ~= false then
-            return true, 'export'
-        end
-
-        local okEvent = pcall(function()
-            TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', sqlId, lockedBool)
-        end)
-
-        if okEvent then
-            return true, 'event'
-        end
-
-        return false, 'export/event vehicleconfig failed'
+        if ok and result ~= false then return true, 'export' end
     end
 
     local okEvent = pcall(function()
@@ -444,10 +430,10 @@ local function setVehicleConfigLockBySqlId(sqlId, locked)
     end)
 
     if okEvent then
-        return false, ('resource %s nu este started (%s)'):format(res, tostring(state))
+        return state == 'started', state == 'started' and 'event' or ('event trimis, dar %s este %s'):format(res, tostring(state))
     end
 
-    return false, ('resource %s indisponibil (%s)'):format(res, tostring(state))
+    return false, ('vehicleconfig indisponibil: %s %s'):format(res, tostring(state))
 end
 
 local function setAdminVehicleLock(src, sqlId, locked)
@@ -482,13 +468,39 @@ local function setAdminVehicleLock(src, sqlId, locked)
     end
 
     if dbOk then
-        notify(src, 'warning', ('DB actualizat, dar vehicleconfig nu a aplicat live: %s. Verifica ensure driftzone_vehicleconfig inainte de driftzone_admin.'):format(tostring(vcMsg)))
+        notify(src, 'warning', ('DB actualizat, dar lock live nu a fost confirmat: %s. Verifica ensure driftzone_vehicleconfig inainte de driftzone_admin.'):format(tostring(vcMsg)))
         return true
     end
 
     notify(src, 'warning', ('Nu s-a putut modifica lock-ul: %s / %s'):format(tostring(dbMsg), tostring(vcMsg)))
     return false
 end
+
+local function getChatResource()
+    local res = tostring((Config.AdminExtra and Config.AdminExtra.chatResource) or 'driftzone_chat')
+    if res == '' then res = 'driftzone_chat' end
+    return res
+end
+
+local function callChatExport(src, exportName, ...)
+    local res = getChatResource()
+    if GetResourceState(res) ~= 'started' then
+        notify(src, 'warning', ('%s nu este pornit. Pune ensure driftzone_chat inainte de driftzone_admin.'):format(res))
+        return false, 'chat resource not started'
+    end
+
+    local ok, result, msg = pcall(function(...)
+        return exports[res][exportName](...)
+    end, ...)
+
+    if not ok then
+        notify(src, 'warning', ('Eroare chat export %s: %s'):format(exportName, tostring(result)))
+        return false, tostring(result)
+    end
+
+    return result == true, msg or result
+end
+
 
 local function safeVehiclePayload(payload)
     payload = type(payload) == 'table' and payload or {}
@@ -595,6 +607,51 @@ Commands.unfreeze = function(src, args)
     if not target then return notify(src, 'warning', 'Jucatorul nu este online.') end
     TriggerClientEvent('driftzone_admin:client:setFrozen', target, false)
     notify(src, 'info', 'Player unfrozen.')
+end
+
+Commands.mute = function(src, args)
+    local admin = requireAdmin(src, 'mute') if not admin then return end
+    local uid = tonumber(args[1])
+    local minutes = tonumber(args[2])
+    local reason = trim(table.concat(args or {}, ' ', 3))
+    if not uid or not minutes or minutes <= 0 then
+        return notify(src, 'warning', 'Folosire: /mute uid minute motiv')
+    end
+    if reason == '' then reason = 'Fara motiv' end
+
+    local ok, message = callChatExport(src, 'MuteUid', uid, minutes, reason, admin.uid, admin.username)
+    if ok then
+        notify(src, 'info', tostring(message or ('UID ' .. uid .. ' a primit mute.')))
+        logAdminCommand(src, 'mute', args or {}, 'success', tostring(message or 'ok'))
+    else
+        logAdminCommand(src, 'mute', args or {}, 'failed', tostring(message or 'chat export failed'))
+    end
+end
+
+Commands.unmute = function(src, args)
+    local admin = requireAdmin(src, 'unmute') if not admin then return end
+    local uid = tonumber(args[1])
+    if not uid then return notify(src, 'warning', 'Folosire: /unmute uid') end
+
+    local ok, message = callChatExport(src, 'UnmuteUid', uid, admin.uid, admin.username)
+    if ok then
+        notify(src, 'info', tostring(message or ('UID ' .. uid .. ' a primit unmute.')))
+        logAdminCommand(src, 'unmute', args or {}, 'success', tostring(message or 'ok'))
+    else
+        logAdminCommand(src, 'unmute', args or {}, 'failed', tostring(message or 'chat export failed'))
+    end
+end
+
+Commands.lockchat = function(src)
+    local admin = requireAdmin(src, 'lockchat') if not admin then return end
+    local ok, message = callChatExport(src, 'SetChatLocked', true, admin.uid, admin.username)
+    if ok then notify(src, 'info', tostring(message or 'Chat blocat.')) end
+end
+
+Commands.unlockchat = function(src)
+    local admin = requireAdmin(src, 'unlockchat') if not admin then return end
+    local ok, message = callChatExport(src, 'SetChatLocked', false, admin.uid, admin.username)
+    if ok then notify(src, 'info', tostring(message or 'Chat deblocat.')) end
 end
 
 Commands.warn = function(src, args)
@@ -948,6 +1005,19 @@ RegisterNetEvent('driftzone_admin:server:runFromPanel', function(command, argsTe
     local args = {}
     for part in tostring(argsText or ''):gmatch('%S+') do args[#args + 1] = part end
     runAdminCommand(src, command, args)
+end)
+
+exports('RunCommand', function(src, command, args)
+    src = tonumber(src or 0) or 0
+    if src <= 0 then return false end
+    runAdminCommand(src, command, args or {})
+    return true
+end)
+
+AddEventHandler('driftzone_admin:server:runFromChat', function(src, command, args)
+    src = tonumber(src or 0) or 0
+    if src <= 0 then return end
+    runAdminCommand(src, command, args or {})
 end)
 
 for commandName, _ in pairs(AdminCommands) do

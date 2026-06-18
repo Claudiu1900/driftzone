@@ -5,7 +5,7 @@ local teleporting = false
 
 local AdminCommands = {
     'aduty','staff','goto','bring','kick','slap','warn','rwarn','warns','resetwarns','coords','gotocoords','tptow','nc','veh','fix','ban','tempban','unban',
-    'ah','ap','freeze','unfreeze','spectate','mark','gotomark','giveveh','takeveh','transferveh','changeplate','addoutfit','cleanup','cancelcleanup','addveh','removeveh','lockveh','unlockveh','giveadm','wipe','givecash','givedzcoins','givevip','removevip','resettickets','configveh','vehs'
+    'ah','ap','lockchat','unlockchat','freeze','unfreeze','mute','unmute','spectate','mark','gotomark','giveveh','takeveh','transferveh','changeplate','addoutfit','cleanup','cancelcleanup','addveh','removeveh','lockveh','unlockveh','giveadm','wipe','givecash','givedzcoins','givevip','removevip','resettickets','configveh','vehs'
 }
 
 local function notify(type, message, duration)
@@ -23,9 +23,8 @@ local function setPanel(state)
 end
 
 for _, command in ipairs(AdminCommands) do
-    local cmd = tostring(command)
-    RegisterCommand(cmd, function(_, args)
-        TriggerServerEvent('driftzone_admin:server:run', cmd, args or {})
+    RegisterCommand(command, function(_, args)
+        TriggerServerEvent('driftzone_admin:server:run', command, args or {})
     end, false)
 end
 
@@ -238,12 +237,6 @@ RegisterNetEvent('driftzone_admin:client:spawnOwnedVehicle', function(data)
         SetNetworkIdExistsOnAllMachines(netId, true)
     end
     Wait(350)
-
-    -- Integrare cu driftzone_vehicleconfig: masina spawnata din /vehs primeste SQL ID, owner, motor oprit si lock default.
-    if GetResourceState('driftzone_vehicleconfig') == 'started' then
-        TriggerEvent('driftzone_vehicleconfig:client:registerSpawnedVehicle', veh, tonumber(data.vehicleId or data.id or 0) or 0, tonumber(data.uid or data.owner_id or 0) or 0)
-    end
-
     TriggerServerEvent('driftzone_admin:server:ownedVehSpawnResult', true, data, netId or 0)
 end)
 
