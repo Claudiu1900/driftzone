@@ -352,40 +352,37 @@ input[type=number] {
 
 /* clothes equipment slots */
 .clothing-shell {
-    width: 285px;
-    height: 646px;
-    padding: 14px;
-    border: 1px solid rgba(4,199,247,.30);
-    background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.025)), var(--panel);
-    box-shadow: 0 34px 100px rgba(0,0,0,.52), 0 0 38px rgba(4,199,247,.10);
+    width: 360px;
+    height: 796px;
+    padding: 18px;
+    border: 1px solid rgba(4,199,247,.34);
+    background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.025)), var(--panel);
+    box-shadow: 0 34px 110px rgba(0,0,0,.56), 0 0 42px rgba(4,199,247,.12);
     color: white;
-}
-.clothing-title {
-    height: 28px;
-    display: flex;
-    align-items: center;
-    color: var(--main);
-    font-size: 12px;
-    font-weight: 1000;
-    letter-spacing: 2px;
 }
 .body-equipment {
     position: relative;
-    height: 565px;
-    margin-top: 6px;
-    border: 1px solid rgba(255,255,255,.08);
-    background: radial-gradient(circle at center, rgba(4,199,247,.08), rgba(255,255,255,.025));
+    height: 100%;
+    border: 1px solid rgba(255,255,255,.09);
+    background: radial-gradient(circle at center, rgba(4,199,247,.10), rgba(255,255,255,.025));
     overflow: hidden;
+}
+.body-equipment::before {
+    content: '';
+    position: absolute;
+    inset: 16px;
+    border: 1px solid rgba(255,255,255,.04);
+    pointer-events: none;
 }
 .body-outline {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 172px;
-    height: 500px;
+    width: 230px;
+    height: 700px;
     transform: translate(-50%, -50%);
-    opacity: .30;
-    filter: drop-shadow(0 0 15px rgba(4,199,247,.18));
+    opacity: .52;
+    filter: drop-shadow(0 0 20px rgba(4,199,247,.12));
     pointer-events: none;
 }
 .clothing-slots {
@@ -394,11 +391,11 @@ input[type=number] {
 }
 .clothing-slot {
     position: absolute;
-    width: 54px;
-    height: 54px;
-    border: 1px solid rgba(255,255,255,.13);
-    background: rgba(255,255,255,.045);
-    box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    width: 62px;
+    height: 62px;
+    border: 1px solid rgba(255,255,255,.15);
+    background: rgba(255,255,255,.05);
+    box-shadow: 0 14px 34px rgba(0,0,0,.36);
     overflow: hidden;
     transform: translate(-50%, -50%);
     transition: border-color .12s ease, background .12s ease, transform .12s ease;
@@ -406,8 +403,8 @@ input[type=number] {
 .clothing-slot:hover,
 .clothing-slot.drag-over,
 .clothing-slot.filled {
-    border-color: rgba(4,199,247,.70);
-    background: rgba(4,199,247,.13);
+    border-color: rgba(4,199,247,.74);
+    background: rgba(4,199,247,.14);
 }
 .clothing-slot.drag-over {
     transform: translate(-50%, -50%) scale(.95);
@@ -417,48 +414,42 @@ input[type=number] {
     inset: 0;
     display: grid;
     place-items: center;
-    background: linear-gradient(145deg, rgba(4,199,247,.10), rgba(255,255,255,.025));
+    background: linear-gradient(145deg, rgba(4,199,247,.12), rgba(255,255,255,.03));
 }
 .clothing-empty img {
-    width: 26px;
-    height: 26px;
+    width: 30px;
+    height: 30px;
     object-fit: contain;
-    opacity: .72;
+    opacity: .78;
 }
 .clothing-empty span {
     position: absolute;
-    left: 3px;
-    right: 3px;
-    bottom: 3px;
+    left: 4px;
+    right: 4px;
+    bottom: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: rgba(255,255,255,.50);
+    color: rgba(255,255,255,.52);
     font-size: 8px;
     font-weight: 900;
     text-align: center;
     text-transform: uppercase;
 }
-.clothing-hint {
-    margin-top: 8px;
-    color: rgba(255,255,255,.48);
-    font-size: 10px;
-    font-weight: 850;
-    text-align: center;
-}
+
 .cat-hat { left: 50%; top: 8%; }
-.cat-glasses { left: 68%; top: 17%; }
-.cat-mask { left: 50%; top: 24%; }
-.cat-accessories { left: 32%; top: 30%; }
-.cat-jacket { left: 50%; top: 39%; }
-.cat-top { left: 31%; top: 42%; }
-.cat-torso { left: 69%; top: 42%; }
-.cat-vest { left: 50%; top: 50%; }
-.cat-bag { left: 20%; top: 49%; }
-.cat-pants { left: 50%; top: 66%; }
-.cat-shoes { left: 50%; top: 87%; }
-.cat-watches { left: 81%; top: 55%; }
-.cat-bracelets { left: 19%; top: 57%; }
+.cat-glasses { left: 68%; top: 16%; }
+.cat-mask { left: 50%; top: 20%; }
+.cat-accessories { left: 33%; top: 26%; }
+.cat-jacket { left: 50%; top: 34%; }
+.cat-top { left: 33%; top: 38%; }
+.cat-torso { left: 67%; top: 38%; }
+.cat-vest { left: 50%; top: 45%; }
+.cat-bag { left: 19%; top: 49%; }
+.cat-pants { left: 50%; top: 63%; }
+.cat-shoes { left: 50%; top: 86%; }
+.cat-watches { left: 80%; top: 55%; }
+.cat-bracelets { left: 20%; top: 57%; }
 .clothing-slot .item-box,
 .clothing-slot .item-img,
 .clothing-slot .item-fallback,
