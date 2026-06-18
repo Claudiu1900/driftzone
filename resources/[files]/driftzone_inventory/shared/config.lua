@@ -111,13 +111,34 @@ Config.ClothingCategories = {
     glasses = { label = 'Glasses', icon = 'glasses.svg', type = 'prop', propId = 1 }
 }
 
+-- Ce se aplica pe player cand slotul de haina este gol.
+-- Modifici drawable/texture aici daca pe serverul tau "gol" inseamna alt ID.
+-- Pentru prop-uri, drawable = -1 inseamna ClearPedProp.
+Config.EmptyClothingDefaults = {
+    jacket = { drawable = 15, texture = 0 },
+    top = { drawable = 15, texture = 0 },
+    torso = { drawable = 15, texture = 0 },
+    mask = { drawable = 0, texture = 0 },
+    shoes = { drawable = 0, texture = 0 },
+    pants = { drawable = 0, texture = 0 },
+    accessories = { drawable = 0, texture = 0 },
+    watches = { drawable = -1, texture = 0 },
+    bracelets = { drawable = -1, texture = 0 },
+    vest = { drawable = 0, texture = 0 },
+    bag = { drawable = 0, texture = 0 },
+    hat = { drawable = -1, texture = 0 },
+    glasses = { drawable = -1, texture = 0 }
+}
+
 -- Forteaza reincarcarea hainelor salvate dupa login/spawn. Nu poate opri spawn-ul GTA,
 -- dar reaplica hainele de mai multe ori ca sa nu ramana playerul cu default skin.
 Config.ClothesLoad = {
     Enabled = true,
-    RetryCount = 18,
-    RetryDelayMs = 850,
-    ClientRetryDelays = { 500, 1200, 2200, 3500, 5200, 7500, 10000, 13500, 17000 }
+    RetryCount = 30,
+    RetryDelayMs = 700,
+    ApplyRepeatCount = 8,
+    ApplyRepeatDelayMs = 500,
+    ClientRetryDelays = { 250, 700, 1200, 2000, 3200, 5000, 7000, 9500, 12500, 16000, 20000 }
 }
 
 

@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Inventory - items, money, quick slots, clothes equipment'
-version '1.3.0'
+description 'DriftZone Inventory - clothes equipment defaults optimized'
+version '1.3.1'
 
 ui_page 'html/index.html'
 

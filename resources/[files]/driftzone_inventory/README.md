@@ -1,71 +1,29 @@
-# driftzone_inventory - Money, Quick Slots, Items Panel, Clothes Equipment
+# driftzone_inventory - Clothes Equipment FINAL
 
-Resource complet DriftZone Inventory cu:
+Resource complet cu inventar, money/dirtymoney, quick slots si sistem de haine echipabile.
 
-- sloturi speciale `money` / `dirtymoney`;
-- `money` sincronizat cu `users.cash`;
-- 5 quick-use slots cu tastele 1-5;
-- `/items` pentru editarea itemelor din `inventory_items`;
-- sistem de haine direct in inventar;
-- sloturi de haine pe corp in partea stanga a inventarului;
-- `/addclothes` pentru adaugare haine in `clothes_items`;
-- `/clothesitems` pentru listare/editare haine din `clothes_items`;
-- tabela `users_clothes` pentru hainele echipate pe fiecare categorie;
-- auto-load fortat la haine dupa join/spawn, cu retry-uri.
+## Update in aceasta versiune
 
-## Instalare
+- Manechinul din stanga este refacut dupa poza de referinta: fundal alb + outline negru curat.
+- Cardul de haine este mai mare si nu mai are textul `CLOTHES`.
+- Cand scoti o haina din slotul de echipare, haina este scoasa si de pe caracter.
+- Cand un slot de haine este gol, clientul aplica drawable/texture default din `shared/config.lua`.
+- Default-urile se modifica din `Config.EmptyClothingDefaults`. Pentru prop-uri, `drawable = -1` inseamna `ClearPedProp`.
+- La join/spawn se reaplica hainele si default-urile de mai multe ori, ca sa nu ramana playerul cu skin gresit dupa spawn.
 
-```cfg
-ensure oxmysql
-ensure driftzone_auth
-ensure driftzone_inventory
+## Config important
+
+In `shared/config.lua` ai:
+
+```lua
+Config.EmptyClothingDefaults = {
+    jacket = { drawable = 15, texture = 0 },
+    hat = { drawable = -1, texture = 0 }
+}
 ```
 
-Ruleaza `SQL.sql`. Acest SQL contine doar partea noua de haine: `clothes_items` si `users_clothes`.
+Schimbi aici ID-ul de drawable/texture pentru fiecare categorie atunci cand slotul este gol.
 
-## Comenzi admin
+## SQL
 
-Toate cer `admin_level >= 6` si `aduty` activ (`1`, `yes`, `true` sau `on`).
-
-```txt
-/addclothes
-/clothesitems
-/items
-/additem
-/giveitem uid item_id amount
-/takeitem uid item_id amount
-/wipeinventory uid
-```
-
-## Categorii haine suportate
-
-- `jacket` - component 11
-- `top` - component 8
-- `torso` - component 3
-- `mask` - component 1
-- `shoes` - component 6
-- `pants` - component 4
-- `accessories` - component 7
-- `watches` - prop 6
-- `bracelets` - prop 7
-- `vest` - component 9
-- `bag` - component 5
-- `hat` - prop 0
-- `glasses` - prop 1
-
-Aliasuri acceptate in config: `jaket`, `jacheta`, `acecessories`, `accesorii`, `bratari`, `palarie`, etc.
-
-## Cum functioneaza hainele
-
-1. Adminul creeaza item de haina cu `/addclothes`.
-2. Itemul este salvat in `clothes_items`.
-3. Itemul poate fi dat cu `/giveitem uid item_id amount`.
-4. Jucatorul trage itemul in slotul corect de pe corp.
-5. Resource-ul aplica haina pe ped si salveaza in `users_clothes`.
-6. La spawn/join, hainele din `users_clothes` sunt reaplicate automat de mai multe ori.
-
-## Note
-
-- Itemele de haine nu sunt salvate in `inventory_items`; sunt citite direct din `clothes_items`.
-- `money` ramane item logic, dar valoarea reala este `users.cash`.
-- Quick slots raman salvate in `inventory_json`.
+Ruleaza `SQL.sql` doar daca nu ai rulat deja tabelele pentru haine. Nu recreeaza inventarul vechi.

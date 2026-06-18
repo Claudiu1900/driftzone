@@ -151,12 +151,17 @@ local function requestClothesLoadDelayed(ms)
 end
 
 RegisterNetEvent('driftzone_inventory:client:applyClothes', function(payload)
-    applyClothesPayload(payload or {})
+    payload = payload or {}
+    applyClothesPayload(payload)
 
-    -- Reaplica de cateva ori ca sa bata spawn/model-load intarziat.
-    SetTimeout(350, function() applyClothesPayload(payload or {}) end)
-    SetTimeout(1200, function() applyClothesPayload(payload or {}) end)
-    SetTimeout(2800, function() applyClothesPayload(payload or {}) end)
+    -- Reaplica hainele/default-urile ca sa bata spawn/model-load intarziat.
+    local count = tonumber((Config.ClothesLoad or {}).ApplyRepeatCount or 8) or 8
+    local delay = tonumber((Config.ClothesLoad or {}).ApplyRepeatDelayMs or 500) or 500
+    for i = 1, count do
+        SetTimeout(delay * i, function()
+            applyClothesPayload(payload)
+        end)
+    end
 end)
 
 RegisterNetEvent('driftzone_inventory:client:playActionAnimation', function(actionName)

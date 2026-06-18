@@ -1083,20 +1083,51 @@ local function buildUserClothesForUi(uid)
     return out
 end
 
+local function buildEmptyClothingApplyEntry(category)
+    category = normalizeClothingCategory(category)
+    if not category then return nil end
+
+    local _, cfg = getClothingCategoryConfig(category)
+    if not cfg then return nil end
+
+    local defaults = Config.EmptyClothingDefaults or Config.EmptyClothes or {}
+    local def = defaults[category] or {}
+    local ctype = tostring(def.type or cfg.type or 'component')
+
+    return {
+        category = category,
+        item_id = '',
+        empty = true,
+        drawable = math.floor(tonumber(def.drawable or 0) or 0),
+        texture = math.max(0, math.floor(tonumber(def.texture or 0) or 0)),
+        clothes_type = ctype,
+        component_id = tonumber(def.componentId or def.component_id or cfg.componentId or -1) or -1,
+        prop_id = tonumber(def.propId or def.prop_id or cfg.propId or -1) or -1
+    }
+end
+
 local function buildUserClothesApplyPayload(uid)
     local saved = getUserClothes(uid)
     local out = {}
-    for category, item in pairs(saved) do
-        out[category] = {
-            category = category,
-            item_id = item.item_id,
-            drawable = item.drawable,
-            texture = item.texture,
-            clothes_type = item.clothes_type,
-            component_id = item.component_id,
-            prop_id = item.prop_id
-        }
+
+    for _, category in ipairs(clothingCategoryOrder()) do
+        local item = saved[category]
+        if item and item.item_id then
+            out[category] = {
+                category = category,
+                item_id = item.item_id,
+                drawable = item.drawable,
+                texture = item.texture,
+                clothes_type = item.clothes_type,
+                component_id = item.component_id,
+                prop_id = item.prop_id,
+                empty = false
+            }
+        else
+            out[category] = buildEmptyClothingApplyEntry(category)
+        end
     end
+
     return out
 end
 
@@ -1185,8 +1216,9 @@ local function unequipClothingToSlot(src, uid, category, toSlot)
 
     saveUserClothing(uid, category, nil)
     saveInventory(uid)
+    -- Dupa ce slotul ramane gol, trimitem si default-ul din Config.EmptyClothingDefaults.
     pushClothesToClient(src, uid)
-    return true, 'Haina a fost scoasa.'
+    return true, 'Haina a fost scoasa si scoasa de pe caracter.'
 end
 
 local function requestClothesLoadForPlayer(src, attempt)
