@@ -276,7 +276,18 @@ function renderClothingSlots() {
     clothingSlotsEl.innerHTML = cats.map((cat) => {
         const key = normalizeCategoryKey(cat.key);
         const item = clothingSlots[key];
-        return `<div class="clothing-slot cat-${esc(key)}${item ? ' filled' : ''}" data-clothing="${esc(key)}" title="${esc(cat.label || key)}">${item ? itemVisual(item) : clothingEmptySvg(cat)}</div>`;
+        const left = Number(cat.slotLeft);
+        const top = Number(cat.slotTop);
+        const size = Number(cat.slotSize);
+        const styleParts = [];
+        if (Number.isFinite(left)) styleParts.push(`left:${Math.max(0, Math.min(100, left))}%`);
+        if (Number.isFinite(top)) styleParts.push(`top:${Math.max(0, Math.min(100, top))}%`);
+        if (Number.isFinite(size) && size > 0) {
+            const safeSize = Math.max(44, Math.min(74, size));
+            styleParts.push(`width:${safeSize}px`, `height:${safeSize}px`);
+        }
+        const style = styleParts.length ? ` style="${styleParts.join(';')}"` : '';
+        return `<div class="clothing-slot cat-${esc(key)}${item ? ' filled' : ''}" data-clothing="${esc(key)}" title="${esc(cat.label || key)}"${style}>${item ? itemVisual(item) : clothingEmptySvg(cat)}</div>`;
     }).join('');
 }
 

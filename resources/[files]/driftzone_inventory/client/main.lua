@@ -12,6 +12,7 @@ local markerRotation = 0.0
 local nearbyDrops = {}
 local closeAll
 local clothesApplyRevision = 0
+local clothesUnequipLocks = {}
 
 local function notify(typ, msg, duration)
     TriggerEvent(Config.NotifyEvent or 'client:notify', typ or 'info', duration or 4500, tostring(msg or ''))
@@ -148,6 +149,14 @@ local function applyClothingEntry(entry)
     if not ped or ped == 0 or not DoesEntityExist(ped) then return false end
 
     local category = tostring(entry.category or entry.category_key or '')
+    local now = GetGameTimer()
+    local lockedUntil = tonumber(clothesUnequipLocks[category] or 0) or 0
+    if lockedUntil > now and entry.empty ~= true and entry.action ~= 'equip' then
+        return false
+    elseif lockedUntil > 0 and lockedUntil <= now then
+        clothesUnequipLocks[category] = nil
+    end
+
     if entry.empty == true then
         entry = buildDefaultClothingEntry(category, entry)
     end
@@ -197,6 +206,10 @@ RegisterNetEvent('driftzone_inventory:client:clearClothingCategory', function(ca
     if not acceptClothesRevision(revision) then return end
     category = tostring(category or '')
     if category == '' then return end
+
+    local lockMs = tonumber((Config.ClothesLoad or {}).UnequipLockMs or 3000) or 3000
+    clothesUnequipLocks[category] = GetGameTimer() + lockMs
+
     applyClothingEntry(buildDefaultClothingEntry(category, entry or {}))
 end)
 

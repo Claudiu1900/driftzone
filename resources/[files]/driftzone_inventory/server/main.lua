@@ -76,13 +76,17 @@ local function buildClothingCategoriesPayload()
     local out = {}
     for _, key in ipairs(clothingCategoryOrder()) do
         local cfg = (Config.ClothingCategories or {})[key] or {}
+        local pos = (Config.ClothingSlotPositions or {})[key] or {}
         out[#out + 1] = {
             key = key,
             label = tostring(cfg.label or key),
             icon = tostring(cfg.icon or (key .. '.svg')),
             type = tostring(cfg.type or 'component'),
             componentId = tonumber(cfg.componentId or -1) or -1,
-            propId = tonumber(cfg.propId or -1) or -1
+            propId = tonumber(cfg.propId or -1) or -1,
+            slotLeft = tonumber(pos.left or cfg.slotLeft or 50) or 50,
+            slotTop = tonumber(pos.top or cfg.slotTop or 50) or 50,
+            slotSize = tonumber(pos.slotSize or cfg.slotSize or 62) or 62
         }
     end
     return out
@@ -1033,7 +1037,7 @@ local function saveUserClothing(uid, category, data)
     if not uid or uid <= 0 or not category then return false end
     ensureUserClothesRow(uid)
 
-    local value = nil
+    local value = '{}'
     if type(data) == 'table' and trim(data.item_id) ~= '' then
         value = jsonEncode({
             item_id = trim(data.item_id),
@@ -1162,7 +1166,7 @@ local function clearClothingCategoryOnClient(src, category)
     )
 end
 
-local function buildSingleClothingApplyPayload(uid, category)
+local function buildSingleClothingApplyPayload(uid, category, actionName)
     category = normalizeClothingCategory(category)
     if not category then return {} end
 
@@ -1179,7 +1183,8 @@ local function buildSingleClothingApplyPayload(uid, category)
                 clothes_type = item.clothes_type,
                 component_id = item.component_id,
                 prop_id = item.prop_id,
-                empty = false
+                empty = false,
+                action = tostring(actionName or 'load')
             }
         }
     end
@@ -1194,11 +1199,11 @@ local function pushClothesToClient(src, uid)
     sendClothesPayloadToClient(src, buildUserClothesApplyPayload(uid))
 end
 
-local function pushSingleClothingToClient(src, uid, category)
+local function pushSingleClothingToClient(src, uid, category, actionName)
     if not src or src <= 0 then return end
     uid = uid or getUid(src)
     if not uid then return end
-    sendClothesPayloadToClient(src, buildSingleClothingApplyPayload(uid, category))
+    sendClothesPayloadToClient(src, buildSingleClothingApplyPayload(uid, category, actionName))
 end
 
 local function equipClothingFromSlot(src, uid, category, slotIndex)
@@ -1260,7 +1265,7 @@ local function equipClothingFromSlot(src, uid, category, slotIndex)
     })
 
     saveInventory(uid)
-    pushSingleClothingToClient(src, uid, category)
+    pushSingleClothingToClient(src, uid, category, 'equip')
     return true, ('Ai echipat %s.'):format(meta.item_name or meta.item_id)
 end
 
@@ -1274,15 +1279,27 @@ local function unequipClothingToSlot(src, uid, category, toSlot)
     if not old or not old.item_id then return false, 'Nu ai haina echipata acolo.' end
 
     if not hasFreeSlotOrStack(uid, old.item_id, 1) then return false, 'Nu ai slot liber in inventar.' end
-    local okAdd, msgAdd = addItemToUidPreferred(uid, old.item_id, 1, toSlot)
-    if not okAdd then return false, msgAdd or 'Nu pot pune haina in inventar.' end
 
-    saveUserClothing(uid, category, nil)
+    -- IMPORTANT: intai stergem haina din users_clothes cu '{}' (nu NULL/nil),
+    -- altfel oxmysql poate primi parametri gresiti si DB ramane cu haina veche.
+    local savedCleared = saveUserClothing(uid, category, nil)
+    if not savedCleared then
+        return false, 'Nu am putut salva slotul gol in users_clothes.'
+    end
+
+    local okAdd, msgAdd = addItemToUidPreferred(uid, old.item_id, 1, toSlot)
+    if not okAdd then
+        -- rollback: daca nu putem pune itemul inapoi in inventar, pastram haina echipata in DB.
+        saveUserClothing(uid, category, old)
+        return false, msgAdd or 'Nu pot pune haina in inventar.'
+    end
+
     saveInventory(uid)
 
-    -- Aplicare directa, o singura data, ca sa nu mai ramana pe caracter dupa ce slotul devine gol.
+    -- Aplicare directa, o singura data. Clientul pune lock scurt pe categorie,
+    -- deci orice payload vechi intarziat nu mai poate pune itemul inapoi.
     clearClothingCategoryOnClient(src, category)
-    return true, 'Haina a fost scoasa si scoasa de pe caracter.'
+    return true, 'Haina a fost scoasa.'
 end
 
 local function requestClothesLoadForPlayer(src, attempt)

@@ -111,6 +111,30 @@ Config.ClothingCategories = {
     glasses = { label = 'Glasses', icon = 'glasses.svg', type = 'prop', propId = 1 }
 }
 
+
+-- Pozitiile sloturilor pe manechinul din inventar.
+-- left/top sunt procente in cardul de haine. slotSize este in pixeli.
+-- Modifica doar valorile astea daca vrei sa muti un slot fara sa umbli in UI.
+Config.ClothingSlotPositions = {
+    hat = { left = 50, top = 7, slotSize = 62 },
+    glasses = { left = 50, top = 16, slotSize = 62 },
+    mask = { left = 50, top = 24, slotSize = 62 },
+    accessories = { left = 50, top = 31, slotSize = 62 },
+
+    jacket = { left = 50, top = 40, slotSize = 62 },
+    top = { left = 34, top = 43, slotSize = 62 },
+    torso = { left = 66, top = 43, slotSize = 62 },
+    vest = { left = 50, top = 49, slotSize = 62 },
+    bag = { left = 18, top = 48, slotSize = 62 },
+
+    watches = { left = 82, top = 56, slotSize = 62 },
+    bracelets = { left = 18, top = 57, slotSize = 62 },
+
+    pants = { left = 50, top = 66, slotSize = 62 },
+    shoes = { left = 50, top = 88, slotSize = 62 }
+}
+
+
 -- Ce se aplica pe player cand slotul de haina este gol.
 -- Modifici drawable/texture aici daca pe serverul tau "gol" inseamna alt ID.
 -- Pentru prop-uri, drawable = -1 inseamna ClearPedProp.
@@ -141,6 +165,9 @@ Config.ClothesLoad = {
     -- Asa nu mai apare bugul in care un payload vechi pune haina inapoi dupa ce ai scos-o.
     ApplyRepeatCount = 0,
     ApplyRepeatDelayMs = 0,
+
+    -- Dupa ce scoti o haina, clientul ignora cateva secunde orice payload vechi care ar incerca sa o puna inapoi.
+    UnequipLockMs = 3000,
 
     -- Se cer cateva reload-uri doar pentru momentul de join/spawn, cand UID-ul poate veni cu delay.
     ClientRetryDelays = { 500, 1500, 3000, 6000, 9500 }

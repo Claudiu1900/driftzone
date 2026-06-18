@@ -38,3 +38,9 @@ Ruleaza `SQL.sql` doar daca nu ai tabelele `clothes_items` si `users_clothes`.
 - `/items` admin 6+ aduty
 - `/addclothes` admin 6+ aduty
 - `/clothesitems` admin 6+ aduty
+
+
+## Fix inclus
+- Sloturile de haine au fost puse inapoi pe pozitiile vechi.
+- Unequip salveaza slotul gol ca `{}` in `users_clothes`, nu NULL/nil, ca sa nu revina itemul dupa o fractiune de secunda.
+- Clientul pune lock scurt pe categoria scoasa ca payload-urile vechi sa nu poata reaplica haina.
