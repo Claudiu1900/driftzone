@@ -8,6 +8,10 @@ local PendingClientSpawns = {}
 local Garages = {}
 local GarageById = {}
 
+local vehicleExists
+local getServerVehiclesSafe
+local getGarageVehicleIdFromEntity
+
 local function trim(value)
     return tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
 end
@@ -406,20 +410,22 @@ local function getOutsideVehicleCount(uid)
 
     local ids = {}
 
-    for vehicleId, data in pairs(ActiveVehicles) do
-        if data and tonumber(data.ownerUid or 0) == uid and vehicleExists(data.entity) then
+    for vehicleId, data in pairs(ActiveVehicles or {}) do
+        if data and tonumber(data.ownerUid or 0) == uid and vehicleExists and vehicleExists(data.entity) then
             ids[tonumber(vehicleId) or 0] = true
         end
     end
 
-    for _, entity in ipairs(getServerVehiclesSafe()) do
-        if vehicleExists(entity) then
-            local state = Entity(entity).state
-            local ownerUid = tonumber(state.dz_garage_owner_uid or 0) or 0
-            local vehicleId = tonumber(state.dz_garage_db_id or state.ownedVehicleId or state.vehicle_id or 0) or 0
+    if getServerVehiclesSafe and vehicleExists then
+        for _, entity in ipairs(getServerVehiclesSafe()) do
+            if vehicleExists(entity) then
+                local state = Entity(entity).state
+                local ownerUid = tonumber(state.dz_garage_owner_uid or 0) or 0
+                local vehicleId = tonumber(state.dz_garage_db_id or state.ownedVehicleId or state.vehicle_id or 0) or 0
 
-            if ownerUid == uid and vehicleId > 0 then
-                ids[vehicleId] = true
+                if ownerUid == uid and vehicleId > 0 then
+                    ids[vehicleId] = true
+                end
             end
         end
     end
@@ -441,20 +447,20 @@ local function randomPlate()
     return ('DZ%06d'):format(math.random(0, 999999)):sub(1, 8)
 end
 
-local function vehicleExists(entity)
+vehicleExists = function(entity)
     return entity and entity ~= 0 and DoesEntityExist(entity)
 end
 
-local function getServerVehiclesSafe()
+getServerVehiclesSafe = function()
     local ok, vehicles = pcall(GetAllVehicles)
     if ok and type(vehicles) == 'table' then return vehicles end
     return {}
 end
 
-local function getGarageVehicleIdFromEntity(entity)
+getGarageVehicleIdFromEntity = function(entity)
     if not vehicleExists(entity) then return 0 end
     local state = Entity(entity).state
-    return tonumber(state.dz_garage_db_id or state.vehicleDbId or state.ownedVehicleId or state.dz_owned_vehicle_id or 0) or 0
+    return tonumber(state.dz_garage_db_id or state.vehicleDbId or state.ownedVehicleId or state.dz_owned_vehicle_id or state.vehicle_id or 0) or 0
 end
 
 local function findExistingGarageVehicle(vehicleId)

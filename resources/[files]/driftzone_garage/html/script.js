@@ -145,6 +145,7 @@ function updateGarage(data) {
     const payload = normalizeOpenData(data);
     if (payload.garage) currentGarage = payload.garage;
 
+    pendingVehicleActions.clear();
     prepareVehicles(payload.vehicles);
     hasVip = payload.hasVip;
     updateTabs();

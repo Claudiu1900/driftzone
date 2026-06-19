@@ -129,3 +129,11 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - Masina se poate parca/despawna doar in zona de park.
 - Cand esti cu masina ta in zona de park apare jos: `Apasa E pentru a parca vehiculul.`
 - `/park` functioneaza doar daca esti in zona de park.
+
+
+## Update V2.9 - spawn nil fix
+
+- Fix eroare server: `getServerVehiclesSafe nil`.
+- `vehicleExists`, `getServerVehiclesSafe` si `getGarageVehicleIdFromEntity` sunt forward-declared corect.
+- `getOutsideVehicleCount` este safe si nu mai poate opri spawn-ul daca o functie lipseste.
+- Spawn-ul nu mai este blocat din cauza erorii de limitare `outsidevehicles`.
