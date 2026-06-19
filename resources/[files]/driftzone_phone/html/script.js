@@ -657,6 +657,7 @@ function vehicleIsSpawned(v) {
     if (!v) return false;
     if (v.entitySpawned === true) return true;
     if (v.spawned === true) return true;
+    if (Number(v.rawGarage ?? v.garage ?? v.garageId ?? 1) <= 0) return true;
     return false;
 }
 
@@ -730,6 +731,9 @@ function updateGarageVehicleLocalState(id, spawned) {
     v.stored = spawned !== true;
 
     if (spawned === true) {
+        v.rawGarage = 0;
+        v.garage = 0;
+        v.garageId = 0;
         v.garageName = 'Pe strada';
     }
 }

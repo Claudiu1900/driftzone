@@ -134,3 +134,12 @@ Mesaje:
 - UI schimba instant optiunile dupa spawn/parcare si apoi sincronizeaza iar cu serverul.
 - Dupa spawn/parcare se trimite refresh de state de doua ori ca NUI-ul sa prinda sigur statusul nou.
 - Scrollbar-ul ramane ascuns.
+
+
+## V1.2.4 garage zero semantic fix
+
+- Reparat problema: dupa spawn masina aparea 1 secunda `AFARA`, apoi revenea `GARAJ`.
+- De acum `ownedvehicles.garage = 0` inseamna corect masina scoasa.
+- La pornirea resursei, masinile vechi cu `garage = 0` sunt mutate automat in garajul default ca sa nu apara toate afara.
+- Dupa spawn, DB seteaza `garage = 0`, iar UI ramane pe `AFARA`.
+- La parcare, DB seteaza `garage = id-ul garajului`.

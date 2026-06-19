@@ -644,6 +644,8 @@ local function getPhoneGarageVehicleRows(uid)
         local vehicleId = tonumber(row.id or 0) or 0
         local rawGarageId = tonumber(row.garage or 0) or 0
         local garageId = rawGarageId
+        local dbOutside = rawGarageId <= 0
+
         if garageId <= 0 then
             garageId = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
         end
@@ -653,9 +655,10 @@ local function getPhoneGarageVehicleRows(uid)
         local activeSpawned = active ~= nil and tonumber(active.netId or 0) > 0
         local entitySpawned = vehicleExists(entity) or activeSpawned
 
-        -- AFARA inseamna runtime spawnat in sesiunea curenta.
-        -- ownedvehicles.garage = 0 singur NU mai inseamna AFARA, ca multe masini vechi pot avea 0.
-        local spawned = entitySpawned
+        -- Corect:
+        -- garage = 0 inseamna scoasa din garaj.
+        -- Masinile vechi cu 0 sunt migrate la start catre garajul default.
+        local spawned = dbOutside or entitySpawned
         local stored = not spawned
 
         local currentGarageId = active and tonumber(active.garageId or 0) or 0
@@ -784,6 +787,24 @@ local function ensurePhoneGarageTables()
             sqlName(Config.UsersTable or 'users'),
             tostring(garageCfg().OutsideVehiclesColumn or 'outsidevehicles'):gsub('`', '')
         ))
+    end)
+end
+
+
+local function migrateOldGarageZeroVehicles()
+    local defaultGarageId = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
+    if defaultGarageId <= 0 then defaultGarageId = 1 end
+
+    -- Prima pornire dupa integrare:
+    -- masinile vechi pot avea garage = 0, dar nu sunt spawnate.
+    -- Le mutam in garajul default ca de acum incolo garage=0 sa fie folosit strict pentru "scoasa".
+    pcall(function()
+        MySQL.update.await(('UPDATE %s SET %s = ? WHERE %s IS NULL OR %s = 0'):format(
+            sqlName(ownedVehiclesTable()),
+            sqlName(garageColumn()),
+            sqlName(garageColumn()),
+            sqlName(garageColumn())
+        ), { defaultGarageId })
     end)
 end
 
@@ -1319,7 +1340,8 @@ RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
 
     local storedGarage = tonumber(row.garage or 0) or 0
     if storedGarage <= 0 then
-        storedGarage = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
+        notifyPhone(src, 'warning', 'Masina este deja scoasa.')
+        return refreshPhoneGarage(src)
     end
 
     if storedGarage ~= tonumber(garage.id or 0) then
@@ -1582,13 +1604,9 @@ RegisterNetEvent('driftzone_phone:server:garageTow', function(vehicleId)
     local currentGarageId = tonumber(row.garage or 0) or 0
     local targetGarageId = tonumber(garage.id or 0) or 0
 
-    if isGarageVehicleSpawned(vehicleId) then
+    if currentGarageId <= 0 or isGarageVehicleSpawned(vehicleId) then
         notifyPhone(src, 'warning', 'Masina este scoasa. Nu poate fi tractata.')
         return refreshPhoneGarage(src)
-    end
-
-    if currentGarageId <= 0 then
-        currentGarageId = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
     end
 
     if currentGarageId == targetGarageId then
@@ -1666,5 +1684,8 @@ end)
 CreateThread(function()
     Wait(1000)
     pcall(ensurePhoneGarageTables)
+    pcall(migrateOldGarageZeroVehicles)
+    GaragesCache = nil
+    loadPhoneGarages(true)
     print('[DRIFTZONE_PHONE] Loaded. Command: /' .. tostring(Config.Command or 'phone'))
 end)
