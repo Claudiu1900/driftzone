@@ -755,7 +755,12 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
         local tuningRaw = normalizeTuning(row.vehicle_tunning or '{}')
         local gradientRaw = normalizeGradient(row.gradient or '')
 
-        local entity = CreateVehicle(hash, spot.x, spot.y, spot.z, spot.h or 0.0, true, true)
+        local spawnHeading = tonumber(spot.h or spot.heading or 0.0) or 0.0
+        local spawnX = tonumber(spot.x or 0.0) or 0.0
+        local spawnY = tonumber(spot.y or 0.0) or 0.0
+        local spawnZ = tonumber(spot.z or 0.0) or 0.0
+
+        local entity = CreateVehicle(hash, spawnX, spawnY, spawnZ, spawnHeading, true, true)
         spawnedEntity = entity
 
         local timeout = GetGameTimer() + 6000
@@ -767,7 +772,8 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
         end
 
         SetEntityRoutingBucket(entity, bucket)
-        SetEntityHeading(entity, tonumber(spot.h or 0.0) or 0.0)
+        SetEntityCoords(entity, spawnX, spawnY, spawnZ, false, false, false, false)
+        SetEntityHeading(entity, spawnHeading)
         SetVehicleNumberPlateText(entity, plate)
         SetVehicleDoorsLocked(entity, 2)
 
@@ -799,7 +805,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
             gradient = gradientRaw,
             garageId = garage.id,
             parkingIndex = spotIndex,
-            heading = tonumber(spot.h or 0.0) or 0.0
+            heading = spawnHeading
         }
 
         setGarageVehicleState(entity, {
@@ -813,7 +819,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
             tuning = tuningRaw,
             gradient = gradientRaw,
             garageId = garage.id,
-            heading = tonumber(spot.h or 0.0) or 0.0
+            heading = spawnHeading
         })
 
         pcall(function()
@@ -825,6 +831,13 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
         notify(src, 'info', ('Vehiculul %s a fost scos din garaj.'):format(vehicleName))
         refreshGarageList(src, garage)
 
+        local spawnTransform = {
+            x = spawnX,
+            y = spawnY,
+            z = spawnZ,
+            h = spawnHeading
+        }
+
         TriggerClientEvent('driftzone_garage:client:prepareVehicle', src, netId, {
             id = vehicleId,
             model = model,
@@ -833,8 +846,16 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
             tuning = tuningRaw,
             gradient = gradientRaw,
             forceTuning = true,
-            heading = tonumber(spot.h or 0.0) or 0.0
+            spawn = spawnTransform,
+            heading = spawnHeading
         })
+
+        -- Trimis si separat, ca directia sa ramana exact heading-ul parcarii.
+        TriggerClientEvent('driftzone_garage:client:forceSpawnTransform', -1, netId, spawnTransform)
+
+        SetTimeout(350, function()
+            TriggerClientEvent('driftzone_garage:client:forceSpawnTransform', -1, netId, spawnTransform)
+        end)
 
         SetTimeout(1200, function()
             if GetPlayerName(src) and ActiveVehicles[vehicleId] and ActiveVehicles[vehicleId].netId == netId then
@@ -842,7 +863,9 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
                     id = vehicleId,
                     tuning = tuningRaw,
                     gradient = gradientRaw,
-                    plate = plate
+                    plate = plate,
+                    spawn = spawnTransform,
+                    heading = spawnHeading
                 })
             end
         end)
@@ -853,7 +876,9 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
                     id = vehicleId,
                     tuning = tuningRaw,
                     gradient = gradientRaw,
-                    plate = plate
+                    plate = plate,
+                    spawn = spawnTransform,
+                    heading = spawnHeading
                 })
             end
         end)

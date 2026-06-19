@@ -3,13 +3,15 @@ Config = {}
 -- Comenzi
 Config.Command = 'vehss'
 Config.CloseCommand = 'vehssclose'
+Config.CleanToggleCommand = 'vehssclean'
+Config.CleanToggleDefaultKey = 'OEM_3' -- tasta ` / ~. Daca nu merge pe tastatura ta, foloseste /vehssclean.
 
 -- Notificari. Daca nu ai event-ul client:notify, seteaza nil si va folosi chat-ul.
 Config.NotifyEvent = 'client:notify'
 Config.ChatFallback = true
 Config.MainColor = '#04c7f7'
 
--- Lasat pe false ca sa mearga comanda direct. Daca vrei restrictie, pune true si seteaza ACE.
+-- Acces. Lasat pe false ca sa mearga direct.
 Config.RequirePermission = false
 Config.PermissionAce = 'driftzone.vehss'
 
@@ -19,27 +21,17 @@ Config.AuthResource = 'driftzone_auth'
 Config.RequiredAdminLevel = 6
 Config.RequireAduty = true
 
-Config.Screenshot = {
-    resource = 'screenshot-basic',
-    directory = 'screenshots',
+-- HUD extern DriftZone.
+Config.Hud = {
+    enabled = true,
+    showEvent = 'driftzone_hud:client:show',
+    hideEvent = 'driftzone_hud:client:hide',
+    visibleEvent = 'driftzone_hud:visible',
 
-    -- true = mereu model_name.jpg. false = model_name.jpg, model_name_2.jpg, model_name_3.jpg
-    overwriteSameModel = true,
-
-    -- JPG e pus intentionat ca sa nu mai umple Reliable Network Queue.
-    -- Daca pui png, poza devine mult mai mare si upload-ul dureaza mai mult.
-    encoding = 'jpg',
-    quality = 0.58,
-
-    -- timp pentru ascunderea UI-ului inainte de poza
-    prepareDelayMs = 550,
-
-    -- upload client -> server prin latent event, fara crash Reliable network event size overflow
-    latentBps = 85000,
-    maxDataLength = 9000000,
-
-    -- timeout pentru captura/upload
-    timeoutMs = 90000
+    -- Nu e recomandat sa folosesti toggle, pentru ca poate inversa gresit starea.
+    -- Lasa false. Daca HUD-ul tau merge DOAR cu toggle, pune true.
+    callToggleEvent = false,
+    toggleEvent = 'driftzone_hud:client:toggle'
 }
 
 Config.Studio = {

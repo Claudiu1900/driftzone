@@ -416,6 +416,31 @@ AddStateBagChangeHandler('dz_garage_gradient', nil, function(bagName, key, value
 end)
 
 
+local function forceVehicleTransform(entity, spawn)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return end
+
+    spawn = type(spawn) == 'table' and spawn or {}
+
+    local x = tonumber(spawn.x)
+    local y = tonumber(spawn.y)
+    local z = tonumber(spawn.z)
+    local h = tonumber(spawn.h or spawn.heading)
+
+    requestControl(entity, 700)
+
+    if x and y and z then
+        SetEntityCoordsNoOffset(entity, x, y, z, false, false, false)
+        Wait(0)
+        SetVehicleOnGroundProperly(entity)
+        Wait(0)
+    end
+
+    if h then
+        SetEntityHeading(entity, h)
+        SetVehicleForwardSpeed(entity, 0.0)
+    end
+end
+
 local function prepareVehicleByNetId(netId, data)
     data = data or {}
 
@@ -429,9 +454,10 @@ local function prepareVehicleByNetId(netId, data)
     requestControl(entity, 5000)
     SetVehicleNumberPlateText(entity, tostring(data.plate or 'DRIFT'):sub(1, 8))
 
-    local heading = tonumber(data.heading or data.h or 0.0) or 0.0
-    SetEntityHeading(entity, heading)
-    SetVehicleOnGroundProperly(entity)
+    local heading = tonumber(data.heading or data.h or (data.spawn and data.spawn.h) or 0.0) or 0.0
+    local spawnTransform = type(data.spawn) == 'table' and data.spawn or { h = heading }
+
+    forceVehicleTransform(entity, spawnTransform)
 
     -- Fara godmode si fara teleport in masina.
     repairOnce(entity)
@@ -450,12 +476,33 @@ local function prepareVehicleByNetId(netId, data)
     for i = 1, #delays do
         Wait(delays[i])
         if not DoesEntityExist(entity) then break end
-        SetEntityHeading(entity, heading)
+        forceVehicleTransform(entity, spawnTransform)
         forceGarageTuningByNetId(netId, data)
+        forceVehicleTransform(entity, spawnTransform)
     end
 
     TriggerServerEvent('driftzone_garage:server:spawnPrepared', tonumber(data.id or 0))
 end
+
+
+RegisterNetEvent('driftzone_garage:client:forceSpawnTransform', function(netId, spawn)
+    netId = tonumber(netId or 0) or 0
+    if netId <= 0 then return end
+
+    CreateThread(function()
+        local entity = getVehicleFromNetId(netId)
+        if not entity or entity == 0 or not DoesEntityExist(entity) then return end
+
+        local delays = { 0, 120, 300, 650, 1100, 1800 }
+
+        for i = 1, #delays do
+            if delays[i] > 0 then Wait(delays[i]) end
+            if not DoesEntityExist(entity) then return end
+            forceVehicleTransform(entity, spawn or {})
+        end
+    end)
+end)
+
 
 RegisterNetEvent('driftzone_garage:client:open', function(vehicles, hasVip, garage)
     if not canOpenGarage() then return end

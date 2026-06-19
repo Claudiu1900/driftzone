@@ -1,11 +1,10 @@
 local open = false
+local cleanMode = false
 local studioVehicle = 0
 local studioCam = nil
 local currentModel = nil
-local takingShot = false
-local shotToken = 0
-
 local savedPed = nil
+local lastCleanToggle = 0
 
 local currentSettings = {
     heading = 45.0,
@@ -32,8 +31,7 @@ local function notify(typ, msg, duration)
     msg = tostring(msg or '')
     if Config.NotifyEvent and Config.NotifyEvent ~= '' then
         TriggerEvent(Config.NotifyEvent, typ or 'info', duration or 5000, msg)
-    end
-    if not Config.NotifyEvent or Config.NotifyEvent == '' then
+    else
         chat(msg)
     end
 end
@@ -73,6 +71,64 @@ local function resetSettings()
     currentSettings.autoRotate = false
     currentSettings.lights = true
     currentSettings.doors = false
+end
+
+local function safeTriggerEvent(name, ...)
+    if name and name ~= '' then
+        pcall(function(...)
+            TriggerEvent(name, ...)
+        end, ...)
+    end
+end
+
+local function setDriftzoneHudVisible(state)
+    if not Config.Hud or Config.Hud.enabled == false then return end
+
+    if Config.Hud.callToggleEvent == true then
+        safeTriggerEvent(Config.Hud.toggleEvent or 'driftzone_hud:client:toggle')
+        return
+    end
+
+    if state then
+        safeTriggerEvent(Config.Hud.showEvent or 'driftzone_hud:client:show')
+        safeTriggerEvent(Config.Hud.visibleEvent or 'driftzone_hud:visible', true)
+    else
+        safeTriggerEvent(Config.Hud.hideEvent or 'driftzone_hud:client:hide')
+        safeTriggerEvent(Config.Hud.visibleEvent or 'driftzone_hud:visible', false)
+    end
+end
+
+local function applyGameHudVisible(state)
+    DisplayRadar(state == true)
+    DisplayHud(state == true)
+    setDriftzoneHudVisible(state == true)
+end
+
+local function setCleanMode(state, silent)
+    if not open then return end
+
+    cleanMode = state == true
+
+    if cleanMode then
+        setFocus(false)
+        sendNui({ action = 'cleanMode', enabled = true })
+        applyGameHudVisible(false)
+        if not silent then notify('info', 'UI/HUD ascunse. Apasa ` iar ca sa apara inapoi.', 3500) end
+    else
+        sendNui({ action = 'cleanMode', enabled = false })
+        applyGameHudVisible(true)
+        setFocus(true)
+        if not silent then notify('info', 'UI/HUD afisate inapoi.', 2500) end
+    end
+end
+
+local function toggleCleanMode(silent)
+    local now = GetGameTimer()
+    if now - lastCleanToggle < 350 then return end
+    lastCleanToggle = now
+
+    if not open then return end
+    setCleanMode(not cleanMode, silent == true)
 end
 
 local function saveAndMovePlayer()
@@ -139,8 +195,12 @@ local function deleteCurrentVehicle()
 end
 
 local function destroyStudio()
+    if cleanMode then
+        cleanMode = false
+        applyGameHudVisible(true)
+    end
+
     open = false
-    takingShot = false
     currentModel = nil
 
     if studioCam then
@@ -237,13 +297,13 @@ local function spawnStudioVehicle(modelName, keepView)
     modelName = cleanModel(modelName)
     if modelName == '' then
         notify('warning', 'Scrie modelul masinii.')
-        return false
+        return false, 'empty'
     end
 
     local hash = joaat(modelName)
     if not IsModelInCdimage(hash) or not IsModelAVehicle(hash) then
         notify('warning', 'Model invalid: ' .. modelName)
-        return false
+        return false, 'invalid'
     end
 
     RequestModel(hash)
@@ -252,8 +312,12 @@ local function spawnStudioVehicle(modelName, keepView)
         Wait(0)
         if GetGameTimer() > timeout then
             notify('warning', 'Nu am putut incarca modelul: ' .. modelName)
-            return false
+            return false, 'timeout'
         end
+    end
+
+    if not savedPed then
+        saveAndMovePlayer()
     end
 
     deleteCurrentVehicle()
@@ -265,7 +329,7 @@ local function spawnStudioVehicle(modelName, keepView)
 
     if not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle) then
         notify('warning', 'Nu am putut crea masina.')
-        return false
+        return false, 'create_failed'
     end
 
     currentModel = modelName
@@ -281,20 +345,22 @@ local function spawnStudioVehicle(modelName, keepView)
     RenderScriptCams(true, true, 300, true, true)
     updateCamera()
 
-    return true
+    return true, nil
 end
 
 local function updateUi()
     sendNui({
         action = 'state',
         model = currentModel or '',
+        hasVehicle = studioVehicle ~= 0 and DoesEntityExist(studioVehicle),
         heading = math.floor((currentSettings.heading or 0) * 10) / 10,
         fov = math.floor((currentSettings.fov or 0) * 10) / 10,
         distance = math.floor((currentSettings.distance or 0) * 10) / 10,
         height = math.floor((currentSettings.height or 0) * 10) / 10,
         autoRotate = currentSettings.autoRotate == true,
         lights = currentSettings.lights == true,
-        doors = currentSettings.doors == true
+        doors = currentSettings.doors == true,
+        cleanMode = cleanMode == true
     })
 end
 
@@ -306,6 +372,12 @@ RegisterCommand(Config.CloseCommand or 'vehssclose', function()
     destroyStudio()
 end, false)
 
+RegisterCommand(Config.CleanToggleCommand or 'vehssclean', function()
+    toggleCleanMode(false)
+end, false)
+
+RegisterKeyMapping(Config.CleanToggleCommand or 'vehssclean', 'DriftZone Vehicless - hide/show UI + HUD', 'keyboard', Config.CleanToggleDefaultKey or 'OEM_3')
+
 RegisterNetEvent('driftzone_vehicless:client:openStudio', function(data)
     data = data or {}
     local model = cleanModel(data.model or '')
@@ -313,18 +385,25 @@ RegisterNetEvent('driftzone_vehicless:client:openStudio', function(data)
     if open then destroyStudio() Wait(250) end
 
     open = true
+    cleanMode = false
+    currentModel = nil
     resetSettings()
-    saveAndMovePlayer()
 
-    local ok = spawnStudioVehicle(model, true)
-    if not ok then
-        destroyStudio()
-        return
-    end
-
+    applyGameHudVisible(true)
     setFocus(true)
     sendNui({ action = 'open', model = model, mainColor = data.mainColor or Config.MainColor or '#04c7f7' })
     updateUi()
+
+    if model ~= '' then
+        local ok = spawnStudioVehicle(model, true)
+        if ok then
+            sendNui({ action = 'open', model = model, mainColor = Config.MainColor or '#04c7f7' })
+            updateUi()
+        else
+            sendNui({ action = 'loadFailed', model = model })
+            updateUi()
+        end
+    end
 end)
 
 RegisterNUICallback('close', function(_, cb)
@@ -332,18 +411,27 @@ RegisterNUICallback('close', function(_, cb)
     cb({ ok = true })
 end)
 
+RegisterNUICallback('toggleClean', function(_, cb)
+    toggleCleanMode(false)
+    cb({ ok = true })
+end)
+
 RegisterNUICallback('loadModel', function(data, cb)
     data = data or {}
-    if not open then cb({ ok = false }) return end
+    if not open then cb({ ok = false, error = 'closed' }) return end
 
     local model = cleanModel(data.model)
-    local ok = spawnStudioVehicle(model, data.keepView ~= false)
+    local ok, err = spawnStudioVehicle(model, data.keepView ~= false)
     if ok then
         sendNui({ action = 'open', model = model, mainColor = Config.MainColor or '#04c7f7' })
         updateUi()
+        if cleanMode then sendNui({ action = 'cleanMode', enabled = true }) end
+    else
+        sendNui({ action = 'loadFailed', model = model, error = err })
+        updateUi()
     end
 
-    cb({ ok = ok })
+    cb({ ok = ok == true, error = err })
 end)
 
 RegisterNUICallback('control', function(data, cb)
@@ -351,7 +439,11 @@ RegisterNUICallback('control', function(data, cb)
     local action = tostring(data.action or '')
     local s = Config.Studio
 
-    if not open or not DoesEntityExist(studioVehicle) then cb({ ok = false }) return end
+    if not open or not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle) then
+        notify('warning', 'Incarca un model de masina mai intai.', 2500)
+        cb({ ok = false, error = 'no_vehicle' })
+        return
+    end
 
     if action == 'rotate_left' then
         currentSettings.heading = (currentSettings.heading or 0.0) - (s.rotationStep or 7.5)
@@ -390,103 +482,6 @@ RegisterNUICallback('control', function(data, cb)
     cb({ ok = true })
 end)
 
-RegisterNUICallback('screenshot', function(_, cb)
-    if not open or not currentModel or currentModel == '' then
-        cb({ ok = false })
-        return
-    end
-
-    if takingShot then
-        cb({ ok = false })
-        return
-    end
-
-    takingShot = true
-    shotToken = shotToken + 1
-    local myToken = shotToken
-
-    sendNui({ action = 'prepareShot' })
-    setFocus(false)
-
-    SetTimeout(Config.Screenshot.prepareDelayMs or 650, function()
-        if not open or not takingShot or shotToken ~= myToken then return end
-
-        local resourceName = Config.Screenshot.resource or 'screenshot-basic'
-        if GetResourceState(resourceName) ~= 'started' then
-            takingShot = false
-            sendNui({ action = 'shotDone' })
-            if open then setFocus(true) end
-            notify('warning', 'screenshot-basic nu este pornit. Pune ensure screenshot-basic inainte de driftzone_vehicless.', 9000)
-            return
-        end
-
-        local options = {
-            encoding = Config.Screenshot.encoding or 'jpg',
-            quality = Config.Screenshot.quality or 0.55
-        }
-
-        local okCall, errCall = pcall(function()
-            exports[resourceName]:requestScreenshot(options, function(data)
-                if not open or not takingShot or shotToken ~= myToken then return end
-
-                if type(data) ~= 'string' or data == '' or not data:find('base64,', 1, true) then
-                    takingShot = false
-                    sendNui({ action = 'shotDone' })
-                    if open then setFocus(true) end
-                    notify('warning', 'Screenshot-basic nu a returnat imagine. Verifica F8 pentru timeout/erori screenshot-basic.', 10000)
-                    return
-                end
-
-                local maxLen = tonumber(Config.Screenshot.maxDataLength or 9000000) or 9000000
-                if #data > maxLen then
-                    takingShot = false
-                    sendNui({ action = 'shotDone' })
-                    if open then setFocus(true) end
-                    notify('warning', ('Poza este prea mare (%d bytes). Scade quality in config.'):format(#data), 10000)
-                    return
-                end
-
-                -- FINAL FIX: trimitem poza prin latent event, nu prin multe chunk-uri.
-                -- Asta evita Reliable network event size overflow si nu mai ramane blocat pe CAPTURING.
-                local bps = tonumber(Config.Screenshot.latentBps or 85000) or 85000
-                TriggerLatentServerEvent('driftzone_vehicless:server:saveScreenshotData', bps, currentModel, myToken, options.encoding, data)
-            end)
-        end)
-
-        if not okCall then
-            takingShot = false
-            sendNui({ action = 'shotDone' })
-            if open then setFocus(true) end
-            notify('warning', 'Nu pot apela export-ul screenshot-basic: ' .. tostring(errCall) .. '. Sterge folderul vechi si pune screenshot-basic din zip.', 12000)
-        end
-    end)
-
-    SetTimeout(Config.Screenshot.timeoutMs or 90000, function()
-        if takingShot and shotToken == myToken then
-            takingShot = false
-            sendNui({ action = 'shotDone' })
-            if open then setFocus(true) end
-            notify('warning', 'Screenshot timeout. Daca ramane asa, ai inca folder screenshot-basic vechi sau UI-ul screenshot-basic nu porneste.', 11000)
-        end
-    end)
-
-    cb({ ok = true })
-end)
-
-RegisterNetEvent('driftzone_vehicless:client:screenshotDone', function(ok, message, token)
-    if token and token ~= shotToken then return end
-
-    takingShot = false
-    sendNui({ action = 'shotDone' })
-    if open then setFocus(true) end
-
-    if ok then
-        notify('success', message or 'Screenshot salvat.', 5500)
-    else
-        notify('warning', message or 'Nu am putut salva screenshot-ul.', 8000)
-    end
-end)
-
 CreateThread(function()
     while true do
         if open and studioVehicle ~= 0 and DoesEntityExist(studioVehicle) then
@@ -494,15 +489,28 @@ CreateThread(function()
                 currentSettings.heading = ((currentSettings.heading or 0.0) + (Config.Studio.autoRotateSpeed or 0.18)) % 360.0
                 SetEntityHeading(studioVehicle, currentSettings.heading)
                 updateCamera()
-                if GetGameTimer() % 350 < 20 then updateUi() end
+                if GetGameTimer() % 350 < 20 and not cleanMode then updateUi() end
             end
 
             local ped = PlayerPedId()
             if Config.Studio.hidePlayer ~= false then SetEntityVisible(ped, false, false) end
-            DisableControlAction(0, 200, true)
-            DisableControlAction(0, 322, true)
-            DisableControlAction(0, 24, true)
-            DisableControlAction(0, 25, true)
+
+            if cleanMode then
+                DisplayRadar(false)
+                DisplayHud(false)
+                HideHudAndRadarThisFrame()
+                for i = 0, 22 do
+                    HideHudComponentThisFrame(i)
+                end
+                DisableControlAction(0, 200, true)
+                DisableControlAction(0, 322, true)
+            else
+                DisableControlAction(0, 200, true)
+                DisableControlAction(0, 322, true)
+                DisableControlAction(0, 24, true)
+                DisableControlAction(0, 25, true)
+            end
+
             Wait(0)
         else
             Wait(450)
@@ -512,7 +520,16 @@ end)
 
 CreateThread(function()
     while true do
-        if open and (not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle)) then
+        if open and cleanMode and IsControlJustPressed(0, 243) then
+            toggleCleanMode(false)
+        end
+        Wait(0)
+    end
+end)
+
+CreateThread(function()
+    while true do
+        if open and currentModel and currentModel ~= '' and (not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle)) then
             destroyStudio()
         end
         Wait(1000)

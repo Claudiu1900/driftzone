@@ -74,3 +74,11 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - Daca spawn-ul da eroare dupa ce vehiculul a fost creat, masina este stearsa automat ca sa nu ramana ghost car fara owner.
 - UI fara `backdrop-filter`.
 - UI cu colturi mai putin rotunjite.
+
+
+## Update V2.3 - heading final
+
+- Spawn-ul trimite explicit `x, y, z, h` catre client.
+- Clientul seteaza masina exact pe coordonate si apoi aplica heading-ul.
+- Heading-ul este reaplicat de mai multe ori dupa spawn/tuning, ca GTA sa nu il intoarca singur.
+- `SetVehicleOnGroundProperly` se executa inainte de `SetEntityHeading`, ca sa nu mai reseteze directia.

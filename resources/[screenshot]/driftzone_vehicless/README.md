@@ -1,7 +1,31 @@
-# driftzone_vehicless v12 final
+# driftzone_vehicless v14
 
-Comanda: `/vehss model`
+Comenzi:
 
-Pozele se salveaza in `driftzone_vehicless/screenshots/model.jpg`.
+```txt
+/vehss
+/vehss model
+/vehssclean
+/vehssclose
+```
 
-Screenshot-ul foloseste `screenshot-basic` inclus in zip, fara yarn/webpack real. Upload-ul catre server se face prin `TriggerLatentServerEvent`, nu prin chunk-uri normale, ca sa nu mai dea crash cu `Reliable network event size overflow`.
+## Ce s-a reparat
+
+- `/vehss` fara model deschide meniul corect.
+- In meniu poti scrie modelul masinii si apesi `LOAD` sau `Enter`.
+- `/vehss s15` inca deschide direct cu modelul incarcat.
+- Daca modelul este invalid, meniul ramane deschis si poti scrie alt model.
+- Playerul nu mai este mutat in studio pana cand modelul este valid.
+- Daca nu exista masina incarcata, controalele nu mai dau bug.
+- Screenshot-basic/yarn/webpack raman scoase complet.
+
+## Clean mode
+
+- Tasta ` ascunde/arata UI-ul, radarul/minimap-ul si HUD-ul.
+- Daca tasta nu merge, foloseste `/vehssclean`.
+
+## server.cfg
+
+```cfg
+ensure driftzone_vehicless
+```
