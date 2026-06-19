@@ -236,7 +236,7 @@
     </style>
 </head>
 <body style="background:transparent!important;background-color:rgba(0,0,0,0)!important;">
-    <main id="hud" class="hidden">
+    <main id="hud">
         <section class="status health" data-card="health">
             <div class="fill"><div class="wave"></div><div class="shine"></div></div>
             <svg class="icon" viewBox="0 0 24 24"><path d="M12 20.4 3.8 12.7A5.35 5.35 0 0 1 11.4 5l.6.7.6-.7a5.35 5.35 0 0 1 7.6 7.7L12 20.4Z"/></svg>
@@ -333,6 +333,24 @@
             if (!message || message.action !== 'update') return;
             updateHud(message.data);
         });
+
+        async function notifyClientReady() {
+            try {
+                await fetch(`https://${GetParentResourceName()}/ready`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                    body: JSON.stringify({})
+                });
+            } catch (_) {
+                // HUD-ul rămâne vizibil cu valorile implicite chiar dacă callback-ul întârzie.
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', notifyClientReady, { once: true });
+        } else {
+            notifyClientReady();
+        }
     </script>
 </body>
 </html>

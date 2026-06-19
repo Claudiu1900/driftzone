@@ -1,7 +1,8 @@
 local status = {
     food = Config.DefaultFood,
     water = Config.DefaultWater,
-    loaded = false
+    loaded = true,
+    synced = false
 }
 
 local hudVisible = true
@@ -9,6 +10,7 @@ local staminaVisibleUntil = 0
 local lastPayload = nil
 local lastResolutionX, lastResolutionY = 0, 0
 local minimapScaleform = nil
+local nuiReady = false
 
 local function clamp(value, minimum, maximum)
     value = tonumber(value) or minimum
@@ -49,7 +51,7 @@ end
 
 local function sendHudUpdate(force)
     local pauseActive = IsPauseMenuActive()
-    local shouldShow = hudVisible and status.loaded and not pauseActive
+    local shouldShow = hudVisible and not pauseActive
 
     if not shouldShow then
         local hiddenPayload = { visible = false }
@@ -141,10 +143,18 @@ local function requestStatus()
     TriggerServerEvent('driftzone_minimap:requestStatus')
 end
 
+RegisterNUICallback('ready', function(_, callback)
+    nuiReady = true
+    lastPayload = nil
+    sendHudUpdate(true)
+    callback({ ok = true })
+end)
+
 RegisterNetEvent('driftzone_minimap:client:syncStatus', function(food, water)
     status.food = clamp(food, 0, 100)
     status.water = clamp(water, 0, 100)
     status.loaded = true
+    status.synced = true
     sendHudUpdate(true)
 end)
 
@@ -182,11 +192,25 @@ CreateThread(function()
     Wait(500)
     applyMinimapPosition()
     hideDefaultHealthArmour()
+    sendHudUpdate(true)
     requestStatus()
+
+    local nextStatusRetry = GetGameTimer() + 5000
 
     while true do
         sendHudUpdate(false)
-        Wait(Config.ClientHudUpdateInterval)
+
+        -- Dacă serverul nu a răspuns încă, cerem din nou statusul fără spam.
+        if not status.synced and GetGameTimer() >= nextStatusRetry then
+            requestStatus()
+            nextStatusRetry = GetGameTimer() + 5000
+        end
+
+        local ped = PlayerPedId()
+        local active = DoesEntityExist(ped)
+            and ((IsPedRunning(ped) or IsPedSprinting(ped)) or GetPedArmour(ped) > 0)
+
+        Wait(active and Config.ClientHudUpdateInterval or 250)
     end
 end)
 

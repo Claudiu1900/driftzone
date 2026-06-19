@@ -1,4 +1,4 @@
-# driftzone_minimap v2.0.0
+# driftzone_minimap v2.1.0
 
 HUD standalone FiveM pentru viață, armură, mâncare, apă și stamina.
 
@@ -67,3 +67,7 @@ Config.Minimap.VerticalOffset = -0.045
 ```
 
 O valoare mai negativă ridică harta și mai sus, de exemplu `-0.055`.
+
+
+## Reparare afișare HUD v2.1.0
+Pagina NUI confirmă acum când este încărcată și clientul retrimite forțat valorile. HUD-ul pornește cu valorile implicite chiar dacă răspunsul serverului întârzie. Fișierul NUI a fost redenumit pentru a evita cache-ul FiveM.
