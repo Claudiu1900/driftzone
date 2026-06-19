@@ -1,0 +1,30 @@
+INSTALARE RAPIDA - driftzone_electrician
+========================================
+
+1. Extrage folderul driftzone_electrician in resources/[jobs]/
+
+2. Adauga in server.cfg, in aceasta ordine:
+
+   ensure oxmysql
+   ensure driftzone_auth
+   ensure driftzone_electrician
+
+3. Tabelul SQL se creeaza automat.
+
+4. Verifica in consola mesajul economiei:
+
+   Economie detectata: users.wallet (UID: id)
+
+   Daca apare plata dezactivata, editeaza Config.Economy din shared/config.lua.
+
+5. Intra pe server si mergi la blipul:
+
+   Compania Electrica DriftZone
+
+Taste:
+- E pentru interactiune
+- F6 pentru tableta
+- /electrician pentru tableta
+
+Configurare principala:
+shared/config.lua
