@@ -2,32 +2,35 @@
 
 Job complet de electrician creat pentru structura serverului DriftZone.
 
-## Ce contine
+## Ce conține
 
-- NPC dispecer cu angajare, informatii, pornire tura si demisie;
-- uniforma de serviciu aplicata la inceput si restaurata la final;
-- duba de serviciu, trei puncte alternative de spawn, cleanup si recuperare;
-- depozit de unelte cu ridicare si returnare trusa;
-- tableta NUI cu toate interventiile, progres, plata, XP si ruta GPS;
-- stalpi, cutii de sigurante, panouri de joasa si inalta tensiune;
-- animatii diferite dupa tipul interventiei;
-- mini-game de stabilizare a circuitului;
-- vreme rea cu sansa de interventii suplimentare;
-- Electrician I, II si III, XP, promovari si multiplicatori salariali;
-- bonus pentru tura completa fara greseli;
-- plati si validari facute pe server;
-- protectie nonce, timp minim, distanta, rate limit si expirare tura;
-- salvare permanenta prin oxmysql;
+- NPC dispecer cu angajare, informații, pornirea turei și demisie;
+- uniformă de serviciu aplicată la început și restaurată la final;
+- dubă de serviciu cu trei poziții de spawn verificate în ordine;
+- dacă toate cele trei locuri sunt ocupate, duba nu este creată și jucătorul primește notificare;
+- blip dinamic legat de dubă, care urmărește poziția curentă a vehiculului pe hartă;
+- depozit de unelte cu ridicarea și returnarea trusei;
+- tabletă NUI accesibilă din fluxul jobului și de la NPC, fără comandă și fără keybind F6;
+- stâlpi, cutii de siguranțe, panouri de joasă și înaltă tensiune;
+- cinci proceduri interactive: conectare fire, siguranțe arse, secvențe, întrerupătoare și calibrare tensiune;
+- mini-game ales server-side pentru fiecare intervenție, astfel încât taskurile să varieze;
+- animații diferite după tipul intervenției;
+- vreme rea cu șansă de intervenții suplimentare;
+- Electrician I, II și III, XP, promovări și multiplicatori salariali;
+- bonus pentru tură completă fără greșeli;
+- plăți și validări făcute pe server;
+- protecție nonce, timp minim, distanță, rate limit și expirarea turei;
+- salvare permanentă prin oxmysql;
 - detectare UID prin player state sau exporturile driftzone_auth;
-- detectare automata a economiei din users.wallet/users.cash/users.money sau vrp_user_moneys;
-- plati restante salvate daca economia nu este configurata corect;
+- detectare automată a economiei din users.wallet/users.cash/users.money sau vrp_user_moneys;
+- plăți restante salvate dacă economia nu este configurată corect;
 - loop-uri adaptive pe client pentru consum redus.
 
 ## Instalare
 
-1. Pune folderul `driftzone_electrician` in `resources/[jobs]/`.
-2. Asigura-te ca oxmysql si sistemul de autentificare pornesc inainte.
-3. Adauga in `server.cfg`:
+1. Pune folderul `driftzone_electrician` în `resources/[jobs]/`.
+2. Asigură-te că oxmysql și sistemul de autentificare pornesc înainte.
+3. Adaugă în `server.cfg`:
 
 ```cfg
 ensure oxmysql
@@ -35,7 +38,7 @@ ensure driftzone_auth
 ensure driftzone_electrician
 ```
 
-Daca autentificarea ta are alta denumire, resource-ul poate lua UID si din state bag-urile:
+Dacă autentificarea ta are altă denumire, resource-ul poate lua UID și din state bag-urile:
 
 ```txt
 dz_uid
@@ -45,36 +48,54 @@ userId
 driftzone_uid
 ```
 
-Tabelul SQL se creeaza automat. Fisierul manual este in `sql/driftzone_electrician.sql`.
+Tabelul SQL se creează automat. Fișierul manual este în `sql/driftzone_electrician.sql`.
 
-## Comenzi
+## Controale
 
 ```txt
-/electrician
-F6 - tableta electricianului
-E  - interactiuni
+E - interacțiuni cu NPC-ul, depozitul și intervențiile
+ESC - închide meniul companiei/tableta când nu este activ un mini-game
 ```
 
-## Configurare importanta
+Nu există `/electrician` și nu există keybind F6.
 
-Toata configurarea se afla in:
+## Spawnurile dubei
+
+Sunt verificate în această ordine:
+
+```lua
+vector4(744.303284, 136.219788, 80.267456, 249.45)
+vector4(742.575806, 132.962632, 80.233642, 257.95)
+vector4(751.635192, 110.518684, 79.071044, 136.06)
+```
+
+Raza de verificare poate fi modificată din:
+
+```lua
+Config.Vehicle.clearanceRadius = 3.5
+```
+
+## Configurare importantă
+
+Toată configurarea se află în:
 
 ```txt
 shared/config.lua
 ```
 
-Acolo poti modifica:
+Acolo poți modifica:
 
 - coordonatele NPC-ului;
 - depozitul de unelte;
-- spawn-urile dubei;
+- spawnurile și blipul dubei;
 - modelul dubei;
 - uniformele male/female;
-- platile si XP-ul;
+- plățile și XP-ul;
 - nivelurile;
-- toate interventiile;
-- bonusul de tura;
-- distantele si protectiile.
+- procedurile interactive disponibile pentru fiecare tip de task;
+- toate intervențiile;
+- bonusul de tură;
+- distanțele și protecțiile.
 
 ## Economie
 
@@ -84,7 +105,7 @@ Implicit:
 Config.Economy.mode = 'auto'
 ```
 
-Sistemul cauta automat urmatoarele structuri:
+Sistemul caută automat următoarele structuri:
 
 ```txt
 users.id / users.uid / users.user_id
@@ -94,17 +115,7 @@ vrp_user_moneys.user_id
 vrp_user_moneys.wallet / vrp_user_moneys.bank
 ```
 
-Daca economia ta foloseste alt tabel, adauga profilul in:
-
-```lua
-Config.Economy.databaseProfiles
-```
-
-Exemplu:
-
-```lua
-{ table = 'users', uidColumns = { 'id' }, cashColumns = { 'wallet' }, bankColumns = { 'bank' } }
-```
+Dacă economia ta folosește alt tabel, adaugă profilul în `Config.Economy.databaseProfiles`.
 
 ### Plata prin export
 
@@ -133,17 +144,17 @@ Config.Economy.mode = 'event'
 Config.Economy.event = 'driftzone_electrician:server:addMoney'
 ```
 
-In resource-ul economiei:
+În resource-ul economiei:
 
 ```lua
 AddEventHandler('driftzone_electrician:server:addMoney', function(source, uid, amount, reason)
-    -- functia ta de adaugare bani
+    -- funcția ta de adăugare bani
 end)
 ```
 
-## Integrare notificari
+## Integrare notificări
 
-Resource-ul foloseste acelasi format ca scriptul oferit ca exemplu:
+Resource-ul folosește:
 
 ```lua
 TriggerEvent('client:notify', tip, durata, mesaj)
@@ -163,9 +174,9 @@ local active = exports.driftzone_electrician:HasActiveElectricianShift(source)
 local uid = exports.driftzone_electrician:GetElectricianUid(source)
 ```
 
-## Observatii
+## Observații
 
-- Uniformele incluse sunt pentru `mp_m_freemode_01` si `mp_f_freemode_01`.
-- Daca pachetele tale de haine schimba drawable-urile, editeaza `Config.Uniform`.
-- Cu `Config.Security.RequireOneSync = true`, serverul valideaza distantele folosind ped-ul server-side.
-- Coordonatele sunt configurabile si trebuie ajustate daca folosesti un MLO diferit.
+- Uniformele incluse sunt pentru `mp_m_freemode_01` și `mp_f_freemode_01`.
+- Dacă pachetele tale de haine schimbă drawable-urile, editează `Config.Uniform`.
+- Cu `Config.Security.RequireOneSync = true`, serverul validează distanțele folosind ped-ul server-side.
+- Coordonatele intervențiilor trebuie ajustate dacă folosești un MLO sau o hartă diferită.

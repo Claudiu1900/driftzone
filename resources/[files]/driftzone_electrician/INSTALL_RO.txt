@@ -1,30 +1,34 @@
-INSTALARE RAPIDA - driftzone_electrician
+INSTALARE RAPIDĂ - driftzone_electrician
 ========================================
 
-1. Extrage folderul driftzone_electrician in resources/[jobs]/
+1. Extrage folderul driftzone_electrician în resources/[jobs]/
 
-2. Adauga in server.cfg, in aceasta ordine:
+2. Adaugă în server.cfg, în această ordine:
 
    ensure oxmysql
    ensure driftzone_auth
    ensure driftzone_electrician
 
-3. Tabelul SQL se creeaza automat.
+3. Tabelul SQL se creează automat.
 
-4. Verifica in consola mesajul economiei:
+4. Verifică în consolă mesajul economiei:
 
-   Economie detectata: users.wallet (UID: id)
+   Economie detectată: users.wallet (UID: id)
 
-   Daca apare plata dezactivata, editeaza Config.Economy din shared/config.lua.
+   Dacă apare plata dezactivată, editează Config.Economy din shared/config.lua.
 
-5. Intra pe server si mergi la blipul:
+5. Intră pe server și mergi la blipul:
 
-   Compania Electrica DriftZone
+   Compania Electrică DriftZone
 
-Taste:
-- E pentru interactiune
-- F6 pentru tableta
-- /electrician pentru tableta
+Controale:
+- E pentru interacțiune
+- ESC pentru închiderea meniului când nu rulează un mini-game
 
-Configurare principala:
+Nu există comandă /electrician și nu există keybind F6.
+
+Duba primește un blip dinamic care urmărește poziția sa curentă.
+Dacă toate cele trei locuri de spawn sunt ocupate, jucătorul primește notificare și duba nu este creată.
+
+Configurare principală:
 shared/config.lua

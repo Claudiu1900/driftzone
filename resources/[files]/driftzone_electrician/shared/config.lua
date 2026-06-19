@@ -2,8 +2,6 @@ Config = {}
 
 Config.Debug = false
 Config.NotifyEvent = 'client:notify'
-Config.Command = 'electrician'
-Config.TabletKey = 'F6'
 Config.InteractKey = 38 -- E
 
 Config.DrawDistance = {
@@ -18,7 +16,6 @@ Config.Security = {
     DepotDistance = 7.0,
     InterventionDistance = 7.0,
     ActionCooldownMs = 700,
-    RepairTimeTolerance = 0.90,
     RepairMaxExtraSeconds = 20,
     MaxClientMistakes = 10,
     MaxShiftSeconds = 3 * 60 * 60,
@@ -54,10 +51,19 @@ Config.Vehicle = {
     secondaryColour = 111,
     dirtLevel = 0.0,
     fuelLevel = 100.0,
+    clearanceRadius = 3.5,
+    blip = {
+        enabled = true,
+        sprite = 67,
+        colour = 5,
+        scale = 0.82,
+        label = 'Duba electricianului'
+    },
+    -- Locurile sunt verificate in aceasta ordine. Daca toate sunt ocupate, duba nu este creata.
     spawns = {
-        vector4(729.65, 126.58, 80.86, 69.0),
-        vector4(727.62, 122.76, 80.92, 69.0),
-        vector4(725.50, 118.98, 80.98, 69.0)
+        vector4(744.303284, 136.219788, 80.267456, 249.45),
+        vector4(742.575806, 132.962632, 80.233642, 257.95),
+        vector4(751.635192, 110.518684, 79.071044, 136.06)
     }
 }
 
@@ -111,7 +117,10 @@ Config.TaskTypes = {
         description = 'Verifica izolatorii si restabileste alimentarea.',
         voltage = 'Joasa tensiune',
         minLevel = 1,
-        duration = 14,
+        duration = 22,
+        minimumDuration = 5,
+        minigames = { 'sequence', 'voltage' },
+        difficulty = 1,
         allowedMistakes = 2,
         pay = { min = 320, max = 430 },
         xp = { min = 35, max = 50 },
@@ -123,7 +132,10 @@ Config.TaskTypes = {
         description = 'Inlocuieste sigurantele arse si testeaza circuitul.',
         voltage = 'Joasa tensiune',
         minLevel = 1,
-        duration = 12,
+        duration = 24,
+        minimumDuration = 6,
+        minigames = { 'fuses', 'sequence' },
+        difficulty = 1,
         allowedMistakes = 2,
         pay = { min = 280, max = 390 },
         xp = { min = 30, max = 45 },
@@ -135,7 +147,10 @@ Config.TaskTypes = {
         description = 'Reconfigureaza circuitele panoului de joasa tensiune.',
         voltage = 'Joasa tensiune',
         minLevel = 1,
-        duration = 16,
+        duration = 28,
+        minimumDuration = 7,
+        minigames = { 'wires', 'switches' },
+        difficulty = 2,
         allowedMistakes = 2,
         pay = { min = 390, max = 520 },
         xp = { min = 45, max = 60 },
@@ -147,7 +162,10 @@ Config.TaskTypes = {
         description = 'Izoleaza si repara panoul de inalta tensiune.',
         voltage = 'Inalta tensiune',
         minLevel = 2,
-        duration = 20,
+        duration = 32,
+        minimumDuration = 8,
+        minigames = { 'switches', 'wires', 'voltage' },
+        difficulty = 3,
         allowedMistakes = 1,
         pay = { min = 620, max = 790 },
         xp = { min = 70, max = 95 },
@@ -229,8 +247,8 @@ Config.Text = {
     repairExpired = 'Interventia a expirat. Incearca din nou.',
     badWeather = 'Vreme severa: au fost adaugate interventii suplimentare.',
     uidMissing = 'UID-ul tau nu a putut fi identificat. Reconecteaza-te.',
-    vehicleSpawned = 'Duba de serviciu a fost pregatita.',
-    vehicleBlocked = 'Locurile pentru duba sunt blocate. Elibereaza zona si incearca din nou.',
+    vehicleSpawned = 'Duba de serviciu a fost pregatita si marcata pe harta.',
+    vehicleBlocked = 'Toate locurile pentru duba sunt ocupate. Roaga jucatorii sa elibereze locurile si incearca din nou.',
     vehicleRespawnCooldown = 'Asteapta inainte sa ceri alta duba.',
     vehicleOnlyAtCenter = 'Duba poate fi recuperata doar de la dispecerat.',
     paymentPending = 'Plata nu a putut fi trimisa acum si a fost salvata ca plata restanta.',

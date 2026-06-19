@@ -10,9 +10,11 @@ local repairing = false
 local jobPed = 0
 local staticBlip = 0
 local activeBlip = 0
+local vehicleBlip = 0
 local jobVehicle = 0
 local jobVehicleNetId = 0
 local vehicleLostReported = false
+local vehicleMissingChecks = 0
 local savedOutfit = nil
 local currentRepair = nil
 
@@ -67,6 +69,42 @@ end
 local function clearActiveBlip()
     if activeBlip ~= 0 and DoesBlipExist(activeBlip) then RemoveBlip(activeBlip) end
     activeBlip = 0
+end
+
+local function clearVehicleBlip()
+    if vehicleBlip ~= 0 and DoesBlipExist(vehicleBlip) then RemoveBlip(vehicleBlip) end
+    vehicleBlip = 0
+end
+
+local function createVehicleBlip(vehicle)
+    clearVehicleBlip()
+    if Config.Vehicle.enabled ~= true or not Config.Vehicle.blip or Config.Vehicle.blip.enabled ~= true then return end
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
+
+    vehicleBlip = AddBlipForEntity(vehicle)
+    SetBlipSprite(vehicleBlip, Config.Vehicle.blip.sprite or 67)
+    SetBlipColour(vehicleBlip, Config.Vehicle.blip.colour or 5)
+    SetBlipScale(vehicleBlip, Config.Vehicle.blip.scale or 0.82)
+    SetBlipAsShortRange(vehicleBlip, false)
+    SetBlipDisplay(vehicleBlip, 4)
+    BeginTextCommandSetBlipName('STRING')
+    AddTextComponentString(Config.Vehicle.blip.label or 'Duba electricianului')
+    EndTextCommandSetBlipName(vehicleBlip)
+end
+
+local function trackJobVehicle(netId)
+    netId = tonumber(netId or 0) or 0
+    if netId <= 0 then return false end
+
+    local vehicle = NetToVeh(netId)
+    if vehicle == 0 or not DoesEntityExist(vehicle) then return false end
+
+    jobVehicle = vehicle
+    jobVehicleNetId = netId
+    vehicleLostReported = false
+    vehicleMissingChecks = 0
+    createVehicleBlip(vehicle)
+    return true
 end
 
 local function setRoute(coords, label, sprite, colour, silent)
@@ -214,12 +252,14 @@ local function restoreOutfit()
 end
 
 local function cleanupJobVehicle()
+    clearVehicleBlip()
     local vehicle = jobVehicle
     local oldNetId = jobVehicleNetId
 
     jobVehicle = 0
     jobVehicleNetId = 0
     vehicleLostReported = false
+    vehicleMissingChecks = 0
 
     if vehicle ~= 0 and DoesEntityExist(vehicle) then
         requestControl(vehicle, 1200)
@@ -235,11 +275,28 @@ local function cleanupJobVehicle()
     end
 end
 
+local function isVehicleSpawnClear(spawn)
+    local radius = tonumber(Config.Vehicle.clearanceRadius) or 3.5
+    local radiusSquared = radius * radius
+
+    for _, vehicle in ipairs(GetGamePool('CVehicle')) do
+        if DoesEntityExist(vehicle) then
+            local vehicleCoords = GetEntityCoords(vehicle)
+            local dx = vehicleCoords.x - spawn.x
+            local dy = vehicleCoords.y - spawn.y
+            local dz = vehicleCoords.z - spawn.z
+            if (dx * dx + dy * dy + dz * dz) <= radiusSquared then
+                return false
+            end
+        end
+    end
+
+    return true
+end
+
 local function findVehicleSpawn()
     for _, spawn in ipairs(Config.Vehicle.spawns or {}) do
-        if not IsAnyVehicleNearPoint(spawn.x, spawn.y, spawn.z, 3.0) then
-            return spawn
-        end
+        if isVehicleSpawnClear(spawn) then return spawn end
     end
     return nil
 end
@@ -283,12 +340,15 @@ local function spawnJobVehicle(token)
 
     local netId = NetworkGetNetworkIdFromEntity(vehicle)
     SetNetworkIdCanMigrate(netId, true)
+    SetNetworkIdAlwaysExistsForPlayer(netId, PlayerId(), true)
     Entity(vehicle).state:set('driftzone_job_vehicle', 'electrician', true)
     Entity(vehicle).state:set('driftzone_electrician_owner', GetPlayerServerId(PlayerId()), true)
 
     jobVehicle = vehicle
     jobVehicleNetId = netId
     vehicleLostReported = false
+    vehicleMissingChecks = 0
+    createVehicleBlip(vehicle)
 
     TriggerServerEvent('driftzone_electrician:server:registerVehicle', token, netId)
 
@@ -407,6 +467,14 @@ RegisterNetEvent('driftzone_electrician:client:state', function(newState)
         cleanupShift()
     end
 
+    if State.shift and tonumber(State.shift.vehicleNetId or 0) > 0 then
+        if jobVehicleNetId ~= tonumber(State.shift.vehicleNetId) or jobVehicle == 0 or not DoesEntityExist(jobVehicle) then
+            trackJobVehicle(State.shift.vehicleNetId)
+        elseif vehicleBlip == 0 or not DoesBlipExist(vehicleBlip) then
+            createVehicleBlip(jobVehicle)
+        end
+    end
+
     SendNUIMessage({ action = 'sync', state = State })
     syncRoute(true)
 
@@ -510,17 +578,6 @@ RegisterNUICallback('repairFinished', function(data, cb)
     cb({ ok = true })
 end)
 
-RegisterCommand(Config.Command, function()
-    if not State.profile then
-        TriggerServerEvent('driftzone_electrician:server:getState', 'company')
-        return
-    end
-
-    openUi(State.shift and 'tablet' or 'company')
-end, false)
-
-RegisterKeyMapping(Config.Command, 'Deschide tableta electricianului', 'keyboard', Config.TabletKey)
-
 CreateThread(function()
     spawnJobPed()
     createStaticBlip()
@@ -611,13 +668,25 @@ CreateThread(function()
             notify('error', Config.Text.repairExpired, 5000)
         end
 
-        if State.shift and jobVehicleNetId > 0 and not vehicleLostReported then
-            if jobVehicle == 0 or not DoesEntityExist(jobVehicle) or IsEntityDead(jobVehicle) then
-                vehicleLostReported = true
-                local oldNetId = jobVehicleNetId
-                cleanupJobVehicle()
-                TriggerServerEvent('driftzone_electrician:server:vehicleLost', oldNetId)
-                notify('warning', 'Duba de serviciu a fost pierduta. O poti recupera de la dispecerat.', 5000)
+        local expectedVehicleNetId = State.shift and (tonumber(State.shift.vehicleNetId) or 0) or 0
+        if expectedVehicleNetId <= 0 then expectedVehicleNetId = tonumber(jobVehicleNetId) or 0 end
+        if State.shift and expectedVehicleNetId > 0 and not vehicleLostReported then
+            if jobVehicle ~= 0 and DoesEntityExist(jobVehicle) and not IsEntityDead(jobVehicle) then
+                vehicleMissingChecks = 0
+                if vehicleBlip == 0 or not DoesBlipExist(vehicleBlip) then createVehicleBlip(jobVehicle) end
+            elseif trackJobVehicle(expectedVehicleNetId) then
+                vehicleMissingChecks = 0
+            else
+                local networkExists = NetworkDoesEntityExistWithNetworkId(expectedVehicleNetId)
+                vehicleMissingChecks = networkExists and 0 or (vehicleMissingChecks + 1)
+
+                if vehicleMissingChecks >= 3 then
+                    vehicleLostReported = true
+                    local oldNetId = expectedVehicleNetId
+                    cleanupJobVehicle()
+                    TriggerServerEvent('driftzone_electrician:server:vehicleLost', oldNetId)
+                    notify('warning', 'Duba de serviciu a fost pierduta. O poti recupera de la dispecerat.', 5000)
+                end
             end
         end
     end

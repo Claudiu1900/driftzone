@@ -65,7 +65,7 @@ button { font: inherit; }
 .badge.danger { color: var(--red); border-color: rgba(255,91,103,.25); background: rgba(255,91,103,.08); }
 
 .progress { height: 8px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.07); }
-.progress > span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--yellow), #ffe16c); transition: width .25s ease; }
+.progress > span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--yellow), #ffe16c); transition: width .18s linear; }
 .level-row { display: flex; justify-content: space-between; margin: 10px 0 7px; color: var(--muted); font-size: 11px; }
 
 .notice { margin-bottom: 14px; padding: 13px 15px; border-left: 3px solid var(--yellow); border-radius: 8px; background: rgba(255,196,0,.07); color: #ffeaa8; font-size: 12px; }
@@ -88,24 +88,93 @@ button { font: inherit; }
 .empty { min-height: 300px; display: grid; place-items: center; text-align: center; color: var(--muted); }
 .empty .symbol { margin-bottom: 10px; font-size: 48px; }
 
-.repair-overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(2,7,11,.88); }
-.repair-card { width: min(760px, 84vw); padding: 22px; border: 1px solid rgba(255,255,255,.12); border-radius: 20px; background: #08131d; box-shadow: 0 35px 90px rgba(0,0,0,.58); }
+.repair-overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(2,7,11,.90); }
+.repair-card { width: min(820px, 88vw); padding: 22px; border: 1px solid rgba(255,255,255,.12); border-radius: 20px; background: #08131d; box-shadow: 0 35px 90px rgba(0,0,0,.58); }
 .repair-head { display: flex; align-items: center; gap: 13px; }
 .repair-head small { color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .12em; }
 .repair-head h2 { margin: 3px 0 0; font-size: 21px; }
 .pulse { width: 13px; height: 13px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 0 0 rgba(255,196,0,.55); animation: pulse 1.2s infinite; }
 .voltage { margin-left: auto; padding: 7px 10px; border: 1px solid rgba(255,91,103,.24); border-radius: 8px; background: rgba(255,91,103,.1); color: #ff9ca3; font-size: 10px; font-weight: 900; }
-.repair-instruction { color: var(--muted); font-size: 12px; }
-.repair-field { position: relative; height: 330px; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: radial-gradient(circle at center, rgba(46,203,255,.07), transparent 55%), #06101a; }
-.grid-lines { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px); background-size: 34px 34px; pointer-events: none; }
-.fault { position: absolute; width: 44px; height: 44px; border: 2px solid #fff2a8; border-radius: 50%; background: rgba(255,196,0,.2); box-shadow: 0 0 28px rgba(255,196,0,.55); cursor: pointer; animation: faultIn .18s ease-out, faultPulse .7s infinite alternate; }
+.repair-instruction { min-height: 19px; color: var(--muted); font-size: 12px; }
+.repair-field { position: relative; height: 390px; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: radial-gradient(circle at center, rgba(46,203,255,.07), transparent 55%), #06101a; }
+.repair-field::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px); background-size: 34px 34px; pointer-events: none; }
+.repair-field.solved { border-color: rgba(71,230,155,.55); box-shadow: inset 0 0 45px rgba(71,230,155,.07); }
+.repair-field.failed { border-color: rgba(255,91,103,.55); box-shadow: inset 0 0 45px rgba(255,91,103,.08); }
 .repair-status { margin-top: 15px; }
-.repair-status > div:first-child { display: flex; justify-content: space-between; margin-bottom: 8px; color: var(--muted); font-size: 11px; }
+.repair-progress-label { display: flex; justify-content: space-between; margin-bottom: 8px; color: var(--muted); font-size: 11px; }
 .repair-meta { display: flex; justify-content: space-between; margin-top: 10px; color: var(--muted); font-size: 11px; }
 
+.game-shell { position: relative; z-index: 1; width: 100%; height: 100%; padding: 22px; }
+.game-label { color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .12em; }
+.game-button { min-height: 42px; padding: 0 18px; border: 1px solid rgba(255,196,0,.28); border-radius: 10px; background: rgba(255,196,0,.11); color: #ffe58c; cursor: pointer; font-weight: 900; }
+.game-button:hover { background: rgba(255,196,0,.18); }
+.game-button:disabled { opacity: .38; cursor: not-allowed; }
+.game-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; }
+.game-hint { color: var(--muted); font-size: 11px; }
+.shake { animation: shake .28s ease; }
+
+/* Fire colorate */
+.wire-board { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 190px; height: 100%; padding: 12px 20px; }
+.wire-column { position: relative; z-index: 3; display: flex; flex-direction: column; justify-content: space-around; }
+.wire-column.right { align-items: flex-end; }
+.wire-terminal { width: 150px; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.045); color: var(--text); cursor: pointer; font-weight: 800; }
+.wire-column.right .wire-terminal { flex-direction: row-reverse; }
+.wire-terminal:hover, .wire-terminal.selected { border-color: var(--wire); box-shadow: 0 0 22px rgba(255,255,255,.12); }
+.wire-terminal.connected { opacity: .52; cursor: default; }
+.wire-dot { width: 18px; height: 18px; flex: 0 0 18px; border: 3px solid rgba(255,255,255,.78); border-radius: 50%; background: var(--wire); box-shadow: 0 0 16px var(--wire); }
+.wire-svg { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; }
+.wire-svg line { stroke-width: 7; stroke-linecap: round; filter: drop-shadow(0 0 5px currentColor); }
+
+/* Intrerupatoare */
+.switch-game { display: flex; flex-direction: column; justify-content: center; height: 100%; }
+.target-strip, .switch-grid { display: grid; grid-template-columns: repeat(5, minmax(54px, 1fr)); gap: 12px; }
+.target-strip { margin: 14px 0 24px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: rgba(255,255,255,.025); }
+.target-cell { display: flex; flex-direction: column; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; }
+.target-led { width: 16px; height: 16px; border-radius: 50%; background: #293744; box-shadow: inset 0 0 0 2px rgba(255,255,255,.08); }
+.target-led.on { background: var(--green); box-shadow: 0 0 17px rgba(71,230,155,.7); }
+.breaker { min-height: 72px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.035); color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 900; }
+.breaker::before { content: ''; display: block; width: 26px; height: 30px; margin: 0 auto 6px; border-radius: 5px; background: #263746; transform: translateY(7px); transition: transform .15s, background .15s; }
+.breaker.on { color: var(--green); border-color: rgba(71,230,155,.35); }
+.breaker.on::before { background: var(--green); transform: translateY(-4px); box-shadow: 0 0 16px rgba(71,230,155,.5); }
+.breaker.wrong { border-color: var(--red); }
+
+/* Sigurante */
+.fuse-game { display: flex; flex-direction: column; justify-content: center; height: 100%; }
+.fuse-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-top: 15px; }
+.fuse-slot { min-height: 74px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.035); color: var(--muted); cursor: pointer; }
+.fuse-body { width: 22px; height: 44px; margin: 0 auto 5px; border: 3px solid #7690a4; border-radius: 6px; background: linear-gradient(#c6d2dc, #73899b); }
+.fuse-slot.burnt .fuse-body { border-color: #ff8a64; background: repeating-linear-gradient(135deg, #3a1d18 0 5px, #ce4e31 5px 9px); box-shadow: 0 0 19px rgba(255,91,67,.5); animation: fuseBlink .85s infinite alternate; }
+.fuse-slot.replaced { border-color: rgba(71,230,155,.35); color: var(--green); }
+.fuse-slot.replaced .fuse-body { border-color: var(--green); background: linear-gradient(#d8fff0, #47e69b); box-shadow: 0 0 16px rgba(71,230,155,.35); animation: none; }
+.fuse-slot.bad { border-color: var(--red); }
+
+/* Secventa */
+.sequence-game { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+.sequence-display { min-height: 48px; margin: 13px 0 22px; padding: 12px 18px; border: 1px solid rgba(46,203,255,.25); border-radius: 12px; background: rgba(46,203,255,.08); color: #a8ebff; font-size: 20px; font-weight: 900; letter-spacing: .24em; }
+.sequence-display.hidden-sequence { color: var(--muted); letter-spacing: .08em; font-size: 12px; }
+.sequence-buttons { display: grid; grid-template-columns: repeat(4, 76px); gap: 12px; }
+.sequence-key { width: 76px; height: 64px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.04); color: var(--text); cursor: pointer; font-size: 20px; font-weight: 900; }
+.sequence-key:hover { border-color: rgba(255,196,0,.45); background: rgba(255,196,0,.09); }
+.sequence-key.correct { color: var(--green); border-color: rgba(71,230,155,.45); background: rgba(71,230,155,.09); }
+
+/* Calibrare tensiune */
+.voltage-game { display: flex; flex-direction: column; justify-content: center; height: 100%; }
+.voltage-rounds { margin: 9px 0 20px; color: var(--muted); font-size: 11px; }
+.meter { position: relative; height: 92px; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: linear-gradient(90deg, rgba(255,91,103,.13), rgba(255,196,0,.08), rgba(71,230,155,.11), rgba(255,196,0,.08), rgba(255,91,103,.13)); }
+.meter-scale { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 4.8%, rgba(255,255,255,.08) 5% 5.2%); }
+.meter-target { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--green); border-right: 2px solid var(--green); background: rgba(71,230,155,.15); box-shadow: 0 0 25px rgba(71,230,155,.18); }
+.meter-needle { position: absolute; top: 6px; bottom: 6px; width: 4px; border-radius: 5px; background: #fff; box-shadow: 0 0 12px rgba(255,255,255,.8); transform: translateX(-2px); }
+.voltage-readout { display: flex; justify-content: space-between; margin-top: 11px; color: var(--muted); font-size: 11px; }
+
+.result-panel { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; background: rgba(5,15,23,.88); text-align: center; }
+.result-panel strong { display: block; margin-bottom: 7px; font-size: 24px; }
+.result-panel.success strong { color: var(--green); }
+.result-panel.failure strong { color: var(--red); }
+.result-panel span { color: var(--muted); font-size: 12px; }
+
 @keyframes pulse { 70% { box-shadow: 0 0 0 12px rgba(255,196,0,0); } 100% { box-shadow: 0 0 0 0 rgba(255,196,0,0); } }
-@keyframes faultIn { from { opacity: 0; transform: scale(.5); } }
-@keyframes faultPulse { to { transform: scale(1.12); } }
+@keyframes fuseBlink { to { filter: brightness(1.35); } }
+@keyframes shake { 25% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-3px); } }
 
 @media (max-width: 850px) {
     .device { width: 95vw; height: 91vh; }
@@ -114,4 +183,8 @@ button { font: inherit; }
     .info-grid { grid-template-columns: 1fr; }
     .task { grid-template-columns: 42px 1fr; }
     .task-side { grid-column: 2; text-align: left; }
+    .repair-card { width: 94vw; }
+    .repair-field { height: 420px; }
+    .wire-board { gap: 55px; padding: 10px; }
+    .wire-terminal { width: 120px; }
 }

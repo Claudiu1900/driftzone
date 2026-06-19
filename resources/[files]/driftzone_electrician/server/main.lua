@@ -58,6 +58,12 @@ local function shuffledCopy(input)
     return output
 end
 
+
+local function randomChoice(values, fallback)
+    if type(values) ~= 'table' or #values == 0 then return fallback end
+    return values[math.random(1, #values)] or fallback
+end
+
 local function makeToken(src)
     return ('%s:%s:%s:%s'):format(src, os.time(), GetGameTimer(), math.random(100000, 999999))
 end
@@ -120,6 +126,9 @@ local function publicTask(task)
         area = task.area,
         coords = task.coords,
         duration = task.duration,
+        minimumDuration = task.minimumDuration,
+        minigame = task.minigame,
+        difficulty = task.difficulty,
         allowedMistakes = task.allowedMistakes,
         pay = task.pay,
         xp = task.xp,
@@ -149,6 +158,7 @@ local function publicSession(src)
         badWeather = session.badWeather == true,
         allComplete = session.completed >= #session.tasks,
         vehicleReady = (tonumber(session.vehicleNetId) or 0) > 0,
+        vehicleNetId = tonumber(session.vehicleNetId) or 0,
         startedAt = session.startedAt
     }
 end
@@ -208,7 +218,10 @@ local function createTasks(profile, badWeather)
             voltage = typeData.voltage,
             area = intervention.area,
             coords = DriftzoneElectrician.CopyCoords(intervention.coords),
-            duration = math.max(5, tonumber(typeData.duration) or 12),
+            duration = math.max(8, tonumber(typeData.duration) or 18),
+            minimumDuration = math.max(2, tonumber(typeData.minimumDuration) or 5),
+            minigame = randomChoice(typeData.minigames, 'sequence'),
+            difficulty = math.max(1, math.min(3, tonumber(typeData.difficulty) or 1)),
             allowedMistakes = math.max(0, tonumber(typeData.allowedMistakes) or 2),
             pay = math.max(1, math.floor(randomBetween(typeData.pay) * multiplier)),
             xp = math.max(1, randomBetween(typeData.xp)),
@@ -453,6 +466,9 @@ RegisterNetEvent('driftzone_electrician:server:beginRepair', function(taskId)
         label = task.label,
         voltage = task.voltage,
         duration = task.duration,
+        minimumDuration = task.minimumDuration,
+        minigame = task.minigame,
+        difficulty = task.difficulty,
         allowedMistakes = task.allowedMistakes,
         scenario = task.scenario,
         nonce = nonce
@@ -477,7 +493,7 @@ RegisterNetEvent('driftzone_electrician:server:completeRepair', function(taskId,
 
     local now = GetGameTimer()
     local elapsed = now - task.repair.startedAt
-    local minimum = math.floor(task.duration * 1000 * (tonumber(Config.Security.RepairTimeTolerance) or 0.78))
+    local minimum = math.floor(math.max(2, tonumber(task.minimumDuration) or 5) * 1000)
     local expired = now > task.repair.expiresAt
     task.repair = nil
 
