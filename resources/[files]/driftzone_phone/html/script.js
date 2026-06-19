@@ -22,6 +22,7 @@ const audio = {
 
 let state = { myNumber: '', contacts: [], callHistory: [], messages: [], garage: { vehicles: [], garages: [], atGarage: false } };
 let selectedGarageVehicleId = 0;
+let dialTab = 'keypad';
 let activeView = 'home';
 let nav = ['home'];
 let selectedContactId = 0;
@@ -108,19 +109,54 @@ function callStatusText(r) {
     return `${dir} • ${st}${r.duration ? ` • ${r.duration}s` : ''}`;
 }
 
+function primeAudio() {
+    Object.keys(audio).forEach((key) => {
+        const a = audio[key];
+        if (!a) return;
+        try {
+            a.preload = 'auto';
+            a.volume = 1.0;
+            a.muted = false;
+            a.load();
+        } catch (e) {}
+    });
+}
+
+function tryPlay(a, retry = true) {
+    if (!a) return;
+    try {
+        a.muted = false;
+        a.volume = 1.0;
+        const p = a.play();
+        if (p && typeof p.catch === 'function') {
+            p.catch(() => {
+                if (retry) {
+                    setTimeout(() => {
+                        try { a.play().catch(() => {}); } catch (e) {}
+                    }, 160);
+                }
+            });
+        }
+    } catch (e) {}
+}
+
 function playLoop(name) {
-    if (currentLoop === name) return;
-    stopLoop();
     const a = audio[name];
     if (!a) return;
+
+    if (currentLoop === name && !a.paused) return;
+
+    stopLoop();
+
     try {
         a.loop = true;
         a.pause();
         a.currentTime = 0;
-        a.play().catch(() => {});
         currentLoop = name;
+        tryPlay(a, true);
     } catch (e) {}
 }
+
 function stopLoop() {
     if (!currentLoop) return;
     const a = audio[currentLoop];
@@ -129,20 +165,22 @@ function stopLoop() {
     }
     currentLoop = null;
 }
+
 function playOne(name) {
     const a = audio[name];
     if (!a) return;
     const now = Date.now();
-    if (lastPlayAt[name] && now - lastPlayAt[name] < 350) return;
+    if (lastPlayAt[name] && now - lastPlayAt[name] < 250) return;
     lastPlayAt[name] = now;
     try {
         if (currentLoop === name) currentLoop = null;
         a.loop = false;
         a.pause();
         a.currentTime = 0;
-        a.play().catch(() => {});
+        tryPlay(a, true);
     } catch (e) {}
 }
+
 function stopAllSounds() {
     stopLoop();
     Object.keys(audio).forEach((key) => {
@@ -150,7 +188,9 @@ function stopAllSounds() {
         if (!a) return;
         try { a.pause(); a.currentTime = 0; a.loop = false; } catch (e) {}
     });
+    lastSoundKind = 'none';
 }
+
 function callSoundKind(s) {
     if (!s || !s.inCall) return 'none';
     if (s.outgoing && !s.active) return 'outgoing';
@@ -258,15 +298,20 @@ function renderHome() {
             ${appButton('phone', 'Telefon', 'dial', 'phone-app')}
             ${appButton('messages', `Mesaje${msgCount ? ` (${msgCount})` : ''}`, 'messages', 'msg-app')}
             ${appButton('contacts', 'Contacte', 'contacts', 'contacts-app')}
-            ${appButton('calls', 'Apeluri', 'calls', 'calls-app')}
             ${appButton('garage', 'Garaj', 'garage', 'garage-app')}
         </div>
     `;
 }
+function setDialTab(tab) {
+    dialTab = tab === 'calls' ? 'calls' : 'keypad';
+    renderDial();
+}
+
 function renderDial() {
     screens.dial.classList.remove('scroll');
-    screens.dial.innerHTML = `
-        ${header('Telefon', 'back()', `<button onclick="navigate('calls')"><img src="${icon('calls')}"></button>`)}
+    const rows = state.callHistory || [];
+
+    const keypadHtml = `
         <div class="dial-card">
             <input id="dialInput" class="dial-input" placeholder="Număr telefon" inputmode="numeric" autocomplete="off">
             <div class="keypad">
@@ -275,22 +320,30 @@ function renderDial() {
             <button class="main-call" onclick="dialNow()"><img src="${icon('call')}"></button>
         </div>
     `;
-}
-function dialKey(k) {
-    const input = document.getElementById('dialInput');
-    if (!input) return;
-    if (k === 'CLR') input.value = '';
-    else if (k === 'DEL') input.value = cleanNumber(input.value).slice(0, -1);
-    else input.value = cleanNumber(input.value + k);
-    input.focus();
-}
-function dialNow(number) {
-    const input = document.getElementById('dialInput');
-    const n = cleanNumber(number || (input ? input.value : ''));
-    if (!n) { playOne('decline'); return; }
-    stopLoop();
-    nui('dial', { number: n });
-    navigate('call');
+
+    const callsHtml = `
+        <div class="phone-call-history">
+            ${rows.length ? rows.map((r) => `
+                <button class="phone-call-row ${esc(r.status || '')}" onclick="dialNow('${esc(r.number)}')">
+                    <span class="call-dot ${esc(r.status || '')}"></span>
+                    <div>
+                        <b>${esc(r.name || r.number || 'Necunoscut')}</b>
+                        <small>${esc(callStatusText(r))}</small>
+                    </div>
+                    <em>${esc(r.direction === 'missed' || r.status === 'missed' ? 'RATAT' : r.direction === 'incoming' ? 'PRIMIT' : 'TRIMIS')}</em>
+                </button>
+            `).join('') : `<div class="empty">Nu ai istoric de apeluri.</div>`}
+        </div>
+    `;
+
+    screens.dial.innerHTML = `
+        ${header('Telefon')}
+        <div class="phone-tabs">
+            <button class="${dialTab === 'keypad' ? 'active' : ''}" onclick="setDialTab('keypad')"><img src="${icon('phone')}"> Telefon</button>
+            <button class="${dialTab === 'calls' ? 'active' : ''}" onclick="setDialTab('calls')"><img src="${icon('calls')}"> Apeluri</button>
+        </div>
+        ${dialTab === 'calls' ? callsHtml : keypadHtml}
+    `;
 }
 
 function renderContacts() {
@@ -351,12 +404,8 @@ function toggleBlock(id) { nui('toggleBlock', { id: Number(id || 0) }); }
 function deleteContact(id) { nui('deleteContact', { id: Number(id || 0) }); selectedContactId = 0; navigate('contacts', false); }
 
 function renderCalls() {
-    screens.calls.classList.remove('scroll');
-    const rows = state.callHistory || [];
-    screens.calls.innerHTML = `
-        ${header('Apeluri')}
-        <div class="list clean-list">${rows.length ? rows.map((r) => `<button class="list-row call-row" onclick="dialNow('${esc(r.number)}')"><span class="call-dot ${esc(r.status)}"></span><div><b>${esc(r.name || r.number)}</b><small>${esc(callStatusText(r))}</small></div></button>`).join('') : `<div class="empty">Nu ai istoric de apeluri.</div>`}</div>
-    `;
+    dialTab = 'calls';
+    navigate('dial', false);
 }
 
 function getConversations() {
@@ -603,7 +652,7 @@ function renderGarageDetail() {
         <div class="garage-actions">
             <button ${spawnDisabled} onclick="garageAction('spawn', ${Number(v.id || 0)})"><img src="${icon('spawn')}"><b>Scoate din Garaj</b><small>${atGarage ? 'Spawn la garajul curent' : 'Trebuie să fii la garaj'}</small></button>
             ${atGarage ? `<button ${parkDisabled} onclick="garageAction('park', ${Number(v.id || 0)})"><img src="${icon('park')}"><b>Parchează</b><small>Disponibil doar în radiusul garajului</small></button>` : ''}
-            <button onclick="garageAction('tow', ${Number(v.id || 0)})"><img src="${icon('tow')}"><b>Tractează</b><small>${Number(g.towPrice || 5000).toLocaleString('en-US')} cash</small></button>
+            <button ${spawned ? 'disabled' : ''} onclick="garageAction('tow', ${Number(v.id || 0)})"><img src="${icon('tow')}"><b>Tractează</b><small>${spawned ? 'Nu merge dacă este scoasă' : `${Number(g.towPrice || 5000).toLocaleString('en-US')} cash`}</small></button>
             ${spawned ? `<button onclick="garageAction('locate', ${Number(v.id || 0)})"><img src="${icon('locate')}"><b>Localizează</b><small>Pune waypoint pe mașină</small></button>` : ''}
         </div>
     `;
@@ -690,14 +739,16 @@ function renderCurrent() {
 window.addEventListener('message', (event) => {
     const data = event.data || {};
     if (data.mainColor) document.documentElement.style.setProperty('--main', data.mainColor);
-    if (data.action === 'setup') nui('requestState');
+    if (data.action === 'setup') { primeAudio(); nui('requestState'); }
     if (data.action === 'focus') setFocusUi(data.focus === true);
     if (data.action === 'open') {
+        primeAudio();
         state = normalizeState(data.state || state);
         applyCallSounds(state);
         openPhone(data.screen || 'home');
     }
     if (data.action === 'incomingPeek') {
+        primeAudio();
         state = normalizeState(data.state || state);
         applyCallSounds(state);
         openPeek('call');
@@ -710,7 +761,11 @@ window.addEventListener('message', (event) => {
         const oldView = activeView;
         state = normalizeState(data.state || {});
         applyCallSounds(state);
-        if (oldInCall && !state.inCall && activeView === 'call') navigate('home', false);
+        if (oldInCall && !state.inCall) {
+            stopAllSounds();
+            if (activeView === 'call') navigate('home', false);
+            if (phoneMode === 'peek') closePhone();
+        }
         const skip = currentInputActive() && ['contactForm', 'newMessage', 'conversation', 'dial'].includes(activeView);
         if (!skip && !isPhoneHidden() && oldView !== 'peek') renderCurrent();
     }
@@ -727,6 +782,10 @@ window.addEventListener('message', (event) => {
     }
     if (data.action === 'feedback') {
         const payload = data.payload || {};
+        if (payload.kind === 'call_closed') {
+            stopAllSounds();
+            if (phoneMode === 'peek') closePhone();
+        }
         if (payload.sound === 'decline') playOne('decline');
         else if (payload.sound === 'message') playOne('message');
         else if (payload.sound === 'ring') playLoop('ring');

@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Vehicless - clean vehicle studio, screenshot removed'
-version '13.0.0'
+description 'DriftZone Vehicless - vehicle studio command UI fix, screenshot removed'
+version '14.0.0'
 
 ui_page 'html/index.html'
 

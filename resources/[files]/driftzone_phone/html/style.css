@@ -420,3 +420,90 @@ input, textarea { user-select: text; }
     color: var(--muted);
     font-size: 12px;
 }
+
+
+/* V2 phone call tabs inside Telefon app */
+.phone-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 4px 0 12px;
+    padding: 5px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.055);
+    border: 1px solid rgba(255,255,255,.08);
+}
+.phone-tabs button {
+    height: 42px;
+    border: 0;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    color: rgba(255,255,255,.64);
+    background: transparent;
+    font-weight: 1000;
+    font-size: 12px;
+}
+.phone-tabs button.active {
+    color: white;
+    background: linear-gradient(145deg, rgba(4,199,247,.28), rgba(255,255,255,.08));
+    box-shadow: 0 10px 24px rgba(4,199,247,.12), inset 0 1px 0 rgba(255,255,255,.10);
+}
+.phone-tabs img {
+    width: 17px;
+    height: 17px;
+}
+.phone-call-history {
+    height: calc(100% - 112px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 2px;
+}
+.phone-call-row {
+    width: 100%;
+    min-height: 64px;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    text-align: left;
+    border-radius: 20px;
+    color: white;
+    background: rgba(255,255,255,.062);
+    border: 1px solid rgba(255,255,255,.085);
+}
+.phone-call-row:hover {
+    background: rgba(4,199,247,.12);
+    border-color: rgba(4,199,247,.24);
+}
+.phone-call-row b {
+    display: block;
+    font-size: 14px;
+}
+.phone-call-row small {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+}
+.phone-call-row em {
+    font-size: 9px;
+    font-style: normal;
+    font-weight: 1000;
+    color: var(--main);
+    background: rgba(4,199,247,.10);
+    border: 1px solid rgba(4,199,247,.20);
+    border-radius: 999px;
+    padding: 5px 7px;
+}
+.phone-call-row.missed em {
+    color: #ff4968;
+    background: rgba(255,73,104,.11);
+    border-color: rgba(255,73,104,.22);
+}

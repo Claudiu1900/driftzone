@@ -297,13 +297,13 @@ local function spawnStudioVehicle(modelName, keepView)
     modelName = cleanModel(modelName)
     if modelName == '' then
         notify('warning', 'Scrie modelul masinii.')
-        return false
+        return false, 'empty'
     end
 
     local hash = joaat(modelName)
     if not IsModelInCdimage(hash) or not IsModelAVehicle(hash) then
         notify('warning', 'Model invalid: ' .. modelName)
-        return false
+        return false, 'invalid'
     end
 
     RequestModel(hash)
@@ -312,8 +312,12 @@ local function spawnStudioVehicle(modelName, keepView)
         Wait(0)
         if GetGameTimer() > timeout then
             notify('warning', 'Nu am putut incarca modelul: ' .. modelName)
-            return false
+            return false, 'timeout'
         end
+    end
+
+    if not savedPed then
+        saveAndMovePlayer()
     end
 
     deleteCurrentVehicle()
@@ -325,7 +329,7 @@ local function spawnStudioVehicle(modelName, keepView)
 
     if not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle) then
         notify('warning', 'Nu am putut crea masina.')
-        return false
+        return false, 'create_failed'
     end
 
     currentModel = modelName
@@ -341,13 +345,14 @@ local function spawnStudioVehicle(modelName, keepView)
     RenderScriptCams(true, true, 300, true, true)
     updateCamera()
 
-    return true
+    return true, nil
 end
 
 local function updateUi()
     sendNui({
         action = 'state',
         model = currentModel or '',
+        hasVehicle = studioVehicle ~= 0 and DoesEntityExist(studioVehicle),
         heading = math.floor((currentSettings.heading or 0) * 10) / 10,
         fov = math.floor((currentSettings.fov or 0) * 10) / 10,
         distance = math.floor((currentSettings.distance or 0) * 10) / 10,
@@ -381,19 +386,24 @@ RegisterNetEvent('driftzone_vehicless:client:openStudio', function(data)
 
     open = true
     cleanMode = false
+    currentModel = nil
     resetSettings()
-    saveAndMovePlayer()
-
-    local ok = spawnStudioVehicle(model, true)
-    if not ok then
-        destroyStudio()
-        return
-    end
 
     applyGameHudVisible(true)
     setFocus(true)
     sendNui({ action = 'open', model = model, mainColor = data.mainColor or Config.MainColor or '#04c7f7' })
     updateUi()
+
+    if model ~= '' then
+        local ok = spawnStudioVehicle(model, true)
+        if ok then
+            sendNui({ action = 'open', model = model, mainColor = Config.MainColor or '#04c7f7' })
+            updateUi()
+        else
+            sendNui({ action = 'loadFailed', model = model })
+            updateUi()
+        end
+    end
 end)
 
 RegisterNUICallback('close', function(_, cb)
@@ -408,17 +418,20 @@ end)
 
 RegisterNUICallback('loadModel', function(data, cb)
     data = data or {}
-    if not open then cb({ ok = false }) return end
+    if not open then cb({ ok = false, error = 'closed' }) return end
 
     local model = cleanModel(data.model)
-    local ok = spawnStudioVehicle(model, data.keepView ~= false)
+    local ok, err = spawnStudioVehicle(model, data.keepView ~= false)
     if ok then
         sendNui({ action = 'open', model = model, mainColor = Config.MainColor or '#04c7f7' })
         updateUi()
         if cleanMode then sendNui({ action = 'cleanMode', enabled = true }) end
+    else
+        sendNui({ action = 'loadFailed', model = model, error = err })
+        updateUi()
     end
 
-    cb({ ok = ok })
+    cb({ ok = ok == true, error = err })
 end)
 
 RegisterNUICallback('control', function(data, cb)
@@ -426,7 +439,11 @@ RegisterNUICallback('control', function(data, cb)
     local action = tostring(data.action or '')
     local s = Config.Studio
 
-    if not open or not DoesEntityExist(studioVehicle) then cb({ ok = false }) return end
+    if not open or not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle) then
+        notify('warning', 'Incarca un model de masina mai intai.', 2500)
+        cb({ ok = false, error = 'no_vehicle' })
+        return
+    end
 
     if action == 'rotate_left' then
         currentSettings.heading = (currentSettings.heading or 0.0) - (s.rotationStep or 7.5)
@@ -512,7 +529,7 @@ end)
 
 CreateThread(function()
     while true do
-        if open and (not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle)) then
+        if open and currentModel and currentModel ~= '' and (not studioVehicle or studioVehicle == 0 or not DoesEntityExist(studioVehicle)) then
             destroyStudio()
         end
         Wait(1000)

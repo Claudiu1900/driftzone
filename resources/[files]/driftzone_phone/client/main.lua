@@ -284,6 +284,8 @@ RegisterCommand(Config.Command or 'phone', function()
     end
 end, false)
 
+RegisterKeyMapping(Config.Command or 'phone', 'Deschide telefonul', 'keyboard', 'L')
+
 RegisterNUICallback('ready', function(_, cb)
     sendNui({ action = 'setup', mainColor = Config.MainColor or '#04c7f7' })
     refreshState()
@@ -426,7 +428,11 @@ RegisterNetEvent('driftzone_phone:client:state', function(state)
 
     if wasInCall and not lastState.inCall then
         resetCallOptions()
-        if phoneOpen then setFocus(true) end
+        if phoneOpen then
+            setFocus(true)
+        elseif phoneVisible then
+            closePhone()
+        end
     end
 
     if wasActive and not lastState.active and phoneOpen then

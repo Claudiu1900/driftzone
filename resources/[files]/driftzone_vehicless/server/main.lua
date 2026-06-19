@@ -62,11 +62,8 @@ RegisterNetEvent('driftzone_vehicless:server:requestOpen', function(model)
     end
 
     model = cleanModel(model)
-    if model == '' then
-        notify(src, 'warning', ('Folosire: /%s model_name'):format(Config.Command or 'vehss'), 5500)
-        return
-    end
 
+    -- /vehss fara model deschide meniul si il lasa pe jucator sa scrie modelul in UI.
     TriggerClientEvent('driftzone_vehicless:client:openStudio', src, {
         model = model,
         mainColor = Config.MainColor or '#04c7f7'
@@ -75,5 +72,5 @@ end)
 
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
-    print('[DRIFTZONE_VEHICLESS] Loaded v13 clean mode. Screenshot removed completely.')
+    print('[DRIFTZONE_VEHICLESS] Loaded v14 command UI fix. Screenshot removed completely.')
 end)

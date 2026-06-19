@@ -10,6 +10,7 @@ local GarageSpawnCooldowns = {}
 local PendingGarageSpawns = {}
 local GaragesCache = nil
 local GaragesCacheExpires = 0
+local sendState
 
 local function sqlName(name)
     return ('`%s`'):format(tostring(name or ''):gsub('`', ''))
@@ -481,6 +482,35 @@ local function getParkGarageForPlayerPhone(src)
     return best, bestDist
 end
 
+
+local function getGarageForCoordsPhone(coords, useParkRadius)
+    if not coords then return nil end
+
+    local best, bestDist = nil, 999999.0
+
+    for _, garage in ipairs(loadPhoneGarages()) do
+        local dist = distance3(coords, garage)
+        local radius = tonumber(garage.radius or 4) or 4
+
+        if useParkRadius == true then
+            radius = tonumber(garage.park_radius or garage.radius or radius) or radius
+        end
+
+        if dist <= radius and dist < bestDist then
+            best, bestDist = garage, dist
+        end
+    end
+
+    return best, bestDist
+end
+
+local function getGarageForVehiclePhone(entity)
+    if not vehicleExists(entity) then return nil end
+    local c = GetEntityCoords(entity)
+    return getGarageForCoordsPhone({ x = c.x + 0.0, y = c.y + 0.0, z = c.z + 0.0 }, true)
+end
+
+
 local function findGarageVehicleEntity(vehicleId)
     vehicleId = tonumber(vehicleId or 0) or 0
     if vehicleId <= 0 then return 0 end
@@ -582,12 +612,14 @@ local function getPhoneGarageVehicleRows(uid)
 
     local ok, rows = pcall(function()
         return MySQL.query.await(([[
-            SELECT id, owner_id, vehicle_model, vehicle_plate, vehicle_tunning, gradient,
-                   COALESCE(vip, 0) AS vip, COALESCE(%s, 0) AS garage
-            FROM %s
-            WHERE owner_id = ?
-            ORDER BY id DESC
-        ]]):format(sqlName(garageColumn()), sqlName(ownedVehiclesTable())), { uid }) or {}
+            SELECT ov.id, ov.owner_id, ov.vehicle_model, ov.vehicle_plate, ov.vehicle_tunning, ov.gradient,
+                   COALESCE(ov.vip, 0) AS vip, COALESCE(ov.%s, 0) AS garage,
+                   COALESCE(vn.vehicle_name, ov.vehicle_model) AS vehicle_name
+            FROM %s ov
+            LEFT JOIN vehiclenames vn ON vn.vehicle_model = ov.vehicle_model
+            WHERE ov.owner_id = ?
+            ORDER BY ov.id DESC
+        ]]):format(tostring(garageColumn()):gsub('`',''), sqlName(ownedVehiclesTable())), { uid }) or {}
     end)
 
     if not ok or type(rows) ~= 'table' then
@@ -649,8 +681,13 @@ local function notifyPhone(src, typ, message, duration)
 end
 
 local function refreshPhoneGarage(src)
-    if src and src > 0 and isLogged(src) then
-        sendState(src)
+    src = tonumber(src or 0) or 0
+    if src > 0 and isLogged(src) then
+        if sendState then
+            sendState(src)
+        else
+            TriggerClientEvent('driftzone_phone:client:state', src, publicCallStateFor(src))
+        end
     end
 end
 
@@ -756,7 +793,7 @@ local function publicCallStateFor(src)
     return state
 end
 
-local function sendState(src)
+sendState = function(src)
     src = tonumber(src)
     if src and src > 0 then
         TriggerClientEvent('driftzone_phone:client:state', src, publicCallStateFor(src))
@@ -765,6 +802,8 @@ end
 
 local function sendCallStates(call)
     if not call then return end
+    sendFeedback(call.a, { kind = 'call_closed' })
+    sendFeedback(call.b, { kind = 'call_closed' })
     sendState(call.a)
     sendState(call.b)
 end
@@ -1217,8 +1256,9 @@ RegisterNetEvent('driftzone_phone:server:garagePark', function(vehicleId)
     local uid = getUid(src)
     if not uid then return notifyPhone(src, 'warning', 'Trebuie sa fii logat.') end
 
-    local garage = getGarageForPlayerPhone(src)
-    if not garage then
+    -- Playerul trebuie sa fie in zona de park/radius a unui garaj.
+    local playerGarage = getParkGarageForPlayerPhone(src) or getGarageForPlayerPhone(src)
+    if not playerGarage then
         notifyPhone(src, 'warning', 'Nu esti la garaj.')
         return refreshPhoneGarage(src)
     end
@@ -1235,15 +1275,27 @@ RegisterNetEvent('driftzone_phone:server:garagePark', function(vehicleId)
         return refreshPhoneGarage(src)
     end
 
-    if not isGarageVehicleSpawned(vehicleId) then
+    local entity = findGarageVehicleEntity(vehicleId)
+    if not vehicleExists(entity) then
         notifyPhone(src, 'warning', 'Masina nu este scoasa din garaj.')
+        return refreshPhoneGarage(src)
+    end
+
+    local vehGarage = getGarageForVehiclePhone(entity)
+    if not vehGarage then
+        notifyPhone(src, 'warning', 'Masina nu este in radiusul unui garaj.')
+        return refreshPhoneGarage(src)
+    end
+
+    if tonumber(vehGarage.id or 0) ~= tonumber(playerGarage.id or 0) then
+        notifyPhone(src, 'warning', 'Tu si masina trebuie sa fiti la acelasi garaj.')
         return refreshPhoneGarage(src)
     end
 
     cleanupPhoneGarageVehicle(vehicleId)
 
     MySQL.update.await(('UPDATE %s SET %s = ? WHERE id = ? AND owner_id = ? LIMIT 1'):format(sqlName(ownedVehiclesTable()), sqlName(garageColumn())), {
-        tonumber(garage.id or 0) or 0, vehicleId, uid
+        tonumber(playerGarage.id or 0) or 0, vehicleId, uid
     })
 
     notifyPhone(src, 'success', 'Masina a fost parcata.')
@@ -1265,6 +1317,11 @@ RegisterNetEvent('driftzone_phone:server:garageTow', function(vehicleId)
 
     vehicleId = tonumber(vehicleId or 0) or 0
     if vehicleId <= 0 then return notifyPhone(src, 'warning', 'Vehicul invalid.') end
+
+    if isGarageVehicleSpawned(vehicleId) then
+        notifyPhone(src, 'warning', 'Masina este scoasa din garaj. Nu poate fi tractata.')
+        return refreshPhoneGarage(src)
+    end
 
     local row = MySQL.single.await(('SELECT id, owner_id, COALESCE(%s, 0) AS garage FROM %s WHERE id = ? AND owner_id = ? LIMIT 1'):format(
         sqlName(garageColumn()), sqlName(ownedVehiclesTable())
@@ -1297,8 +1354,6 @@ RegisterNetEvent('driftzone_phone:server:garageTow', function(vehicleId)
         notifyPhone(src, 'warning', ('Nu ai suma de %s pentru tractare.'):format(price))
         return refreshPhoneGarage(src)
     end
-
-    if isGarageVehicleSpawned(vehicleId) then cleanupPhoneGarageVehicle(vehicleId) end
 
     MySQL.update.await(('UPDATE %s SET %s = ? WHERE id = ? AND owner_id = ? LIMIT 1'):format(sqlName(ownedVehiclesTable()), sqlName(garageColumn())), {
         targetGarageId, vehicleId, uid

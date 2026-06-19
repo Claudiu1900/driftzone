@@ -1,35 +1,30 @@
-# driftzone_vehicless v13 clean
+# driftzone_vehicless v14
 
-Comanda:
+Comenzi:
 
 ```txt
+/vehss
 /vehss model
+/vehssclean
+/vehssclose
 ```
 
-Exemplu:
+## Ce s-a reparat
 
-```txt
-/vehss s15
-```
+- `/vehss` fara model deschide meniul corect.
+- In meniu poti scrie modelul masinii si apesi `LOAD` sau `Enter`.
+- `/vehss s15` inca deschide direct cu modelul incarcat.
+- Daca modelul este invalid, meniul ramane deschis si poti scrie alt model.
+- Playerul nu mai este mutat in studio pana cand modelul este valid.
+- Daca nu exista masina incarcata, controalele nu mai dau bug.
+- Screenshot-basic/yarn/webpack raman scoase complet.
 
-Screenshot-ul a fost scos complet. Nu mai exista `screenshot-basic`, `yarn`, `webpack`, `screenshots` sau buton de screenshot.
+## Clean mode
 
-Clean mode:
+- Tasta ` ascunde/arata UI-ul, radarul/minimap-ul si HUD-ul.
+- Daca tasta nu merge, foloseste `/vehssclean`.
 
-- apasa tasta ` ca sa dispara UI-ul, radarul/minimap-ul si HUD-ul;
-- apasa din nou ` ca sa apara tot inapoi;
-- daca tasta nu merge, foloseste comanda `/vehssclean`.
-
-Pentru HUD extern se apeleaza automat:
-
-```lua
-TriggerEvent('driftzone_hud:client:hide')
-TriggerEvent('driftzone_hud:visible', false)
-TriggerEvent('driftzone_hud:client:show')
-TriggerEvent('driftzone_hud:visible', true)
-```
-
-Instalare in `server.cfg`:
+## server.cfg
 
 ```cfg
 ensure driftzone_vehicless

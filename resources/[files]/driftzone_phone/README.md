@@ -71,3 +71,16 @@ SQL:
 Mesaje:
 - notificarea tip peek pentru mesaj dispare automat dupa 3 secunde;
 - pagina de mesaje este simplificata.
+
+
+## V1.1.1 fixes
+
+- Fix `sendState nil` in garage refresh.
+- `Parcheaza` verifica acum ca playerul si masina sa fie in radiusul aceluiasi garaj.
+- Cand parchezi masina, seteaza `ownedvehicles.garage` la garajul respectiv.
+- `Tracteaza` nu mai merge daca masina este scoasa din garaj.
+- `Localizeaza` ramane doar pentru masini scoase.
+- Aplicatia separata `Apeluri` a fost scoasa de pe Home; istoricul este acum in aplicatia `Telefon`, tabul `Apeluri`.
+- Fix pentru apel ramas blocat cand celalalt inchide inainte sa raspunzi.
+- Sunetele sunt initializate si reincercate mai stabil.
+- Telefonul se deschide de pe tasta `L` prin `RegisterKeyMapping`.
