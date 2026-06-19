@@ -137,3 +137,11 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - `vehicleExists`, `getServerVehiclesSafe` si `getGarageVehicleIdFromEntity` sunt forward-declared corect.
 - `getOutsideVehicleCount` este safe si nu mai poate opri spawn-ul daca o functie lipseste.
 - Spawn-ul nu mai este blocat din cauza erorii de limitare `outsidevehicles`.
+
+
+## Update V2.10 - park prompt UI
+
+- Promptul `Apasa E pentru a parca vehiculul` a fost refacut.
+- Stil minimalist jos central.
+- Tasta `E` are box separat cu accent albastru.
+- Fundal discret, fara UI incarcat.

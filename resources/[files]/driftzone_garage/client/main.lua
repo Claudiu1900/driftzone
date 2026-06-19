@@ -968,18 +968,41 @@ CreateThread(function()
 end)
 
 
-local function drawBottomParkPrompt(text)
+local function drawText2D(x, y, text, scale, r, g, b, a, centre)
     SetTextFont(4)
-    SetTextScale(0.42, 0.42)
-    SetTextColour(255, 255, 255, 235)
-    SetTextCentre(true)
+    SetTextScale(scale or 0.34, scale or 0.34)
+    SetTextColour(r or 255, g or 255, b or 255, a or 255)
+    SetTextCentre(centre == true)
+    SetTextDropshadow(0, 0, 0, 0, 0)
+    SetTextEdge(0, 0, 0, 0, 0)
     SetTextOutline()
     SetTextEntry('STRING')
-    AddTextComponentString(tostring(text or 'Apasa E pentru a parca vehiculul.'))
-    DrawText(0.5, 0.895)
+    AddTextComponentString(tostring(text or ''))
+    DrawText(x, y)
+end
 
-    DrawRect(0.5, 0.912, 0.34, 0.052, 0, 0, 0, 145)
-    DrawRect(0.5, 0.886, 0.34, 0.003, 4, 199, 247, 220)
+local function drawBottomParkPrompt(text)
+    -- Minimal bottom prompt: fundal discret + tasta E evidentiata.
+    local centerX = 0.5
+    local centerY = 0.892
+
+    -- Umbra foarte discreta.
+    DrawRect(centerX, centerY + 0.003, 0.285, 0.044, 0, 0, 0, 112)
+
+    -- Bara principala.
+    DrawRect(centerX, centerY, 0.278, 0.038, 5, 10, 18, 188)
+
+    -- Accent albastru subtire.
+    DrawRect(centerX, centerY - 0.021, 0.278, 0.0022, 4, 199, 247, 230)
+
+    -- Box tasta E.
+    DrawRect(centerX - 0.104, centerY, 0.030, 0.027, 4, 199, 247, 225)
+    DrawRect(centerX - 0.104, centerY, 0.026, 0.022, 7, 18, 28, 120)
+
+    drawText2D(centerX - 0.1105, centerY - 0.0123, 'E', 0.34, 255, 255, 255, 255, false)
+
+    -- Text simplu, fara coduri GTA (~b~ etc), ca sa arate curat.
+    drawText2D(centerX - 0.081, centerY - 0.012, tostring(text or 'Apasa pentru a parca vehiculul'), 0.315, 232, 242, 248, 245, false)
 end
 
 local function getParkGarageFromCoords(coords)
@@ -1018,7 +1041,7 @@ CreateThread(function()
 
                 if garage then
                     waitTime = 0
-                    drawBottomParkPrompt('Apasa ~b~E~s~ pentru a parca vehiculul.')
+                    drawBottomParkPrompt('Apasa pentru a parca vehiculul')
 
                     if IsControlJustPressed(0, 38) then
                         TriggerServerEvent('driftzone_garage:server:parkCurrent', VehToNet(vehicle))
