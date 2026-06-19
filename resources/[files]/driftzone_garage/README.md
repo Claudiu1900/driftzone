@@ -82,3 +82,14 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - Clientul seteaza masina exact pe coordonate si apoi aplica heading-ul.
 - Heading-ul este reaplicat de mai multe ori dupa spawn/tuning, ca GTA sa nu il intoarca singur.
 - `SetVehicleOnGroundProperly` se executa inainte de `SetEntityHeading`, ca sa nu mai reseteze directia.
+
+
+## Update V2.4 - spawn refacut client-side
+
+- Masina nu mai este creata server-side.
+- Serverul doar valideaza ownerul, garajul si locul liber.
+- Clientul creeaza masina direct la `x, y, z, heading`, deci heading-ul este exact cel din parking spot.
+- Nu se mai foloseste `SetVehicleOnGroundProperly`, pentru ca poate roti masina dupa strada.
+- Dupa ce clientul creeaza masina, serverul primeste `netId`, seteaza owner/state si o inregistreaza.
+
+- Toate apelurile `SetVehicleOnGroundProperly` au fost scoase din spawn ca heading-ul sa nu mai fie resetat.

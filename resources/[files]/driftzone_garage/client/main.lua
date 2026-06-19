@@ -129,7 +129,6 @@ local function repairOnce(entity)
     SetVehicleEngineHealth(entity, 1000.0)
     SetVehicleBodyHealth(entity, 1000.0)
     SetVehiclePetrolTankHealth(entity, 1000.0)
-    SetVehicleOnGroundProperly(entity)
     -- Fara engine forced ON.
 end
 
@@ -426,19 +425,159 @@ local function forceVehicleTransform(entity, spawn)
     local z = tonumber(spawn.z)
     local h = tonumber(spawn.h or spawn.heading)
 
-    requestControl(entity, 700)
+    requestControl(entity, 900)
+
+    FreezeEntityPosition(entity, true)
 
     if x and y and z then
         SetEntityCoordsNoOffset(entity, x, y, z, false, false, false)
-        Wait(0)
-        SetVehicleOnGroundProperly(entity)
-        Wait(0)
     end
 
     if h then
         SetEntityHeading(entity, h)
         SetVehicleForwardSpeed(entity, 0.0)
     end
+
+    Wait(0)
+
+    if h then
+        SetEntityHeading(entity, h)
+        SetVehicleForwardSpeed(entity, 0.0)
+    end
+
+    FreezeEntityPosition(entity, false)
+end
+
+local function loadVehicleModel(hash, timeoutMs)
+    hash = tonumber(hash or 0) or 0
+    if hash == 0 then return false end
+
+    if not IsModelInCdimage(hash) then return false end
+    if not IsModelAVehicle(hash) then return false end
+
+    RequestModel(hash)
+
+    local timeout = GetGameTimer() + (timeoutMs or 8000)
+
+    while not HasModelLoaded(hash) and GetGameTimer() < timeout do
+        Wait(20)
+    end
+
+    return HasModelLoaded(hash)
+end
+
+local PendingSpawnVehicles = {}
+
+local function cleanupPendingVehicle(vehicleId)
+    vehicleId = tonumber(vehicleId or 0) or 0
+    local vehicle = PendingSpawnVehicles[vehicleId]
+
+    if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
+        requestControl(vehicle, 900)
+        DeleteVehicle(vehicle)
+        if DoesEntityExist(vehicle) then DeleteEntity(vehicle) end
+    end
+
+    PendingSpawnVehicles[vehicleId] = nil
+end
+
+local function createVehicleClientSide(data)
+    data = type(data) == 'table' and data or {}
+
+    local vehicleId = tonumber(data.id or 0) or 0
+    local model = tostring(data.model or '')
+    local hash = tonumber(data.hash or 0) or joaat(model)
+    local spawn = type(data.spawn) == 'table' and data.spawn or {}
+
+    local x = tonumber(spawn.x)
+    local y = tonumber(spawn.y)
+    local z = tonumber(spawn.z)
+    local h = tonumber(spawn.h or spawn.heading)
+
+    if vehicleId <= 0 or not x or not y or not z or not h then
+        TriggerServerEvent('driftzone_garage:server:clientSpawnFailed', vehicleId, 'Date spawn invalide.')
+        return
+    end
+
+    cleanupPendingVehicle(vehicleId)
+
+    if not loadVehicleModel(hash, 10000) then
+        TriggerServerEvent('driftzone_garage:server:clientSpawnFailed', vehicleId, 'Modelul masinii nu este incarcat/streamat.')
+        return
+    end
+
+    local vehicle = CreateVehicle(hash, x, y, z, h, true, true)
+
+    local timeout = GetGameTimer() + 7000
+    while (not vehicle or vehicle == 0 or not DoesEntityExist(vehicle)) and GetGameTimer() < timeout do
+        Wait(25)
+    end
+
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then
+        SetModelAsNoLongerNeeded(hash)
+        TriggerServerEvent('driftzone_garage:server:clientSpawnFailed', vehicleId, 'Nu am putut crea masina.')
+        return
+    end
+
+    PendingSpawnVehicles[vehicleId] = vehicle
+
+    SetEntityAsMissionEntity(vehicle, true, true)
+    SetVehicleHasBeenOwnedByPlayer(vehicle, true)
+    SetVehicleNumberPlateText(vehicle, tostring(data.plate or 'DRIFT'):sub(1, 8))
+
+    -- Ordinea corecta: pozitie exacta -> heading exact. Fara ground-native-scos.
+    forceVehicleTransform(vehicle, spawn)
+
+    SetVehicleEngineOn(vehicle, false, true, true)
+    SetVehicleDoorsLocked(vehicle, 2)
+    SetVehicleDirtLevel(vehicle, 0.0)
+
+    local state = Entity(vehicle).state
+    state:set('dz_garage_vehicle', true, true)
+    state:set('dz_garage_db_id', vehicleId, true)
+    state:set('ownedVehicleId', vehicleId, true)
+    state:set('vehicle_id', vehicleId, true)
+    state:set('dz_garage_plate', tostring(data.plate or ''), true)
+    state:set('vehicle_plate', tostring(data.plate or ''), true)
+
+    forceGarageTuningByNetId(VehToNet(vehicle), data)
+
+    -- Reaplica heading exact dupa tuning si dupa network setup.
+    forceVehicleTransform(vehicle, spawn)
+
+    local netId = VehToNet(vehicle)
+    NetworkRegisterEntityAsNetworked(vehicle)
+    netId = VehToNet(vehicle)
+
+    if netId and netId > 0 then
+        SetNetworkIdExistsOnAllMachines(netId, true)
+        SetNetworkIdCanMigrate(netId, true)
+    end
+
+    timeout = GetGameTimer() + 5000
+    while (not netId or netId <= 0) and GetGameTimer() < timeout do
+        Wait(50)
+        netId = VehToNet(vehicle)
+    end
+
+    if not netId or netId <= 0 then
+        cleanupPendingVehicle(vehicleId)
+        SetModelAsNoLongerNeeded(hash)
+        TriggerServerEvent('driftzone_garage:server:clientSpawnFailed', vehicleId, 'Masina nu a primit Network ID.')
+        return
+    end
+
+    local repeats = { 0, 80, 180, 350, 700, 1200, 2000 }
+    CreateThread(function()
+        for i = 1, #repeats do
+            if repeats[i] > 0 then Wait(repeats[i]) end
+            if not DoesEntityExist(vehicle) then return end
+            forceVehicleTransform(vehicle, spawn)
+        end
+    end)
+
+    SetModelAsNoLongerNeeded(hash)
+    TriggerServerEvent('driftzone_garage:server:confirmClientSpawn', vehicleId, netId)
 end
 
 local function prepareVehicleByNetId(netId, data)
@@ -485,6 +624,30 @@ local function prepareVehicleByNetId(netId, data)
 end
 
 
+RegisterNetEvent('driftzone_garage:client:createVehicleAtSpot', function(data)
+    CreateThread(function()
+        createVehicleClientSide(data or {})
+    end)
+end)
+
+RegisterNetEvent('driftzone_garage:client:deletePendingVehicle', function(vehicleId)
+    cleanupPendingVehicle(vehicleId)
+end)
+
+RegisterNetEvent('driftzone_garage:client:deleteVehicleNet', function(netId)
+    netId = tonumber(netId or 0) or 0
+    if netId <= 0 then return end
+
+    CreateThread(function()
+        local vehicle = getVehicleFromNetId(netId)
+        if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
+            requestControl(vehicle, 900)
+            DeleteVehicle(vehicle)
+            if DoesEntityExist(vehicle) then DeleteEntity(vehicle) end
+        end
+    end)
+end)
+
 RegisterNetEvent('driftzone_garage:client:forceSpawnTransform', function(netId, spawn)
     netId = tonumber(netId or 0) or 0
     if netId <= 0 then return end
@@ -524,8 +687,16 @@ RegisterNetEvent('driftzone_garage:client:prepareVehicle', function(netId, data)
 end)
 
 RegisterNetEvent('driftzone_garage:client:forceTuning', function(netId, data)
+    data = data or {}
     CreateThread(function()
-        forceGarageTuningByNetId(netId, data or {})
+        forceGarageTuningByNetId(netId, data)
+
+        if type(data.spawn) == 'table' then
+            local entity = getVehicleFromNetId(netId)
+            if entity and entity ~= 0 and DoesEntityExist(entity) then
+                forceVehicleTransform(entity, data.spawn)
+            end
+        end
     end)
 end)
 

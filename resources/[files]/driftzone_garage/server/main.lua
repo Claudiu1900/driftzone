@@ -3,6 +3,7 @@ local SpawnCooldowns = {}
 local SpawnLocks = {}
 local VehicleSpawnLocks = {}
 local GarageBlocked = {}
+local PendingClientSpawns = {}
 
 local Garages = {}
 local GarageById = {}
@@ -681,7 +682,7 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
     vehicleId = tonumber(vehicleId)
     if not vehicleId or vehicleId <= 0 then notify(src, 'warning', 'Vehicul invalid.') return end
 
-    if SpawnLocks[src] or VehicleSpawnLocks[vehicleId] then
+    if SpawnLocks[src] or VehicleSpawnLocks[vehicleId] or PendingClientSpawns[vehicleId] then
         notify(src, 'warning', 'Ai deja aceasta masina in curs de spawn.')
         return
     end
@@ -705,7 +706,6 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
 
     SpawnLocks[src] = true
     VehicleSpawnLocks[vehicleId] = src
-    local spawnedEntity = 0
 
     local ok, err = pcall(function()
         local rows = MySQL.query.await([[
@@ -720,16 +720,25 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
         ]], { vehicleId, uid }) or {}
 
         local row = rows[1]
-        if not row then notify(src, 'warning', 'Acest vehicul nu iti apartine.') return end
+        if not row then
+            SpawnLocks[src] = nil
+            VehicleSpawnLocks[vehicleId] = nil
+            notify(src, 'warning', 'Acest vehicul nu iti apartine.')
+            return
+        end
 
         local isVipVehicle = tonumber(row.vip or 0) == 1 or row.vip == true
 
         if isVipVehicle and not getUserVip(uid) then
+            SpawnLocks[src] = nil
+            VehicleSpawnLocks[vehicleId] = nil
             notify(src, 'warning', 'Ai nevoie de VIP activ pentru acest vehicul.')
             return
         end
 
         if isVehicleSpawned(vehicleId) then
+            SpawnLocks[src] = nil
+            VehicleSpawnLocks[vehicleId] = nil
             notify(src, 'warning', 'Acest vehicul este deja spawnat.')
             refreshGarageList(src, garage)
             return
@@ -739,97 +748,38 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
         if not isSpotFree(spot, bucket) then
             spot, spotIndex = findFreeParkingSpot(garage, bucket)
             if not spot then
+                SpawnLocks[src] = nil
+                VehicleSpawnLocks[vehicleId] = nil
                 notify(src, 'warning', 'Nu este niciun loc liber momentan.')
                 return
             end
         end
 
         local model = tostring(row.vehicle_model or ''):lower()
-        if model == '' then notify(src, 'warning', 'Model vehicul invalid.') return end
+        if model == '' then
+            SpawnLocks[src] = nil
+            VehicleSpawnLocks[vehicleId] = nil
+            notify(src, 'warning', 'Model vehicul invalid.')
+            return
+        end
 
         local hash = joaat(model)
-        if not hash or hash == 0 then notify(src, 'warning', 'Model vehicul invalid.') return end
-
-        local plate = tostring(row.vehicle_plate or randomPlate()):upper():gsub('%s+', ''):sub(1, 8)
-        local vehicleName = tostring(row.vehicle_name or model)
-        local tuningRaw = normalizeTuning(row.vehicle_tunning or '{}')
-        local gradientRaw = normalizeGradient(row.gradient or '')
+        if not hash or hash == 0 then
+            SpawnLocks[src] = nil
+            VehicleSpawnLocks[vehicleId] = nil
+            notify(src, 'warning', 'Model vehicul invalid.')
+            return
+        end
 
         local spawnHeading = tonumber(spot.h or spot.heading or 0.0) or 0.0
         local spawnX = tonumber(spot.x or 0.0) or 0.0
         local spawnY = tonumber(spot.y or 0.0) or 0.0
         local spawnZ = tonumber(spot.z or 0.0) or 0.0
 
-        local entity = CreateVehicle(hash, spawnX, spawnY, spawnZ, spawnHeading, true, true)
-        spawnedEntity = entity
-
-        local timeout = GetGameTimer() + 6000
-        while not vehicleExists(entity) and GetGameTimer() < timeout do Wait(50) end
-
-        if not vehicleExists(entity) then
-            notify(src, 'warning', 'Nu am putut crea vehiculul. Verifica daca modelul este streamat corect.')
-            return
-        end
-
-        SetEntityRoutingBucket(entity, bucket)
-        SetEntityCoords(entity, spawnX, spawnY, spawnZ, false, false, false, false)
-        SetEntityHeading(entity, spawnHeading)
-        SetVehicleNumberPlateText(entity, plate)
-        SetVehicleDoorsLocked(entity, 2)
-
-        local netId = NetworkGetNetworkIdFromEntity(entity)
-        timeout = GetGameTimer() + 6000
-
-        while (not netId or netId == 0) and GetGameTimer() < timeout do
-            Wait(50)
-            netId = NetworkGetNetworkIdFromEntity(entity)
-        end
-
-        if not netId or netId == 0 then
-            if vehicleExists(entity) then DeleteEntity(entity) end
-            cleanupVehicle(vehicleId)
-            notify(src, 'warning', 'Vehiculul a fost creat, dar nu a primit Network ID.')
-            return
-        end
-
-        ActiveVehicles[vehicleId] = {
-            entity = entity,
-            netId = netId,
-            ownerUid = uid,
-            ownerSrc = src,
-            model = model,
-            plate = plate,
-            name = vehicleName,
-            vip = isVipVehicle,
-            tuning = tuningRaw,
-            gradient = gradientRaw,
-            garageId = garage.id,
-            parkingIndex = spotIndex,
-            heading = spawnHeading
-        }
-
-        setGarageVehicleState(entity, {
-            ownerUid = uid,
-            ownerName = getPlayerNameSafe(src),
-            vehicleId = vehicleId,
-            model = model,
-            name = vehicleName,
-            plate = plate,
-            vip = isVipVehicle,
-            tuning = tuningRaw,
-            gradient = gradientRaw,
-            garageId = garage.id,
-            heading = spawnHeading
-        })
-
-        pcall(function()
-            TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', vehicleId, true)
-            TriggerEvent('driftzone_vehicleconfig:server:setEngineOff', netId)
-        end)
-
-        TriggerClientEvent('driftzone_garage:client:spawnedSuccess', src)
-        notify(src, 'info', ('Vehiculul %s a fost scos din garaj.'):format(vehicleName))
-        refreshGarageList(src, garage)
+        local plate = tostring(row.vehicle_plate or randomPlate()):upper():gsub('%s+', ''):sub(1, 8)
+        local vehicleName = tostring(row.vehicle_name or model)
+        local tuningRaw = normalizeTuning(row.vehicle_tunning or '{}')
+        local gradientRaw = normalizeGradient(row.gradient or '')
 
         local spawnTransform = {
             x = spawnX,
@@ -838,87 +788,209 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
             h = spawnHeading
         }
 
-        TriggerClientEvent('driftzone_garage:client:prepareVehicle', src, netId, {
+        PendingClientSpawns[vehicleId] = {
+            src = src,
+            uid = uid,
+            garageId = garage.id,
+            garage = garage,
+            spotIndex = spotIndex,
+            spawn = spawnTransform,
+            model = model,
+            hash = hash,
+            plate = plate,
+            vehicleName = vehicleName,
+            isVipVehicle = isVipVehicle,
+            tuningRaw = tuningRaw,
+            gradientRaw = gradientRaw,
+            bucket = bucket,
+            createdAt = GetGameTimer()
+        }
+
+        TriggerClientEvent('driftzone_garage:client:createVehicleAtSpot', src, {
             id = vehicleId,
             model = model,
+            hash = hash,
             name = vehicleName,
             plate = plate,
             tuning = tuningRaw,
             gradient = gradientRaw,
-            forceTuning = true,
+            vip = isVipVehicle,
             spawn = spawnTransform,
-            heading = spawnHeading
+            garageId = garage.id,
+            parkingIndex = spotIndex
         })
 
-        -- Trimis si separat, ca directia sa ramana exact heading-ul parcarii.
-        TriggerClientEvent('driftzone_garage:client:forceSpawnTransform', -1, netId, spawnTransform)
+        SetTimeout(15000, function()
+            local pending = PendingClientSpawns[vehicleId]
+            if pending and pending.src == src then
+                PendingClientSpawns[vehicleId] = nil
+                SpawnLocks[src] = nil
+                VehicleSpawnLocks[vehicleId] = nil
 
-        SetTimeout(350, function()
-            TriggerClientEvent('driftzone_garage:client:forceSpawnTransform', -1, netId, spawnTransform)
-        end)
-
-        SetTimeout(1200, function()
-            if GetPlayerName(src) and ActiveVehicles[vehicleId] and ActiveVehicles[vehicleId].netId == netId then
-                TriggerClientEvent('driftzone_garage:client:forceTuning', src, netId, {
-                    id = vehicleId,
-                    tuning = tuningRaw,
-                    gradient = gradientRaw,
-                    plate = plate,
-                    spawn = spawnTransform,
-                    heading = spawnHeading
-                })
+                if GetPlayerName(src) then
+                    TriggerClientEvent('driftzone_garage:client:deletePendingVehicle', src, vehicleId)
+                    notify(src, 'error', 'Spawn-ul masinii a expirat. Incearca din nou.')
+                    refreshGarageList(src, garage)
+                end
             end
-        end)
-
-        SetTimeout(3500, function()
-            if GetPlayerName(src) and ActiveVehicles[vehicleId] and ActiveVehicles[vehicleId].netId == netId then
-                TriggerClientEvent('driftzone_garage:client:forceTuning', src, netId, {
-                    id = vehicleId,
-                    tuning = tuningRaw,
-                    gradient = gradientRaw,
-                    plate = plate,
-                    spawn = spawnTransform,
-                    heading = spawnHeading
-                })
-            end
-        end)
-
-        pcall(function()
-            exports.driftzone_vs:RegisterVehicle(entity, {
-                source = 'garage',
-                sqlVehicleId = vehicleId,
-                ownerId = uid,
-                ownerName = getPlayerNameSafe(src),
-                model = model,
-                plate = plate
-            })
-        end)
-
-        pcall(function()
-            TriggerEvent('vs:registerVehicle', entity, {
-                source = 'garage',
-                sqlVehicleId = vehicleId,
-                ownerId = uid,
-                ownerName = getPlayerNameSafe(src),
-                model = model,
-                plate = plate
-            })
         end)
     end)
 
+    if not ok then
+        PendingClientSpawns[vehicleId] = nil
+        SpawnLocks[src] = nil
+        VehicleSpawnLocks[vehicleId] = nil
+        print(('[DRIFTZONE_GARAGE] spawn validation error src=%s vehicleId=%s: %s'):format(src, vehicleId, tostring(err)))
+        notify(src, 'error', 'A aparut o eroare la pregatirea masinii.')
+    end
+end)
+
+RegisterNetEvent('driftzone_garage:server:confirmClientSpawn', function(vehicleId, netId)
+    local src = source
+    vehicleId = tonumber(vehicleId or 0) or 0
+    netId = tonumber(netId or 0) or 0
+
+    local pending = PendingClientSpawns[vehicleId]
+
+    if not pending or pending.src ~= src or netId <= 0 then
+        TriggerClientEvent('driftzone_garage:client:deleteVehicleNet', src, netId)
+        return
+    end
+
+    local entity = NetworkGetEntityFromNetworkId(netId)
+    local timeout = GetGameTimer() + 5000
+
+    while (not vehicleExists(entity)) and GetGameTimer() < timeout do
+        Wait(50)
+        entity = NetworkGetEntityFromNetworkId(netId)
+    end
+
+    if not vehicleExists(entity) then
+        PendingClientSpawns[vehicleId] = nil
+        SpawnLocks[src] = nil
+        VehicleSpawnLocks[vehicleId] = nil
+
+        notify(src, 'error', 'Masina a fost creata, dar serverul nu a putut sa o citeasca.')
+        refreshGarageList(src, pending.garage)
+        return
+    end
+
+    if isVehicleSpawned(vehicleId) then
+        TriggerClientEvent('driftzone_garage:client:deleteVehicleNet', src, netId)
+        PendingClientSpawns[vehicleId] = nil
+        SpawnLocks[src] = nil
+        VehicleSpawnLocks[vehicleId] = nil
+
+        notify(src, 'warning', 'Acest vehicul este deja spawnat.')
+        refreshGarageList(src, pending.garage)
+        return
+    end
+
+    local spawn = pending.spawn or {}
+
+    SetEntityRoutingBucket(entity, pending.bucket or 0)
+    SetEntityHeading(entity, tonumber(spawn.h or 0.0) or 0.0)
+    SetVehicleNumberPlateText(entity, pending.plate)
+    SetVehicleDoorsLocked(entity, 2)
+
+    ActiveVehicles[vehicleId] = {
+        entity = entity,
+        netId = netId,
+        ownerUid = pending.uid,
+        ownerSrc = src,
+        model = pending.model,
+        plate = pending.plate,
+        name = pending.vehicleName,
+        vip = pending.isVipVehicle,
+        tuning = pending.tuningRaw,
+        gradient = pending.gradientRaw,
+        garageId = pending.garageId,
+        parkingIndex = pending.spotIndex,
+        heading = tonumber(spawn.h or 0.0) or 0.0
+    }
+
+    setGarageVehicleState(entity, {
+        ownerUid = pending.uid,
+        ownerName = getPlayerNameSafe(src),
+        vehicleId = vehicleId,
+        model = pending.model,
+        name = pending.vehicleName,
+        plate = pending.plate,
+        vip = pending.isVipVehicle,
+        tuning = pending.tuningRaw,
+        gradient = pending.gradientRaw,
+        garageId = pending.garageId,
+        heading = tonumber(spawn.h or 0.0) or 0.0
+    })
+
+    pcall(function()
+        TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', vehicleId, true)
+        TriggerEvent('driftzone_vehicleconfig:server:setEngineOff', netId)
+    end)
+
+    pcall(function()
+        exports.driftzone_vs:RegisterVehicle(entity, {
+            source = 'garage',
+            sqlVehicleId = vehicleId,
+            ownerId = pending.uid,
+            ownerName = getPlayerNameSafe(src),
+            model = pending.model,
+            plate = pending.plate
+        })
+    end)
+
+    pcall(function()
+        TriggerEvent('vs:registerVehicle', entity, {
+            source = 'garage',
+            sqlVehicleId = vehicleId,
+            ownerId = pending.uid,
+            ownerName = getPlayerNameSafe(src),
+            model = pending.model,
+            plate = pending.plate
+        })
+    end)
+
+    PendingClientSpawns[vehicleId] = nil
     SpawnLocks[src] = nil
     VehicleSpawnLocks[vehicleId] = nil
 
-    if not ok then
-        print(('[DRIFTZONE_GARAGE] spawn error src=%s vehicleId=%s: %s'):format(src, vehicleId, tostring(err)))
+    TriggerClientEvent('driftzone_garage:client:forceSpawnTransform', -1, netId, spawn)
+    TriggerClientEvent('driftzone_garage:client:spawnedSuccess', src)
 
-        if spawnedEntity and spawnedEntity ~= 0 and DoesEntityExist(spawnedEntity) then
-            DeleteEntity(spawnedEntity)
+    notify(src, 'info', ('Vehiculul %s a fost scos din garaj.'):format(pending.vehicleName))
+    refreshGarageList(src, pending.garage)
+
+    SetTimeout(450, function()
+        TriggerClientEvent('driftzone_garage:client:forceSpawnTransform', -1, netId, spawn)
+    end)
+
+    SetTimeout(1200, function()
+        if ActiveVehicles[vehicleId] and ActiveVehicles[vehicleId].netId == netId then
+            TriggerClientEvent('driftzone_garage:client:forceTuning', src, netId, {
+                id = vehicleId,
+                tuning = pending.tuningRaw,
+                gradient = pending.gradientRaw,
+                plate = pending.plate,
+                spawn = spawn,
+                heading = tonumber(spawn.h or 0.0) or 0.0
+            })
         end
+    end)
+end)
 
-        cleanupVehicle(vehicleId)
-        notify(src, 'error', 'A aparut o eroare la scoaterea masinii.')
-    end
+RegisterNetEvent('driftzone_garage:server:clientSpawnFailed', function(vehicleId, reason)
+    local src = source
+    vehicleId = tonumber(vehicleId or 0) or 0
+
+    local pending = PendingClientSpawns[vehicleId]
+    if not pending or pending.src ~= src then return end
+
+    PendingClientSpawns[vehicleId] = nil
+    SpawnLocks[src] = nil
+    VehicleSpawnLocks[vehicleId] = nil
+
+    notify(src, 'error', tostring(reason or 'Nu am putut spawna masina.'))
+    refreshGarageList(src, pending.garage)
 end)
 
 RegisterNetEvent('driftzone_garage:server:spawnPrepared', function(vehicleId)
