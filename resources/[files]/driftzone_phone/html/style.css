@@ -740,3 +740,18 @@ input, textarea { user-select: text; }
     margin-left: auto;
     margin-right: auto;
 }
+
+
+/* V1.2.2 - hide garage car scrollbar */
+.garage-cars {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.garage-cars::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none;
+}
+.garage-car {
+    box-shadow: 0 10px 24px rgba(0,0,0,.13);
+}

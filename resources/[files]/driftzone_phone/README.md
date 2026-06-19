@@ -115,3 +115,13 @@ Mesaje:
 - Adaugat sign-ul albastru de masina la garaje, plus radius vizibil.
 - `/addgarage`, `/editgarages`, `/resetgarages` deschid editor NUI in phone resource.
 - Editorul de garaje are coordonate, radius, park radius si locuri de parcare ca in driftzone_garage.
+
+
+## V1.2.2 garage status final
+
+- Reparat cauza pentru care aproape toate masinile apareau `AFARA`.
+- `ownedvehicles.garage = 0` nu mai inseamna masina scoasa.
+- Masina apare `AFARA` doar daca exista entity spawnat pe server.
+- Pentru masini vechi cu `garage = 0`, aplicatia le considera in garajul default din config.
+- `Scoate din Garaj` nu mai blocheaza gresit cu `Masina este deja scoasa`.
+- Ascuns scrollbar-ul din lista de masini, dar scroll-ul ramane functional.

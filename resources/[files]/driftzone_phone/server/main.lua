@@ -642,12 +642,19 @@ local function getPhoneGarageVehicleRows(uid)
     local out = {}
     for _, row in ipairs(rows) do
         local vehicleId = tonumber(row.id or 0) or 0
-        local garageId = tonumber(row.garage or 0) or 0
+        local rawGarageId = tonumber(row.garage or 0) or 0
+        local garageId = rawGarageId
+        if garageId <= 0 then
+            garageId = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
+        end
+
         local entity = findGarageVehicleEntity(vehicleId)
         local entitySpawned = vehicleExists(entity)
-        local dbOutside = garageId <= 0
-        local stored = garageId > 0 and not entitySpawned
-        local spawned = entitySpawned or dbOutside
+
+        -- Sursa adevarata pentru "AFARA" este entity-ul spawnat, nu coloana garage.
+        local spawned = entitySpawned
+        local stored = not entitySpawned
+
         local active = GarageVehicles[vehicleId]
         local currentGarageId = active and tonumber(active.garageId or 0) or 0
         local garage = garagesById[garageId]
@@ -661,6 +668,7 @@ local function getPhoneGarageVehicleRows(uid)
             plate = tostring(row.vehicle_plate or 'DRIFT'),
             vip = tonumber(row.vip or 0) == 1,
             garage = garageId,
+            rawGarage = rawGarageId,
             garageId = garageId,
             garageName = garage and garage.name or (garageId > 0 and ('Garaj #' .. garageId) or 'Pe strada'),
             stored = stored,
@@ -1308,6 +1316,10 @@ RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
     end
 
     local storedGarage = tonumber(row.garage or 0) or 0
+    if storedGarage <= 0 then
+        storedGarage = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
+    end
+
     if storedGarage ~= tonumber(garage.id or 0) then
         notifyPhone(src, 'warning', 'Masina nu se afla in acest garaj.')
         return refreshPhoneGarage(src)
@@ -1564,9 +1576,13 @@ RegisterNetEvent('driftzone_phone:server:garageTow', function(vehicleId)
     local currentGarageId = tonumber(row.garage or 0) or 0
     local targetGarageId = tonumber(garage.id or 0) or 0
 
-    if currentGarageId <= 0 or isGarageVehicleSpawned(vehicleId) then
+    if isGarageVehicleSpawned(vehicleId) then
         notifyPhone(src, 'warning', 'Masina este scoasa. Nu poate fi tractata.')
         return refreshPhoneGarage(src)
+    end
+
+    if currentGarageId <= 0 then
+        currentGarageId = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
     end
 
     if currentGarageId == targetGarageId then

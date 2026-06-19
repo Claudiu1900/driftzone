@@ -655,10 +655,9 @@ function vehicleDisplayName(v) {
 
 function vehicleIsSpawned(v) {
     if (!v) return false;
-    if (v.stored === true) return false;
     if (v.entitySpawned === true) return true;
-    if (v.spawned === true) return true;
-    return Number(v.garageId || v.garage || 0) <= 0;
+    if (v.spawned === true && v.stored !== true) return true;
+    return false;
 }
 
 function renderGarageCar(v) {
