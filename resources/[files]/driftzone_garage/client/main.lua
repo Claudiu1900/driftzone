@@ -487,9 +487,17 @@ local function loadVehicleModel(hash, timeoutMs)
 end
 
 local PendingSpawnVehicles = {}
+local ConfirmedSpawnVehicles = {}
 
 local function cleanupPendingVehicle(vehicleId)
     vehicleId = tonumber(vehicleId or 0) or 0
+
+    -- Dupa confirm catre server, nu mai stergem local masina ca "pending".
+    if ConfirmedSpawnVehicles[vehicleId] == true then
+        PendingSpawnVehicles[vehicleId] = nil
+        return
+    end
+
     local vehicle = PendingSpawnVehicles[vehicleId]
 
     if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
@@ -593,14 +601,9 @@ local function createVehicleClientSide(data)
         return
     end
 
-    -- Reaplicare usoara doar ca sa nu ramana in aer dupa network/tuning.
-    CreateThread(function()
-        Wait(250)
-        if DoesEntityExist(vehicle) then forceVehicleTransform(vehicle, spawn) end
-        Wait(750)
-        if DoesEntityExist(vehicle) then forceVehicleTransform(vehicle, spawn) end
-    end)
+    -- Fara retry/reapply loop. Masina se spawneaza o singura data si ramane acolo.
 
+    ConfirmedSpawnVehicles[vehicleId] = true
     SetModelAsNoLongerNeeded(hash)
     TriggerServerEvent('driftzone_garage:server:confirmClientSpawn', vehicleId, netId)
 end
@@ -656,6 +659,8 @@ RegisterNetEvent('driftzone_garage:client:createVehicleAtSpot', function(data)
 end)
 
 RegisterNetEvent('driftzone_garage:client:deletePendingVehicle', function(vehicleId)
+    vehicleId = tonumber(vehicleId or 0) or 0
+    ConfirmedSpawnVehicles[vehicleId] = nil
     cleanupPendingVehicle(vehicleId)
 end)
 
@@ -674,17 +679,8 @@ RegisterNetEvent('driftzone_garage:client:deleteVehicleNet', function(netId)
 end)
 
 RegisterNetEvent('driftzone_garage:client:forceSpawnTransform', function(netId, spawn)
-    netId = tonumber(netId or 0) or 0
-    if netId <= 0 then return end
-
-    CreateThread(function()
-        local entity = getVehicleFromNetId(netId)
-        if not entity or entity == 0 or not DoesEntityExist(entity) then return end
-
-        forceVehicleTransform(entity, spawn or {})
-        Wait(350)
-        if DoesEntityExist(entity) then forceVehicleTransform(entity, spawn or {}) end
-    end)
+    -- Dezactivat intentionat: nu mai fortam masina dupa spawn.
+    -- Asta elimina efectul de dispare/apare sau resetari vizuale.
 end)
 
 
@@ -711,13 +707,6 @@ RegisterNetEvent('driftzone_garage:client:forceTuning', function(netId, data)
     data = data or {}
     CreateThread(function()
         forceGarageTuningByNetId(netId, data)
-
-        if type(data.spawn) == 'table' then
-            local entity = getVehicleFromNetId(netId)
-            if entity and entity ~= 0 and DoesEntityExist(entity) then
-                forceVehicleTransform(entity, data.spawn)
-            end
-        end
     end)
 end)
 

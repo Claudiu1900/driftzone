@@ -955,23 +955,11 @@ RegisterNetEvent('driftzone_garage:server:confirmClientSpawn', function(vehicleI
     VehicleSpawnLocks[vehicleId] = nil
 
     -- Nu fortam agresiv coordonatele de pe server; clientul a calculat deja ground Z corect.
-    TriggerClientEvent('driftzone_garage:client:spawnedSuccess', src)
+    TriggerClientEvent('driftzone_garage:client:spawnedSuccess', src, vehicleId)
 
     notify(src, 'info', ('Vehiculul %s a fost scos din garaj.'):format(pending.vehicleName))
     refreshGarageList(src, pending.garage)
 
-    SetTimeout(1200, function()
-        if ActiveVehicles[vehicleId] and ActiveVehicles[vehicleId].netId == netId then
-            TriggerClientEvent('driftzone_garage:client:forceTuning', src, netId, {
-                id = vehicleId,
-                tuning = pending.tuningRaw,
-                gradient = pending.gradientRaw,
-                plate = pending.plate,
-                spawn = spawn,
-                heading = tonumber(spawn.h or 0.0) or 0.0
-            })
-        end
-    end)
 end)
 
 RegisterNetEvent('driftzone_garage:server:clientSpawnFailed', function(vehicleId, reason)
@@ -1041,7 +1029,7 @@ RegisterNetEvent('driftzone_garage:server:despawn', function(vehicleId)
 
     notify(src, 'info', 'Vehiculul a fost despawnat.')
     refreshGarageList(src, getGarageForPlayer(src))
-    TriggerClientEvent('driftzone_garage:client:spawnedSuccess', src)
+    TriggerClientEvent('driftzone_garage:client:spawnedSuccess', src, vehicleId)
 end)
 
 RegisterNetEvent('driftzone_garage:server:parkCurrent', function(netId)

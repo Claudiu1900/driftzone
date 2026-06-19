@@ -101,3 +101,11 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - Masina se creeaza direct pe sol, nu la Z-ul din DB daca acela este prea sus.
 - `SetVehicleOnGroundProperly` este folosit doar client-side, apoi se aplica heading-ul.
 - Am scos fortarea agresiva de heading/pozitie; acum doar aseaza masina pe sol si lasa heading-ul normal.
+
+
+## Update V2.6 - no retry / no flicker
+
+- Scos retry-ul/reaplicarea de pozitie dupa spawn.
+- Scos `forceSpawnTransform` dupa spawn.
+- Scos delayed `forceTuning` care putea face masina sa para ca dispare/apare.
+- Masina se creeaza o singura data, se aseaza pe sol si serverul doar confirma owner/state.
