@@ -3,6 +3,7 @@ local addItemOpen = false
 local selectorOpen = false
 local itemsOpen = false
 local addClothesOpen = false
+local addWeaponOpen = false
 local clothesItemsOpen = false
 local pendingGive = nil
 local cursorX, cursorY = 0.5, 0.5
@@ -102,6 +103,133 @@ local function playActionAnimation(actionName)
 
     playNativeAction(anim)
 end
+
+local EquippedWeapon = nil
+local LastWeaponShot = 0
+
+local function normalizeWeaponNameClient(value)
+    local text = tostring(value or ''):upper():gsub('%s+', '')
+    if text == '' then return '' end
+    if not text:match('^WEAPON_') then text = 'WEAPON_' .. text end
+    return text
+end
+
+local function weaponHashClient(value)
+    local name = normalizeWeaponNameClient(value)
+    if name == '' then return 0 end
+    return GetHashKey(name)
+end
+
+local function removeInventoryWeapon(data)
+    data = data or EquippedWeapon
+    if not data then return end
+
+    local ped = PlayerPedId()
+    local hash = weaponHashClient(data.weapon_id or data.weaponId or data.weapon or '')
+    if ped and ped ~= 0 and hash ~= 0 then
+        RemoveWeaponFromPed(ped, hash)
+        if EquippedWeapon and EquippedWeapon.weapon_id and weaponHashClient(EquippedWeapon.weapon_id) == hash then
+            SetCurrentPedWeapon(ped, GetHashKey('WEAPON_UNARMED'), true)
+        end
+    end
+
+    if EquippedWeapon and data.item_id and EquippedWeapon.item_id == data.item_id then
+        EquippedWeapon = nil
+    elseif not data.item_id then
+        EquippedWeapon = nil
+    end
+end
+
+RegisterNetEvent('driftzone_inventory:client:weaponEquip', function(data)
+    data = data or {}
+    local weaponId = normalizeWeaponNameClient(data.weapon_id or data.weaponId or '')
+    local hash = weaponHashClient(weaponId)
+
+    if hash == 0 then
+        notify('warning', 'Weapon ID invalid.')
+        return
+    end
+
+    if EquippedWeapon then removeInventoryWeapon(EquippedWeapon) end
+
+    local ped = PlayerPedId()
+    if not ped or ped == 0 or IsEntityDead(ped) then return end
+
+    local ammo = math.max(0, math.floor(tonumber(data.ammo or 0) or 0))
+    GiveWeaponToPed(ped, hash, ammo, false, true)
+    SetPedAmmo(ped, hash, ammo)
+    SetCurrentPedWeapon(ped, hash, true)
+
+    EquippedWeapon = {
+        item_id = tostring(data.item_id or ''),
+        weapon_id = weaponId,
+        weapon_name = tostring(data.weapon_name or data.weaponName or weaponId),
+        bullets_item_id = tostring(data.bullets_item_id or data.bulletsItemId or ''),
+        ammo = ammo
+    }
+
+    notify('success', ('Ai echipat %s.'):format(EquippedWeapon.weapon_name))
+end)
+
+RegisterNetEvent('driftzone_inventory:client:weaponRemove', function(data)
+    removeInventoryWeapon(data or EquippedWeapon)
+end)
+
+RegisterNetEvent('driftzone_inventory:client:weaponAmmo', function(data)
+    data = data or {}
+    if not EquippedWeapon then return end
+    if data.item_id and tostring(data.item_id) ~= EquippedWeapon.item_id then return end
+
+    local ammo = math.max(0, math.floor(tonumber(data.ammo or 0) or 0))
+    EquippedWeapon.ammo = ammo
+
+    local ped = PlayerPedId()
+    local hash = weaponHashClient(EquippedWeapon.weapon_id)
+    if ped and ped ~= 0 and hash ~= 0 and HasPedGotWeapon(ped, hash, false) then
+        SetPedAmmo(ped, hash, ammo)
+    end
+end)
+
+AddEventHandler('onResourceStop', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    if EquippedWeapon then removeInventoryWeapon(EquippedWeapon) end
+end)
+
+CreateThread(function()
+    while true do
+        if EquippedWeapon then
+            local waitTime = 0
+            local ped = PlayerPedId()
+
+            if ped and ped ~= 0 and not IsEntityDead(ped) then
+                local hash = weaponHashClient(EquippedWeapon.weapon_id)
+
+                if hash ~= 0 and IsPedShooting(ped) and GetSelectedPedWeapon(ped) == hash then
+                    local now = GetGameTimer()
+                    local cooldown = tonumber((Config.Weapons or {}).ShotCooldownMs or 55) or 55
+
+                    if now - LastWeaponShot >= cooldown then
+                        LastWeaponShot = now
+                        TriggerServerEvent(
+                            'driftzone_inventory:server:weaponShot',
+                            EquippedWeapon.item_id,
+                            EquippedWeapon.weapon_id,
+                            EquippedWeapon.bullets_item_id
+                        )
+                    end
+                end
+            else
+                EquippedWeapon = nil
+                waitTime = 750
+            end
+
+            Wait(waitTime)
+        else
+            Wait(650)
+        end
+    end
+end)
+
 
 
 local function getClothingCategoryConfig(key)
@@ -244,6 +372,7 @@ local function openInventory(data)
     selectorOpen = false
     itemsOpen = false
     addClothesOpen = false
+    addWeaponOpen = false
     clothesItemsOpen = false
     pendingGive = nil
     setFocus(true)
@@ -258,6 +387,7 @@ closeAll = function()
     selectorOpen = false
     itemsOpen = false
     addClothesOpen = false
+    addWeaponOpen = false
     clothesItemsOpen = false
     pendingGive = nil
     setFocus(false)
@@ -270,6 +400,7 @@ local function openSelector(data)
     selectorOpen = true
     itemsOpen = false
     addClothesOpen = false
+    addWeaponOpen = false
     clothesItemsOpen = false
     selectorTarget = nil
     selectorTargetPed = nil
@@ -300,6 +431,7 @@ RegisterNetEvent('driftzone_inventory:client:openInventoryPosition', function(da
     selectorOpen = false
     itemsOpen = false
     addClothesOpen = false
+    addWeaponOpen = false
     clothesItemsOpen = false
     pendingGive = nil
     setFocus(true)
@@ -320,6 +452,7 @@ RegisterNetEvent('driftzone_inventory:client:addItemPanel', function(data)
     selectorOpen = false
     itemsOpen = false
     addClothesOpen = false
+    addWeaponOpen = false
     clothesItemsOpen = false
     setFocus(true)
     sendNui({ action = 'openAddItem', data = data or {} })
@@ -335,6 +468,7 @@ RegisterNetEvent('driftzone_inventory:client:itemsPanel', function(data)
     selectorOpen = false
     itemsOpen = true
     addClothesOpen = false
+    addWeaponOpen = false
     clothesItemsOpen = false
     setFocus(true)
     sendNui({ action = 'openItems', data = data or {} })
@@ -358,6 +492,22 @@ end)
 
 RegisterNetEvent('driftzone_inventory:client:clothesResult', function(ok, message)
     sendNui({ action = 'clothesResult', ok = ok == true, message = tostring(message or '') })
+end)
+
+RegisterNetEvent('driftzone_inventory:client:addWeaponPanel', function(data)
+    inventoryOpen = false
+    addItemOpen = false
+    selectorOpen = false
+    itemsOpen = false
+    addClothesOpen = false
+    addWeaponOpen = true
+    clothesItemsOpen = false
+    setFocus(true)
+    sendNui({ action = 'openAddWeapon', data = data or {} })
+end)
+
+RegisterNetEvent('driftzone_inventory:client:addWeaponResult', function(ok, message)
+    sendNui({ action = 'addWeaponResult', ok = ok == true, message = tostring(message or '') })
 end)
 
 RegisterNetEvent('driftzone_inventory:client:clothesItemsPanel', function(data)
@@ -458,6 +608,11 @@ end)
 
 RegisterNUICallback('submitAddClothes', function(data, cb)
     TriggerServerEvent('driftzone_inventory:server:addClothesSubmit', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('submitAddWeapon', function(data, cb)
+    TriggerServerEvent('driftzone_inventory:server:addWeaponSubmit', data or {})
     cb({ ok = true })
 end)
 
@@ -626,7 +781,7 @@ end)
 for i = 1, 5 do
     local quickIndex = i
     RegisterCommand(('dz_inv_quick_%s'):format(quickIndex), function()
-        if addItemOpen or selectorOpen or itemsOpen or addClothesOpen or clothesItemsOpen then return end
+        if addItemOpen or selectorOpen or itemsOpen or addClothesOpen or addWeaponOpen or clothesItemsOpen then return end
         TriggerServerEvent('driftzone_inventory:server:useQuickSlot', quickIndex)
     end, false)
 
@@ -720,7 +875,7 @@ end)
 
 CreateThread(function()
     while true do
-        if inventoryOpen or addItemOpen or selectorOpen or itemsOpen or addClothesOpen or clothesItemsOpen then
+        if inventoryOpen or addItemOpen or selectorOpen or itemsOpen or addClothesOpen or addWeaponOpen or clothesItemsOpen then
             DisableControlAction(0, 1, true)
             DisableControlAction(0, 2, true)
             DisableControlAction(0, 24, true)

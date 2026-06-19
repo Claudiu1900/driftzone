@@ -50,3 +50,41 @@ Config.ClothingSlotPositions = {}
 ```
 
 Pozitiile salvate de admin in DB au prioritate peste config.
+
+
+## WEAPON ITEMS
+
+Sistem adaugat pentru arme ca iteme de inventar.
+
+### Comanda admin
+
+`/addweapon` - doar `admin_level >= 6` + `aduty` activ.
+
+Campuri:
+- `Item ID` - itemul din inventar, exemplu `pistol`
+- `Weapon ID` - arma GTA, exemplu `WEAPON_PISTOL`
+- `Weapon Name` - nume afisat, exemplu `Pistol`
+- `Bullets Item ID` - itemul pentru gloante, exemplu `pistol_ammo`
+- `Image`
+- `Tradable`
+- `Giveable`
+
+### Cum functioneaza
+
+- Cand playerul da `USE` pe arma, arma este pusa in mana.
+- Cand da iar `USE` pe aceeasi arma, arma este scoasa.
+- Cand trage, serverul scade `-1` din itemul de gloante setat la arma.
+- Daca nu mai are gloante, arma este scoasa din mana.
+- Daca arma este data cu GIVE, DROP, TAKEITEM sau WIPE, arma este scoasa automat din mana.
+- Daca gloantele sunt scoase din inventar, arma este scoasa automat din mana.
+
+### SQL
+
+Ruleaza `SQL.sql`. Tabela noua:
+- `inventory_weapons`
+
+Pentru gloante creezi item normal cu `/additem`, de exemplu:
+- item id: `pistol_ammo`
+- stackable: `1`
+- usable: `0`
+- max stack: `999`

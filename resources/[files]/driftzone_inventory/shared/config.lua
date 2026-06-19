@@ -31,12 +31,14 @@ Config.InventoryTable = 'inventory'
 Config.ItemsTable = 'inventory_items'
 Config.LogsTable = 'inventory_logs'
 Config.InventoryPositionTable = 'inventory_position'
+Config.WeaponItemsTable = 'inventory_weapons'
 
 Config.Admin = {
     additem = 6,
     items = 6,
     addclothes = 6,
     clothesitems = 6,
+    addweapon = 6,
     inventorypos = 6,
     giveitem = 6,
     takeitem = 6,
@@ -253,3 +255,18 @@ Config.ServerHooks.OnPlayerPickupItem = function(data)
     -- data = { source, uid, itemId, amount, dropId }
 end
 
+
+
+-- =========================
+-- WEAPON ITEMS
+-- =========================
+Config.Weapons = {
+    -- Cate gloante ii seteaza maxim clientului in arma. Inventarul ramane sursa principala.
+    MaxClientAmmo = 250,
+
+    -- Anti-spam pentru event-ul de shoot.
+    ShotCooldownMs = 55,
+
+    -- Daca ramane fara gloante item, arma este scoasa din mana.
+    RemoveWeaponWhenNoAmmo = true
+}

@@ -118,6 +118,28 @@
         </section>
     </main>
 
+
+    <main id="addWeaponRoot" class="add-root hidden">
+        <section class="add-shell weapon-add-shell">
+            <div class="add-title">ADD WEAPON ITEM</div>
+            <div class="form-grid">
+                <label>Item ID<input id="weaponItemId" placeholder="pistol"></label>
+                <label>Weapon ID<input id="weaponId" placeholder="WEAPON_PISTOL"></label>
+                <label>Weapon Name<input id="weaponName" placeholder="Pistol"></label>
+                <label>Bullets Item ID<input id="weaponBulletsId" placeholder="pistol_ammo"></label>
+                <label class="wide">Image<input id="weaponImage" placeholder="pistol.png / https://..." oninput="previewWeaponImage()"></label>
+                <label>Tradable<select id="weaponTradable"><option value="1">1</option><option value="0">0</option></select></label>
+                <label>Giveable<select id="weaponGiveable"><option value="1">1</option><option value="0">0</option></select></label>
+            </div>
+            <div id="weaponImagePreview" class="image-preview hidden"><img id="weaponPreviewImg"></div>
+            <div id="weaponStatus" class="add-status">Completează arma.</div>
+            <div class="add-buttons">
+                <button class="save-btn" onclick="submitAddWeapon()">SAVE WEAPON</button>
+                <button class="ghost-btn" onclick="closeUi()">CLOSE</button>
+            </div>
+        </section>
+    </main>
+
     <main id="itemsRoot" class="items-root hidden">
         <section class="items-shell">
             <div class="items-header">

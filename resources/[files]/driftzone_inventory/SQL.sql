@@ -85,3 +85,34 @@ ALTER TABLE `inventory_position` ADD COLUMN IF NOT EXISTS `top_pct` DECIMAL(5,2)
 ALTER TABLE `inventory_position` ADD COLUMN IF NOT EXISTS `slot_size` INT NOT NULL DEFAULT 62;
 ALTER TABLE `inventory_position` ADD COLUMN IF NOT EXISTS `updated_by` INT NOT NULL DEFAULT 0;
 ALTER TABLE `inventory_position` ADD COLUMN IF NOT EXISTS `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
+
+-- =========================
+-- WEAPON ITEMS
+-- =========================
+CREATE TABLE IF NOT EXISTS `inventory_weapons` (
+  `item_id` VARCHAR(64) NOT NULL,
+  `weapon_id` VARCHAR(64) NOT NULL,
+  `weapon_name` VARCHAR(128) NOT NULL,
+  `bullets_item_id` VARCHAR(64) NOT NULL,
+  `image` TEXT NULL,
+  `tradable` TINYINT NOT NULL DEFAULT 1,
+  `giveable` TINYINT NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`item_id`),
+  KEY `idx_weapon_id` (`weapon_id`),
+  KEY `idx_bullets_item_id` (`bullets_item_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE `inventory_weapons` ADD COLUMN IF NOT EXISTS `weapon_id` VARCHAR(64) NOT NULL DEFAULT 'WEAPON_PISTOL';
+ALTER TABLE `inventory_weapons` ADD COLUMN IF NOT EXISTS `weapon_name` VARCHAR(128) NOT NULL DEFAULT 'Weapon';
+ALTER TABLE `inventory_weapons` ADD COLUMN IF NOT EXISTS `bullets_item_id` VARCHAR(64) NOT NULL DEFAULT 'pistol_ammo';
+ALTER TABLE `inventory_weapons` ADD COLUMN IF NOT EXISTS `image` TEXT NULL;
+ALTER TABLE `inventory_weapons` ADD COLUMN IF NOT EXISTS `tradable` TINYINT NOT NULL DEFAULT 1;
+ALTER TABLE `inventory_weapons` ADD COLUMN IF NOT EXISTS `giveable` TINYINT NOT NULL DEFAULT 1;
+
+-- Exemplu optional pentru gloante:
+-- INSERT INTO `inventory_items` (`item_id`, `item_name`, `image`, `tradable`, `stackable`, `usable`, `giveable`, `max_stack`, `created_at`, `updated_at`)
+-- VALUES ('pistol_ammo', 'Pistol Ammo', '', 1, 1, 0, 1, 999, NOW(), NOW())
+-- ON DUPLICATE KEY UPDATE item_name = VALUES(item_name), stackable = 1, usable = 0, max_stack = 999, updated_at = NOW();

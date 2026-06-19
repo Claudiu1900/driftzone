@@ -5,6 +5,7 @@ const selectorRoot = document.getElementById('selectorRoot');
 const addItemRoot = document.getElementById('addItemRoot');
 const itemsRoot = document.getElementById('itemsRoot');
 const addClothesRoot = document.getElementById('addClothesRoot');
+const addWeaponRoot = document.getElementById('addWeaponRoot');
 const clothesItemsRoot = document.getElementById('clothesItemsRoot');
 const clothingShell = document.getElementById('clothingShell');
 const inventoryPosToolbar = document.getElementById('inventoryPosToolbar');
@@ -55,6 +56,16 @@ const clothesMaxStack = document.getElementById('clothesMaxStack');
 const clothesImagePreview = document.getElementById('clothesImagePreview');
 const clothesPreviewImg = document.getElementById('clothesPreviewImg');
 const clothesStatus = document.getElementById('clothesStatus');
+const weaponItemId = document.getElementById('weaponItemId');
+const weaponId = document.getElementById('weaponId');
+const weaponName = document.getElementById('weaponName');
+const weaponBulletsId = document.getElementById('weaponBulletsId');
+const weaponImage = document.getElementById('weaponImage');
+const weaponTradable = document.getElementById('weaponTradable');
+const weaponGiveable = document.getElementById('weaponGiveable');
+const weaponImagePreview = document.getElementById('weaponImagePreview');
+const weaponPreviewImg = document.getElementById('weaponPreviewImg');
+const weaponStatus = document.getElementById('weaponStatus');
 
 const itemsSearch = document.getElementById('itemsSearch');
 const itemsList = document.getElementById('itemsList');
@@ -233,8 +244,10 @@ function closeLocal() {
     hide(addItemRoot);
     hide(itemsRoot);
     hide(addClothesRoot);
+    hide(addWeaponRoot);
     hide(clothesItemsRoot);
     hide(addClothesRoot);
+    hide(addWeaponRoot);
     hide(clothesItemsRoot);
     hide(contextMenu);
     hide(amountModal);
@@ -768,8 +781,10 @@ function openInventory(data = {}) {
     hide(addItemRoot);
     hide(itemsRoot);
     hide(addClothesRoot);
+    hide(addWeaponRoot);
     hide(clothesItemsRoot);
     hide(addClothesRoot);
+    hide(addWeaponRoot);
     hide(clothesItemsRoot);
     hide(contextMenu);
     hide(amountModal);
@@ -783,7 +798,7 @@ function updateDropped(data = {}) {
     if (!inventoryRoot.classList.contains('hidden')) renderDropped();
 }
 
-function openSelector() { hide(inventoryRoot); hide(addItemRoot); hide(itemsRoot); hide(addClothesRoot); hide(clothesItemsRoot); selectorActive = true; show(selectorRoot); }
+function openSelector() { hide(inventoryRoot); hide(addItemRoot); hide(itemsRoot); hide(addClothesRoot); hide(addWeaponRoot); hide(addWeaponRoot); hide(clothesItemsRoot); selectorActive = true; show(selectorRoot); }
 function closeSelector() { selectorActive = false; hide(selectorRoot); }
 
 function openAddItem() {
@@ -791,6 +806,7 @@ function openAddItem() {
     hide(selectorRoot);
     hide(itemsRoot);
     hide(addClothesRoot);
+    hide(addWeaponRoot);
     hide(clothesItemsRoot);
     selectorActive = false;
     show(addItemRoot);
@@ -878,6 +894,66 @@ function submitAddItem() {
 }
 
 
+function openAddWeapon() {
+    hide(inventoryRoot);
+    hide(selectorRoot);
+    hide(addItemRoot);
+    hide(itemsRoot);
+    hide(addClothesRoot);
+    hide(addWeaponRoot);
+    hide(clothesItemsRoot);
+    hide(contextMenu);
+    hide(amountModal);
+    selectorActive = false;
+
+    if (weaponItemId) weaponItemId.value = '';
+    if (weaponId) weaponId.value = 'WEAPON_PISTOL';
+    if (weaponName) weaponName.value = 'Pistol';
+    if (weaponBulletsId) weaponBulletsId.value = 'pistol_ammo';
+    if (weaponImage) weaponImage.value = '';
+    if (weaponTradable) weaponTradable.value = '1';
+    if (weaponGiveable) weaponGiveable.value = '1';
+    if (weaponStatus) {
+        weaponStatus.textContent = 'Completează arma.';
+        weaponStatus.className = 'add-status';
+    }
+    if (weaponPreviewImg) weaponPreviewImg.src = '';
+    hide(weaponImagePreview);
+    show(addWeaponRoot);
+    setTimeout(() => weaponItemId && weaponItemId.focus(), 80);
+}
+
+function previewWeaponImage() {
+    const url = String(weaponImage?.value || '').trim();
+    if (!url) {
+        hide(weaponImagePreview);
+        if (weaponPreviewImg) weaponPreviewImg.src = '';
+        return;
+    }
+
+    weaponPreviewImg.src = url;
+    show(weaponImagePreview);
+}
+
+function submitAddWeapon() {
+    if (weaponStatus) {
+        weaponStatus.textContent = 'Se salveaza arma...';
+        weaponStatus.className = 'add-status';
+    }
+
+    nui('submitAddWeapon', {
+        item_id: String(weaponItemId?.value || '').trim(),
+        weapon_id: String(weaponId?.value || '').trim(),
+        weapon_name: String(weaponName?.value || '').trim(),
+        bullets_item_id: String(weaponBulletsId?.value || '').trim(),
+        image: String(weaponImage?.value || '').trim(),
+        tradable: Number(weaponTradable?.value || 1),
+        giveable: Number(weaponGiveable?.value || 1)
+    });
+}
+
+
+
 function adminBoolValue(value, fallback = 0) {
     if (value === true) return '1';
     if (value === false) return '0';
@@ -893,6 +969,7 @@ function openItemsPanel(data = {}) {
     hide(selectorRoot);
     hide(addItemRoot);
     hide(addClothesRoot);
+    hide(addWeaponRoot);
     hide(clothesItemsRoot);
     hide(contextMenu);
     hide(amountModal);
@@ -1104,7 +1181,7 @@ function openClothesItemsPanel(data = {}) {
     clothingCategories = Array.isArray(data.categories) ? data.categories : DEFAULT_CLOTHING_CATEGORIES;
     adminClothesItems = Array.isArray(data.items) ? data.items : [];
     selectedAdminClothesId = data.selected || (adminClothesItems[0] ? String(adminClothesItems[0].item_id || '') : null);
-    hide(inventoryRoot); hide(selectorRoot); hide(addItemRoot); hide(itemsRoot); hide(addClothesRoot); hide(contextMenu); hide(amountModal);
+    hide(inventoryRoot); hide(selectorRoot); hide(addItemRoot); hide(itemsRoot); hide(addClothesRoot); hide(addWeaponRoot); hide(addWeaponRoot); hide(contextMenu); hide(amountModal);
     selectorActive = false;
     show(clothesItemsRoot);
     populateFilterSelect();
@@ -1227,6 +1304,7 @@ window.addEventListener('message', (event) => {
     if (msg.action === 'openAddItem') openAddItem(msg.data || {});
     if (msg.action === 'openItems') openItemsPanel(msg.data || {});
     if (msg.action === 'openAddClothes') openAddClothesPanel(msg.data || {});
+    if (msg.action === 'openAddWeapon') openAddWeapon(msg.data || {});
     if (msg.action === 'openClothesItems') openClothesItemsPanel(msg.data || {});
     if (msg.action === 'itemsResult') handleItemsResult(msg);
     if (msg.action === 'clothesItemsResult') handleClothesItemsResult(msg);
@@ -1242,6 +1320,10 @@ window.addEventListener('message', (event) => {
     if (msg.action === 'clothesResult') {
         clothesStatus.textContent = msg.message || '';
         clothesStatus.className = `add-status ${msg.ok ? 'success' : 'error'}`;
+    }
+    if (msg.action === 'addWeaponResult') {
+        weaponStatus.textContent = msg.message || '';
+        weaponStatus.className = `add-status ${msg.ok ? 'success' : 'error'}`;
     }
 });
 
@@ -1399,6 +1481,8 @@ window.dropSelected = dropSelected;
 window.closeUi = closeUi;
 window.previewImage = previewImage;
 window.submitAddItem = submitAddItem;
+window.submitAddWeapon = submitAddWeapon;
+window.previewWeaponImage = previewWeaponImage;
 window.renderAdminItemsList = renderAdminItemsList;
 window.previewAdminImage = previewAdminImage;
 window.submitAdminItem = submitAdminItem;

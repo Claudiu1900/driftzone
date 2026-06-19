@@ -849,3 +849,13 @@ select {
 .inventory-position-mode .amount-modal {
     display: none !important;
 }
+
+
+/* Weapon item admin panel */
+.weapon-add-shell .add-title {
+    color: var(--main);
+    text-shadow: 0 0 18px rgba(4,199,247,.35);
+}
+.weapon-add-shell .image-preview {
+    height: 130px;
+}

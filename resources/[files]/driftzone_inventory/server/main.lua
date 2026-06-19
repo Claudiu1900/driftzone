@@ -1,6 +1,9 @@
 local Inventories = {}
 local ItemsCache = nil
 local ItemsCacheExpires = 0
+local WeaponItemsCache = nil
+local WeaponItemsCacheExpires = 0
+local EquippedWeapons = {}
 local ClothesItemsCache = nil
 local ClothesItemsCacheExpires = 0
 local InventoryPositionsCache = nil
@@ -21,6 +24,13 @@ end
 
 local function trim(value)
     return tostring(value or ''):gsub('^%s+', ''):gsub('%s+$', '')
+end
+
+local function normalizeWeaponId(value)
+    local text = trim(value):upper():gsub('%s+', '')
+    if text == '' then return '' end
+    if not text:match('^WEAPON_') then text = 'WEAPON_' .. text end
+    return text
 end
 
 local function moneyItemId()
@@ -511,6 +521,51 @@ local function getClothesItem(itemId)
     return loadClothesItems(false)[itemId]
 end
 
+
+local function weaponTable()
+    return Config.WeaponItemsTable or 'inventory_weapons'
+end
+
+local function loadWeaponItems(force)
+    local now = GetGameTimer()
+    if force ~= true and WeaponItemsCache and WeaponItemsCacheExpires > now then return WeaponItemsCache end
+
+    WeaponItemsCache = {}
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await(('SELECT * FROM %s ORDER BY weapon_name ASC, item_id ASC'):format(sqlName(weaponTable())), {}) or {}
+    end)
+
+    if ok and type(rows) == 'table' then
+        for _, row in ipairs(rows) do
+            local itemId = trim(row.item_id):lower():gsub('%s+', '_')
+            local weaponId = normalizeWeaponId(row.weapon_id)
+            local bulletsItemId = trim(row.bullets_item_id):lower():gsub('%s+', '_')
+
+            if itemId ~= '' and weaponId ~= '' and bulletsItemId ~= '' then
+                WeaponItemsCache[itemId] = {
+                    item_id = itemId,
+                    item_name = tostring(row.weapon_name or row.item_name or itemId),
+                    image = tostring(row.image or ''),
+                    tradable = tonumber(row.tradable or 1) == 1,
+                    stackable = false,
+                    usable = true,
+                    giveable = tonumber(row.giveable or 1) == 1,
+                    max_stack = 1,
+                    is_weapon = true,
+                    weapon_id = weaponId,
+                    weapon_name = tostring(row.weapon_name or weaponId),
+                    bullets_item_id = bulletsItemId
+                }
+            end
+        end
+    end
+
+    WeaponItemsCacheExpires = now + 5000
+    return WeaponItemsCache
+end
+
+
 local function loadItems(force)
     local now = GetGameTimer()
     if not force and ItemsCache and ItemsCacheExpires > now then return ItemsCache end
@@ -535,6 +590,10 @@ local function loadItems(force)
                 is_take_gradient = itemId == tostring(Config.TakeGradientItemId or 'takegradient')
             }
         end
+    end
+
+    for _, weaponItem in pairs(loadWeaponItems(false)) do
+        ItemsCache[weaponItem.item_id] = weaponItem
     end
 
     for _, currencyId in ipairs({ moneyItemId(), dirtyMoneyItemId() }) do
@@ -735,7 +794,11 @@ local function hydrateInventory(inv)
                 is_clothing = meta.is_clothing or nil,
                 clothes_category = meta.clothes_category or nil,
                 clothes_drawable = meta.clothes_drawable or nil,
-                clothes_texture = meta.clothes_texture or nil
+                clothes_texture = meta.clothes_texture or nil,
+                is_weapon = meta.is_weapon or nil,
+                weapon_id = meta.weapon_id or nil,
+                weapon_name = meta.weapon_name or nil,
+                bullets_item_id = meta.bullets_item_id or nil
             }
         else
             out[i] = nil
@@ -879,6 +942,128 @@ local function takeItemFromUid(uid, itemId, amount)
 end
 
 
+local function countItemInInventory(uid, itemId)
+    uid = tonumber(uid)
+    itemId = trim(itemId):lower():gsub('%s+', '_')
+    if not uid or uid <= 0 or itemId == '' then return 0 end
+
+    if isMoneyItem(itemId) then return getUserCash(uid) end
+    if isDirtyMoneyItem(itemId) then return getDirtyMoneyAmount(ensureInventory(uid)) end
+
+    local inv = ensureInventory(uid)
+    local total = 0
+
+    for i = 1, Config.Slots do
+        local slot = inv[i]
+        if slot and trim(slot.item_id):lower() == itemId then
+            total = total + math.max(0, math.floor(tonumber(slot.amount or 0) or 0))
+        end
+    end
+
+    return total
+end
+
+local function clientAmmoCount(uid, bulletsItemId)
+    local count = countItemInInventory(uid, bulletsItemId)
+    local maxAmmo = tonumber((Config.Weapons or {}).MaxClientAmmo or 250) or 250
+    if maxAmmo < 1 then maxAmmo = 1 end
+    return math.min(count, math.floor(maxAmmo))
+end
+
+local function forceRemoveEquippedWeapon(src, reason)
+    local equipped = EquippedWeapons[src]
+    if not equipped then return end
+
+    EquippedWeapons[src] = nil
+
+    TriggerClientEvent('driftzone_inventory:client:weaponRemove', src, {
+        item_id = equipped.item_id,
+        weapon_id = equipped.weapon_id,
+        reason = reason or 'removed'
+    })
+end
+
+local function syncEquippedWeaponAfterChange(src, uid, changedItemId)
+    src = tonumber(src or 0) or 0
+    uid = tonumber(uid or 0) or 0
+    if src <= 0 or uid <= 0 then return end
+
+    local equipped = EquippedWeapons[src]
+    if not equipped then return end
+
+    changedItemId = trim(changedItemId):lower():gsub('%s+', '_')
+
+    if changedItemId ~= '' and changedItemId ~= equipped.item_id and changedItemId ~= equipped.bullets_item_id then
+        return
+    end
+
+    if countItemInInventory(uid, equipped.item_id) <= 0 then
+        forceRemoveEquippedWeapon(src, 'weapon_item_removed')
+        notify(src, 'warning', 'Arma a fost scoasa pentru ca itemul nu mai este in inventar.')
+        return
+    end
+
+    if equipped.bullets_item_id ~= '' and countItemInInventory(uid, equipped.bullets_item_id) <= 0 then
+        forceRemoveEquippedWeapon(src, 'ammo_removed')
+        notify(src, 'warning', 'Arma a fost scoasa pentru ca nu mai ai gloante.')
+    end
+end
+
+local function useWeaponItem(src, uid, item, slotIndex)
+    if not item or item.is_weapon ~= true then return false end
+
+    local equipped = EquippedWeapons[src]
+    if equipped and equipped.item_id == item.item_id then
+        forceRemoveEquippedWeapon(src, 'toggle_off')
+        notify(src, 'info', ('Ai pus %s inapoi.'):format(item.weapon_name or item.item_name or item.item_id))
+        TriggerEvent('driftzone_inventory:server:itemUsed', src, uid, item.item_id, slotIndex, { weapon_toggle = 'off' })
+        return true
+    end
+
+    if countItemInInventory(uid, item.item_id) <= 0 then
+        notify(src, 'warning', 'Nu mai ai aceasta arma in inventar.')
+        forceRemoveEquippedWeapon(src, 'missing_weapon_item')
+        return true
+    end
+
+    local bulletsItemId = trim(item.bullets_item_id):lower():gsub('%s+', '_')
+    if bulletsItemId == '' then
+        notify(src, 'warning', 'Aceasta arma nu are bullets item setat.')
+        return true
+    end
+
+    local ammo = clientAmmoCount(uid, bulletsItemId)
+    if ammo <= 0 then
+        notify(src, 'warning', 'Nu ai gloante pentru aceasta arma.')
+        forceRemoveEquippedWeapon(src, 'no_ammo')
+        return true
+    end
+
+    forceRemoveEquippedWeapon(src, 'switch_weapon')
+
+    EquippedWeapons[src] = {
+        item_id = item.item_id,
+        weapon_id = item.weapon_id,
+        weapon_name = item.weapon_name or item.item_name or item.weapon_id,
+        bullets_item_id = bulletsItemId,
+        uid = uid,
+        slot = slotIndex,
+        lastShotAt = 0
+    }
+
+    TriggerClientEvent('driftzone_inventory:client:weaponEquip', src, {
+        item_id = item.item_id,
+        weapon_id = item.weapon_id,
+        weapon_name = item.weapon_name or item.item_name or item.weapon_id,
+        bullets_item_id = bulletsItemId,
+        ammo = ammo
+    })
+
+    TriggerEvent('driftzone_inventory:server:itemUsed', src, uid, item.item_id, slotIndex, { weapon_toggle = 'on' })
+    return true
+end
+
+
 local function getPlayerCoords(src)
     local ped = GetPlayerPed(src)
     if not ped or ped == 0 then return nil end
@@ -913,7 +1098,11 @@ local function hydrateDropItems(items)
                     max_stack = meta.max_stack,
                     special_currency = meta.is_currency == true or nil,
                     is_clothing = meta.is_clothing or nil,
-                    clothes_category = meta.clothes_category or nil
+                    clothes_category = meta.clothes_category or nil,
+                    is_weapon = meta.is_weapon or nil,
+                    weapon_id = meta.weapon_id or nil,
+                    weapon_name = meta.weapon_name or nil,
+                    bullets_item_id = meta.bullets_item_id or nil
                 }
             end
         end
@@ -1540,6 +1729,52 @@ local function saveInventoryItemFromAdmin(admin, data)
 end
 
 
+local function saveWeaponItemFromAdmin(admin, data)
+    data = type(data) == 'table' and data or {}
+
+    local itemId = trim(data.item_id):lower():gsub('%s+', '_')
+    local weaponId = normalizeWeaponId(data.weapon_id)
+    local weaponName = trim(data.weapon_name)
+    local bulletsItemId = trim(data.bullets_item_id):lower():gsub('%s+', '_')
+    local image = trim(data.image)
+    local tradable = tonumber(data.tradable or 1) == 1 and 1 or 0
+    local giveable = tonumber(data.giveable or 1) == 1 and 1 or 0
+
+    if itemId == '' or not itemId:match('^[a-z0-9_%-]+$') then
+        return false, 'Item ID invalid.'
+    end
+
+    if weaponId == '' then
+        return false, 'Weapon ID invalid. Exemplu: WEAPON_PISTOL.'
+    end
+
+    if weaponName == '' then weaponName = weaponId end
+
+    if bulletsItemId == '' or not bulletsItemId:match('^[a-z0-9_%-]+$') then
+        return false, 'Bullets Item ID invalid. Exemplu: pistol_ammo.'
+    end
+
+    local okSave, errSave = pcall(function()
+        MySQL.update.await(('INSERT INTO %s (item_id, weapon_id, weapon_name, bullets_item_id, image, tradable, giveable, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE weapon_id = VALUES(weapon_id), weapon_name = VALUES(weapon_name), bullets_item_id = VALUES(bullets_item_id), image = VALUES(image), tradable = VALUES(tradable), giveable = VALUES(giveable), updated_at = NOW()'):format(sqlName(weaponTable())), {
+            itemId, weaponId, weaponName, bulletsItemId, image, tradable, giveable
+        })
+
+        MySQL.update.await(('INSERT INTO %s (item_id, item_name, image, tradable, stackable, usable, giveable, max_stack, is_gradient, gradient_id, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 1, ?, 1, 0, 0, NOW(), NOW()) ON DUPLICATE KEY UPDATE item_name = VALUES(item_name), image = VALUES(image), tradable = VALUES(tradable), stackable = 0, usable = 1, giveable = VALUES(giveable), max_stack = 1, updated_at = NOW()'):format(sqlName(Config.ItemsTable)), {
+            itemId, weaponName, image, tradable, giveable
+        })
+    end)
+
+    if not okSave then
+        print('[DRIFTZONE_INVENTORY] weapon save error: ' .. tostring(errSave))
+        return false, 'Eroare SQL la salvarea armei. Verifica consola.'
+    end
+
+    ItemsCache = nil
+    WeaponItemsCache = nil
+    return true, ('Arma salvata: %s (%s), ammo item: %s'):format(itemId, weaponId, bulletsItemId)
+end
+
+
 local function buildAdminClothesList()
     local rows = {}
     pcall(function()
@@ -1717,6 +1952,15 @@ RegisterCommand('clothesitems', function(src)
     })
 end, false)
 
+RegisterCommand('addweapon', function(src)
+    local admin = requireAdmin(src, Config.Admin.addweapon or 6)
+    if not admin then return end
+
+    TriggerClientEvent('driftzone_inventory:client:addWeaponPanel', src, {
+        mainColor = Config.MainColor
+    })
+end, false)
+
 RegisterCommand('inventorypos', function(src)
     local admin = requireAdmin(src, Config.Admin.inventorypos or 6)
     if not admin then return end
@@ -1768,7 +2012,10 @@ RegisterCommand('takeitem', function(src, args)
         logAction('admin_takeitem', admin.uid, uid, itemId, amount, { by = GetPlayerName(src) })
         notify(src, 'success', ('Ai scos %sx %s de la UID %s.'):format(amount, itemId, uid))
         local target = getPlayerByUid(uid)
-        if target then pushInventory(target, 'normal') end
+        if target then
+            syncEquippedWeaponAfterChange(target, uid, itemId)
+            pushInventory(target, 'normal')
+        end
     else
         notify(src, 'warning', msg)
     end
@@ -1787,6 +2034,7 @@ RegisterCommand('wipeinventory', function(src, args)
 
     local target = getPlayerByUid(uid)
     if target then
+        forceRemoveEquippedWeapon(target, 'inventory_wiped')
         notify(target, 'warning', 'Inventarul tau a fost resetat de un administrator.')
         pushInventory(target, 'normal')
     end
@@ -1892,6 +2140,16 @@ RegisterNetEvent('driftzone_inventory:server:addClothesSubmit', function(data)
     local ok, msg, itemId = saveClothesItemFromAdmin(admin, data)
     if ok then logAction('admin_addclothes', admin.uid, 0, itemId, 0, data or {}) end
     TriggerClientEvent('driftzone_inventory:client:clothesResult', src, ok == true, msg or '')
+end)
+
+RegisterNetEvent('driftzone_inventory:server:addWeaponSubmit', function(data)
+    local src = source
+    local admin = requireAdmin(src, Config.Admin.addweapon or 6)
+    if not admin then return end
+
+    local ok, msg = saveWeaponItemFromAdmin(admin, data or {})
+    if ok then logAction('admin_addweapon', admin.uid, 0, trim((data or {}).item_id), 0, data or {}) end
+    TriggerClientEvent('driftzone_inventory:client:addWeaponResult', src, ok == true, msg or '')
 end)
 
 RegisterNetEvent('driftzone_inventory:server:updateClothesItemSubmit', function(data)
@@ -2000,6 +2258,8 @@ RegisterNetEvent('driftzone_inventory:server:giveSelected', function(targetServe
         return notify(src, 'warning', msg or 'Nu s-a putut oferi itemul.')
     end
 
+    syncEquippedWeaponAfterChange(src, fromUid, itemId)
+
     logAction('player_giveitem', fromUid, toUid, itemId, amount, { from = GetPlayerName(src), to = GetPlayerName(targetServerId) })
 
     runServerHook('OnPlayerGiveItem', {
@@ -2032,6 +2292,10 @@ local function useInventorySlot(src, uid, slotIndex)
     if not slot then return end
     local item = getItem(slot.item_id)
     if not item or not item.usable then return notify(src, 'warning', 'Acest item nu se poate folosi.') end
+
+    if item.is_weapon then
+        if useWeaponItem(src, uid, item, slotIndex) then return end
+    end
 
     if item.is_clothing then
         local ok, msg = equipClothingFromSlot(src, uid, item.clothes_category, slotIndex)
@@ -2168,6 +2432,66 @@ RegisterNetEvent('driftzone_inventory:server:setQuickSlot', function(quickIndex,
 end)
 
 
+
+RegisterNetEvent('driftzone_inventory:server:weaponShot', function(itemId, weaponId, bulletsItemId)
+    local src = source
+    local uid = getUid(src)
+    if not uid then return end
+
+    itemId = trim(itemId):lower():gsub('%s+', '_')
+    weaponId = normalizeWeaponId(weaponId)
+    bulletsItemId = trim(bulletsItemId):lower():gsub('%s+', '_')
+
+    local equipped = EquippedWeapons[src]
+    if not equipped or equipped.item_id ~= itemId or equipped.weapon_id ~= weaponId or equipped.bullets_item_id ~= bulletsItemId then
+        return
+    end
+
+    local now = GetGameTimer()
+    local cooldown = tonumber((Config.Weapons or {}).ShotCooldownMs or 55) or 55
+    if now - (tonumber(equipped.lastShotAt or 0) or 0) < cooldown then return end
+    equipped.lastShotAt = now
+
+    if countItemInInventory(uid, equipped.item_id) <= 0 then
+        forceRemoveEquippedWeapon(src, 'weapon_item_removed')
+        notify(src, 'warning', 'Arma a fost scoasa pentru ca itemul nu mai este in inventar.')
+        pushInventory(src, 'normal')
+        return
+    end
+
+    if bulletsItemId == '' or countItemInInventory(uid, bulletsItemId) <= 0 then
+        forceRemoveEquippedWeapon(src, 'no_ammo')
+        notify(src, 'warning', 'Nu mai ai gloante.')
+        pushInventory(src, 'normal')
+        return
+    end
+
+    local ok, msg = takeItemFromUid(uid, bulletsItemId, 1)
+    if not ok then
+        forceRemoveEquippedWeapon(src, 'ammo_take_failed')
+        notify(src, 'warning', msg or 'Nu mai ai gloante.')
+        pushInventory(src, 'normal')
+        return
+    end
+
+    local left = countItemInInventory(uid, bulletsItemId)
+
+    if left <= 0 and ((Config.Weapons or {}).RemoveWeaponWhenNoAmmo ~= false) then
+        forceRemoveEquippedWeapon(src, 'no_ammo_left')
+        notify(src, 'warning', 'Nu mai ai gloante.')
+    else
+        TriggerClientEvent('driftzone_inventory:client:weaponAmmo', src, {
+            item_id = itemId,
+            weapon_id = weaponId,
+            bullets_item_id = bulletsItemId,
+            ammo = clientAmmoCount(uid, bulletsItemId)
+        })
+    end
+
+    if OpenPlayers[src] then pushInventory(src, 'normal') end
+end)
+
+
 RegisterNetEvent('driftzone_inventory:server:requestNearbyDrops', function()
     local src = source
     if not src or src <= 0 then return end
@@ -2233,6 +2557,8 @@ RegisterNetEvent('driftzone_inventory:server:dropItem', function(slotIndex, amou
         giveItemToUid(uid, itemId, amount)
         return notify(src, 'warning', 'Nu s-a putut arunca itemul.')
     end
+
+    syncEquippedWeaponAfterChange(src, uid, itemId)
 
     logAction('player_dropitem', uid, 0, itemId, amount, { name = GetPlayerName(src), drop = dropId })
 
@@ -2317,6 +2643,7 @@ AddEventHandler('playerDropped', function()
     if uid and Inventories[uid] then saveInventory(uid) end
     OpenPlayers[src] = nil
     ClothesApplyRevision[src] = nil
+    EquippedWeapons[src] = nil
 end)
 
 exports('GiveItem', function(uid, itemId, amount)
@@ -2337,6 +2664,11 @@ end)
 
 exports('ReloadClothes', function(src)
     return requestClothesLoadForPlayer(src, 0)
+end)
+
+exports('IsWeaponItem', function(itemId)
+    local item = getItem(itemId)
+    return item and item.is_weapon == true or false
 end)
 
 exports('GetClothes', function(uid)
@@ -2436,6 +2768,34 @@ local function ensureInventoryPositionTable()
     ]=]):format(sqlName(Config.InventoryPositionTable or 'inventory_position')), {})
 end
 
+
+local function ensureWeaponTables()
+    MySQL.query.await(([[
+        CREATE TABLE IF NOT EXISTS %s (
+            `item_id` VARCHAR(64) NOT NULL,
+            `weapon_id` VARCHAR(64) NOT NULL,
+            `weapon_name` VARCHAR(128) NOT NULL,
+            `bullets_item_id` VARCHAR(64) NOT NULL,
+            `image` TEXT NULL,
+            `tradable` TINYINT NOT NULL DEFAULT 1,
+            `giveable` TINYINT NOT NULL DEFAULT 1,
+            `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`item_id`),
+            KEY `idx_weapon_id` (`weapon_id`),
+            KEY `idx_bullets_item_id` (`bullets_item_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ]]):format(sqlName(weaponTable())), {})
+
+    ensureColumn(weaponTable(), 'weapon_id', "VARCHAR(64) NOT NULL DEFAULT 'WEAPON_PISTOL'")
+    ensureColumn(weaponTable(), 'weapon_name', "VARCHAR(128) NOT NULL DEFAULT 'Weapon'")
+    ensureColumn(weaponTable(), 'bullets_item_id', "VARCHAR(64) NOT NULL DEFAULT 'pistol_ammo'")
+    ensureColumn(weaponTable(), 'image', 'TEXT NULL')
+    ensureColumn(weaponTable(), 'tradable', 'TINYINT NOT NULL DEFAULT 1')
+    ensureColumn(weaponTable(), 'giveable', 'TINYINT NOT NULL DEFAULT 1')
+end
+
+
 ensureGradientItemColumns = function()
     ensureColumn(Config.ItemsTable, 'is_gradient', 'TINYINT NOT NULL DEFAULT 0')
     ensureColumn(Config.ItemsTable, 'gradient_id', 'INT NOT NULL DEFAULT 0')
@@ -2452,7 +2812,14 @@ AddEventHandler('onResourceStart', function(res)
     if not okClothes then
         print('[DRIFTZONE_INVENTORY] Clothes SQL setup failed: ' .. tostring(errClothes))
     end
+
+    local okWeapons, errWeapons = pcall(ensureWeaponTables)
+    if not okWeapons then
+        print('[DRIFTZONE_INVENTORY] Weapon SQL setup failed: ' .. tostring(errWeapons))
+    end
+
     ClothesItemsCache = nil
+    WeaponItemsCache = nil
     for _, id in ipairs(GetPlayers()) do
         local target = tonumber(id)
         if target and target > 0 then
