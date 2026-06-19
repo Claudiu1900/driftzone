@@ -1,17 +1,38 @@
 local playerStatus = {}
 local pendingAdds = {}
+local pendingVitals = {}
 local triggerCooldowns = {}
+local vitalsCooldowns = {}
 local loadingPlayers = {}
+local warnedPlayers = {}
+local forcedUserIds = {}
 
 local databaseReady = false
-local databaseInitializing = false
-local databaseCallbacks = {}
+local databaseFailed = false
+
+local schema = {
+    usersTable = nil,
+    statsColumn = nil,
+    usersColumns = {},
+    userIdColumn = nil,
+    mappingTables = {}
+}
 
 local function clamp(value, minimum, maximum)
     value = tonumber(value) or minimum
     if value < minimum then return minimum end
     if value > maximum then return maximum end
     return value
+end
+
+local function round(value)
+    return math.floor((tonumber(value) or 0) + 0.5)
+end
+
+local function safeName(value, fallback)
+    local name = tostring(value or fallback or ''):gsub('[^%w_]', '')
+    if name == '' then return fallback end
+    return name
 end
 
 local function normaliseAmount(amount)
@@ -21,88 +42,303 @@ local function normaliseAmount(amount)
     return clamp(amount, 1, Config.MaxAddPerTrigger)
 end
 
-local function getPrimaryIdentifier(source)
-    local fallback = nil
+local function queryAwait(query, parameters)
+    local ok, result = pcall(function()
+        return MySQL.query.await(query, parameters or {})
+    end)
 
-    for _, identifier in ipairs(GetPlayerIdentifiers(source)) do
-        fallback = fallback or identifier
-        if identifier:sub(1, 8) == 'license:' then
-            return identifier
+    if not ok then
+        return nil, result
+    end
+
+    return result, nil
+end
+
+local function singleAwait(query, parameters)
+    local ok, result = pcall(function()
+        return MySQL.single.await(query, parameters or {})
+    end)
+
+    if not ok then
+        return nil, result
+    end
+
+    return result, nil
+end
+
+local function updateAwait(query, parameters)
+    local ok, result = pcall(function()
+        return MySQL.update.await(query, parameters or {})
+    end)
+
+    if not ok then
+        return nil, result
+    end
+
+    return result, nil
+end
+
+local function getColumns(tableName)
+    local rows, err = queryAwait(('SHOW COLUMNS FROM `%s`'):format(tableName))
+    if not rows then return nil, err end
+
+    local columns = {}
+    for i = 1, #rows do
+        local name = rows[i].Field or rows[i].field or rows[i].COLUMN_NAME
+        if name then columns[tostring(name)] = true end
+    end
+
+    return columns, nil
+end
+
+local function pickExistingColumn(columns, candidates)
+    for i = 1, #candidates do
+        if columns[candidates[i]] then
+            return candidates[i]
         end
     end
 
-    return fallback
+    return nil
 end
 
-local function tableName()
-    local configured = tostring(Config.DatabaseTable or 'driftzone_status')
-    -- Permitem doar caractere sigure pentru numele tabelului.
-    return configured:gsub('[^%w_]', '')
-end
+local function initializeDatabase()
+    schema.usersTable = safeName(Config.Database.UsersTable, 'users')
+    schema.statsColumn = safeName(Config.Database.StatsColumn, 'stats')
 
-local function finishDatabaseInitialisation(success)
-    databaseReady = success == true
-    databaseInitializing = false
-
-    local callbacks = databaseCallbacks
-    databaseCallbacks = {}
-
-    for i = 1, #callbacks do
-        callbacks[i](databaseReady)
-    end
-end
-
-local function ensureDatabase(callback)
-    if not Config.UseOxMySQL then
-        callback(false)
+    local usersColumns, usersError = getColumns(schema.usersTable)
+    if not usersColumns then
+        databaseFailed = true
+        print(('^1[driftzone_minimap] Tabela `%s` nu a fost găsită sau nu poate fi citită: %s^7')
+            :format(schema.usersTable, tostring(usersError)))
         return
     end
 
-    if databaseReady then
-        callback(true)
-        return
-    end
+    if not usersColumns[schema.statsColumn] and Config.Database.AutoCreateStatsColumn then
+        local _, alterError = queryAwait(
+            ('ALTER TABLE `%s` ADD COLUMN `%s` LONGTEXT NULL'):format(schema.usersTable, schema.statsColumn)
+        )
 
-    databaseCallbacks[#databaseCallbacks + 1] = callback
-    if databaseInitializing then return end
-
-    databaseInitializing = true
-
-    if GetResourceState('oxmysql') ~= 'started' then
-        print('^3[driftzone_minimap] oxmysql nu este pornit. Statusurile vor funcționa doar în memorie.^7')
-        finishDatabaseInitialisation(false)
-        return
-    end
-
-    local query = ([=[
-        CREATE TABLE IF NOT EXISTS `%s` (
-            `identifier` VARCHAR(80) NOT NULL,
-            `food` TINYINT UNSIGNED NOT NULL DEFAULT 100,
-            `water` TINYINT UNSIGNED NOT NULL DEFAULT 100,
-            `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (`identifier`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    ]=]):format(tableName())
-
-    exports.oxmysql:query(query, {}, function(result)
-        if result == nil then
-            print('^1[driftzone_minimap] Nu am putut inițializa tabela SQL.^7')
-            finishDatabaseInitialisation(false)
+        if alterError then
+            databaseFailed = true
+            print(('^1[driftzone_minimap] Nu am putut crea `%s`.`%s`: %s^7')
+                :format(schema.usersTable, schema.statsColumn, tostring(alterError)))
             return
         end
 
-        print(('^2[driftzone_minimap] Persistență activă în tabela %s.^7'):format(tableName()))
-        finishDatabaseInitialisation(true)
-    end)
+        usersColumns[schema.statsColumn] = true
+        print(('^2[driftzone_minimap] Coloana `%s`.`%s` a fost creată automat.^7')
+            :format(schema.usersTable, schema.statsColumn))
+    end
+
+    if not usersColumns[schema.statsColumn] then
+        databaseFailed = true
+        print(('^1[driftzone_minimap] Lipsește coloana `%s`.`%s`.^7')
+            :format(schema.usersTable, schema.statsColumn))
+        return
+    end
+
+    schema.usersColumns = usersColumns
+
+    local configuredId = safeName(Config.Database.UserIdColumn, 'id')
+    if usersColumns[configuredId] then
+        schema.userIdColumn = configuredId
+    else
+        schema.userIdColumn = pickExistingColumn(usersColumns, {
+            'id', 'user_id', 'uid', 'character_id', 'citizenid'
+        })
+    end
+
+    for _, configuredTable in ipairs(Config.Database.MappingTables or {}) do
+        local mappingName = safeName(configuredTable, nil)
+        if mappingName then
+            local columns = getColumns(mappingName)
+
+            if columns then
+                local identifierColumn = pickExistingColumn(columns, {
+                    'identifier', 'license', 'steam', 'hex'
+                })
+                local userIdColumn = pickExistingColumn(columns, {
+                    'user_id', 'userid', 'uid', 'id'
+                })
+
+                if identifierColumn and userIdColumn then
+                    schema.mappingTables[#schema.mappingTables + 1] = {
+                        tableName = mappingName,
+                        identifierColumn = identifierColumn,
+                        userIdColumn = userIdColumn
+                    }
+                end
+            end
+        end
+    end
+
+    databaseReady = true
+    print(('^2[driftzone_minimap] Persistența este activă în `%s`.`%s`.^7')
+        :format(schema.usersTable, schema.statsColumn))
 end
 
-local function createStatus(identifier, food, water)
-    local now = os.time()
+local function waitForDatabase()
+    local timeoutAt = GetGameTimer() + 15000
+
+    while not databaseReady and not databaseFailed and GetGameTimer() < timeoutAt do
+        Wait(100)
+    end
+
+    return databaseReady
+end
+
+local function getPlayerIdentifierData(source)
+    local result = {
+        all = {},
+        byType = {}
+    }
+
+    for _, identifier in ipairs(GetPlayerIdentifiers(source)) do
+        result.all[#result.all + 1] = identifier
+
+        local prefix, value = identifier:match('^([^:]+):(.+)$')
+        if prefix and value then
+            result.byType[prefix] = result.byType[prefix] or {}
+            result.byType[prefix][#result.byType[prefix] + 1] = identifier
+            result.byType[prefix][#result.byType[prefix] + 1] = value
+        end
+    end
+
+    return result
+end
+
+local function decodeStats(rawStats)
+    if type(rawStats) == 'table' then return rawStats end
+    if type(rawStats) ~= 'string' or rawStats == '' then return {} end
+
+    local ok, decoded = pcall(json.decode, rawStats)
+    if ok and type(decoded) == 'table' then
+        return decoded
+    end
+
+    return {}
+end
+
+local function selectUserBy(column, value)
+    if not column or value == nil or not schema.usersColumns[column] then return nil end
+
+    local query = ('SELECT `%s` AS `saved_stats` FROM `%s` WHERE `%s` = ? LIMIT 1')
+        :format(schema.statsColumn, schema.usersTable, column)
+    local row = singleAwait(query, { value })
+
+    if not row then return nil end
 
     return {
-        identifier = identifier,
-        food = clamp(math.floor(tonumber(food) or Config.DefaultFood), 0, 100),
-        water = clamp(math.floor(tonumber(water) or Config.DefaultWater), 0, 100),
+        column = column,
+        value = value,
+        rawStats = row.saved_stats
+    }
+end
+
+local function getStateUserId(source)
+    local forced = forcedUserIds[source]
+    if forced ~= nil then return forced end
+
+    local player = Player(source)
+    if not player or not player.state then return nil end
+
+    local state = player.state
+    local candidates = {
+        state.user_id,
+        state.userId,
+        state.userid,
+        state.uid,
+        state.character_id,
+        state.citizenid
+    }
+
+    for i = 1, #candidates do
+        if candidates[i] ~= nil and tostring(candidates[i]) ~= '' then
+            return candidates[i]
+        end
+    end
+
+    return nil
+end
+
+local function resolveUserRow(source)
+    local identifiers = getPlayerIdentifierData(source)
+
+    -- 1. Mapări uzuale: vrp_user_ids.identifier -> users.id.
+    if schema.userIdColumn then
+        for _, mapping in ipairs(schema.mappingTables) do
+            for i = 1, #identifiers.all do
+                local query = ('SELECT `%s` AS `mapped_id` FROM `%s` WHERE `%s` = ? LIMIT 1')
+                    :format(mapping.userIdColumn, mapping.tableName, mapping.identifierColumn)
+                local mapped = singleAwait(query, { identifiers.all[i] })
+
+                if mapped and mapped.mapped_id ~= nil then
+                    local row = selectUserBy(schema.userIdColumn, mapped.mapped_id)
+                    if row then return row end
+                end
+            end
+        end
+    end
+
+    -- 2. Coloane de identifier direct în users.
+    local directColumns = {
+        identifier = identifiers.all,
+        license = identifiers.byType.license,
+        license2 = identifiers.byType.license2,
+        steam = identifiers.byType.steam,
+        discord = identifiers.byType.discord,
+        fivem = identifiers.byType.fivem,
+        xbl = identifiers.byType.xbl,
+        live = identifiers.byType.live
+    }
+
+    for column, values in pairs(directColumns) do
+        if schema.usersColumns[column] and values then
+            for i = 1, #values do
+                local row = selectUserBy(column, values[i])
+                if row then return row end
+            end
+        end
+    end
+
+    -- 3. User ID pus de framework în state bag sau oferit prin export.
+    if schema.userIdColumn then
+        local stateUserId = getStateUserId(source)
+        if stateUserId ~= nil then
+            local row = selectUserBy(schema.userIdColumn, stateUserId)
+            if row then return row end
+        end
+    end
+
+    return nil
+end
+
+local function createStatus(locator, rawStats)
+    local stats = decodeStats(rawStats)
+    local now = os.time()
+
+    local health = stats.health
+    if health == nil then health = stats.hp end
+    if health == nil then health = Config.DefaultHealth end
+
+    local armour = stats.armour
+    if armour == nil then armour = stats.armor end
+    if armour == nil then armour = Config.DefaultArmour end
+
+    local food = stats.food
+    if food == nil then food = stats.hunger end
+    if food == nil then food = Config.DefaultFood end
+
+    local water = stats.water
+    if water == nil then water = stats.thirst end
+    if water == nil then water = Config.DefaultWater end
+
+    return {
+        locator = locator,
+        health = clamp(round(health), 0, 100),
+        armour = clamp(round(armour), 0, 100),
+        food = clamp(round(food), 0, 100),
+        water = clamp(round(water), 0, 100),
         nextFoodAt = now + math.max(1, math.floor(Config.FoodLossInterval / 1000)),
         nextWaterAt = now + math.max(1, math.floor(Config.WaterLossInterval / 1000)),
         damageMode = nil,
@@ -112,125 +348,178 @@ local function createStatus(identifier, food, water)
     }
 end
 
-local function syncStatus(source)
-    local data = playerStatus[source]
-    if not data then return end
-
-    TriggerClientEvent('driftzone_minimap:client:syncStatus', source, data.food, data.water)
-end
-
 local function markDirty(data)
     data.dirty = true
     data.revision = data.revision + 1
 end
 
-local function saveStatus(source, data, force)
-    if not data or not data.identifier then return end
-    if not force and not data.dirty then return end
-    if not databaseReady or GetResourceState('oxmysql') ~= 'started' then return end
+local function syncStatus(source, applyVitals)
+    local data = playerStatus[source]
+    if not data then return end
+
+    TriggerClientEvent('driftzone_minimap:client:syncStatus', source, {
+        health = data.health,
+        armour = data.armour,
+        food = data.food,
+        water = data.water,
+        applyVitals = applyVitals == true
+    })
+end
+
+local function saveStatus(data, force)
+    if not data or not data.locator then return false end
+    if not force and not data.dirty then return true end
+    if not databaseReady then return false end
+
+    local locatorColumn = safeName(data.locator.column, nil)
+    if not locatorColumn or not schema.usersColumns[locatorColumn] then return false end
 
     local revisionAtSave = data.revision
     local query = ([=[
-        INSERT INTO `%s` (`identifier`, `food`, `water`)
-        VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            `food` = VALUES(`food`),
-            `water` = VALUES(`water`),
-            `updated_at` = CURRENT_TIMESTAMP
-    ]=]):format(tableName())
+        UPDATE `%s`
+        SET `%s` = JSON_SET(
+            CASE
+                WHEN `%s` IS NOT NULL AND JSON_VALID(`%s`) THEN `%s`
+                ELSE JSON_OBJECT()
+            END,
+            '$.health', ?,
+            '$.armour', ?,
+            '$.food', ?,
+            '$.water', ?
+        )
+        WHERE `%s` = ?
+        LIMIT 1
+    ]=]):format(
+        schema.usersTable,
+        schema.statsColumn,
+        schema.statsColumn,
+        schema.statsColumn,
+        schema.statsColumn,
+        locatorColumn
+    )
 
-    exports.oxmysql:query(query, {
-        data.identifier,
+    local affected, saveError = updateAwait(query, {
+        data.health,
+        data.armour,
         data.food,
-        data.water
-    }, function(result)
-        local current = playerStatus[source]
-        if result ~= nil and current == data and current.revision == revisionAtSave then
-            current.dirty = false
+        data.water,
+        data.locator.value
+    })
+
+    if affected == nil then
+        -- Fallback pentru baze de date fără suport complet JSON_SET.
+        local current = selectUserBy(locatorColumn, data.locator.value)
+        if not current then
+            print(('^1[driftzone_minimap] Salvarea a eșuat: %s^7'):format(tostring(saveError)))
+            return false
         end
-    end)
+
+        local stats = decodeStats(current.rawStats)
+        stats.health = data.health
+        stats.armour = data.armour
+        stats.food = data.food
+        stats.water = data.water
+
+        local fallbackQuery = ('UPDATE `%s` SET `%s` = ? WHERE `%s` = ? LIMIT 1')
+            :format(schema.usersTable, schema.statsColumn, locatorColumn)
+        affected, saveError = updateAwait(fallbackQuery, {
+            json.encode(stats),
+            data.locator.value
+        })
+
+        if affected == nil then
+            print(('^1[driftzone_minimap] Salvarea în users.stats a eșuat: %s^7')
+                :format(tostring(saveError)))
+            return false
+        end
+    end
+
+    if data.revision == revisionAtSave then
+        data.dirty = false
+    end
+
+    return true
 end
 
-local function applyPendingAdds(source)
-    local pending = pendingAdds[source]
+local function applyPendingData(source)
     local data = playerStatus[source]
-    if not pending or not data then return end
+    if not data then return end
 
-    local changed = false
+    local pending = pendingAdds[source]
+    if pending then
+        if pending.food and pending.food > 0 then
+            data.food = clamp(data.food + pending.food, 0, 100)
+        end
 
-    if pending.food and pending.food > 0 then
-        local newFood = clamp(data.food + pending.food, 0, 100)
-        changed = changed or newFood ~= data.food
-        data.food = newFood
+        if pending.water and pending.water > 0 then
+            data.water = clamp(data.water + pending.water, 0, 100)
+        end
+
+        pendingAdds[source] = nil
+        markDirty(data)
     end
 
-    if pending.water and pending.water > 0 then
-        local newWater = clamp(data.water + pending.water, 0, 100)
-        changed = changed or newWater ~= data.water
-        data.water = newWater
-    end
-
-    pendingAdds[source] = nil
-
-    if changed then
+    local vitals = pendingVitals[source]
+    if vitals then
+        data.health = clamp(round(vitals.health), 0, 100)
+        data.armour = clamp(round(vitals.armour), 0, 100)
+        pendingVitals[source] = nil
         markDirty(data)
     end
 end
 
-local function loadStatus(source)
+local function loadStatus(source, applyVitals)
+    source = tonumber(source)
+    if not source then return end
+
     if playerStatus[source] then
-        syncStatus(source)
+        syncStatus(source, applyVitals)
         return
     end
 
     if loadingPlayers[source] then return end
     loadingPlayers[source] = true
 
-    local identifier = getPrimaryIdentifier(source)
-    if not identifier then
+    if not waitForDatabase() then
         loadingPlayers[source] = nil
-        playerStatus[source] = createStatus(('temporary:%s'):format(source), Config.DefaultFood, Config.DefaultWater)
-        applyPendingAdds(source)
-        syncStatus(source)
         return
     end
 
-    ensureDatabase(function(enabled)
-        if not GetPlayerName(source) then
-            loadingPlayers[source] = nil
-            return
+    if not GetPlayerName(source) then
+        loadingPlayers[source] = nil
+        return
+    end
+
+    local locator = resolveUserRow(source)
+    if not locator then
+        loadingPlayers[source] = nil
+
+        if not warnedPlayers[source] then
+            warnedPlayers[source] = true
+            print(('^1[driftzone_minimap] Nu am putut găsi jucătorul %s în `%s`. Verifică users.id / vrp_user_ids / license.^7')
+                :format(tostring(source), schema.usersTable))
         end
 
-        if not enabled then
-            loadingPlayers[source] = nil
-            playerStatus[source] = createStatus(identifier, Config.DefaultFood, Config.DefaultWater)
-            applyPendingAdds(source)
-            syncStatus(source)
-            return
-        end
+        return
+    end
 
-        local query = ('SELECT `food`, `water` FROM `%s` WHERE `identifier` = ? LIMIT 1'):format(tableName())
+    if not GetPlayerName(source) then
+        loadingPlayers[source] = nil
+        return
+    end
 
-        exports.oxmysql:single(query, { identifier }, function(row)
-            if not GetPlayerName(source) then
-                loadingPlayers[source] = nil
-                return
-            end
+    warnedPlayers[source] = nil
+    playerStatus[source] = createStatus(locator, locator.rawStats)
+    loadingPlayers[source] = nil
 
-            loadingPlayers[source] = nil
+    applyPendingData(source)
+    syncStatus(source, applyVitals)
 
-            if row then
-                playerStatus[source] = createStatus(identifier, row.food, row.water)
-            else
-                playerStatus[source] = createStatus(identifier, Config.DefaultFood, Config.DefaultWater)
-                markDirty(playerStatus[source])
-                saveStatus(source, playerStatus[source], true)
-            end
-
-            applyPendingAdds(source)
-            syncStatus(source)
-        end)
-    end)
+    -- Scrie valorile implicite dacă stats era gol sau invalid.
+    if locator.rawStats == nil or locator.rawStats == '' then
+        markDirty(playerStatus[source])
+        saveStatus(playerStatus[source], true)
+    end
 end
 
 local function addStatus(source, key, amount)
@@ -245,19 +534,20 @@ local function addStatus(source, key, amount)
     if not data then
         pendingAdds[source] = pendingAdds[source] or { food = 0, water = 0 }
         pendingAdds[source][key] = pendingAdds[source][key] + amount
-        loadStatus(source)
+
+        CreateThread(function()
+            loadStatus(source, false)
+        end)
         return true
     end
 
     local newValue = clamp(data[key] + amount, 0, 100)
-    if newValue == data[key] then
-        syncStatus(source)
-        return true
+    if newValue ~= data[key] then
+        data[key] = newValue
+        markDirty(data)
     end
 
-    data[key] = newValue
-    markDirty(data)
-    syncStatus(source)
+    syncStatus(source, false)
     return true
 end
 
@@ -276,11 +566,45 @@ local function clientTriggerAllowed(source, triggerName)
     return true
 end
 
-RegisterNetEvent('driftzone_minimap:requestStatus', function()
-    loadStatus(source)
+RegisterNetEvent('driftzone_minimap:requestStatus', function(applyVitals)
+    local playerSource = source
+
+    CreateThread(function()
+        loadStatus(playerSource, applyVitals == true)
+    end)
 end)
 
--- Trigger-ele client-side cerute.
+RegisterNetEvent('driftzone_minimap:updateVitals', function(health, armour)
+    local playerSource = source
+    local now = GetGameTimer()
+    local lastUpdate = vitalsCooldowns[playerSource] or 0
+
+    if now - lastUpdate < 500 then return end
+    vitalsCooldowns[playerSource] = now
+
+    health = clamp(round(health), 0, 100)
+    armour = clamp(round(armour), 0, 100)
+
+    local data = playerStatus[playerSource]
+    if not data then
+        pendingVitals[playerSource] = {
+            health = health,
+            armour = armour
+        }
+
+        CreateThread(function()
+            loadStatus(playerSource, false)
+        end)
+        return
+    end
+
+    if data.health ~= health or data.armour ~= armour then
+        data.health = health
+        data.armour = armour
+        markDirty(data)
+    end
+end)
+
 RegisterNetEvent('driftzone_minimap:addFood', function(amount)
     local playerSource = source
     if not clientTriggerAllowed(playerSource, 'food') then return end
@@ -293,7 +617,6 @@ RegisterNetEvent('driftzone_minimap:addWater', function(amount)
     addStatus(playerSource, 'water', amount)
 end)
 
--- Trigger-ele recomandate pentru inventare/iteme server-side.
 AddEventHandler('driftzone_minimap:server:addFood', function(playerSource, amount)
     addStatus(playerSource, 'food', amount)
 end)
@@ -315,13 +638,34 @@ exports('GetStatus', function(playerSource)
     if not data then return nil end
 
     return {
+        health = data.health,
+        armour = data.armour,
         food = data.food,
         water = data.water
     }
 end)
 
+-- Pentru framework-uri custom: setează server-side users.id, apoi resursa face load.
+exports('LoadForUserId', function(playerSource, userId)
+    playerSource = tonumber(playerSource)
+    if not playerSource or userId == nil then return false end
+
+    forcedUserIds[playerSource] = userId
+    playerStatus[playerSource] = nil
+
+    CreateThread(function()
+        loadStatus(playerSource, true)
+    end)
+
+    return true
+end)
+
 CreateThread(function()
-    ensureDatabase(function() end)
+    while GetResourceState('oxmysql') ~= 'started' do
+        Wait(250)
+    end
+
+    initializeDatabase()
 
     while true do
         local now = os.time()
@@ -352,7 +696,7 @@ CreateThread(function()
 
                 if changed then
                     markDirty(data)
-                    syncStatus(source)
+                    syncStatus(source, false)
                 end
 
                 local damageMode = nil
@@ -392,8 +736,8 @@ CreateThread(function()
     while true do
         Wait(Config.DatabaseSaveInterval)
 
-        for source, data in pairs(playerStatus) do
-            saveStatus(source, data, false)
+        for _, data in pairs(playerStatus) do
+            saveStatus(data, false)
         end
     end
 end)
@@ -403,19 +747,24 @@ AddEventHandler('playerDropped', function()
     local data = playerStatus[playerSource]
 
     if data then
-        saveStatus(playerSource, data, true)
+        saveStatus(data, true)
     end
 
     playerStatus[playerSource] = nil
     pendingAdds[playerSource] = nil
+    pendingVitals[playerSource] = nil
     triggerCooldowns[playerSource] = nil
+    vitalsCooldowns[playerSource] = nil
     loadingPlayers[playerSource] = nil
+    warnedPlayers[playerSource] = nil
+    forcedUserIds[playerSource] = nil
 end)
 
 AddEventHandler('onResourceStop', function(resourceName)
     if resourceName ~= GetCurrentResourceName() then return end
+    if not databaseReady then return end
 
-    for source, data in pairs(playerStatus) do
-        saveStatus(source, data, true)
+    for _, data in pairs(playerStatus) do
+        saveStatus(data, true)
     end
 end)

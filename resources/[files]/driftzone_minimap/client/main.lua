@@ -12,6 +12,12 @@ local lastResolutionX, lastResolutionY = 0, 0
 local minimapScaleform = nil
 local nuiReady = false
 
+local vitalsApplied = false
+local vitalsApplyToken = 0
+local lastSentHealth = nil
+local lastSentArmour = nil
+local lastVitalsHeartbeat = 0
+
 local function clamp(value, minimum, maximum)
     value = tonumber(value) or minimum
     if value < minimum then return minimum end
@@ -24,16 +30,35 @@ local function round(value)
 end
 
 local function getHealthPercent(ped)
+    if not DoesEntityExist(ped) then return 0 end
+
     local health = GetEntityHealth(ped)
     local maxHealth = GetEntityMaxHealth(ped)
 
-    -- Ped-urile GTA folosesc de regulă 100 ca prag de moarte și 200 ca viață maximă.
     if maxHealth > 100 then
         return clamp(round(((health - 100) / (maxHealth - 100)) * 100), 0, 100)
     end
 
     if maxHealth <= 0 then return 0 end
     return clamp(round((health / maxHealth) * 100), 0, 100)
+end
+
+local function setHealthPercent(ped, percent)
+    percent = clamp(round(percent), 0, 100)
+    local maxHealth = GetEntityMaxHealth(ped)
+
+    if percent <= 0 then
+        SetEntityHealth(ped, 0)
+        return
+    end
+
+    if maxHealth > 100 then
+        local health = 100 + round((maxHealth - 100) * (percent / 100))
+        SetEntityHealth(ped, clamp(health, 101, maxHealth))
+        return
+    end
+
+    SetEntityHealth(ped, clamp(round(maxHealth * (percent / 100)), 1, maxHealth))
 end
 
 local function payloadChanged(payload)
@@ -47,6 +72,61 @@ local function payloadChanged(payload)
         or payload.stamina ~= lastPayload.stamina
         or payload.showArmour ~= lastPayload.showArmour
         or payload.showStamina ~= lastPayload.showStamina
+end
+
+local function getVitals()
+    local ped = PlayerPedId()
+    if not DoesEntityExist(ped) then
+        return Config.DefaultHealth, Config.DefaultArmour
+    end
+
+    return getHealthPercent(ped), clamp(round(GetPedArmour(ped)), 0, 100)
+end
+
+local function reportVitals(force)
+    if not status.synced or not vitalsApplied then return end
+
+    local health, armour = getVitals()
+    local now = GetGameTimer()
+    local heartbeatDue = now - lastVitalsHeartbeat >= Config.VitalsHeartbeatInterval
+
+    if force or heartbeatDue or health ~= lastSentHealth or armour ~= lastSentArmour then
+        TriggerServerEvent('driftzone_minimap:updateVitals', health, armour)
+        lastSentHealth = health
+        lastSentArmour = armour
+        lastVitalsHeartbeat = now
+    end
+end
+
+local function applySavedVitals(health, armour)
+    vitalsApplyToken = vitalsApplyToken + 1
+    local token = vitalsApplyToken
+
+    CreateThread(function()
+        Wait(Config.VitalsApplyDelay)
+
+        local timeoutAt = GetGameTimer() + 10000
+        while token == vitalsApplyToken and GetGameTimer() < timeoutAt do
+            local ped = PlayerPedId()
+
+            if NetworkIsPlayerActive(PlayerId()) and DoesEntityExist(ped) then
+                local safeHealth = clamp(round(health), Config.MinimumLoadedHealth, 100)
+                local safeArmour = clamp(round(armour), 0, 100)
+
+                setHealthPercent(ped, safeHealth)
+                SetPedArmour(ped, safeArmour)
+
+                vitalsApplied = true
+                lastSentHealth = safeHealth
+                lastSentArmour = safeArmour
+                lastVitalsHeartbeat = GetGameTimer()
+                lastPayload = nil
+                return
+            end
+
+            Wait(250)
+        end
+    end)
 end
 
 local function sendHudUpdate(force)
@@ -65,8 +145,11 @@ local function sendHudUpdate(force)
     local ped = PlayerPedId()
     local player = PlayerId()
     local armour = clamp(GetPedArmour(ped), 0, 100)
+
+    -- Native-ul returnează stamina rămasă: 100% plină, apoi scade când alergi.
     local stamina = clamp(round(GetPlayerSprintStaminaRemaining(player)), 0, 100)
-    local movingFast = (IsPedRunning(ped) or IsPedSprinting(ped)) and not IsPedInAnyVehicle(ped, false)
+    local movingFast = (IsPedRunning(ped) or IsPedSprinting(ped))
+        and not IsPedInAnyVehicle(ped, false)
     local now = GetGameTimer()
 
     if movingFast or stamina < 100 then
@@ -111,8 +194,6 @@ local function applyMinimapPosition()
     end
 
     SetMinimapClipType(0)
-
-    -- Forțează minimap-ul să-și recalculeze poziția după modificare.
     SetRadarBigmapEnabled(true, false)
     Wait(0)
     SetRadarBigmapEnabled(false, false)
@@ -139,8 +220,8 @@ local function hideDefaultHealthArmour()
     end
 end
 
-local function requestStatus()
-    TriggerServerEvent('driftzone_minimap:requestStatus')
+local function requestStatus(applyVitals)
+    TriggerServerEvent('driftzone_minimap:requestStatus', applyVitals == true)
 end
 
 RegisterNUICallback('ready', function(_, callback)
@@ -150,11 +231,18 @@ RegisterNUICallback('ready', function(_, callback)
     callback({ ok = true })
 end)
 
-RegisterNetEvent('driftzone_minimap:client:syncStatus', function(food, water)
-    status.food = clamp(food, 0, 100)
-    status.water = clamp(water, 0, 100)
+RegisterNetEvent('driftzone_minimap:client:syncStatus', function(data)
+    if type(data) ~= 'table' then return end
+
+    status.food = clamp(data.food, 0, 100)
+    status.water = clamp(data.water, 0, 100)
     status.loaded = true
     status.synced = true
+
+    if data.applyVitals == true then
+        applySavedVitals(data.health or Config.DefaultHealth, data.armour or Config.DefaultArmour)
+    end
+
     sendHudUpdate(true)
 end)
 
@@ -193,16 +281,15 @@ CreateThread(function()
     applyMinimapPosition()
     hideDefaultHealthArmour()
     sendHudUpdate(true)
-    requestStatus()
+    requestStatus(true)
 
     local nextStatusRetry = GetGameTimer() + 5000
 
     while true do
         sendHudUpdate(false)
 
-        -- Dacă serverul nu a răspuns încă, cerem din nou statusul fără spam.
-        if not status.synced and GetGameTimer() >= nextStatusRetry then
-            requestStatus()
+        if (not status.synced or not vitalsApplied) and GetGameTimer() >= nextStatusRetry then
+            requestStatus(true)
             nextStatusRetry = GetGameTimer() + 5000
         end
 
@@ -215,13 +302,19 @@ CreateThread(function()
 end)
 
 CreateThread(function()
+    while true do
+        Wait(Config.VitalsReportInterval)
+        reportVitals(false)
+    end
+end)
+
+CreateThread(function()
     local nextHealthArmourRefresh = 0
 
     while true do
         local shouldDisplayRadar = Config.Minimap.Enabled
             and (not Config.Minimap.HideWithHud or hudVisible)
 
-        -- Reaplicăm periodic deoarece alte resurse pot modifica radarul sau scaleform-ul.
         DisplayRadar(shouldDisplayRadar)
 
         if GetGameTimer() >= nextHealthArmourRefresh then
@@ -243,7 +336,13 @@ end)
 
 AddEventHandler('playerSpawned', function()
     Wait(1000)
-    requestStatus()
+
+    if not status.synced or not vitalsApplied then
+        requestStatus(true)
+    else
+        requestStatus(false)
+    end
+
     applyMinimapPosition()
     hideDefaultHealthArmour()
     lastPayload = nil
@@ -253,14 +352,16 @@ AddEventHandler('onClientResourceStart', function(resourceName)
     if resourceName ~= GetCurrentResourceName() then return end
 
     Wait(750)
+    vitalsApplied = false
     applyMinimapPosition()
     hideDefaultHealthArmour()
-    requestStatus()
+    requestStatus(true)
 end)
 
 AddEventHandler('onClientResourceStop', function(resourceName)
     if resourceName ~= GetCurrentResourceName() then return end
 
+    reportVitals(true)
     DisplayRadar(true)
 
     if Config.Minimap.HideDefaultHealthArmour then

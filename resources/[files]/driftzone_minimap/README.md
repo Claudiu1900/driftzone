@@ -1,41 +1,113 @@
-# driftzone_minimap v2.1.0
+# driftzone_minimap v3.0.0
 
-HUD standalone FiveM pentru viață, armură, mâncare, apă și stamina.
+HUD FiveM optimizat pentru viață, armură, mâncare, apă și stamina.
 
-## Important la actualizare
+## Salvarea în baza de date
 
-Șterge complet folderul vechi `driftzone_minimap`, apoi pune folderul nou. Nu copia doar peste fișierele vechi.
+Versiunea 3.0.0 nu mai folosește tabela separată `driftzone_status`.
+Toate statisticile sunt salvate direct în:
 
-În consola serverului rulează:
-
-```cfg
-restart driftzone_minimap
+```text
+users.stats
 ```
 
-Interfața v2 folosește un fișier NUI nou, self-contained, pentru a evita fundalul gri și cache-ul versiunii vechi.
+Valoarea este JSON:
+
+```json
+{
+  "health": 100,
+  "armour": 0,
+  "food": 100,
+  "water": 100
+}
+```
+
+Resursa păstrează celelalte chei care există deja în `users.stats`. Modifică doar:
+
+- `health`
+- `armour`
+- `food`
+- `water`
+
+## Când se salvează
+
+Statisticile se salvează:
+
+- automat la fiecare 30 de secunde, numai dacă s-a schimbat ceva;
+- când jucătorul iese de pe server;
+- când resursa este oprită sau restartată;
+- după schimbări la mâncare, apă, viață sau armură.
+
+Viața și armura sunt trimise către server doar când se schimbă, cu un heartbeat rar pentru siguranță.
+
+## Când se încarcă
+
+La conectare, resursa citește `users.stats` și aplică:
+
+- viața salvată;
+- armura salvată;
+- mâncarea salvată;
+- apa salvată.
+
+Viața salvată la `0` este încărcată la minimum `1%`, pentru a evita ca jucătorul să rămână blocat mort la fiecare reconnect. Poți schimba asta în `config.lua`:
+
+```lua
+Config.MinimumLoadedHealth = 1
+```
+
+## Identificarea jucătorului
+
+Resursa detectează automat structurile uzuale:
+
+- `vrp_user_ids.identifier -> users.id`
+- `user_ids.identifier -> users.id`
+- `users.license`
+- `users.identifier`
+- `users.steam`
+- `users.discord`
+- user ID din state bag
+
+Setările principale sunt în `config.lua`:
+
+```lua
+Config.Database = {
+    UsersTable = 'users',
+    StatsColumn = 'stats',
+    UserIdColumn = 'id',
+    MappingTables = {
+        'vrp_user_ids',
+        'user_ids'
+    },
+    AutoCreateStatsColumn = true
+}
+```
+
+Dacă serverul tău folosește un sistem custom, poți trimite direct `users.id` dintr-un script server-side:
+
+```lua
+exports['driftzone_minimap']:LoadForUserId(playerSource, userId)
+```
 
 ## Instalare
+
+În `server.cfg`, `oxmysql` trebuie pornit înainte:
 
 ```cfg
 ensure oxmysql
 ensure driftzone_minimap
 ```
 
-`oxmysql` este opțional. Fără el, statusurile funcționează, dar nu se păstrează după reconectare.
+Șterge complet versiunea veche a folderului înainte să pui versiunea nouă.
 
-Oprește alte resurse care modifică simultan HUD-ul, stamina, foamea, setea sau poziția minimap-ului.
+Resursa creează automat coloana `users.stats` dacă lipsește. Alternativ, poți rula manual fișierul:
 
-## Funcționare
+```text
+sql/users_stats.sql
+```
 
-- Armura nu apare la 0%.
-- Stamina începe la 100% și este ascunsă.
-- Stamina apare cu fade când jucătorul începe să alerge, scade și dispare după ce revine la 100%.
-- Mâncare: -1% la fiecare 20 secunde.
-- Apă: -1% la fiecare 40 secunde.
-- Un status la 0: -5% viață la fiecare 30 secunde.
-- Ambele la 0: -10% viață la fiecare 40 secunde, fără damage dublu.
+Nu rula acel `ALTER TABLE` dacă `users.stats` există deja.
 
-## Trigger-e
+## Trigger-e mâncare și apă
 
 Din client:
 
@@ -58,16 +130,31 @@ exports['driftzone_minimap']:AddFood(playerSource, 25)
 exports['driftzone_minimap']:AddWater(playerSource, 25)
 ```
 
-## Poziția hărții
+Poți citi toate statisticile astfel:
 
-În `config.lua`:
+```lua
+local stats = exports['driftzone_minimap']:GetStatus(playerSource)
+
+-- stats.health
+-- stats.armour
+-- stats.food
+-- stats.water
+```
+
+## Funcționarea HUD-ului
+
+- Armura nu apare la `0%`.
+- Stamina este ascunsă la `100%`.
+- Stamina apare cu fade când jucătorul aleargă și scade spre `0%`.
+- Mâncarea scade cu `1%` la fiecare 20 de secunde.
+- Apa scade cu `1%` la fiecare 40 de secunde.
+- Un singur status la `0%`: `-5%` viață la fiecare 30 de secunde.
+- Ambele la `0%`: `-10%` viață la fiecare 40 de secunde, fără damage dublu.
+
+## Poziția hărții
 
 ```lua
 Config.Minimap.VerticalOffset = -0.045
 ```
 
-O valoare mai negativă ridică harta și mai sus, de exemplu `-0.055`.
-
-
-## Reparare afișare HUD v2.1.0
-Pagina NUI confirmă acum când este încărcată și clientul retrimite forțat valorile. HUD-ul pornește cu valorile implicite chiar dacă răspunsul serverului întârzie. Fișierul NUI a fost redenumit pentru a evita cache-ul FiveM.
+O valoare mai negativă ridică harta mai sus.
