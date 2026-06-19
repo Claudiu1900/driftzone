@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftZone Mechanic</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main id="menu" class="screen hidden">
+        <section class="panel mechanic-panel">
+            <header class="topbar">
+                <div>
+                    <span class="eyebrow">DRIFTZONE AUTO SERVICE</span>
+                    <h1>Atelier mecanic</h1>
+                </div>
+                <button class="icon-button" data-action="close" aria-label="Închide">×</button>
+            </header>
+
+            <div class="content-grid">
+                <section class="profile-card">
+                    <div class="rank-row">
+                        <div class="rank-icon">M</div>
+                        <div>
+                            <span class="muted">RANG CURENT</span>
+                            <h2 id="rankName">Mecanic I</h2>
+                        </div>
+                    </div>
+
+                    <div class="progress-wrap">
+                        <div class="progress-copy">
+                            <span id="xpText">0 / 500 XP</span>
+                            <span id="nextRank">Mecanic II</span>
+                        </div>
+                        <div class="progress-track"><div id="xpBar" class="progress-bar"></div></div>
+                    </div>
+
+                    <div class="stats">
+                        <div><strong id="totalJobs">0</strong><span>Intervenții</span></div>
+                        <div><strong id="totalEarnings">$0</strong><span>Câștig total</span></div>
+                        <div><strong id="shiftMistakes">0</strong><span>Greșeli tură</span></div>
+                    </div>
+
+                    <div id="internalWallet" class="wallet hidden"></div>
+                </section>
+
+                <section class="job-card">
+                    <span class="eyebrow">FIȘA POSTULUI</span>
+                    <h3>Repară. Câștigă. Avansează.</h3>
+                    <p>Primești intervenții reale prin oraș: diagnoză, baterii, anvelope, ulei, frâne și motoare. Fiecare lucrare are un minijoc propriu.</p>
+                    <ul>
+                        <li>Vehicul de serviciu urmărit permanent pe hartă</li>
+                        <li>Plată și XP pentru fiecare intervenție</li>
+                        <li>Ranguri Mecanic I, II și III</li>
+                        <li>Bonus pentru tură fără nicio greșeală</li>
+                    </ul>
+                    <div id="actions" class="actions"></div>
+                </section>
+            </div>
+
+            <footer>
+                <span>Începe și încheie tura doar la șeful atelierului.</span>
+                <span class="key">ESC</span>
+            </footer>
+        </section>
+    </main>
+
+    <main id="game" class="screen hidden">
+        <section class="panel game-panel">
+            <header class="game-header">
+                <div>
+                    <span id="urgentBadge" class="urgent hidden">URGENT</span>
+                    <span class="eyebrow">PROCEDURĂ TEHNICĂ</span>
+                    <h2 id="gameTitle">Diagnoză</h2>
+                    <p id="gameDescription">Urmează procedura.</p>
+                </div>
+                <div id="gameLives" class="lives">● ● ●</div>
+            </header>
+            <div id="gameArea" class="game-area"></div>
+            <footer class="game-footer">
+                <span id="gameHint">Finalizează procedura fără greșeli.</span>
+                <button id="cancelGame" class="ghost-button">Abandonează</button>
+            </footer>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
