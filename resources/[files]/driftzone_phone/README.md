@@ -153,3 +153,14 @@ Mesaje:
 - Status stabil: masina apare `AFARA` doar daca exista runtime spawn/active entity.
 - `garage = 0` vechi este tratat ca garaj default pentru afisare, nu ca masina scoasa.
 - Dupa spawn, statusul ramane AFARA prin runtime `GarageVehicles`.
+
+
+## V1.3 stable garage + voice
+
+- Model final stabil: `ownedvehicles.garage` ramane ID-ul garajului. Nu mai este setat 0 la spawn.
+- Statusul `AFARA` vine doar din runtime `GarageVehicles` / entity spawnat.
+- Nu mai apar toate masinile AFARA din cauza DB-ului.
+- Daca scoti masina, ramane AFARA pana o parchezi sau pana se restarteaza resursa.
+- Parcare verifica player + masina la acelasi garaj cu radius fallback.
+- Reparat apelurile voicechat: cand apelul este acceptat porneste voice call, cand se inchide il opreste.
+- Include suport `pma-voice` prin `addPlayerToCall/removePlayerFromCall` + fallback event.

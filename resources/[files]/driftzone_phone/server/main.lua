@@ -459,7 +459,11 @@ local function getGarageForPlayerPhone(src)
     for _, garage in ipairs(loadPhoneGarages()) do
         local dist = distance3(coords, garage)
         local radius = tonumber(garage.radius or 4) or 4
-        if dist <= radius and dist < bestDist then
+
+        -- Fallback mic ca sa nu dea "Nu esti la garaj" daca esti exact langa semn/parking spot.
+        local effectiveRadius = math.max(radius, 6.0)
+
+        if dist <= effectiveRadius and dist < bestDist then
             best, bestDist = garage, dist
         end
     end
@@ -475,14 +479,15 @@ local function getParkGarageForPlayerPhone(src)
     for _, garage in ipairs(loadPhoneGarages()) do
         local dist = distance3(coords, garage)
         local radius = tonumber(garage.park_radius or garage.radius or 12) or 12
-        if dist <= radius and dist < bestDist then
+        local effectiveRadius = math.max(radius, 8.0)
+
+        if dist <= effectiveRadius and dist < bestDist then
             best, bestDist = garage, dist
         end
     end
 
     return best, bestDist
 end
-
 
 local function getGarageForCoordsPhone(coords, useParkRadius)
     if not coords then return nil end
@@ -497,7 +502,9 @@ local function getGarageForCoordsPhone(coords, useParkRadius)
             radius = tonumber(garage.park_radius or garage.radius or radius) or radius
         end
 
-        if dist <= radius and dist < bestDist then
+        local effectiveRadius = math.max(radius, useParkRadius and 8.0 or 6.0)
+
+        if dist <= effectiveRadius and dist < bestDist then
             best, bestDist = garage, dist
         end
     end
@@ -654,9 +661,9 @@ local function getPhoneGarageVehicleRows(uid)
         local activeSpawned = active ~= nil and tonumber(active.netId or 0) > 0
         local entitySpawned = vehicleExists(entity) or activeSpawned
 
-        -- Stabil:
-        -- AFARA este doar masina spawnata in sesiunea curenta.
-        -- garage=0 ramas pe masini vechi nu mai face toate masinile AFARA.
+        -- STATUS FINAL STABIL:
+        -- AFARA = exista entity/runtime spawnat.
+        -- DB garage ramane id-ul garajului si NU este folosit pentru AFARA.
         local spawned = entitySpawned
         local stored = not spawned
 
@@ -842,6 +849,19 @@ end
 local function failCall(src, title, text)
     sendFeedback(src, { kind = 'call_fail', title = title or 'Apel esuat', text = text or '', sound = 'decline' })
     sendState(src)
+end
+
+
+local function voiceStartCall(call)
+    if not call or not call.a or not call.b then return end
+    TriggerClientEvent('driftzone_phone:client:voiceStart', call.a, call.b)
+    TriggerClientEvent('driftzone_phone:client:voiceStart', call.b, call.a)
+end
+
+local function voiceEndCall(call)
+    if not call then return end
+    if call.a then TriggerClientEvent('driftzone_phone:client:voiceEnd', call.a) end
+    if call.b then TriggerClientEvent('driftzone_phone:client:voiceEnd', call.b) end
 end
 
 local function endCall(callId, reason, endedBy)
@@ -1468,15 +1488,12 @@ RegisterNetEvent('driftzone_phone:server:garageConfirmSpawn', function(vehicleId
         ownerSrc = src,
         model = pending.model,
         plate = pending.plate,
-        garageId = pending.garageId
+        garageId = pending.garageId,
+        spawnedAt = GetGameTimer()
     }
 
-    pcall(function()
-        MySQL.update.await(('UPDATE %s SET %s = 0 WHERE id = ? AND owner_id = ? LIMIT 1'):format(sqlName(ownedVehiclesTable()), sqlName(garageColumn())), {
-            vehicleId, pending.uid
-        })
-    end)
-
+    -- Nu mai setam ownedvehicles.garage = 0 la spawn.
+    -- Statusul AFARA este runtime in GarageVehicles, iar DB ramane garajul de baza al masinii.
     pcall(function()
         TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', vehicleId, true)
         TriggerEvent('driftzone_vehicleconfig:server:setEngineOff', netId)
@@ -1549,14 +1566,17 @@ RegisterNetEvent('driftzone_phone:server:garagePark', function(vehicleId)
 
     cleanupPhoneGarageVehicle(vehicleId)
 
-    MySQL.update.await(('UPDATE %s SET %s = ? WHERE id = ? AND owner_id = ? LIMIT 1'):format(sqlName(ownedVehiclesTable()), sqlName(garageColumn())), {
+    MySQL.update.await(('UPDATE %s SET %s = ? WHERE id = ? AND owner_id = ?'):format(sqlName(ownedVehiclesTable()), sqlName(garageColumn())), {
         tonumber(playerGarage.id or 0) or 0, vehicleId, uid
     })
 
     notifyPhone(src, 'success', 'Masina a fost parcata.')
     refreshPhoneGarage(src)
-end)
 
+    SetTimeout(900, function()
+        refreshPhoneGarage(src)
+    end)
+end)
 
 RegisterNetEvent('driftzone_phone:server:garageParkCurrent', function(netId)
     local src = source

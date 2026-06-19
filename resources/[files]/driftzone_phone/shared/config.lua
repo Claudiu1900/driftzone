@@ -28,6 +28,9 @@ Config.ContactsLimit = 300
 -- =========================
 Config.Garage = {
     Enabled = true,
+    -- IMPORTANT: ramane true. Nu mai setam ownedvehicles.garage = 0 la spawn.
+    -- Statusul AFARA este tinut runtime in GarageVehicles, ca sa nu strice masinile din DB.
+    KeepGarageColumnOnSpawn = true,
     GaragesTable = 'garages',
     OwnedVehiclesTable = 'ownedvehicles',
     VehicleNamesTable = 'vehiclenames',
@@ -44,4 +47,13 @@ Config.Admin = {
     minLevelGarage = 6,
     adutyColumn = 'aduty',
     adminColumn = 'admin_level'
+}
+
+
+-- =========================
+-- PHONE VOICE
+-- =========================
+Config.Voice = {
+    Enabled = true,
+    System = 'pma-voice' -- pma-voice / saltychat custom fallback events
 }

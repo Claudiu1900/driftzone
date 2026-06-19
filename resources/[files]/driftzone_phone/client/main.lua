@@ -221,6 +221,39 @@ end)
 
 
 
+
+-- =========================
+-- PHONE VOICE CALL
+-- =========================
+local currentPhoneVoiceTarget = nil
+
+RegisterNetEvent('driftzone_phone:client:voiceStart', function(targetServerId)
+    targetServerId = tonumber(targetServerId or 0) or 0
+    currentPhoneVoiceTarget = targetServerId
+
+    if targetServerId <= 0 then return end
+
+    -- pma-voice normal call channel export.
+    pcall(function()
+        exports['pma-voice']:addPlayerToCall(targetServerId)
+    end)
+
+    -- fallback pentru sisteme custom care asculta eventuri.
+    TriggerEvent('driftzone_phone:voice:start', targetServerId)
+end)
+
+RegisterNetEvent('driftzone_phone:client:voiceEnd', function()
+    local target = currentPhoneVoiceTarget
+    currentPhoneVoiceTarget = nil
+
+    pcall(function()
+        exports['pma-voice']:removePlayerFromCall()
+    end)
+
+    TriggerEvent('driftzone_phone:voice:end', target)
+end)
+
+
 local function requestAnimDictPhone(dict)
     dict = tostring(dict or '')
     if dict == '' then return false end

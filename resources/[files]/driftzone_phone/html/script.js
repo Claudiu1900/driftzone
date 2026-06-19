@@ -730,9 +730,6 @@ function updateGarageVehicleLocalState(id, spawned) {
     v.stored = spawned !== true;
 
     if (spawned === true) {
-        v.rawGarage = 0;
-        v.garage = 0;
-        v.garageId = 0;
         v.garageName = 'Pe strada';
     } else {
         v.garageName = v.garageName && v.garageName !== 'Pe strada' ? v.garageName : 'In garaj';
