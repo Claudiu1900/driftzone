@@ -22,6 +22,7 @@ const audio = {
 
 let state = { myNumber: '', contacts: [], callHistory: [], messages: [], garage: { vehicles: [], garages: [], atGarage: false } };
 let selectedGarageVehicleId = 0;
+let localGarageSpawned = new Map();
 let garageAdminGarages = [];
 let garageAdminSelected = null;
 let garageAdminSpots = [];
@@ -101,6 +102,24 @@ function normalizeState(incoming) {
             ? { ...incoming.garage, vehicles: Array.isArray(incoming.garage.vehicles) ? incoming.garage.vehicles : [], garages: Array.isArray(incoming.garage.garages) ? incoming.garage.garages : [] }
             : { vehicles: [], garages: [], atGarage: false }
     };
+
+    const now = Date.now();
+    if (out.garage && Array.isArray(out.garage.vehicles)) {
+        out.garage.vehicles.forEach((v) => {
+            const id = Number(v.id || 0);
+            const until = localGarageSpawned.get(id) || 0;
+            if (until > now) {
+                v.spawned = true;
+                v.entitySpawned = true;
+                v.stored = false;
+                v.garageName = 'Pe strada';
+            } else if (until) {
+                localGarageSpawned.delete(id);
+            }
+        });
+    }
+
+    return out;
 }
 function messageKey(m) { return m && m.clientToken ? `t_${m.clientToken}` : `i_${m && m.id}`; }
 function isPhoneHidden() { return root.classList.contains('hidden'); }
@@ -730,8 +749,10 @@ function updateGarageVehicleLocalState(id, spawned) {
     v.stored = spawned !== true;
 
     if (spawned === true) {
+        localGarageSpawned.set(id, Date.now() + 30000);
         v.garageName = 'Pe strada';
     } else {
+        localGarageSpawned.delete(id);
         v.garageName = v.garageName && v.garageName !== 'Pe strada' ? v.garageName : 'In garaj';
     }
 }

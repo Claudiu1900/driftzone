@@ -164,3 +164,12 @@ Mesaje:
 - Parcare verifica player + masina la acelasi garaj cu radius fallback.
 - Reparat apelurile voicechat: cand apelul este acceptat porneste voice call, cand se inchide il opreste.
 - Include suport `pma-voice` prin `addPlayerToCall/removePlayerFromCall` + fallback event.
+
+
+## V1.3.1 spawn state hardfix
+
+- Cand apesi Scoate din Garaj, serverul marcheaza instant masina AFARA in `GarageVehicles`.
+- Confirm-ul netId/entity doar completeaza datele, nu mai decide statusul vizual.
+- Daca spawn-ul esueaza, statusul runtime se sterge.
+- State-ul NUI nu mai poate intoarce masina pe GARAJ imediat dupa spawn.
+- UI pastreaza local statusul AFARA 30 secunde ca protectie contra refresh vechi.

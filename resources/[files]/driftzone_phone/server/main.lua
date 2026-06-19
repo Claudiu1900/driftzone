@@ -524,10 +524,23 @@ local function findGarageVehicleEntity(vehicleId)
     if vehicleId <= 0 then return 0 end
 
     local data = GarageVehicles[vehicleId]
-    if data and vehicleExists(data.entity) then return data.entity end
+
+    if data then
+        if vehicleExists(data.entity) then return data.entity end
+
+        local netId = tonumber(data.netId or 0) or 0
+        if netId > 0 then
+            local entity = NetworkGetEntityFromNetworkId(netId)
+            if vehicleExists(entity) then
+                data.entity = entity
+                return entity
+            end
+        end
+    end
 
     for _, entity in ipairs(getServerVehiclesSafe()) do
         if vehicleExists(entity) and getEntityVehicleId(entity) == vehicleId then
+            if data then data.entity = entity end
             return entity
         end
     end
@@ -536,6 +549,9 @@ local function findGarageVehicleEntity(vehicleId)
 end
 
 local function isGarageVehicleSpawned(vehicleId)
+    vehicleId = tonumber(vehicleId or 0) or 0
+    if vehicleId <= 0 then return false end
+    if GarageVehicles[vehicleId] ~= nil then return true end
     return vehicleExists(findGarageVehicleEntity(vehicleId))
 end
 
@@ -658,12 +674,13 @@ local function getPhoneGarageVehicleRows(uid)
 
         local active = GarageVehicles[vehicleId]
         local entity = findGarageVehicleEntity(vehicleId)
-        local activeSpawned = active ~= nil and tonumber(active.netId or 0) > 0
+        local activeSpawned = active ~= nil
         local entitySpawned = vehicleExists(entity) or activeSpawned
 
-        -- STATUS FINAL STABIL:
-        -- AFARA = exista entity/runtime spawnat.
-        -- DB garage ramane id-ul garajului si NU este folosit pentru AFARA.
+        -- HARD FIX:
+        -- AFARA = exista runtime entry in GarageVehicles SAU entity.
+        -- Entry-ul se creeaza imediat cand playerul apasa Scoate din Garaj,
+        -- ca NUI-ul sa nu mai revina pe GARAJ dupa refresh.
         local spawned = entitySpawned
         local stored = not spawned
 
@@ -1413,7 +1430,23 @@ RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
         bucket = bucket,
         createdAt = GetGameTimer()
     }
+
+    -- HARD FIX: runtime status se pune imediat pe AFARA.
+    -- Confirm-ul doar completeaza netId/entity, nu decide UI statusul.
+    GarageVehicles[vehicleId] = {
+        entity = 0,
+        netId = 0,
+        pending = true,
+        ownerUid = uid,
+        ownerSrc = src,
+        model = model,
+        plate = plate,
+        garageId = tonumber(garage.id or 0) or 0,
+        spawnedAt = GetGameTimer()
+    }
+
     GarageSpawnLocks[src] = vehicleId
+    refreshPhoneGarage(src)
 
     TriggerClientEvent('driftzone_phone:client:garageCreateVehicle', src, {
         id = vehicleId,
@@ -1435,6 +1468,9 @@ RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
         if pending and pending.src == src then
             PendingGarageSpawns[vehicleId] = nil
             GarageSpawnLocks[src] = nil
+            if GarageVehicles[vehicleId] and GarageVehicles[vehicleId].pending == true then
+                GarageVehicles[vehicleId] = nil
+            end
             TriggerClientEvent('driftzone_phone:client:garageDeletePending', src, vehicleId)
             notifyPhone(src, 'error', 'Masina nu a putut fi scoasa.')
             refreshPhoneGarage(src)
@@ -1481,16 +1517,16 @@ RegisterNetEvent('driftzone_phone:server:garageConfirmSpawn', function(vehicleId
         gradient = pending.gradient
     })
 
-    GarageVehicles[vehicleId] = {
-        entity = entity,
-        netId = netId,
-        ownerUid = pending.uid,
-        ownerSrc = src,
-        model = pending.model,
-        plate = pending.plate,
-        garageId = pending.garageId,
-        spawnedAt = GetGameTimer()
-    }
+    GarageVehicles[vehicleId] = GarageVehicles[vehicleId] or {}
+    GarageVehicles[vehicleId].entity = entity
+    GarageVehicles[vehicleId].netId = netId
+    GarageVehicles[vehicleId].pending = false
+    GarageVehicles[vehicleId].ownerUid = pending.uid
+    GarageVehicles[vehicleId].ownerSrc = src
+    GarageVehicles[vehicleId].model = pending.model
+    GarageVehicles[vehicleId].plate = pending.plate
+    GarageVehicles[vehicleId].garageId = pending.garageId
+    GarageVehicles[vehicleId].spawnedAt = GarageVehicles[vehicleId].spawnedAt or GetGameTimer()
 
     -- Nu mai setam ownedvehicles.garage = 0 la spawn.
     -- Statusul AFARA este runtime in GarageVehicles, iar DB ramane garajul de baza al masinii.
@@ -1521,6 +1557,10 @@ RegisterNetEvent('driftzone_phone:server:garageSpawnFailed', function(vehicleId,
         GarageSpawnLocks[src] = nil
     end
 
+    if GarageVehicles[vehicleId] and GarageVehicles[vehicleId].pending == true then
+        GarageVehicles[vehicleId] = nil
+    end
+
     notifyPhone(src, 'error', tostring(reason or 'Nu am putut scoate masina.'))
     refreshPhoneGarage(src)
 end)
@@ -1548,20 +1588,22 @@ RegisterNetEvent('driftzone_phone:server:garagePark', function(vehicleId)
     end
 
     local entity = findGarageVehicleEntity(vehicleId)
-    if not vehicleExists(entity) then
+    if not GarageVehicles[vehicleId] and not vehicleExists(entity) then
         notifyPhone(src, 'warning', 'Masina nu este scoasa.')
         return refreshPhoneGarage(src)
     end
 
-    local vehicleGarage = getGarageForVehiclePhone(entity)
-    if not vehicleGarage then
-        notifyPhone(src, 'warning', 'Masina nu este langa niciun garaj.')
-        return refreshPhoneGarage(src)
-    end
+    if vehicleExists(entity) then
+        local vehicleGarage = getGarageForVehiclePhone(entity)
+        if not vehicleGarage then
+            notifyPhone(src, 'warning', 'Masina nu este langa niciun garaj.')
+            return refreshPhoneGarage(src)
+        end
 
-    if tonumber(vehicleGarage.id or 0) ~= tonumber(playerGarage.id or 0) then
-        notifyPhone(src, 'warning', 'Tu si masina trebuie sa fiti la acelasi garaj.')
-        return refreshPhoneGarage(src)
+        if tonumber(vehicleGarage.id or 0) ~= tonumber(playerGarage.id or 0) then
+            notifyPhone(src, 'warning', 'Tu si masina trebuie sa fiti la acelasi garaj.')
+            return refreshPhoneGarage(src)
+        end
     end
 
     cleanupPhoneGarageVehicle(vehicleId)
