@@ -64,11 +64,11 @@ local function sendHudUpdate(force)
     local player = PlayerId()
     local armour = clamp(GetPedArmour(ped), 0, 100)
     local stamina = clamp(round(GetPlayerSprintStaminaRemaining(player)), 0, 100)
-    local sprinting = IsPedSprinting(ped) and not IsPedInAnyVehicle(ped, false)
+    local movingFast = (IsPedRunning(ped) or IsPedSprinting(ped)) and not IsPedInAnyVehicle(ped, false)
     local now = GetGameTimer()
 
-    if sprinting or stamina < 100 then
-        staminaVisibleUntil = now + 900
+    if movingFast or stamina < 100 then
+        staminaVisibleUntil = now + 1200
     end
 
     local payload = {
@@ -79,7 +79,7 @@ local function sendHudUpdate(force)
         water = clamp(round(status.water), 0, 100),
         stamina = stamina,
         showArmour = armour > 0,
-        showStamina = sprinting or stamina < 100 or now < staminaVisibleUntil
+        showStamina = movingFast or stamina < 100 or now < staminaVisibleUntil
     }
 
     if force or payloadChanged(payload) then

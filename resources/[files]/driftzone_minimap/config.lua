@@ -41,7 +41,7 @@ Config.Minimap = {
 
     -- Ridică minimap-ul pentru a lăsa HUD-ul sub el.
     -- Mărește valoarea dacă dorești harta și mai sus.
-    VerticalOffset = 0.055,
+    VerticalOffset = 0.075,
 
     -- Pozițiile originale GTA/FiveM; VerticalOffset se adaugă automat pe Y.
     Components = {
