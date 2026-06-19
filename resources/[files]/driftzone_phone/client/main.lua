@@ -180,6 +180,14 @@ RegisterNetEvent('driftzone_phone:client:garageSpawnSuccess', function(vehicleId
         PendingGarageVehicles[vehicleId] = nil
         ConfirmedGarageVehicles[vehicleId] = true
     end
+
+    SetTimeout(250, function()
+        TriggerServerEvent('driftzone_phone:server:requestState')
+    end)
+
+    SetTimeout(1000, function()
+        TriggerServerEvent('driftzone_phone:server:requestState')
+    end)
 end)
 
 RegisterNetEvent('driftzone_phone:client:garageDeletePending', function(vehicleId)

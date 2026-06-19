@@ -648,14 +648,16 @@ local function getPhoneGarageVehicleRows(uid)
             garageId = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
         end
 
-        local entity = findGarageVehicleEntity(vehicleId)
-        local entitySpawned = vehicleExists(entity)
-
-        -- Sursa adevarata pentru "AFARA" este entity-ul spawnat, nu coloana garage.
-        local spawned = entitySpawned
-        local stored = not entitySpawned
-
         local active = GarageVehicles[vehicleId]
+        local entity = findGarageVehicleEntity(vehicleId)
+        local activeSpawned = active ~= nil and tonumber(active.netId or 0) > 0
+        local entitySpawned = vehicleExists(entity) or activeSpawned
+
+        -- AFARA inseamna runtime spawnat in sesiunea curenta.
+        -- ownedvehicles.garage = 0 singur NU mai inseamna AFARA, ca multe masini vechi pot avea 0.
+        local spawned = entitySpawned
+        local stored = not spawned
+
         local currentGarageId = active and tonumber(active.garageId or 0) or 0
         local garage = garagesById[garageId]
         local model = tostring(row.vehicle_model or ''):lower()
@@ -1451,6 +1453,10 @@ RegisterNetEvent('driftzone_phone:server:garageConfirmSpawn', function(vehicleId
     notifyPhone(src, 'success', 'Masina a fost scoasa din garaj.')
     TriggerClientEvent('driftzone_phone:client:garageSpawnSuccess', src, vehicleId)
     refreshPhoneGarage(src)
+
+    SetTimeout(900, function()
+        refreshPhoneGarage(src)
+    end)
 end)
 
 RegisterNetEvent('driftzone_phone:server:garageSpawnFailed', function(vehicleId, reason)

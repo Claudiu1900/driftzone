@@ -755,3 +755,19 @@ input, textarea { user-select: text; }
 .garage-car {
     box-shadow: 0 10px 24px rgba(0,0,0,.13);
 }
+
+
+/* V1.2.3 - final no scrollbar polish */
+.garage-cars,
+.phone-call-history,
+.messages-simple {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.garage-cars::-webkit-scrollbar,
+.phone-call-history::-webkit-scrollbar,
+.messages-simple::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+}

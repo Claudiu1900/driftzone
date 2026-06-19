@@ -125,3 +125,12 @@ Mesaje:
 - Pentru masini vechi cu `garage = 0`, aplicatia le considera in garajul default din config.
 - `Scoate din Garaj` nu mai blocheaza gresit cu `Masina este deja scoasa`.
 - Ascuns scrollbar-ul din lista de masini, dar scroll-ul ramane functional.
+
+
+## V1.2.3 spawn state fix
+
+- Reparat cazul in care dupa spawn masina ramanea vizual `GARAJ`.
+- Dupa spawn, statusul `AFARA` se bazeaza si pe `GarageVehicles[vehicleId]`, nu doar pe entity lookup.
+- UI schimba instant optiunile dupa spawn/parcare si apoi sincronizeaza iar cu serverul.
+- Dupa spawn/parcare se trimite refresh de state de doua ori ca NUI-ul sa prinda sigur statusul nou.
+- Scrollbar-ul ramane ascuns.

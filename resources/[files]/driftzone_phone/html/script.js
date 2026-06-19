@@ -656,7 +656,7 @@ function vehicleDisplayName(v) {
 function vehicleIsSpawned(v) {
     if (!v) return false;
     if (v.entitySpawned === true) return true;
-    if (v.spawned === true && v.stored !== true) return true;
+    if (v.spawned === true) return true;
     return false;
 }
 
@@ -719,16 +719,41 @@ function renderGarageDetail() {
     `;
 }
 
+function updateGarageVehicleLocalState(id, spawned) {
+    id = Number(id || 0);
+    const g = garageState();
+    const v = (g.vehicles || []).find((entry) => Number(entry.id || 0) === id);
+    if (!v) return;
+
+    v.spawned = spawned === true;
+    v.entitySpawned = spawned === true;
+    v.stored = spawned !== true;
+
+    if (spawned === true) {
+        v.garageName = 'Pe strada';
+    }
+}
+
 function garageAction(action, id) {
     id = Number(id || selectedGarageVehicleId || 0);
     if (id <= 0) return;
 
-    if (action === 'spawn') nui('garageSpawn', { id });
-    else if (action === 'park') nui('garagePark', { id });
-    else if (action === 'tow') nui('garageTow', { id });
-    else if (action === 'locate') nui('garageLocate', { id });
+    if (action === 'spawn') {
+        nui('garageSpawn', { id });
+        updateGarageVehicleLocalState(id, true);
+        renderGarageDetail();
+    } else if (action === 'park') {
+        nui('garagePark', { id });
+        updateGarageVehicleLocalState(id, false);
+        renderGarageDetail();
+    } else if (action === 'tow') {
+        nui('garageTow', { id });
+    } else if (action === 'locate') {
+        nui('garageLocate', { id });
+    }
 
-    setTimeout(() => nui('requestState'), 900);
+    setTimeout(() => nui('requestState'), 450);
+    setTimeout(() => nui('requestState'), 1200);
 }
 
 
