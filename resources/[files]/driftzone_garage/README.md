@@ -145,3 +145,10 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - Stil minimalist jos central.
 - Tasta `E` are box separat cu accent albastru.
 - Fundal discret, fara UI incarcat.
+
+
+## Update V2.11 - premium NUI park prompt
+
+- Promptul de park nu mai este DrawRect GTA.
+- Este NUI real cu animatie, keycap `E`, glow albastru si stil cyber/minimalist.
+- Apare/dispare smooth jos central.

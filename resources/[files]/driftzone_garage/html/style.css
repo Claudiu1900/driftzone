@@ -54,3 +54,138 @@ button.disabled, .disabled {
 .hero-stats {
     min-width: 120px;
 }
+
+
+/* V2.11 premium park prompt */
+.park-prompt {
+    position: fixed;
+    left: 50%;
+    bottom: 54px;
+    transform: translate(-50%, 18px) scale(.96);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 9999;
+    transition: opacity .18s ease, transform .18s ease;
+}
+
+.park-prompt.visible {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+}
+
+.park-card {
+    position: relative;
+    width: 376px;
+    height: 76px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 20px;
+    overflow: hidden;
+    border: 1px solid rgba(4, 199, 247, .46);
+    background:
+        linear-gradient(135deg, rgba(4, 199, 247, .20), rgba(255,255,255,.045) 42%, rgba(4, 12, 20, .92)),
+        rgba(4, 8, 14, .92);
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, .46),
+        0 0 34px rgba(4, 199, 247, .24),
+        inset 0 1px 0 rgba(255,255,255,.16);
+    clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+}
+
+.park-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 18% 50%, rgba(4,199,247,.30), transparent 28%),
+        linear-gradient(90deg, transparent, rgba(255,255,255,.10), transparent);
+    transform: translateX(-110%);
+    animation: parkSweep 2.2s ease-in-out infinite;
+}
+
+.park-glow {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    width: 70px;
+    height: 70px;
+    transform: translateY(-50%);
+    background: rgba(4,199,247,.22);
+    filter: blur(18px);
+    border-radius: 50%;
+    animation: parkPulse 1.45s ease-in-out infinite;
+}
+
+.park-key {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255,255,255,.38);
+    background:
+        linear-gradient(180deg, rgba(255,255,255,.23), rgba(255,255,255,.06)),
+        rgba(4,199,247,.32);
+    box-shadow:
+        0 0 20px rgba(4,199,247,.40),
+        inset 0 0 18px rgba(4,199,247,.16);
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+.park-key span {
+    font-size: 22px;
+    font-weight: 1000;
+    color: #ffffff;
+    line-height: 1;
+    text-shadow: 0 0 14px rgba(4,199,247,.95);
+}
+
+.park-copy {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.park-label {
+    color: #04c7f7;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 2px;
+    font-weight: 1000;
+    text-shadow: 0 0 16px rgba(4,199,247,.62);
+}
+
+.park-text {
+    color: rgba(255,255,255,.94);
+    font-size: 16px;
+    line-height: 1.1;
+    font-weight: 850;
+    letter-spacing: .2px;
+    white-space: nowrap;
+}
+
+.park-line {
+    position: absolute;
+    left: 84px;
+    right: 20px;
+    bottom: 13px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(4,199,247,.90), rgba(4,199,247,.18), transparent);
+    box-shadow: 0 0 18px rgba(4,199,247,.45);
+}
+
+@keyframes parkSweep {
+    0% { transform: translateX(-120%); opacity: 0; }
+    28% { opacity: .55; }
+    56% { transform: translateX(120%); opacity: 0; }
+    100% { transform: translateX(120%); opacity: 0; }
+}
+
+@keyframes parkPulse {
+    0%, 100% { opacity: .58; transform: translateY(-50%) scale(.94); }
+    50% { opacity: 1; transform: translateY(-50%) scale(1.08); }
+}

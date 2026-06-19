@@ -1,6 +1,7 @@
 'use strict';
 
 const root = document.getElementById('garageRoot');
+const parkPrompt = document.getElementById('parkPrompt');
 const garagePanel = document.getElementById('garagePanel');
 const adminPanel = document.getElementById('adminPanel');
 
@@ -82,6 +83,27 @@ function parseCoordLine(value, needsHeading = false) {
 
 function showRoot() { root.classList.remove('hidden'); }
 function hideRoot() { root.classList.add('hidden'); }
+
+let parkPromptVisible = false;
+
+function setParkPrompt(state) {
+    const show = state === true;
+
+    if (parkPromptVisible === show) return;
+    parkPromptVisible = show;
+
+    if (!parkPrompt) return;
+
+    if (show) {
+        parkPrompt.classList.remove('hidden');
+        requestAnimationFrame(() => parkPrompt.classList.add('visible'));
+    } else {
+        parkPrompt.classList.remove('visible');
+        setTimeout(() => {
+            if (!parkPromptVisible) parkPrompt.classList.add('hidden');
+        }, 180);
+    }
+}
 function showGaragePanel() { showRoot(); garagePanel.classList.remove('hidden'); adminPanel.classList.add('hidden'); }
 function showAdminPanel() { showRoot(); adminPanel.classList.remove('hidden'); garagePanel.classList.add('hidden'); }
 
@@ -467,6 +489,7 @@ function reloadGarages() {
 window.addEventListener('message', (event) => {
     const data = event.data || {};
 
+    if (data.action === 'parkPrompt') setParkPrompt(data.show === true);
     if (data.action === 'open') openGarage(data);
     if (data.action === 'update') updateGarage(data);
     if (data.action === 'close') closeGarage();
