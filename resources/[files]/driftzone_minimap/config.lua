@@ -34,8 +34,8 @@ Config.VitalsApplyDelay = 900
 -- Stamina custom: pornește la 100%, scade la sprint și se regenerează după oprire.
 -- Nu folosește procentul nativ FiveM, deci afișarea nu poate fi inversată.
 Config.Stamina = {
-    DrainPerSecond = 9.0,
-    RegenPerSecond = 14.0,
+    DrainPerSecond = 3.0,
+    RegenPerSecond = 7.0,
     RegenDelay = 850,
     HideDelay = 650,
     ResumeSprintAt = 18.0,
