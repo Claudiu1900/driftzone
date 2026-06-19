@@ -146,8 +146,10 @@ local function sendHudUpdate(force)
     local player = PlayerId()
     local armour = clamp(GetPedArmour(ped), 0, 100)
 
-    -- Native-ul returnează stamina rămasă: 100% plină, apoi scade când alergi.
-    local stamina = clamp(round(GetPlayerSprintStaminaRemaining(player)), 0, 100)
+    -- Pe FiveM, această valoare crește de la 0 spre 100 când stamina este consumată.
+    -- HUD-ul trebuie să arate procentul rămas: 100% la repaus și să scadă la alergare.
+    local staminaUsed = clamp(tonumber(GetPlayerSprintStaminaRemaining(player)) or 0.0, 0.0, 100.0)
+    local stamina = clamp(round(100.0 - staminaUsed), 0, 100)
     local movingFast = (IsPedRunning(ped) or IsPedSprinting(ped))
         and not IsPedInAnyVehicle(ped, false)
     local now = GetGameTimer()

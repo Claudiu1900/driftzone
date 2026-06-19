@@ -158,3 +158,8 @@ Config.Minimap.VerticalOffset = -0.045
 ```
 
 O valoare mai negativă ridică harta mai sus.
+
+
+## Stamina
+
+Stamina este afișată ca procent rămas: pornește la 100%, scade când jucătorul aleargă, se regenerează când se oprește și cardul este ascuns din nou după revenirea la 100%. Valoarea brută FiveM este inversată pentru afișarea corectă.
