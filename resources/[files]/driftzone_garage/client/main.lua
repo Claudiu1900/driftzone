@@ -415,6 +415,30 @@ AddStateBagChangeHandler('dz_garage_gradient', nil, function(bagName, key, value
 end)
 
 
+local function getGroundSpawnZ(x, y, z)
+    x = tonumber(x or 0.0) or 0.0
+    y = tonumber(y or 0.0) or 0.0
+    z = tonumber(z or 0.0) or 0.0
+
+    local heights = {
+        z + 80.0,
+        z + 50.0,
+        z + 25.0,
+        z + 10.0,
+        z + 3.0
+    }
+
+    for _, height in ipairs(heights) do
+        local found, groundZ = GetGroundZFor_3dCoord(x, y, height, false)
+        if found and groundZ then
+            return groundZ + 0.05
+        end
+        Wait(0)
+    end
+
+    return z
+end
+
 local function forceVehicleTransform(entity, spawn)
     if not entity or entity == 0 or not DoesEntityExist(entity) then return end
 
@@ -427,25 +451,21 @@ local function forceVehicleTransform(entity, spawn)
 
     requestControl(entity, 900)
 
-    FreezeEntityPosition(entity, true)
-
     if x and y and z then
+        if spawn.useGround == true then
+            z = getGroundSpawnZ(x, y, z)
+        end
+
         SetEntityCoordsNoOffset(entity, x, y, z, false, false, false)
+        Wait(0)
+        SetVehicleOnGroundProperly(entity)
+        Wait(0)
     end
 
     if h then
         SetEntityHeading(entity, h)
         SetVehicleForwardSpeed(entity, 0.0)
     end
-
-    Wait(0)
-
-    if h then
-        SetEntityHeading(entity, h)
-        SetVehicleForwardSpeed(entity, 0.0)
-    end
-
-    FreezeEntityPosition(entity, false)
 end
 
 local function loadVehicleModel(hash, timeoutMs)
@@ -494,6 +514,12 @@ local function createVehicleClientSide(data)
     local z = tonumber(spawn.z)
     local h = tonumber(spawn.h or spawn.heading)
 
+    if x and y and z then
+        z = getGroundSpawnZ(x, y, z)
+        spawn.z = z
+        spawn.useGround = true
+    end
+
     if vehicleId <= 0 or not x or not y or not z or not h then
         TriggerServerEvent('driftzone_garage:server:clientSpawnFailed', vehicleId, 'Date spawn invalide.')
         return
@@ -525,7 +551,7 @@ local function createVehicleClientSide(data)
     SetVehicleHasBeenOwnedByPlayer(vehicle, true)
     SetVehicleNumberPlateText(vehicle, tostring(data.plate or 'DRIFT'):sub(1, 8))
 
-    -- Ordinea corecta: pozitie exacta -> heading exact. Fara ground-native-scos.
+    -- Ordinea corecta: Z pe sol -> masina pe sol -> heading.
     forceVehicleTransform(vehicle, spawn)
 
     SetVehicleEngineOn(vehicle, false, true, true)
@@ -567,13 +593,12 @@ local function createVehicleClientSide(data)
         return
     end
 
-    local repeats = { 0, 80, 180, 350, 700, 1200, 2000 }
+    -- Reaplicare usoara doar ca sa nu ramana in aer dupa network/tuning.
     CreateThread(function()
-        for i = 1, #repeats do
-            if repeats[i] > 0 then Wait(repeats[i]) end
-            if not DoesEntityExist(vehicle) then return end
-            forceVehicleTransform(vehicle, spawn)
-        end
+        Wait(250)
+        if DoesEntityExist(vehicle) then forceVehicleTransform(vehicle, spawn) end
+        Wait(750)
+        if DoesEntityExist(vehicle) then forceVehicleTransform(vehicle, spawn) end
     end)
 
     SetModelAsNoLongerNeeded(hash)
@@ -656,13 +681,9 @@ RegisterNetEvent('driftzone_garage:client:forceSpawnTransform', function(netId, 
         local entity = getVehicleFromNetId(netId)
         if not entity or entity == 0 or not DoesEntityExist(entity) then return end
 
-        local delays = { 0, 120, 300, 650, 1100, 1800 }
-
-        for i = 1, #delays do
-            if delays[i] > 0 then Wait(delays[i]) end
-            if not DoesEntityExist(entity) then return end
-            forceVehicleTransform(entity, spawn or {})
-        end
+        forceVehicleTransform(entity, spawn or {})
+        Wait(350)
+        if DoesEntityExist(entity) then forceVehicleTransform(entity, spawn or {}) end
     end)
 end)
 

@@ -93,3 +93,11 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - Dupa ce clientul creeaza masina, serverul primeste `netId`, seteaza owner/state si o inregistreaza.
 
 - Toate apelurile `SetVehicleOnGroundProperly` au fost scoase din spawn ca heading-ul sa nu mai fie resetat.
+
+
+## Update V2.5 - spawn pe sol
+
+- Clientul calculeaza ground Z cu `GetGroundZFor_3dCoord` inainte sa creeze masina.
+- Masina se creeaza direct pe sol, nu la Z-ul din DB daca acela este prea sus.
+- `SetVehicleOnGroundProperly` este folosit doar client-side, apoi se aplica heading-ul.
+- Am scos fortarea agresiva de heading/pozitie; acum doar aseaza masina pe sol si lasa heading-ul normal.

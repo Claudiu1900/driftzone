@@ -954,15 +954,11 @@ RegisterNetEvent('driftzone_garage:server:confirmClientSpawn', function(vehicleI
     SpawnLocks[src] = nil
     VehicleSpawnLocks[vehicleId] = nil
 
-    TriggerClientEvent('driftzone_garage:client:forceSpawnTransform', -1, netId, spawn)
+    -- Nu fortam agresiv coordonatele de pe server; clientul a calculat deja ground Z corect.
     TriggerClientEvent('driftzone_garage:client:spawnedSuccess', src)
 
     notify(src, 'info', ('Vehiculul %s a fost scos din garaj.'):format(pending.vehicleName))
     refreshGarageList(src, pending.garage)
-
-    SetTimeout(450, function()
-        TriggerClientEvent('driftzone_garage:client:forceSpawnTransform', -1, netId, spawn)
-    end)
 
     SetTimeout(1200, function()
         if ActiveVehicles[vehicleId] and ActiveVehicles[vehicleId].netId == netId then
