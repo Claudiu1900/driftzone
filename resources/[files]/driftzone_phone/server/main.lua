@@ -4,6 +4,12 @@ local PhoneCache = {}
 local UidCache = {}
 local UserColumns = nil
 local NextCallId = 0
+local GarageVehicles = {}
+local GarageSpawnLocks = {}
+local GarageSpawnCooldowns = {}
+local PendingGarageSpawns = {}
+local GaragesCache = nil
+local GaragesCacheExpires = 0
 
 local function sqlName(name)
     return ('`%s`'):format(tostring(name or ''):gsub('`', ''))
@@ -312,6 +318,410 @@ local function otherParticipant(call, src)
     return nil
 end
 
+
+-- =========================
+-- GARAGE PHONE APP
+-- =========================
+
+local function garageCfg()
+    return Config.Garage or {}
+end
+
+local function garageTable()
+    return garageCfg().GaragesTable or 'garages'
+end
+
+local function ownedVehiclesTable()
+    return garageCfg().OwnedVehiclesTable or 'ownedvehicles'
+end
+
+local function garageColumn()
+    return garageCfg().GarageColumn or 'garage'
+end
+
+local function cashColumn()
+    return Config.UsersCashColumn or 'cash'
+end
+
+local function vehicleExists(entity)
+    return entity and entity ~= 0 and DoesEntityExist(entity)
+end
+
+local function getServerVehiclesSafe()
+    local ok, vehicles = pcall(GetAllVehicles)
+    if ok and type(vehicles) == 'table' then return vehicles end
+    return {}
+end
+
+local function decodeJsonList(raw)
+    if type(raw) == 'table' then return raw end
+    local ok, data = pcall(json.decode, tostring(raw or '[]'))
+    if ok and type(data) == 'table' then return data end
+    return {}
+end
+
+local function encodeJson(data)
+    local ok, encoded = pcall(json.encode, data or {})
+    return ok and encoded or '{}'
+end
+
+local function normalizeTuning(raw)
+    if type(raw) == 'table' then return encodeJson(raw) end
+    raw = tostring(raw or '{}')
+    if raw == '' or raw == 'null' or raw == 'nil' then return '{}' end
+    return raw
+end
+
+local function normalizeGradient(raw)
+    if type(raw) == 'table' then return encodeJson(raw) end
+    raw = tostring(raw or '')
+    if raw == '' or raw == 'null' or raw == 'nil' or raw == '{}' then return '' end
+    return raw
+end
+
+local function getEntityVehicleId(entity)
+    if not vehicleExists(entity) then return 0 end
+    local state = Entity(entity).state
+    return tonumber(state.dz_phone_garage_vehicle_id or state.dz_garage_db_id or state.ownedVehicleId or state.vehicle_id or 0) or 0
+end
+
+local function getGarageById(id)
+    id = tonumber(id or 0) or 0
+    if id <= 0 then return nil end
+    local garages = loadPhoneGarages()
+    for _, g in ipairs(garages) do
+        if tonumber(g.id or 0) == id then return g end
+    end
+    return nil
+end
+
+function loadPhoneGarages(force)
+    local now = GetGameTimer()
+    if force ~= true and GaragesCache and GaragesCacheExpires > now then return GaragesCache end
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await(('SELECT * FROM %s WHERE active = 1 ORDER BY id ASC'):format(sqlName(garageTable())), {}) or {}
+    end)
+
+    local garages = {}
+
+    if ok and type(rows) == 'table' then
+        for _, row in ipairs(rows) do
+            local spots = {}
+            for _, spot in ipairs(decodeJsonList(row.parking_spots or '[]')) do
+                local x = tonumber(spot.x or spot[1])
+                local y = tonumber(spot.y or spot[2])
+                local z = tonumber(spot.z or spot[3])
+                local h = tonumber(spot.h or spot.w or spot[4] or spot.heading or 0) or 0
+                if x and y and z then
+                    spots[#spots + 1] = { x = x + 0.0, y = y + 0.0, z = z + 0.0, h = h + 0.0 }
+                end
+            end
+
+            garages[#garages + 1] = {
+                id = tonumber(row.id or 0) or 0,
+                name = tostring(row.name or 'Garage'),
+                x = tonumber(row.x or 0) or 0,
+                y = tonumber(row.y or 0) or 0,
+                z = tonumber(row.z or 0) or 0,
+                radius = tonumber(row.radius or 4) or 4,
+                park_radius = tonumber(row.park_radius or row.radius or 12) or 12,
+                parking_spots = spots
+            }
+        end
+    end
+
+    GaragesCache = garages
+    GaragesCacheExpires = now + 8000
+    return garages
+end
+
+local function distance3(a, b)
+    local ax, ay, az = tonumber(a.x or 0) or 0, tonumber(a.y or 0) or 0, tonumber(a.z or 0) or 0
+    local bx, by, bz = tonumber(b.x or 0) or 0, tonumber(b.y or 0) or 0, tonumber(b.z or 0) or 0
+    return math.sqrt((ax - bx)^2 + (ay - by)^2 + (az - bz)^2)
+end
+
+local function getPlayerCoordsTable(src)
+    local ped = GetPlayerPed(src)
+    if not ped or ped == 0 then return nil end
+    local c = GetEntityCoords(ped)
+    return { x = c.x + 0.0, y = c.y + 0.0, z = c.z + 0.0 }
+end
+
+local function getGarageForPlayerPhone(src)
+    local coords = getPlayerCoordsTable(src)
+    if not coords then return nil end
+
+    local best, bestDist = nil, 999999.0
+    for _, garage in ipairs(loadPhoneGarages()) do
+        local dist = distance3(coords, garage)
+        local radius = tonumber(garage.radius or 4) or 4
+        if dist <= radius and dist < bestDist then
+            best, bestDist = garage, dist
+        end
+    end
+
+    return best, bestDist
+end
+
+local function getParkGarageForPlayerPhone(src)
+    local coords = getPlayerCoordsTable(src)
+    if not coords then return nil end
+
+    local best, bestDist = nil, 999999.0
+    for _, garage in ipairs(loadPhoneGarages()) do
+        local dist = distance3(coords, garage)
+        local radius = tonumber(garage.park_radius or garage.radius or 12) or 12
+        if dist <= radius and dist < bestDist then
+            best, bestDist = garage, dist
+        end
+    end
+
+    return best, bestDist
+end
+
+local function findGarageVehicleEntity(vehicleId)
+    vehicleId = tonumber(vehicleId or 0) or 0
+    if vehicleId <= 0 then return 0 end
+
+    local data = GarageVehicles[vehicleId]
+    if data and vehicleExists(data.entity) then return data.entity end
+
+    for _, entity in ipairs(getServerVehiclesSafe()) do
+        if vehicleExists(entity) and getEntityVehicleId(entity) == vehicleId then
+            return entity
+        end
+    end
+
+    return 0
+end
+
+local function isGarageVehicleSpawned(vehicleId)
+    return vehicleExists(findGarageVehicleEntity(vehicleId))
+end
+
+local function getOutsideLimit(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return 1 end
+
+    local col = garageCfg().OutsideVehiclesColumn or 'outsidevehicles'
+    local ok, row = pcall(function()
+        return MySQL.single.await(('SELECT COALESCE(%s, 1) AS lim FROM %s WHERE %s = ? LIMIT 1'):format(
+            sqlName(col), sqlName(Config.UsersTable or 'users'), sqlName(Config.UsersIdColumn or 'uid')
+        ), { uid })
+    end)
+
+    local limit = ok and row and tonumber(row.lim or 1) or 1
+    limit = math.floor(tonumber(limit or 1) or 1)
+    if limit < 0 then limit = 0 end
+    if limit > 50 then limit = 50 end
+    return limit
+end
+
+local function getOutsideCount(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return 0 end
+
+    local ids = {}
+
+    for vehicleId, data in pairs(GarageVehicles or {}) do
+        if data and tonumber(data.ownerUid or 0) == uid and vehicleExists(data.entity) then
+            ids[tonumber(vehicleId) or 0] = true
+        end
+    end
+
+    for _, entity in ipairs(getServerVehiclesSafe()) do
+        if vehicleExists(entity) then
+            local state = Entity(entity).state
+            local ownerUid = tonumber(state.dz_phone_garage_owner_uid or state.dz_garage_owner_uid or 0) or 0
+            local vehicleId = tonumber(state.dz_phone_garage_vehicle_id or state.dz_garage_db_id or state.ownedVehicleId or 0) or 0
+            if ownerUid == uid and vehicleId > 0 then ids[vehicleId] = true end
+        end
+    end
+
+    local count = 0
+    for id in pairs(ids) do
+        if tonumber(id or 0) and tonumber(id or 0) > 0 then count = count + 1 end
+    end
+
+    return count
+end
+
+local function isSpotFreePhone(spot, bucket)
+    local radius = tonumber(garageCfg().ParkingSpotClearRadius or 3.2) or 3.2
+
+    for _, entity in ipairs(getServerVehiclesSafe()) do
+        if vehicleExists(entity) then
+            local sameBucket = true
+            local ok, vehBucket = pcall(GetEntityRoutingBucket, entity)
+            if ok and vehBucket ~= nil then sameBucket = tonumber(vehBucket or 0) == tonumber(bucket or 0) end
+
+            if sameBucket then
+                local c = GetEntityCoords(entity)
+                local dist = math.sqrt((c.x - spot.x)^2 + (c.y - spot.y)^2 + (c.z - spot.z)^2)
+                if dist <= radius then return false end
+            end
+        end
+    end
+
+    return true
+end
+
+local function findFreeSpotPhone(garage, bucket)
+    if not garage or type(garage.parking_spots) ~= 'table' then return nil end
+    for index, spot in ipairs(garage.parking_spots) do
+        if isSpotFreePhone(spot, bucket) then return spot, index end
+    end
+    return nil
+end
+
+local function getPhoneGarageVehicleRows(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return {} end
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await(([[
+            SELECT id, owner_id, vehicle_model, vehicle_plate, vehicle_tunning, gradient,
+                   COALESCE(vip, 0) AS vip, COALESCE(%s, 0) AS garage
+            FROM %s
+            WHERE owner_id = ?
+            ORDER BY id DESC
+        ]]):format(sqlName(garageColumn()), sqlName(ownedVehiclesTable())), { uid }) or {}
+    end)
+
+    if not ok or type(rows) ~= 'table' then
+        print('[DRIFTZONE_PHONE] garage vehicle query failed: ' .. tostring(rows))
+        return {}
+    end
+
+    local garagesById = {}
+    for _, g in ipairs(loadPhoneGarages()) do garagesById[tonumber(g.id or 0) or 0] = g end
+
+    local out = {}
+    for _, row in ipairs(rows) do
+        local vehicleId = tonumber(row.id or 0) or 0
+        local garageId = tonumber(row.garage or 0) or 0
+        local spawned = isGarageVehicleSpawned(vehicleId)
+        local active = GarageVehicles[vehicleId]
+        local currentGarageId = active and tonumber(active.garageId or 0) or 0
+        local garage = garagesById[garageId]
+
+        out[#out + 1] = {
+            id = vehicleId,
+            model = tostring(row.vehicle_model or ''),
+            name = tostring(row.vehicle_name or row.vehicle_model or 'Vehicle'),
+            plate = tostring(row.vehicle_plate or 'DRIFT'),
+            vip = tonumber(row.vip or 0) == 1,
+            garage = garageId,
+            garageId = garageId,
+            garageName = garage and garage.name or (garageId > 0 and ('Garage #' .. garageId) or 'Afara'),
+            spawned = spawned,
+            activeGarageId = currentGarageId,
+            image = ''
+        }
+    end
+
+    return out
+end
+
+local function getPhoneGarageState(src, uid)
+    uid = tonumber(uid or 0) or 0
+    local currentGarage = getGarageForPlayerPhone(src)
+    local parkGarage = getParkGarageForPlayerPhone(src)
+    local garages = loadPhoneGarages()
+
+    return {
+        enabled = (garageCfg().Enabled ~= false),
+        towPrice = tonumber(garageCfg().TowPrice or 5000) or 5000,
+        atGarage = currentGarage ~= nil,
+        currentGarage = currentGarage,
+        parkGarage = parkGarage,
+        garages = garages,
+        vehicles = uid > 0 and getPhoneGarageVehicleRows(uid) or {},
+        outsideLimit = uid > 0 and getOutsideLimit(uid) or 1,
+        outsideCount = uid > 0 and getOutsideCount(uid) or 0
+    }
+end
+
+local function notifyPhone(src, typ, message, duration)
+    TriggerClientEvent('client:notify', src, typ or 'info', duration or 4500, tostring(message or ''))
+end
+
+local function refreshPhoneGarage(src)
+    if src and src > 0 and isLogged(src) then
+        sendState(src)
+    end
+end
+
+local function setVehicleStatePhone(entity, data)
+    if not vehicleExists(entity) then return end
+    local state = Entity(entity).state
+    state:set('dz_phone_garage_vehicle', true, true)
+    state:set('dz_phone_garage_vehicle_id', tonumber(data.vehicleId or 0) or 0, true)
+    state:set('dz_phone_garage_owner_uid', tonumber(data.ownerUid or 0) or 0, true)
+    state:set('dz_phone_garage_plate', tostring(data.plate or ''), true)
+    state:set('dz_phone_garage_model', tostring(data.model or ''), true)
+    state:set('dz_garage_vehicle', true, true)
+    state:set('dz_garage_db_id', tonumber(data.vehicleId or 0) or 0, true)
+    state:set('ownedVehicleId', tonumber(data.vehicleId or 0) or 0, true)
+    state:set('dz_garage_owner_uid', tonumber(data.ownerUid or 0) or 0, true)
+    state:set('dz_garage_tuning', normalizeTuning(data.tuning or '{}'), true)
+    state:set('dz_garage_gradient', normalizeGradient(data.gradient or ''), true)
+end
+
+local function cleanupPhoneGarageVehicle(vehicleId)
+    vehicleId = tonumber(vehicleId or 0) or 0
+    if vehicleId <= 0 then return end
+
+    local entity = findGarageVehicleEntity(vehicleId)
+    if vehicleExists(entity) then
+        DeleteEntity(entity)
+    end
+
+    GarageVehicles[vehicleId] = nil
+end
+
+local function ensurePhoneGarageTables()
+    pcall(function()
+        MySQL.query.await(([[
+            CREATE TABLE IF NOT EXISTS %s (
+                id INT NOT NULL AUTO_INCREMENT,
+                name VARCHAR(96) NOT NULL DEFAULT 'Garage',
+                x DOUBLE NOT NULL DEFAULT 0,
+                y DOUBLE NOT NULL DEFAULT 0,
+                z DOUBLE NOT NULL DEFAULT 0,
+                radius DOUBLE NOT NULL DEFAULT 4,
+                park_radius DOUBLE NOT NULL DEFAULT 12,
+                visible_radius TINYINT(1) NOT NULL DEFAULT 1,
+                parking_spots LONGTEXT NULL,
+                active TINYINT(1) NOT NULL DEFAULT 1,
+                created_by INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_garages_active (active)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+        ]]):format(sqlName(garageTable())), {})
+    end)
+
+    pcall(function()
+        MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s INT NOT NULL DEFAULT %s'):format(
+            sqlName(ownedVehiclesTable()),
+            sqlName(garageColumn()),
+            tonumber(garageCfg().DefaultGarageId or 1) or 1
+        ))
+    end)
+
+    pcall(function()
+        MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS `%s` INT NOT NULL DEFAULT 1'):format(
+            sqlName(Config.UsersTable or 'users'),
+            tostring(garageCfg().OutsideVehiclesColumn or 'outsidevehicles'):gsub('`', '')
+        ))
+    end)
+end
+
+
 local function publicCallStateFor(src)
     local uid = getUid(src)
     local myPhone = uid and getPhoneByUid(uid, true) or nil
@@ -328,7 +738,8 @@ local function publicCallStateFor(src)
         startedAt = 0,
         contacts = uid and getContacts(uid) or {},
         callHistory = uid and getCallHistory(uid) or {},
-        messages = uid and getMessages(uid) or {}
+        messages = uid and getMessages(uid) or {},
+        garage = uid and getPhoneGarageState(src, uid) or { enabled = false, vehicles = {}, garages = {}, atGarage = false }
     }
     if call then
         local otherSrc = otherParticipant(call, src)
@@ -595,11 +1006,345 @@ RegisterNetEvent('driftzone_phone:server:sendMessage', function(data)
     end
 end)
 
+
+
+RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
+    local src = source
+    if not isLogged(src) then return end
+
+    local uid = getUid(src)
+    if not uid then return notifyPhone(src, 'warning', 'Trebuie sa fii logat.') end
+
+    local garage = getGarageForPlayerPhone(src)
+    if not garage then
+        notifyPhone(src, 'warning', 'Nu esti la garaj.')
+        return refreshPhoneGarage(src)
+    end
+
+    vehicleId = tonumber(vehicleId or 0) or 0
+    if vehicleId <= 0 then return notifyPhone(src, 'warning', 'Vehicul invalid.') end
+
+    if GarageSpawnLocks[src] or PendingGarageSpawns[vehicleId] then
+        notifyPhone(src, 'warning', 'Ai deja o masina in curs de spawn.')
+        return
+    end
+
+    if isGarageVehicleSpawned(vehicleId) then
+        notifyPhone(src, 'warning', 'Acest vehicul este deja scos.')
+        return refreshPhoneGarage(src)
+    end
+
+    local now = GetGameTimer()
+    local cooldown = tonumber(garageCfg().SpawnCooldownMs or 3000) or 3000
+    if (GarageSpawnCooldowns[src] or 0) > now then return end
+    GarageSpawnCooldowns[src] = now + cooldown
+
+    local outsideLimit = getOutsideLimit(uid)
+    local outsideCount = getOutsideCount(uid)
+    if outsideCount >= outsideLimit then
+        notifyPhone(src, 'warning', ('Ai limita de masini spawnate: %s/%s.'):format(outsideCount, outsideLimit))
+        return refreshPhoneGarage(src)
+    end
+
+    local ok, rows = pcall(function()
+        return MySQL.query.await(([[
+            SELECT id, owner_id, vehicle_model, vehicle_plate, vehicle_tunning, gradient,
+                   COALESCE(vip, 0) AS vip, COALESCE(%s, 0) AS garage
+            FROM %s
+            WHERE id = ? AND owner_id = ?
+            LIMIT 1
+        ]]):format(sqlName(garageColumn()), sqlName(ownedVehiclesTable())), { vehicleId, uid }) or {}
+    end)
+
+    local row = ok and rows and rows[1] or nil
+    if not row then
+        notifyPhone(src, 'warning', 'Acest vehicul nu iti apartine.')
+        return refreshPhoneGarage(src)
+    end
+
+    local storedGarage = tonumber(row.garage or 0) or 0
+    if storedGarage ~= tonumber(garage.id or 0) then
+        notifyPhone(src, 'warning', 'Masina nu este in acest garaj.')
+        return refreshPhoneGarage(src)
+    end
+
+    local bucket = GetPlayerRoutingBucket(src) or 0
+    local spot, spotIndex = findFreeSpotPhone(garage, bucket)
+    if not spot then
+        notifyPhone(src, 'warning', 'Nu este niciun loc liber momentan.')
+        return refreshPhoneGarage(src)
+    end
+
+    local model = tostring(row.vehicle_model or ''):lower()
+    if model == '' then
+        notifyPhone(src, 'warning', 'Model vehicul invalid.')
+        return refreshPhoneGarage(src)
+    end
+
+    local plate = tostring(row.vehicle_plate or 'DRIFT'):upper():gsub('%s+', ''):sub(1, 8)
+    local tuningRaw = normalizeTuning(row.vehicle_tunning or '{}')
+    local gradientRaw = normalizeGradient(row.gradient or '')
+
+    PendingGarageSpawns[vehicleId] = {
+        src = src,
+        uid = uid,
+        vehicleId = vehicleId,
+        model = model,
+        plate = plate,
+        tuning = tuningRaw,
+        gradient = gradientRaw,
+        garageId = tonumber(garage.id or 0) or 0,
+        garage = garage,
+        spotIndex = spotIndex,
+        bucket = bucket,
+        createdAt = GetGameTimer()
+    }
+    GarageSpawnLocks[src] = vehicleId
+
+    TriggerClientEvent('driftzone_phone:client:garageCreateVehicle', src, {
+        id = vehicleId,
+        model = model,
+        plate = plate,
+        name = model,
+        tuning = tuningRaw,
+        gradient = gradientRaw,
+        spawn = {
+            x = tonumber(spot.x or 0) or 0,
+            y = tonumber(spot.y or 0) or 0,
+            z = tonumber(spot.z or 0) or 0,
+            h = tonumber(spot.h or 0) or 0
+        }
+    })
+
+    SetTimeout(15000, function()
+        local pending = PendingGarageSpawns[vehicleId]
+        if pending and pending.src == src then
+            PendingGarageSpawns[vehicleId] = nil
+            GarageSpawnLocks[src] = nil
+            TriggerClientEvent('driftzone_phone:client:garageDeletePending', src, vehicleId)
+            notifyPhone(src, 'error', 'Spawn-ul masinii a expirat.')
+            refreshPhoneGarage(src)
+        end
+    end)
+end)
+
+RegisterNetEvent('driftzone_phone:server:garageConfirmSpawn', function(vehicleId, netId)
+    local src = source
+    vehicleId = tonumber(vehicleId or 0) or 0
+    netId = tonumber(netId or 0) or 0
+
+    local pending = PendingGarageSpawns[vehicleId]
+    if not pending or pending.src ~= src or netId <= 0 then
+        if netId > 0 then TriggerClientEvent('driftzone_phone:client:garageDeleteNet', src, netId) end
+        return
+    end
+
+    local entity = NetworkGetEntityFromNetworkId(netId)
+    local timeout = GetGameTimer() + 5000
+    while not vehicleExists(entity) and GetGameTimer() < timeout do
+        Wait(50)
+        entity = NetworkGetEntityFromNetworkId(netId)
+    end
+
+    if not vehicleExists(entity) then
+        PendingGarageSpawns[vehicleId] = nil
+        GarageSpawnLocks[src] = nil
+        notifyPhone(src, 'error', 'Masina a fost creata, dar serverul nu o poate citi.')
+        return refreshPhoneGarage(src)
+    end
+
+    SetEntityRoutingBucket(entity, pending.bucket or 0)
+    SetEntityHeading(entity, tonumber((pending.garage.parking_spots[pending.spotIndex] or {}).h or 0) or 0)
+    SetVehicleNumberPlateText(entity, pending.plate)
+    SetVehicleDoorsLocked(entity, 2)
+
+    setVehicleStatePhone(entity, {
+        vehicleId = vehicleId,
+        ownerUid = pending.uid,
+        model = pending.model,
+        plate = pending.plate,
+        tuning = pending.tuning,
+        gradient = pending.gradient
+    })
+
+    GarageVehicles[vehicleId] = {
+        entity = entity,
+        netId = netId,
+        ownerUid = pending.uid,
+        ownerSrc = src,
+        model = pending.model,
+        plate = pending.plate,
+        garageId = pending.garageId
+    }
+
+    pcall(function()
+        MySQL.update.await(('UPDATE %s SET %s = 0 WHERE id = ? AND owner_id = ? LIMIT 1'):format(sqlName(ownedVehiclesTable()), sqlName(garageColumn())), {
+            vehicleId, pending.uid
+        })
+    end)
+
+    pcall(function()
+        TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', vehicleId, true)
+        TriggerEvent('driftzone_vehicleconfig:server:setEngineOff', netId)
+    end)
+
+    PendingGarageSpawns[vehicleId] = nil
+    GarageSpawnLocks[src] = nil
+
+    notifyPhone(src, 'success', 'Masina a fost scoasa din garaj.')
+    TriggerClientEvent('driftzone_phone:client:garageSpawnSuccess', src, vehicleId)
+    refreshPhoneGarage(src)
+end)
+
+RegisterNetEvent('driftzone_phone:server:garageSpawnFailed', function(vehicleId, reason)
+    local src = source
+    vehicleId = tonumber(vehicleId or 0) or 0
+
+    local pending = PendingGarageSpawns[vehicleId]
+    if pending and pending.src == src then
+        PendingGarageSpawns[vehicleId] = nil
+        GarageSpawnLocks[src] = nil
+    end
+
+    notifyPhone(src, 'error', tostring(reason or 'Nu am putut scoate masina.'))
+    refreshPhoneGarage(src)
+end)
+
+RegisterNetEvent('driftzone_phone:server:garagePark', function(vehicleId)
+    local src = source
+    if not isLogged(src) then return end
+
+    local uid = getUid(src)
+    if not uid then return notifyPhone(src, 'warning', 'Trebuie sa fii logat.') end
+
+    local garage = getGarageForPlayerPhone(src)
+    if not garage then
+        notifyPhone(src, 'warning', 'Nu esti la garaj.')
+        return refreshPhoneGarage(src)
+    end
+
+    vehicleId = tonumber(vehicleId or 0) or 0
+    if vehicleId <= 0 then return notifyPhone(src, 'warning', 'Vehicul invalid.') end
+
+    local ok, row = pcall(function()
+        return MySQL.single.await(('SELECT id, owner_id FROM %s WHERE id = ? AND owner_id = ? LIMIT 1'):format(sqlName(ownedVehiclesTable())), { vehicleId, uid })
+    end)
+
+    if not ok or not row then
+        notifyPhone(src, 'warning', 'Acest vehicul nu iti apartine.')
+        return refreshPhoneGarage(src)
+    end
+
+    if not isGarageVehicleSpawned(vehicleId) then
+        notifyPhone(src, 'warning', 'Masina nu este scoasa din garaj.')
+        return refreshPhoneGarage(src)
+    end
+
+    cleanupPhoneGarageVehicle(vehicleId)
+
+    MySQL.update.await(('UPDATE %s SET %s = ? WHERE id = ? AND owner_id = ? LIMIT 1'):format(sqlName(ownedVehiclesTable()), sqlName(garageColumn())), {
+        tonumber(garage.id or 0) or 0, vehicleId, uid
+    })
+
+    notifyPhone(src, 'success', 'Masina a fost parcata.')
+    refreshPhoneGarage(src)
+end)
+
+RegisterNetEvent('driftzone_phone:server:garageTow', function(vehicleId)
+    local src = source
+    if not isLogged(src) then return end
+
+    local uid = getUid(src)
+    if not uid then return notifyPhone(src, 'warning', 'Trebuie sa fii logat.') end
+
+    local garage = getGarageForPlayerPhone(src)
+    if not garage then
+        notifyPhone(src, 'warning', 'Nu esti la garaj.')
+        return refreshPhoneGarage(src)
+    end
+
+    vehicleId = tonumber(vehicleId or 0) or 0
+    if vehicleId <= 0 then return notifyPhone(src, 'warning', 'Vehicul invalid.') end
+
+    local row = MySQL.single.await(('SELECT id, owner_id, COALESCE(%s, 0) AS garage FROM %s WHERE id = ? AND owner_id = ? LIMIT 1'):format(
+        sqlName(garageColumn()), sqlName(ownedVehiclesTable())
+    ), { vehicleId, uid })
+
+    if not row then
+        notifyPhone(src, 'warning', 'Acest vehicul nu iti apartine.')
+        return refreshPhoneGarage(src)
+    end
+
+    local currentGarageId = tonumber(row.garage or 0) or 0
+    local targetGarageId = tonumber(garage.id or 0) or 0
+
+    if currentGarageId == targetGarageId and not isGarageVehicleSpawned(vehicleId) then
+        notifyPhone(src, 'info', 'Masina este deja la cel mai apropiat garaj.')
+        return refreshPhoneGarage(src)
+    end
+
+    local price = tonumber(garageCfg().TowPrice or 5000) or 5000
+
+    local affected = MySQL.update.await(('UPDATE %s SET %s = COALESCE(%s, 0) - ? WHERE %s = ? AND COALESCE(%s, 0) >= ?'):format(
+        sqlName(Config.UsersTable or 'users'),
+        sqlName(cashColumn()),
+        sqlName(cashColumn()),
+        sqlName(Config.UsersIdColumn or 'uid'),
+        sqlName(cashColumn())
+    ), { price, uid, price })
+
+    if not affected or affected <= 0 then
+        notifyPhone(src, 'warning', ('Nu ai suma de %s pentru tractare.'):format(price))
+        return refreshPhoneGarage(src)
+    end
+
+    if isGarageVehicleSpawned(vehicleId) then cleanupPhoneGarageVehicle(vehicleId) end
+
+    MySQL.update.await(('UPDATE %s SET %s = ? WHERE id = ? AND owner_id = ? LIMIT 1'):format(sqlName(ownedVehiclesTable()), sqlName(garageColumn())), {
+        targetGarageId, vehicleId, uid
+    })
+
+    notifyPhone(src, 'success', 'Masina a fost tractata la cel mai apropiat garaj.')
+    refreshPhoneGarage(src)
+end)
+
+RegisterNetEvent('driftzone_phone:server:garageLocate', function(vehicleId)
+    local src = source
+    if not isLogged(src) then return end
+
+    local uid = getUid(src)
+    if not uid then return end
+
+    vehicleId = tonumber(vehicleId or 0) or 0
+    local entity = findGarageVehicleEntity(vehicleId)
+    if not vehicleExists(entity) then
+        notifyPhone(src, 'warning', 'Masina nu este scoasa din garaj.')
+        return refreshPhoneGarage(src)
+    end
+
+    local state = Entity(entity).state
+    local ownerUid = tonumber(state.dz_phone_garage_owner_uid or state.dz_garage_owner_uid or 0) or 0
+    if ownerUid ~= uid then
+        notifyPhone(src, 'warning', 'Acest vehicul nu iti apartine.')
+        return
+    end
+
+    local c = GetEntityCoords(entity)
+    TriggerClientEvent('driftzone_phone:client:garageWaypoint', src, {
+        x = c.x + 0.0,
+        y = c.y + 0.0,
+        z = c.z + 0.0
+    })
+    notifyPhone(src, 'success', 'Am pus waypoint la masina.')
+end)
+
+
 AddEventHandler('playerDropped', function()
     local src = source
     UidCache[src] = nil
     local callId = PlayerCall[src]
     if callId then endCall(callId, 'ended', src) end
+    GarageSpawnLocks[src] = nil
 end)
 
 AddEventHandler('onResourceStop', function(resource)
@@ -609,5 +1354,6 @@ end)
 
 CreateThread(function()
     Wait(1000)
+    pcall(ensurePhoneGarageTables)
     print('[DRIFTZONE_PHONE] Loaded. Command: /' .. tostring(Config.Command or 'phone'))
 end)

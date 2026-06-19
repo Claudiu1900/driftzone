@@ -42,3 +42,33 @@ CREATE TABLE IF NOT EXISTS `message_history` (
   KEY `idx_sender_receiver` (`sender_uid`, `receiver_uid`),
   KEY `idx_numbers` (`sender_number`, `receiver_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- =========================
+-- PHONE GARAGE APP
+-- =========================
+CREATE TABLE IF NOT EXISTS `garages` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(96) NOT NULL DEFAULT 'Garage',
+  `x` DOUBLE NOT NULL DEFAULT 0,
+  `y` DOUBLE NOT NULL DEFAULT 0,
+  `z` DOUBLE NOT NULL DEFAULT 0,
+  `radius` DOUBLE NOT NULL DEFAULT 4,
+  `park_radius` DOUBLE NOT NULL DEFAULT 12,
+  `visible_radius` TINYINT(1) NOT NULL DEFAULT 1,
+  `parking_spots` LONGTEXT NULL,
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_by` INT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_garages_active` (`active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `ownedvehicles` ADD COLUMN IF NOT EXISTS `garage` INT NOT NULL DEFAULT 1;
+ALTER TABLE `ownedvehicles` ADD COLUMN IF NOT EXISTS `vip` TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE `ownedvehicles` ADD COLUMN IF NOT EXISTS `gradient` LONGTEXT NULL;
+ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `outsidevehicles` INT NOT NULL DEFAULT 1;
+
+-- Daca ai masini vechi cu garage = 0 dar vrei sa le bagi initial in garajul 1:
+-- UPDATE `ownedvehicles` SET `garage` = 1 WHERE `garage` IS NULL OR `garage` = 0;

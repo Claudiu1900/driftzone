@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'DriftZone'
-description 'DriftZone Phone - prototype calls, contacts, messages, location share'
-version '1.0.8'
+description 'DriftZone Phone - calls, contacts, messages, garage app'
+version '1.1.0-garage'
 
 ui_page 'html/index.html'
 

@@ -21,3 +21,20 @@ Config.StateRefreshMs = 8000
 Config.MessageLimit = 250
 Config.HistoryLimit = 80
 Config.ContactsLimit = 300
+
+
+-- =========================
+-- GARAGE PHONE APP
+-- =========================
+Config.Garage = {
+    Enabled = true,
+    GaragesTable = 'garages',
+    OwnedVehiclesTable = 'ownedvehicles',
+    VehicleNamesTable = 'vehiclenames',
+    GarageColumn = 'garage',
+    TowPrice = 5000,
+    DefaultGarageId = 1,
+    SpawnCooldownMs = 3000,
+    ParkingSpotClearRadius = 3.2,
+    OutsideVehiclesColumn = 'outsidevehicles'
+}

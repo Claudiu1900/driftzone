@@ -8,6 +8,7 @@ const screens = {
     contacts: document.getElementById('contactsScreen'),
     calls: document.getElementById('callsScreen'),
     messages: document.getElementById('messagesScreen'),
+    garage: document.getElementById('garageScreen'),
     conversation: document.getElementById('conversationScreen'),
     call: document.getElementById('callScreen'),
     peek: document.getElementById('peekScreen')
@@ -19,7 +20,8 @@ const audio = {
     message: document.getElementById('messageSound')
 };
 
-let state = { myNumber: '', contacts: [], callHistory: [], messages: [] };
+let state = { myNumber: '', contacts: [], callHistory: [], messages: [], garage: { vehicles: [], garages: [], atGarage: false } };
+let selectedGarageVehicleId = 0;
 let activeView = 'home';
 let nav = ['home'];
 let selectedContactId = 0;
@@ -71,7 +73,10 @@ function normalizeState(incoming) {
         ...incoming,
         contacts: Array.isArray(incoming.contacts) ? incoming.contacts : [],
         callHistory: Array.isArray(incoming.callHistory) ? incoming.callHistory : [],
-        messages: Array.isArray(incoming.messages) ? incoming.messages : []
+        messages: Array.isArray(incoming.messages) ? incoming.messages : [],
+        garage: incoming.garage && typeof incoming.garage === 'object'
+            ? { ...incoming.garage, vehicles: Array.isArray(incoming.garage.vehicles) ? incoming.garage.vehicles : [], garages: Array.isArray(incoming.garage.garages) ? incoming.garage.garages : [] }
+            : { vehicles: [], garages: [], atGarage: false }
     };
 }
 function messageKey(m) { return m && m.clientToken ? `t_${m.clientToken}` : `i_${m && m.id}`; }
@@ -94,6 +99,7 @@ function getContactById(id) {
 function screenFor(view) {
     if (view === 'contactDetail' || view === 'contactForm') return 'contacts';
     if (view === 'newMessage') return 'messages';
+    if (view === 'garageDetail') return 'garage';
     return screens[view] ? view : 'home';
 }
 function callStatusText(r) {
@@ -183,6 +189,7 @@ function back() {
     if (activeView === 'contactDetail') { selectedContactId = 0; return navigate('contacts', false); }
     if (activeView === 'newMessage') return navigate('messages', false);
     if (activeView === 'conversation') return navigate('messages', false);
+    if (activeView === 'garageDetail') return navigate('garage', false);
     if (activeView === 'call') return navigate('home', false);
     nav.pop();
     navigate(nav[nav.length - 1] || 'home', false);
@@ -210,6 +217,8 @@ function closePhone() {
     }, 230);
     nui('close');
 }
+let peekAutoCloseTimer = null;
+
 function openPeek(kind, payload = {}) {
     phoneMode = 'peek';
     root.classList.remove('hidden', 'closing');
@@ -217,6 +226,13 @@ function openPeek(kind, payload = {}) {
     setTimeout(() => root.classList.remove('opening'), 260);
     renderPeek(kind, payload);
     showScreen('peek');
+
+    if (peekAutoCloseTimer) clearTimeout(peekAutoCloseTimer);
+    if (kind === 'message') {
+        peekAutoCloseTimer = setTimeout(() => {
+            if (phoneMode === 'peek') closePhone();
+        }, 3000);
+    }
 }
 function openPhoneFromPeek(view, number = '') {
     if (number) state.lastMessageNumber = cleanNumber(number);
@@ -243,6 +259,7 @@ function renderHome() {
             ${appButton('messages', `Mesaje${msgCount ? ` (${msgCount})` : ''}`, 'messages', 'msg-app')}
             ${appButton('contacts', 'Contacte', 'contacts', 'contacts-app')}
             ${appButton('calls', 'Apeluri', 'calls', 'calls-app')}
+            ${appButton('garage', 'Garaj', 'garage', 'garage-app')}
         </div>
     `;
 }
@@ -357,7 +374,17 @@ function renderMessages() {
     const convs = getConversations();
     screens.messages.innerHTML = `
         ${header('Mesaje', 'back()', `<button onclick="navigate('newMessage')" class="head-add"><img src="${icon('plus')}"></button>`)}
-        <div class="list clean-list">${convs.length ? convs.map((c) => `<button class="list-row message-row" onclick="openConversation('${esc(c.otherNumber)}')"><span class="avatar">${esc((c.otherName || c.otherNumber || '?')[0])}</span><div><b>${esc(c.otherName || c.otherNumber)}</b><small>${esc(c.type === 'location' ? 'Locație partajată' : c.text)}</small></div></button>`).join('') : `<div class="empty">Nu ai conversații. Apasă + ca să începi.</div>`}</div>
+        <div class="messages-simple">
+            ${convs.length ? convs.map((c) => `
+                <button class="message-simple-row" onclick="openConversation('${esc(c.otherNumber)}')">
+                    <span class="message-avatar">${esc((c.otherName || c.otherNumber || '?')[0])}</span>
+                    <div>
+                        <b>${esc(c.otherName || c.otherNumber)}</b>
+                        <small>${esc(c.type === 'location' ? 'Locație partajată' : c.text)}</small>
+                    </div>
+                </button>
+            `).join('') : `<div class="empty">Nu ai mesaje.</div>`}
+        </div>
     `;
 }
 function renderNewMessage() {
@@ -479,6 +506,122 @@ function setWaypointEncoded(raw) {
     try { setWaypoint(JSON.parse(decodeURIComponent(String(raw || '')))); } catch (e) {}
 }
 
+
+function garageState() {
+    const g = state.garage || {};
+    return {
+        ...g,
+        vehicles: Array.isArray(g.vehicles) ? g.vehicles : [],
+        garages: Array.isArray(g.garages) ? g.garages : []
+    };
+}
+
+function garageVehicleById(id) {
+    id = Number(id || 0);
+    return garageState().vehicles.find((v) => Number(v.id || 0) === id) || null;
+}
+
+function currentGarageName() {
+    const g = garageState();
+    return g.currentGarage && g.currentGarage.name ? g.currentGarage.name : 'Nu ești la garaj';
+}
+
+function renderGarage() {
+    screens.garage.classList.remove('scroll');
+    selectedGarageVehicleId = 0;
+
+    const g = garageState();
+    const vehicles = g.vehicles || [];
+    const atGarage = g.atGarage === true;
+    const current = g.currentGarage || null;
+
+    screens.garage.innerHTML = `
+        ${header('Garaj', 'back()', `<button onclick="nui('requestState')"><img src="${icon('garage')}"></button>`)}
+        <div class="garage-phone-head">
+            <div>
+                <span>${atGarage ? 'GARAGE ACTIVE' : 'REMOTE GARAGE'}</span>
+                <b>${esc(current ? current.name : 'Nu ești la garaj')}</b>
+                <small>${Number(g.outsideCount || 0)}/${Number(g.outsideLimit || 1)} mașini afară</small>
+            </div>
+            <img src="${icon('garage')}" draggable="false">
+        </div>
+        <div class="garage-cars">
+            ${vehicles.length ? vehicles.map(renderGarageCar).join('') : `<div class="empty">Nu ai mașini.</div>`}
+        </div>
+    `;
+}
+
+function renderGarageCar(v) {
+    const spawned = v.spawned === true;
+    const place = spawned ? 'Scoasă din garaj' : (v.garageName || 'Garaj necunoscut');
+    const statusCls = spawned ? 'out' : 'stored';
+    return `
+        <button class="garage-car ${statusCls}" onclick="openGarageVehicle(${Number(v.id || 0)})">
+            <span class="garage-car-img"><img src="${icon('car')}" draggable="false"></span>
+            <span class="garage-car-info">
+                <b>${esc(v.name || v.model || 'Vehicle')}</b>
+                <small>${esc(v.plate || 'DRIFT')} • ${esc(place)}</small>
+            </span>
+            <em>${spawned ? 'AFARĂ' : 'ÎN GARAJ'}</em>
+        </button>
+    `;
+}
+
+function openGarageVehicle(id) {
+    selectedGarageVehicleId = Number(id || 0);
+    navigate('garageDetail');
+}
+
+function renderGarageDetail() {
+    screens.garage.classList.remove('scroll');
+    const g = garageState();
+    const v = garageVehicleById(selectedGarageVehicleId);
+
+    if (!v) {
+        selectedGarageVehicleId = 0;
+        return renderGarage();
+    }
+
+    const spawned = v.spawned === true;
+    const atGarage = g.atGarage === true;
+    const garageName = v.garageName || (spawned ? 'Scoasă din garaj' : 'Garaj necunoscut');
+
+    const spawnDisabled = (!atGarage || spawned) ? 'disabled' : '';
+    const parkDisabled = (!atGarage || !spawned) ? 'disabled' : '';
+
+    screens.garage.innerHTML = `
+        ${header(v.name || v.model || 'Mașină', "navigate('garage', false)")}
+        <div class="garage-detail-card">
+            <div class="garage-detail-visual"><img src="${icon('car')}" draggable="false"></div>
+            <h2>${esc(v.name || v.model || 'Vehicle')}</h2>
+            <p>${esc(v.plate || 'DRIFT')} • ${esc(v.model || '')}</p>
+            <div class="garage-status-row">
+                <span>${spawned ? 'Scoasă din garaj' : 'În garaj'}</span>
+                <b>${esc(garageName)}</b>
+            </div>
+        </div>
+        <div class="garage-actions">
+            <button ${spawnDisabled} onclick="garageAction('spawn', ${Number(v.id || 0)})"><img src="${icon('spawn')}"><b>Scoate din Garaj</b><small>${atGarage ? 'Spawn la garajul curent' : 'Trebuie să fii la garaj'}</small></button>
+            ${atGarage ? `<button ${parkDisabled} onclick="garageAction('park', ${Number(v.id || 0)})"><img src="${icon('park')}"><b>Parchează</b><small>Disponibil doar în radiusul garajului</small></button>` : ''}
+            <button onclick="garageAction('tow', ${Number(v.id || 0)})"><img src="${icon('tow')}"><b>Tractează</b><small>${Number(g.towPrice || 5000).toLocaleString('en-US')} cash</small></button>
+            ${spawned ? `<button onclick="garageAction('locate', ${Number(v.id || 0)})"><img src="${icon('locate')}"><b>Localizează</b><small>Pune waypoint pe mașină</small></button>` : ''}
+        </div>
+    `;
+}
+
+function garageAction(action, id) {
+    id = Number(id || selectedGarageVehicleId || 0);
+    if (id <= 0) return;
+
+    if (action === 'spawn') nui('garageSpawn', { id });
+    else if (action === 'park') nui('garagePark', { id });
+    else if (action === 'tow') nui('garageTow', { id });
+    else if (action === 'locate') nui('garageLocate', { id });
+
+    setTimeout(() => nui('requestState'), 350);
+}
+
+
 function renderCall() {
     screens.call.classList.remove('scroll');
     const name = state.otherName || state.otherNumber || 'Necunoscut';
@@ -534,6 +677,8 @@ function renderCurrent() {
         else if (activeView === 'contactForm') renderContactForm();
         else if (activeView === 'calls') renderCalls();
         else if (activeView === 'messages') renderMessages();
+        else if (activeView === 'garage') renderGarage();
+        else if (activeView === 'garageDetail') renderGarageDetail();
         else if (activeView === 'newMessage') renderNewMessage();
         else if (activeView === 'conversation') renderConversation();
         else if (activeView === 'call') renderCall();

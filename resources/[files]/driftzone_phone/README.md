@@ -47,3 +47,27 @@ driftzone_phone/html/assets/sounds/ring2.mp3
 driftzone_phone/html/assets/sounds/decline.mp3
 driftzone_phone/html/assets/sounds/message.mp3
 ```
+
+
+## Garage App
+
+Adaugat app `Garaj` in telefon.
+
+Functii:
+- afiseaza toate masinile playerului din `ownedvehicles`;
+- apasare pe masina => pagina doar cu masina;
+- `Scoate din Garaj` verifica `ownedvehicles.garage` si permite spawn doar daca masina este in garajul unde sta playerul;
+- `Parcheaza` apare doar cand playerul este in radiusul unui garaj si masina este scoasa;
+- `Tracteaza` cere playerul sa fie la un garaj, costa 5000 din `users.cash` si muta masina in garajul curent;
+- daca masina este deja in acelasi garaj: `Masina este deja la cel mai apropiat garaj.`;
+- daca nu are bani: `Nu ai suma de 5000 pentru tractare.`;
+- `Localizeaza` apare doar daca masina este scoasa si pune waypoint la masina.
+
+SQL:
+- `ownedvehicles.garage`
+- `users.outsidevehicles`
+- tabela `garages` daca nu exista deja.
+
+Mesaje:
+- notificarea tip peek pentru mesaj dispare automat dupa 3 secunde;
+- pagina de mesaje este simplificata.
