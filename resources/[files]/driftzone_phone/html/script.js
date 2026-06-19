@@ -656,8 +656,7 @@ function vehicleDisplayName(v) {
 function vehicleIsSpawned(v) {
     if (!v) return false;
     if (v.entitySpawned === true) return true;
-    if (v.spawned === true) return true;
-    if (Number(v.rawGarage ?? v.garage ?? v.garageId ?? 1) <= 0) return true;
+    if (v.spawned === true && v.stored !== true) return true;
     return false;
 }
 
@@ -735,6 +734,8 @@ function updateGarageVehicleLocalState(id, spawned) {
         v.garage = 0;
         v.garageId = 0;
         v.garageName = 'Pe strada';
+    } else {
+        v.garageName = v.garageName && v.garageName !== 'Pe strada' ? v.garageName : 'In garaj';
     }
 }
 
@@ -930,7 +931,7 @@ function garageAdminPayload() {
         name: String(document.getElementById('gaName').value || '').trim(),
         radius: Number(document.getElementById('gaRadius').value || 4),
         park_radius: Number(document.getElementById('gaParkRadius').value || 12),
-        visible_radius: document.getElementById('gaVisible').value === '1',
+        visible_radius: String(document.getElementById('gaVisible').value) === '1',
         coords: coords ? { x: coords.x, y: coords.y, z: coords.z } : null,
         parking_spots: garageAdminSpots
     };
@@ -959,12 +960,18 @@ function garageAdminReload() {
 
 function garageAdminResult(ok, message, garages) {
     gaStatus(message || (ok ? 'Gata.' : 'Eroare.'), ok === true);
+
     if (Array.isArray(garages)) {
+        const oldId = Number(document.getElementById('gaId')?.value || garageAdminSelected?.id || 0);
         garageAdminGarages = garages.map(gaNormalizeGarage);
-        if (garageAdminSelected && garageAdminSelected.id) {
-            const updated = garageAdminGarages.find(g => g.id === garageAdminSelected.id);
-            if (updated) garageAdminLoad(updated);
-        }
+
+        let updated = null;
+        if (oldId > 0) updated = garageAdminGarages.find(g => Number(g.id) === oldId) || null;
+        if (!updated) updated = garageAdminGarages[garageAdminGarages.length - 1] || garageAdminGarages[0] || null;
+
+        if (updated) garageAdminLoad(updated);
+        else garageAdminNew();
+
         garageAdminRenderList();
     }
 }

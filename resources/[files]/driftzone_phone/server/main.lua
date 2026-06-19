@@ -427,7 +427,8 @@ function loadPhoneGarages(force)
                 z = tonumber(row.z or 0) or 0,
                 radius = tonumber(row.radius or 4) or 4,
                 park_radius = tonumber(row.park_radius or row.radius or 12) or 12,
-                parking_spots = spots
+                parking_spots = spots,
+                visible_radius = tonumber(row.visible_radius or 1) == 1
             }
         end
     end
@@ -644,8 +645,6 @@ local function getPhoneGarageVehicleRows(uid)
         local vehicleId = tonumber(row.id or 0) or 0
         local rawGarageId = tonumber(row.garage or 0) or 0
         local garageId = rawGarageId
-        local dbOutside = rawGarageId <= 0
-
         if garageId <= 0 then
             garageId = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
         end
@@ -655,10 +654,10 @@ local function getPhoneGarageVehicleRows(uid)
         local activeSpawned = active ~= nil and tonumber(active.netId or 0) > 0
         local entitySpawned = vehicleExists(entity) or activeSpawned
 
-        -- Corect:
-        -- garage = 0 inseamna scoasa din garaj.
-        -- Masinile vechi cu 0 sunt migrate la start catre garajul default.
-        local spawned = dbOutside or entitySpawned
+        -- Stabil:
+        -- AFARA este doar masina spawnata in sesiunea curenta.
+        -- garage=0 ramas pe masini vechi nu mai face toate masinile AFARA.
+        local spawned = entitySpawned
         local stored = not spawned
 
         local currentGarageId = active and tonumber(active.garageId or 0) or 0
@@ -791,22 +790,6 @@ local function ensurePhoneGarageTables()
 end
 
 
-local function migrateOldGarageZeroVehicles()
-    local defaultGarageId = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
-    if defaultGarageId <= 0 then defaultGarageId = 1 end
-
-    -- Prima pornire dupa integrare:
-    -- masinile vechi pot avea garage = 0, dar nu sunt spawnate.
-    -- Le mutam in garajul default ca de acum incolo garage=0 sa fie folosit strict pentru "scoasa".
-    pcall(function()
-        MySQL.update.await(('UPDATE %s SET %s = ? WHERE %s IS NULL OR %s = 0'):format(
-            sqlName(ownedVehiclesTable()),
-            sqlName(garageColumn()),
-            sqlName(garageColumn()),
-            sqlName(garageColumn())
-        ), { defaultGarageId })
-    end)
-end
 
 
 local function publicCallStateFor(src)
@@ -987,7 +970,7 @@ local function sanitizeGaragePayload(data)
         z = z + 0.0,
         radius = radius + 0.0,
         park_radius = parkRadius + 0.0,
-        visible_radius = (data.visible_radius == false or data.visible_radius == 0 or tostring(data.visible_radius) == '0') and 0 or 1,
+        visible_radius = (data.visible_radius == false or data.visible_radius == 0 or tostring(data.visible_radius):lower() == 'false' or tostring(data.visible_radius) == '0') and 0 or 1,
         parking_spots = ok and encoded or '[]'
     }
 end
@@ -1013,21 +996,52 @@ RegisterNetEvent('driftzone_phone:server:garageAdminSave', function(data)
         return
     end
 
-    if payload.id > 0 then
-        MySQL.update.await(('UPDATE %s SET name = ?, x = ?, y = ?, z = ?, radius = ?, park_radius = ?, visible_radius = ?, parking_spots = ?, active = 1 WHERE id = ? LIMIT 1'):format(sqlName(garageTable())), {
-            payload.name, payload.x, payload.y, payload.z, payload.radius, payload.park_radius, payload.visible_radius, payload.parking_spots, payload.id
-        })
-    else
-        local id = MySQL.insert.await(('INSERT INTO %s (name, x, y, z, radius, park_radius, visible_radius, parking_spots, active, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'):format(sqlName(garageTable())), {
-            payload.name, payload.x, payload.y, payload.z, payload.radius, payload.park_radius, payload.visible_radius, payload.parking_spots, admin.uid or 0
-        })
-        payload.id = tonumber(id or 0) or 0
+    local ok, sqlErr = pcall(function()
+        if payload.id > 0 then
+            MySQL.update.await(('UPDATE %s SET name = ?, x = ?, y = ?, z = ?, radius = ?, park_radius = ?, visible_radius = ?, parking_spots = ?, active = 1 WHERE id = ?'):format(sqlName(garageTable())), {
+                payload.name,
+                payload.x,
+                payload.y,
+                payload.z,
+                payload.radius,
+                payload.park_radius,
+                payload.visible_radius,
+                payload.parking_spots,
+                payload.id
+            })
+        else
+            local id = MySQL.insert.await(('INSERT INTO %s (name, x, y, z, radius, park_radius, visible_radius, parking_spots, active, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'):format(sqlName(garageTable())), {
+                payload.name,
+                payload.x,
+                payload.y,
+                payload.z,
+                payload.radius,
+                payload.park_radius,
+                payload.visible_radius,
+                payload.parking_spots,
+                admin.uid or 0
+            })
+            payload.id = tonumber(id or 0) or 0
+        end
+    end)
+
+    if not ok then
+        print('[DRIFTZONE_PHONE] garage save SQL error: ' .. tostring(sqlErr))
+        notifyPhone(src, 'error', 'Garajul nu a putut fi salvat. Verifica consola.')
+        TriggerClientEvent('driftzone_phone:client:garageAdminResult', src, false, 'Garajul nu a putut fi salvat.')
+        return
     end
 
     GaragesCache = nil
     local garages = loadPhoneGarages(true)
+
+    notifyPhone(src, 'success', 'Garaj salvat.')
     TriggerClientEvent('driftzone_phone:client:garageAdminResult', src, true, 'Garaj salvat.', garages)
     TriggerClientEvent('driftzone_phone:client:garageWorld', -1, garages)
+
+    SetTimeout(500, function()
+        TriggerClientEvent('driftzone_phone:client:garageWorld', -1, loadPhoneGarages(true))
+    end)
 end)
 
 RegisterNetEvent('driftzone_phone:server:garageAdminDelete', function(id)
@@ -1037,7 +1051,7 @@ RegisterNetEvent('driftzone_phone:server:garageAdminDelete', function(id)
     id = tonumber(id or 0) or 0
     if id <= 0 then return end
 
-    MySQL.update.await(('UPDATE %s SET active = 0 WHERE id = ? LIMIT 1'):format(sqlName(garageTable())), { id })
+    MySQL.update.await(('UPDATE %s SET active = 0 WHERE id = ?'):format(sqlName(garageTable())), { id })
     GaragesCache = nil
     local garages = loadPhoneGarages(true)
     TriggerClientEvent('driftzone_phone:client:garageAdminResult', src, true, 'Garaj dezactivat.', garages)
@@ -1340,8 +1354,7 @@ RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
 
     local storedGarage = tonumber(row.garage or 0) or 0
     if storedGarage <= 0 then
-        notifyPhone(src, 'warning', 'Masina este deja scoasa.')
-        return refreshPhoneGarage(src)
+        storedGarage = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
     end
 
     if storedGarage ~= tonumber(garage.id or 0) then
@@ -1604,9 +1617,13 @@ RegisterNetEvent('driftzone_phone:server:garageTow', function(vehicleId)
     local currentGarageId = tonumber(row.garage or 0) or 0
     local targetGarageId = tonumber(garage.id or 0) or 0
 
-    if currentGarageId <= 0 or isGarageVehicleSpawned(vehicleId) then
+    if isGarageVehicleSpawned(vehicleId) then
         notifyPhone(src, 'warning', 'Masina este scoasa. Nu poate fi tractata.')
         return refreshPhoneGarage(src)
+    end
+
+    if currentGarageId <= 0 then
+        currentGarageId = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1
     end
 
     if currentGarageId == targetGarageId then
@@ -1684,7 +1701,6 @@ end)
 CreateThread(function()
     Wait(1000)
     pcall(ensurePhoneGarageTables)
-    pcall(migrateOldGarageZeroVehicles)
     GaragesCache = nil
     loadPhoneGarages(true)
     print('[DRIFTZONE_PHONE] Loaded. Command: /' .. tostring(Config.Command or 'phone'))

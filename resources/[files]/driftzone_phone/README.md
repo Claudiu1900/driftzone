@@ -143,3 +143,13 @@ Mesaje:
 - La pornirea resursei, masinile vechi cu `garage = 0` sunt mutate automat in garajul default ca sa nu apara toate afara.
 - Dupa spawn, DB seteaza `garage = 0`, iar UI ramane pe `AFARA`.
 - La parcare, DB seteaza `garage = id-ul garajului`.
+
+
+## V1.2.5 editor + status fixed
+
+- Reparat `editgarages`: SAVE actualizeaza corect garajul.
+- `Vizibil/Transparent` se salveaza corect in `visible_radius`.
+- Scos migrarea automata care putea da status gresit pe masini.
+- Status stabil: masina apare `AFARA` doar daca exista runtime spawn/active entity.
+- `garage = 0` vechi este tratat ca garaj default pentru afisare, nu ca masina scoasa.
+- Dupa spawn, statusul ramane AFARA prin runtime `GarageVehicles`.

@@ -74,9 +74,5 @@ ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `outsidevehicles` INT NOT NULL DEFA
 -- UPDATE `ownedvehicles` SET `garage` = 1 WHERE `garage` IS NULL OR `garage` = 0;
 
 
--- =========================
--- PHONE GARAGE ZERO MIGRATION
--- =========================
--- Ruleaza o data pentru masinile vechi:
--- dupa integrare, `garage = 0` inseamna masina scoasa din garaj.
-UPDATE `ownedvehicles` SET `garage` = 1 WHERE `garage` IS NULL OR `garage` = 0;
+-- Optional: daca vrei sa bagi toate masinile vechi in garajul 1 manual:
+-- UPDATE `ownedvehicles` SET `garage` = 1 WHERE `garage` IS NULL OR `garage` = 0;
