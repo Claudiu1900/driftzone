@@ -84,3 +84,22 @@ Mesaje:
 - Fix pentru apel ramas blocat cand celalalt inchide inainte sa raspunzi.
 - Sunetele sunt initializate si reincercate mai stabil.
 - Telefonul se deschide de pe tasta `L` prin `RegisterKeyMapping`.
+
+
+## V1.2 FULL GARAGE + CALL FIX
+
+- Garajul este integrat complet in `driftzone_phone`.
+- `/garage` si `/garaj` deschid direct aplicatia Garaj din telefon.
+- `/park` parcheaza masina curenta daca playerul si masina sunt la acelasi garaj.
+- Comenzi admin integrate:
+  - `/addgarage [openRadius] [parkRadius] [nume]`
+  - `/addgaragespot <garageId>`
+  - `/editgarages`
+  - `/resetgarages`
+- Aplicatia Garaj nu mai foloseste texte tehnice gen spawn/radius in UI.
+- Lista de masini nu mai depinde de tabela `vehiclenames`; foloseste optional `vehiclesnames` daca exista.
+- `Localizeaza` apare pentru vehiculele scoase.
+- `Parcheaza` valideaza ca playerul si masina sunt la acelasi garaj.
+- `Tracteaza` nu merge daca masina este scoasa.
+- Aplicatia Telefon permite cautare/apel si dupa nume de contact, nu doar cifre.
+- Reparat apelurile: `dialNow` / `dialKey`, call state si sunete.

@@ -507,3 +507,16 @@ input, textarea { user-select: text; }
     background: rgba(255,73,104,.11);
     border-color: rgba(255,73,104,.22);
 }
+
+
+/* V1.2 full garage polish */
+.garage-phone-head span {
+    text-transform: uppercase;
+}
+.garage-actions button b,
+.garage-car-info b {
+    letter-spacing: .1px;
+}
+.dial-input {
+    text-transform: none !important;
+}

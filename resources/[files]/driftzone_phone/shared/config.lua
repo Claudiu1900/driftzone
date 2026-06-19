@@ -38,3 +38,10 @@ Config.Garage = {
     ParkingSpotClearRadius = 3.2,
     OutsideVehiclesColumn = 'outsidevehicles'
 }
+
+
+Config.Admin = {
+    minLevelGarage = 6,
+    adutyColumn = 'aduty',
+    adminColumn = 'admin_level'
+}

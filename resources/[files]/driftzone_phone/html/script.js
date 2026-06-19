@@ -61,6 +61,25 @@ function esc(value) {
         .replace(/'/g, '&#039;');
 }
 function cleanNumber(value) { return String(value || '').replace(/[^0-9]/g, ''); }
+function normalizeDialText(value) { return String(value || '').trim().toLowerCase(); }
+function findContactByInput(value) {
+    const raw = normalizeDialText(value);
+    const digits = cleanNumber(value);
+    if (!raw && !digits) return null;
+
+    return (state.contacts || []).find((c) => {
+        const name = normalizeDialText(c.name);
+        const number = cleanNumber(c.number);
+        return (digits && number === digits) || (raw && name === raw) || (raw && name.includes(raw));
+    }) || null;
+}
+function resolveDialTarget(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const contact = findContactByInput(raw);
+    if (contact) return cleanNumber(contact.number);
+    return cleanNumber(raw);
+}
 function icon(name) { return `assets/icons/${name}.svg`; }
 function show(el) { if (el) el.classList.remove('hidden'); }
 function hide(el) { if (el) el.classList.add('hidden'); }
@@ -313,7 +332,7 @@ function renderDial() {
 
     const keypadHtml = `
         <div class="dial-card">
-            <input id="dialInput" class="dial-input" placeholder="Număr telefon" inputmode="numeric" autocomplete="off">
+            <input id="dialInput" class="dial-input" placeholder="Numar sau nume contact" inputmode="text" autocomplete="off">
             <div class="keypad">
                 ${['1','2','3','4','5','6','7','8','9','CLR','0','DEL'].map((k) => `<button class="${k.length > 1 ? 'util' : ''}" onclick="dialKey('${k}')">${k}</button>`).join('')}
             </div>
@@ -345,6 +364,33 @@ function renderDial() {
         ${dialTab === 'calls' ? callsHtml : keypadHtml}
     `;
 }
+
+function dialKey(k) {
+    const input = document.getElementById('dialInput');
+    if (!input) return;
+
+    if (k === 'CLR') input.value = '';
+    else if (k === 'DEL') input.value = String(input.value || '').slice(0, -1);
+    else input.value = String(input.value || '') + String(k);
+
+    input.focus();
+}
+
+function dialNow(value = null) {
+    const input = document.getElementById('dialInput');
+    const raw = value !== null && value !== undefined ? String(value) : (input ? input.value : '');
+    const target = resolveDialTarget(raw);
+
+    if (!target) {
+        playOne('decline');
+        return;
+    }
+
+    stopAllSounds();
+    nui('dial', { number: target });
+    navigate('call');
+}
+
 
 function renderContacts() {
     selectedContactId = 0;
@@ -449,7 +495,7 @@ function renderNewMessage() {
 }
 function openNewMessageConversation() {
     const input = document.getElementById('newMsgNumber');
-    const number = cleanNumber(input ? input.value : '');
+    const number = resolveDialTarget(input ? input.value : '');
     if (!number) { playOne('decline'); return; }
     openConversation(number);
 }
@@ -588,9 +634,9 @@ function renderGarage() {
         ${header('Garaj', 'back()', `<button onclick="nui('requestState')"><img src="${icon('garage')}"></button>`)}
         <div class="garage-phone-head">
             <div>
-                <span>${atGarage ? 'GARAGE ACTIVE' : 'REMOTE GARAGE'}</span>
+                <span>${atGarage ? 'GARAJ' : 'GARAJ'}</span>
                 <b>${esc(current ? current.name : 'Nu ești la garaj')}</b>
-                <small>${Number(g.outsideCount || 0)}/${Number(g.outsideLimit || 1)} mașini afară</small>
+                <small>${Number(g.outsideCount || 0)}/${Number(g.outsideLimit || 1)} vehicule afara</small>
             </div>
             <img src="${icon('garage')}" draggable="false">
         </div>
@@ -602,7 +648,7 @@ function renderGarage() {
 
 function renderGarageCar(v) {
     const spawned = v.spawned === true;
-    const place = spawned ? 'Scoasă din garaj' : (v.garageName || 'Garaj necunoscut');
+    const place = spawned ? 'Pe strada' : (v.garageName || 'Garaj necunoscut');
     const statusCls = spawned ? 'out' : 'stored';
     return `
         <button class="garage-car ${statusCls}" onclick="openGarageVehicle(${Number(v.id || 0)})">
@@ -611,7 +657,7 @@ function renderGarageCar(v) {
                 <b>${esc(v.name || v.model || 'Vehicle')}</b>
                 <small>${esc(v.plate || 'DRIFT')} • ${esc(place)}</small>
             </span>
-            <em>${spawned ? 'AFARĂ' : 'ÎN GARAJ'}</em>
+            <em>${spawned ? 'AFARA' : 'GARAJ'}</em>
         </button>
     `;
 }
@@ -631,9 +677,9 @@ function renderGarageDetail() {
         return renderGarage();
     }
 
-    const spawned = v.spawned === true;
+    const spawned = v.spawned === true || Number(v.garageId || v.garage || 0) <= 0;
     const atGarage = g.atGarage === true;
-    const garageName = v.garageName || (spawned ? 'Scoasă din garaj' : 'Garaj necunoscut');
+    const garageName = v.garageName || (spawned ? 'Pe strada' : 'Garaj necunoscut');
 
     const spawnDisabled = (!atGarage || spawned) ? 'disabled' : '';
     const parkDisabled = (!atGarage || !spawned) ? 'disabled' : '';
@@ -645,15 +691,15 @@ function renderGarageDetail() {
             <h2>${esc(v.name || v.model || 'Vehicle')}</h2>
             <p>${esc(v.plate || 'DRIFT')} • ${esc(v.model || '')}</p>
             <div class="garage-status-row">
-                <span>${spawned ? 'Scoasă din garaj' : 'În garaj'}</span>
+                <span>${spawned ? 'Pe strada' : 'In garaj'}</span>
                 <b>${esc(garageName)}</b>
             </div>
         </div>
         <div class="garage-actions">
-            <button ${spawnDisabled} onclick="garageAction('spawn', ${Number(v.id || 0)})"><img src="${icon('spawn')}"><b>Scoate din Garaj</b><small>${atGarage ? 'Spawn la garajul curent' : 'Trebuie să fii la garaj'}</small></button>
-            ${atGarage ? `<button ${parkDisabled} onclick="garageAction('park', ${Number(v.id || 0)})"><img src="${icon('park')}"><b>Parchează</b><small>Disponibil doar în radiusul garajului</small></button>` : ''}
-            <button ${spawned ? 'disabled' : ''} onclick="garageAction('tow', ${Number(v.id || 0)})"><img src="${icon('tow')}"><b>Tractează</b><small>${spawned ? 'Nu merge dacă este scoasă' : `${Number(g.towPrice || 5000).toLocaleString('en-US')} cash`}</small></button>
-            ${spawned ? `<button onclick="garageAction('locate', ${Number(v.id || 0)})"><img src="${icon('locate')}"><b>Localizează</b><small>Pune waypoint pe mașină</small></button>` : ''}
+            <button ${spawnDisabled} onclick="garageAction('spawn', ${Number(v.id || 0)})"><img src="${icon('spawn')}"><b>Scoate din Garaj</b><small>${atGarage ? 'Ridica vehiculul de aici' : 'Trebuie sa fii la un garaj'}</small></button>
+            ${atGarage && spawned ? `<button ${parkDisabled} onclick="garageAction('park', ${Number(v.id || 0)})"><img src="${icon('park')}"><b>Parcheaza</b><small>Parcheaza vehiculul langa garaj</small></button>` : ''}
+            <button ${spawned ? 'disabled' : ''} onclick="garageAction('tow', ${Number(v.id || 0)})"><img src="${icon('tow')}"><b>Tracteaza</b><small>${spawned ? 'Vehiculul este pe strada' : `${Number(g.towPrice || 5000).toLocaleString('en-US')} cash`}</small></button>
+            ${spawned ? `<button onclick="garageAction('locate', ${Number(v.id || 0)})"><img src="${icon('locate')}"><b>Localizeaza</b><small>Marcheaza locatia vehiculului</small></button>` : ''}
         </div>
     `;
 }
@@ -667,7 +713,7 @@ function garageAction(action, id) {
     else if (action === 'tow') nui('garageTow', { id });
     else if (action === 'locate') nui('garageLocate', { id });
 
-    setTimeout(() => nui('requestState'), 350);
+    setTimeout(() => nui('requestState'), 900);
 }
 
 
@@ -812,3 +858,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 nui('ready');
+
+window.dialNow = dialNow;
+window.dialKey = dialKey;
+window.setDialTab = setDialTab;

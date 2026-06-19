@@ -286,6 +286,26 @@ end, false)
 
 RegisterKeyMapping(Config.Command or 'phone', 'Deschide telefonul', 'keyboard', 'L')
 
+RegisterCommand('garage', function()
+    openPhone('garage')
+end, false)
+
+RegisterCommand('garaj', function()
+    openPhone('garage')
+end, false)
+
+RegisterCommand('park', function()
+    local ped = PlayerPedId()
+    if not ped or ped == 0 or not IsPedInAnyVehicle(ped, false) then
+        TriggerEvent('client:notify', 'warning', 4500, 'Trebuie sa fii intr-o masina.')
+        return
+    end
+
+    local veh = GetVehiclePedIsIn(ped, false)
+    if not veh or veh == 0 then return end
+    TriggerServerEvent('driftzone_phone:server:garageParkCurrent', VehToNet(veh))
+end, false)
+
 RegisterNUICallback('ready', function(_, cb)
     sendNui({ action = 'setup', mainColor = Config.MainColor or '#04c7f7' })
     refreshState()
