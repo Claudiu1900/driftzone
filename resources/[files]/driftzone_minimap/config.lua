@@ -39,25 +39,24 @@ Config.Minimap = {
     HideWithHud = true,
     HideDefaultHealthArmour = true,
 
-    -- Ridică minimap-ul pentru a lăsa HUD-ul sub el.
-    -- Mărește valoarea dacă dorești harta și mai sus.
-    VerticalOffset = 0.075,
+    -- Valoare negativă = harta urcă. Poziția este calculată față de partea de jos.
+    VerticalOffset = -0.045,
 
-    -- Pozițiile originale GTA/FiveM; VerticalOffset se adaugă automat pe Y.
+    -- Poziții stabile pentru minimap-ul standard FiveM/GTA V.
     Components = {
         minimap = {
             alignX = 'L', alignY = 'B',
-            x = -0.0045, y = 0.0020,
+            x = -0.0045, y = -0.0220,
             width = 0.1500, height = 0.188888
         },
         minimap_mask = {
             alignX = 'L', alignY = 'B',
-            x = 0.0200, y = 0.0320,
+            x = 0.0200, y = -0.0220,
             width = 0.1110, height = 0.1590
         },
         minimap_blur = {
             alignX = 'L', alignY = 'B',
-            x = -0.0300, y = 0.0220,
+            x = -0.0300, y = 0.0000,
             width = 0.2660, height = 0.2370
         }
     }

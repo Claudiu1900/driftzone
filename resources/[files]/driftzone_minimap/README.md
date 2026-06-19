@@ -1,79 +1,69 @@
-# driftzone_minimap
+# driftzone_minimap v2.0.0
 
-HUD standalone pentru FiveM cu:
+HUD standalone FiveM pentru viață, armură, mâncare, apă și stamina.
 
-- viață, armură, mâncare, apă și stamina;
-- minimap repoziționat mai sus;
-- barele GTA de viață/armură ascunse;
-- armura ascunsă automat la 0%;
-- stamina afișată doar când jucătorul aleargă sau se reîncarcă;
-- mâncare: -1% la fiecare 20 secunde;
-- apă: -1% la fiecare 40 secunde;
-- un singur status la 0: -5% viață la fiecare 30 secunde;
-- ambele statusuri la 0: -10% viață la fiecare 40 secunde;
-- persistare automată cu oxmysql și fallback în memorie.
+## Important la actualizare
+
+Șterge complet folderul vechi `driftzone_minimap`, apoi pune folderul nou. Nu copia doar peste fișierele vechi.
+
+În consola serverului rulează:
+
+```cfg
+restart driftzone_minimap
+```
+
+Interfața v2 folosește un fișier NUI nou, self-contained, pentru a evita fundalul gri și cache-ul versiunii vechi.
 
 ## Instalare
-
-1. Pune folderul `driftzone_minimap` în `resources`.
-2. Dacă folosești oxmysql, pornește-l înaintea HUD-ului:
 
 ```cfg
 ensure oxmysql
 ensure driftzone_minimap
 ```
 
-Tabela SQL este creată automat. Poți importa și `sql/driftzone_status.sql` manual.
+`oxmysql` este opțional. Fără el, statusurile funcționează, dar nu se păstrează după reconectare.
 
-Oprește orice alt HUD/status script care modifică foamea, setea, viața sau poziția minimap-ului, altfel sistemele se vor suprapune.
+Oprește alte resurse care modifică simultan HUD-ul, stamina, foamea, setea sau poziția minimap-ului.
 
-## Trigger-ele cerute
+## Funcționare
 
-Dintr-un client script:
+- Armura nu apare la 0%.
+- Stamina începe la 100% și este ascunsă.
+- Stamina apare cu fade când jucătorul începe să alerge, scade și dispare după ce revine la 100%.
+- Mâncare: -1% la fiecare 20 secunde.
+- Apă: -1% la fiecare 40 secunde.
+- Un status la 0: -5% viață la fiecare 30 secunde.
+- Ambele la 0: -10% viață la fiecare 40 secunde, fără damage dublu.
+
+## Trigger-e
+
+Din client:
 
 ```lua
 TriggerServerEvent('driftzone_minimap:addFood', 25)
 TriggerServerEvent('driftzone_minimap:addWater', 25)
 ```
 
-Acestea funcționează când `Config.AllowClientAddTriggers = true`.
-
-### Variantă recomandată și mai sigură, din server-side
+Din server, varianta recomandată:
 
 ```lua
 TriggerEvent('driftzone_minimap:server:addFood', playerSource, 25)
 TriggerEvent('driftzone_minimap:server:addWater', playerSource, 25)
 ```
 
-Sau prin exports:
+Exports server-side:
 
 ```lua
 exports['driftzone_minimap']:AddFood(playerSource, 25)
 exports['driftzone_minimap']:AddWater(playerSource, 25)
 ```
 
-## Ascundere/afișare HUD
-
-Din client:
-
-```lua
-TriggerEvent('driftzone_minimap:client:setVisible', false)
-TriggerEvent('driftzone_minimap:client:setVisible', true)
-```
-
-Sau:
-
-```lua
-exports['driftzone_minimap']:SetHudVisible(false)
-exports['driftzone_minimap']:SetHudVisible(true)
-```
-
-## Ajustarea poziției
+## Poziția hărții
 
 În `config.lua`:
 
 ```lua
-Config.Minimap.VerticalOffset = 0.055
+Config.Minimap.VerticalOffset = -0.045
 ```
 
-Mărește valoarea pentru a ridica minimap-ul. Poziția HUD-ului de sub hartă se modifică în `html/style.css`, la clasa `.hud`.
+O valoare mai negativă ridică harta și mai sus, de exemplu `-0.055`.
