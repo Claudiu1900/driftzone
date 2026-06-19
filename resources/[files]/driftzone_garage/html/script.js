@@ -460,6 +460,11 @@ window.addEventListener('message', (event) => {
     if (data.action === 'update') updateGarage(data);
     if (data.action === 'close') closeGarage();
     if (data.action === 'admin') openAdmin(data);
+    if (data.action === 'spawnedSuccess') {
+        pendingVehicleActions.clear();
+        actionLockedUntil = Date.now() + 500;
+    }
+
     if (data.action === 'garagesData') {
         garages = Array.isArray(data.garages) ? data.garages.map(normalizeGarage) : [];
         if (!adminPanel.classList.contains('hidden')) {

@@ -828,9 +828,12 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
                 VehicleSpawnLocks[vehicleId] = nil
 
                 if GetPlayerName(src) then
-                    TriggerClientEvent('driftzone_garage:client:deletePendingVehicle', src, vehicleId)
-                    notify(src, 'error', 'Spawn-ul masinii a expirat. Incearca din nou.')
-                    refreshGarageList(src, garage)
+                    -- Daca intre timp masina a ajuns in ActiveVehicles, nu o stergem ca pending.
+                    if not (ActiveVehicles[vehicleId] and vehicleExists(ActiveVehicles[vehicleId].entity)) then
+                        TriggerClientEvent('driftzone_garage:client:deletePendingVehicle', src, vehicleId)
+                        notify(src, 'error', 'Spawn-ul masinii a expirat. Incearca din nou.')
+                        refreshGarageList(src, garage)
+                    end
                 end
             end
         end)
@@ -875,7 +878,28 @@ RegisterNetEvent('driftzone_garage:server:confirmClientSpawn', function(vehicleI
         return
     end
 
-    if isVehicleSpawned(vehicleId) then
+    -- IMPORTANT:
+    -- Clientul seteaza statebag-ul pe masina imediat dupa CreateVehicle.
+    -- Din cauza asta, vechea verificare isVehicleSpawned(vehicleId) vedea chiar masina
+    -- nou creata ca "deja spawnata" si o stergea. Acum ignoram exact entitatea/netId-ul
+    -- care confirma spawn-ul si verificam doar duplicate reale.
+    local duplicateEntity = 0
+
+    local active = ActiveVehicles[vehicleId]
+    if active and vehicleExists(active.entity) and active.entity ~= entity then
+        duplicateEntity = active.entity
+    end
+
+    if duplicateEntity == 0 then
+        for _, other in ipairs(getServerVehiclesSafe()) do
+            if vehicleExists(other) and other ~= entity and getGarageVehicleIdFromEntity(other) == vehicleId then
+                duplicateEntity = other
+                break
+            end
+        end
+    end
+
+    if duplicateEntity ~= 0 then
         TriggerClientEvent('driftzone_garage:client:deleteVehicleNet', src, netId)
         PendingClientSpawns[vehicleId] = nil
         SpawnLocks[src] = nil

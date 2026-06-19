@@ -109,3 +109,11 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - Scos `forceSpawnTransform` dupa spawn.
 - Scos delayed `forceTuning` care putea face masina sa para ca dispare/apare.
 - Masina se creeaza o singura data, se aseaza pe sol si serverul doar confirma owner/state.
+
+
+## Update V2.7 - confirm spawn fix
+
+- Fix pentru bug-ul in care masina se spawna, apoi era stearsa imediat.
+- Serverul nu mai considera masina nou creata de client ca duplicat.
+- Verificarea de duplicate ignora exact entitatea/netId-ul care confirma spawn-ul.
+- Timeout-ul nu mai sterge masina daca ea a fost deja inregistrata in `ActiveVehicles`.
