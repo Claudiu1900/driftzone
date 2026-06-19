@@ -31,6 +31,19 @@ Config.VitalsReportInterval = 2000
 Config.VitalsHeartbeatInterval = 15000
 Config.VitalsApplyDelay = 900
 
+-- Stamina custom: pornește la 100%, scade la sprint și se regenerează după oprire.
+-- Nu folosește procentul nativ FiveM, deci afișarea nu poate fi inversată.
+Config.Stamina = {
+    DrainPerSecond = 9.0,
+    RegenPerSecond = 14.0,
+    RegenDelay = 850,
+    HideDelay = 650,
+    ResumeSprintAt = 18.0,
+    MinimumMoveSpeed = 1.35,
+    ActiveTick = 50,
+    IdleTick = 150
+}
+
 -- Toate valorile sunt salvate ca JSON în users.stats.
 Config.Database = {
     UsersTable = 'users',

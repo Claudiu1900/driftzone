@@ -7,6 +7,10 @@ local status = {
 
 local hudVisible = true
 local staminaVisibleUntil = 0
+local staminaValue = 100.0
+local staminaRunning = false
+local staminaExhausted = false
+local lastSprintAt = 0
 local lastPayload = nil
 local lastResolutionX, lastResolutionY = 0, 0
 local minimapScaleform = nil
@@ -143,20 +147,9 @@ local function sendHudUpdate(force)
     end
 
     local ped = PlayerPedId()
-    local player = PlayerId()
     local armour = clamp(GetPedArmour(ped), 0, 100)
-
-    -- Pe FiveM, această valoare crește de la 0 spre 100 când stamina este consumată.
-    -- HUD-ul trebuie să arate procentul rămas: 100% la repaus și să scadă la alergare.
-    local staminaUsed = clamp(tonumber(GetPlayerSprintStaminaRemaining(player)) or 0.0, 0.0, 100.0)
-    local stamina = clamp(round(100.0 - staminaUsed), 0, 100)
-    local movingFast = (IsPedRunning(ped) or IsPedSprinting(ped))
-        and not IsPedInAnyVehicle(ped, false)
+    local stamina = clamp(round(staminaValue), 0, 100)
     local now = GetGameTimer()
-
-    if movingFast or stamina < 100 then
-        staminaVisibleUntil = now + 1200
-    end
 
     local payload = {
         visible = true,
@@ -166,7 +159,7 @@ local function sendHudUpdate(force)
         water = clamp(round(status.water), 0, 100),
         stamina = stamina,
         showArmour = armour > 0,
-        showStamina = movingFast or stamina < 100 or now < staminaVisibleUntil
+        showStamina = staminaRunning or stamina < 100 or now < staminaVisibleUntil
     }
 
     if force or payloadChanged(payload) then
@@ -174,6 +167,91 @@ local function sendHudUpdate(force)
         lastPayload = payload
     end
 end
+
+local function resetStamina()
+    staminaValue = 100.0
+    staminaRunning = false
+    staminaExhausted = false
+    staminaVisibleUntil = 0
+    lastSprintAt = 0
+    lastPayload = nil
+end
+
+CreateThread(function()
+    local previousTick = GetGameTimer()
+
+    while true do
+        local now = GetGameTimer()
+        local deltaSeconds = math.min((now - previousTick) / 1000.0, 0.25)
+        previousTick = now
+
+        local ped = PlayerPedId()
+        local player = PlayerId()
+        local validPed = DoesEntityExist(ped)
+            and not IsEntityDead(ped)
+            and not IsPedInAnyVehicle(ped, false)
+
+        local sprintPressed = validPed and IsControlPressed(0, 21)
+        local moving = validPed and GetEntitySpeed(ped) >= Config.Stamina.MinimumMoveSpeed
+        local isSprinting = sprintPressed and moving and not staminaExhausted
+
+        if isSprinting then
+            -- Stamina proprie: 100 -> 0 cât timp jucătorul aleargă.
+            staminaRunning = true
+            lastSprintAt = now
+            staminaVisibleUntil = now + Config.Stamina.HideDelay
+            staminaValue = clamp(
+                staminaValue - (Config.Stamina.DrainPerSecond * deltaSeconds),
+                0.0,
+                100.0
+            )
+
+            -- Stamina nativă este menținută plină; sprintul este controlat de sistemul nostru.
+            RestorePlayerStamina(player, 1.0)
+
+            if staminaValue <= 0.0 then
+                staminaValue = 0.0
+                staminaRunning = false
+                staminaExhausted = true
+            end
+        else
+            staminaRunning = false
+
+            if staminaValue < 100.0 and now - lastSprintAt >= Config.Stamina.RegenDelay then
+                staminaValue = clamp(
+                    staminaValue + (Config.Stamina.RegenPerSecond * deltaSeconds),
+                    0.0,
+                    100.0
+                )
+
+                if staminaValue >= 100.0 then
+                    staminaValue = 100.0
+                    staminaVisibleUntil = now + Config.Stamina.HideDelay
+                end
+            end
+        end
+
+        if staminaExhausted then
+            -- DisableControlAction trebuie apelat în fiecare frame cât timp sprintul este blocat.
+            DisableControlAction(0, 21, true)
+            RestorePlayerStamina(player, 1.0)
+
+            if staminaValue >= Config.Stamina.ResumeSprintAt then
+                staminaExhausted = false
+            end
+        end
+
+        local active = isSprinting or staminaValue < 100.0 or staminaExhausted
+
+        if staminaExhausted then
+            Wait(0)
+        elseif active then
+            Wait(Config.Stamina.ActiveTick)
+        else
+            Wait(Config.Stamina.IdleTick)
+        end
+    end
+end)
 
 local function applyMinimapPosition()
     if not Config.Minimap.Enabled then
@@ -297,7 +375,7 @@ CreateThread(function()
 
         local ped = PlayerPedId()
         local active = DoesEntityExist(ped)
-            and ((IsPedRunning(ped) or IsPedSprinting(ped)) or GetPedArmour(ped) > 0)
+            and (staminaRunning or staminaValue < 100.0 or GetPedArmour(ped) > 0)
 
         Wait(active and Config.ClientHudUpdateInterval or 250)
     end
@@ -337,6 +415,7 @@ CreateThread(function()
 end)
 
 AddEventHandler('playerSpawned', function()
+    resetStamina()
     Wait(1000)
 
     if not status.synced or not vitalsApplied then
@@ -354,6 +433,7 @@ AddEventHandler('onClientResourceStart', function(resourceName)
     if resourceName ~= GetCurrentResourceName() then return end
 
     Wait(750)
+    resetStamina()
     vitalsApplied = false
     applyMinimapPosition()
     hideDefaultHealthArmour()
