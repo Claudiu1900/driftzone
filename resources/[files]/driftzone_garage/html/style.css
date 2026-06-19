@@ -44,3 +44,13 @@ input,select{border-radius:7px !important}
 .root{background:
  radial-gradient(circle at 12% 10%,rgba(4,199,247,.18),transparent 25%),
  linear-gradient(180deg,rgba(0,0,0,.52),rgba(0,0,0,.72)) !important;}
+
+button.disabled, .disabled {
+    opacity: .45 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    filter: none !important;
+}
+.hero-stats {
+    min-width: 120px;
+}

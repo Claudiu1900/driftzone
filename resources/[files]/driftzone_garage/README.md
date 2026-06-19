@@ -117,3 +117,15 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - Serverul nu mai considera masina nou creata de client ca duplicat.
 - Verificarea de duplicate ignora exact entitatea/netId-ul care confirma spawn-ul.
 - Timeout-ul nu mai sterge masina daca ea a fost deja inregistrata in `ActiveVehicles`.
+
+
+## Update V2.8 - outsidevehicles + park radius
+
+- Scos textul `garage id` din UI.
+- Scos butonul de despawn din meniul garajului.
+- Limita de masini spawnate simultan se ia din `users.outsidevehicles`.
+  - Exemplu: `outsidevehicles = 2` => playerul poate avea maxim 2 masini spawnate.
+- Adaugat `park_radius` separat de radiusul pentru deschiderea garajului.
+- Masina se poate parca/despawna doar in zona de park.
+- Cand esti cu masina ta in zona de park apare jos: `Apasa E pentru a parca vehiculul.`
+- `/park` functioneaza doar daca esti in zona de park.

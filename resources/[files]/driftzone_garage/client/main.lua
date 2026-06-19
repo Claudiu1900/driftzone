@@ -749,9 +749,8 @@ RegisterNUICallback('spawn', function(data, cb)
 end)
 
 RegisterNUICallback('despawn', function(data, cb)
-    local vehicleId = tonumber(data.id or data.vehicleId or 0)
-    if vehicleId and vehicleId > 0 then TriggerServerEvent('driftzone_garage:server:despawn', vehicleId) end
-    cb({ ok = true })
+    notify('warning', 'Parcarea masinii se face doar din zona de park a garajului.')
+    cb({ ok = false })
 end)
 
 RegisterCommand('garage', function() if canOpenGarage() then TriggerServerEvent('driftzone_garage:server:open') end end, false)
@@ -968,6 +967,72 @@ CreateThread(function()
     TriggerServerEvent('driftzone_garage:server:requestGarages')
 end)
 
+
+local function drawBottomParkPrompt(text)
+    SetTextFont(4)
+    SetTextScale(0.42, 0.42)
+    SetTextColour(255, 255, 255, 235)
+    SetTextCentre(true)
+    SetTextOutline()
+    SetTextEntry('STRING')
+    AddTextComponentString(tostring(text or 'Apasa E pentru a parca vehiculul.'))
+    DrawText(0.5, 0.895)
+
+    DrawRect(0.5, 0.912, 0.34, 0.052, 0, 0, 0, 145)
+    DrawRect(0.5, 0.886, 0.34, 0.003, 4, 199, 247, 220)
+end
+
+local function getParkGarageFromCoords(coords)
+    local best = nil
+    local bestDist = 999999.0
+
+    for _, garage in ipairs(cachedGarages or {}) do
+        local g = garage.coords or {}
+        local gx, gy, gz = tonumber(g.x), tonumber(g.y), tonumber(g.z)
+
+        if gx and gy and gz then
+            local radius = tonumber(garage.park_radius or 12.0) or 12.0
+            local dist = #(coords - vector3(gx, gy, gz))
+
+            if dist <= radius and dist < bestDist then
+                best = garage
+                bestDist = dist
+            end
+        end
+    end
+
+    return best, bestDist
+end
+
+CreateThread(function()
+    while true do
+        local waitTime = 800
+        local ped = PlayerPedId()
+
+        if ped and ped ~= 0 and DoesEntityExist(ped) and IsPedInAnyVehicle(ped, false) and #cachedGarages > 0 then
+            local vehicle = GetVehiclePedIsIn(ped, false)
+
+            if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) and isOwnedGarageVehicle(vehicle) then
+                local coords = GetEntityCoords(ped)
+                local garage = getParkGarageFromCoords(coords)
+
+                if garage then
+                    waitTime = 0
+                    drawBottomParkPrompt('Apasa ~b~E~s~ pentru a parca vehiculul.')
+
+                    if IsControlJustPressed(0, 38) then
+                        TriggerServerEvent('driftzone_garage:server:parkCurrent', VehToNet(vehicle))
+                        Wait(650)
+                    end
+                end
+            end
+        end
+
+        Wait(waitTime)
+    end
+end)
+
+
 CreateThread(function()
     while true do
         local ped = PlayerPedId()
@@ -991,7 +1056,7 @@ CreateThread(function()
                     end
 
                     if dist <= math.max(radius, 4.0) then
-                        if IsControlJustPressed(0, 38) then -- E
+                        if IsControlJustPressed(0, 38) and not IsPedInAnyVehicle(ped, false) then -- E
                             if canOpenGarage() then
                                 TriggerServerEvent('driftzone_garage:server:open')
                             end

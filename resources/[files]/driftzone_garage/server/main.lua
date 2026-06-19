@@ -183,6 +183,7 @@ local function ensureGaragesTable()
             y DOUBLE NOT NULL DEFAULT 0,
             z DOUBLE NOT NULL DEFAULT 0,
             radius DOUBLE NOT NULL DEFAULT 4,
+            park_radius DOUBLE NOT NULL DEFAULT 12,
             visible_radius TINYINT(1) NOT NULL DEFAULT 1,
             parking_spots LONGTEXT NULL,
             active TINYINT(1) NOT NULL DEFAULT 1,
@@ -193,6 +194,14 @@ local function ensureGaragesTable()
             KEY idx_active (active)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ]]):format(sqlName(garagesTable())))
+
+    pcall(function()
+        MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS `park_radius` DOUBLE NOT NULL DEFAULT 12 AFTER `radius`'):format(sqlName(garagesTable())))
+    end)
+
+    pcall(function()
+        MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS `outsidevehicles` INT NOT NULL DEFAULT 1'):format(sqlName(usersTable())))
+    end)
 end
 
 local function encodeSpots(spots)
@@ -276,11 +285,12 @@ local function migrateDefaultGaragesIfEmpty()
             end
 
             MySQL.insert.await(
-                ('INSERT INTO %s (name, x, y, z, radius, visible_radius, parking_spots, active, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)'):format(sqlName(garagesTable())),
+                ('INSERT INTO %s (name, x, y, z, radius, park_radius, visible_radius, parking_spots, active, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0)'):format(sqlName(garagesTable())),
                 {
                     tostring(g.name or g.subText or g.id or 'Garage'),
                     x, y, z,
                     tonumber(g.radius or g.range or Config.DefaultGarageRadius or 4.0) or 4.0,
+                    tonumber(g.park_radius or g.parkRadius or Config.DefaultParkRadius or 12.0) or 12.0,
                     g.visible_radius == false and 0 or 1,
                     encodeSpots(spots)
                 }
@@ -305,6 +315,7 @@ local function loadGarages()
                 z = tonumber(row.z or 0) or 0
             },
             radius = tonumber(row.radius or Config.DefaultGarageRadius or 4.0) or 4.0,
+            park_radius = tonumber(row.park_radius or Config.DefaultParkRadius or 12.0) or 12.0,
             visible_radius = tonumber(row.visible_radius or 1) == 1,
             parking_spots = decodeSpots(row.parking_spots or '[]')
         }
@@ -351,6 +362,76 @@ local function getGarageForPlayer(src)
 
     return best, bestDist
 end
+
+local function getParkGarageForPlayer(src)
+    local coords = getPlayerCoordsTable(src)
+    if not coords then return nil end
+
+    local best = nil
+    local bestDist = 999999.0
+
+    for _, garage in ipairs(Garages) do
+        local dist = distance3(coords, garage.coords)
+        local parkRadius = tonumber(garage.park_radius or Config.DefaultParkRadius or 12.0) or 12.0
+
+        if dist <= parkRadius and dist < bestDist then
+            best = garage
+            bestDist = dist
+        end
+    end
+
+    return best, bestDist
+end
+
+local function getOutsideVehicleLimit(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return 1 end
+
+    local ok, row = pcall(function()
+        return MySQL.single.await('SELECT COALESCE(outsidevehicles, 1) AS outsidevehicles FROM users WHERE uid = ? LIMIT 1', { uid })
+    end)
+
+    local limit = ok and row and tonumber(row.outsidevehicles or 1) or 1
+    limit = tonumber(limit or 1) or 1
+
+    if limit < 0 then limit = 0 end
+    if limit > 50 then limit = 50 end
+
+    return math.floor(limit)
+end
+
+local function getOutsideVehicleCount(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return 0 end
+
+    local ids = {}
+
+    for vehicleId, data in pairs(ActiveVehicles) do
+        if data and tonumber(data.ownerUid or 0) == uid and vehicleExists(data.entity) then
+            ids[tonumber(vehicleId) or 0] = true
+        end
+    end
+
+    for _, entity in ipairs(getServerVehiclesSafe()) do
+        if vehicleExists(entity) then
+            local state = Entity(entity).state
+            local ownerUid = tonumber(state.dz_garage_owner_uid or 0) or 0
+            local vehicleId = tonumber(state.dz_garage_db_id or state.ownedVehicleId or state.vehicle_id or 0) or 0
+
+            if ownerUid == uid and vehicleId > 0 then
+                ids[vehicleId] = true
+            end
+        end
+    end
+
+    local count = 0
+    for vehicleId, _ in pairs(ids) do
+        if vehicleId and vehicleId > 0 then count = count + 1 end
+    end
+
+    return count
+end
+
 
 local function syncGaragesTo(src)
     TriggerClientEvent('driftzone_garage:client:syncGarages', src, Garages)
@@ -694,6 +775,15 @@ RegisterNetEvent('driftzone_garage:server:spawn', function(vehicleId, garageId)
         return
     end
 
+    local outsideLimit = getOutsideVehicleLimit(uid)
+    local outsideCount = getOutsideVehicleCount(uid)
+
+    if outsideCount >= outsideLimit then
+        notify(src, 'warning', ('Ai atins limita de masini spawnate: %s/%s.'):format(outsideCount, outsideLimit), 4500)
+        refreshGarageList(src, garage)
+        return
+    end
+
     local bucket = GetPlayerRoutingBucket(src) or 0
     local spot, spotIndex = findFreeParkingSpot(garage, bucket)
 
@@ -1021,39 +1111,7 @@ end)
 
 RegisterNetEvent('driftzone_garage:server:despawn', function(vehicleId)
     local src = source
-    local uid = getUid(src)
-
-    if not uid then notify(src, 'warning', 'Trebuie sa fii logat.') return end
-
-    vehicleId = tonumber(vehicleId)
-    if not vehicleId or vehicleId <= 0 then notify(src, 'warning', 'Vehicul invalid.') return end
-
-    local data = ActiveVehicles[vehicleId]
-    local entity = data and data.entity or findExistingGarageVehicle(vehicleId)
-
-    if not vehicleExists(entity) then
-        ActiveVehicles[vehicleId] = nil
-        notify(src, 'warning', 'Vehiculul nu este spawnat.')
-        refreshGarageList(src, getGarageForPlayer(src))
-        return
-    end
-
-    local currentOwner = getCurrentVehicleOwner(vehicleId)
-    if tonumber(currentOwner or 0) ~= tonumber(uid) then
-        notify(src, 'warning', 'Nu poti despawna masina altcuiva.')
-        return
-    end
-
-    updateActiveVehicleOwner(vehicleId, uid, src)
-
-    pcall(function() exports.driftzone_vs:UnregisterVehicle(entity) end)
-    pcall(function() TriggerEvent('vs:unregisterVehicle', entity) end)
-
-    cleanupVehicle(vehicleId)
-
-    notify(src, 'info', 'Vehiculul a fost despawnat.')
-    refreshGarageList(src, getGarageForPlayer(src))
-    TriggerClientEvent('driftzone_garage:client:spawnedSuccess', src, vehicleId)
+    notify(src, 'warning', 'Parcarea masinii se face doar din zona de park a garajului.')
 end)
 
 RegisterNetEvent('driftzone_garage:server:parkCurrent', function(netId)
@@ -1061,6 +1119,12 @@ RegisterNetEvent('driftzone_garage:server:parkCurrent', function(netId)
     local uid = getUid(src)
 
     if not uid then notify(src, 'warning', 'Trebuie sa fii logat.') return end
+
+    local parkGarage = getParkGarageForPlayer(src)
+    if not parkGarage then
+        notify(src, 'warning', 'Nu esti in zona de park a garajului.')
+        return
+    end
 
     local entity = NetworkGetEntityFromNetworkId(tonumber(netId) or 0)
     if not vehicleExists(entity) then notify(src, 'warning', 'Nu esti intr-un vehicul valid.') return end
@@ -1083,7 +1147,7 @@ RegisterNetEvent('driftzone_garage:server:parkCurrent', function(netId)
     cleanupVehicle(vehicleId)
 
     notify(src, 'info', 'Vehiculul a fost parcat in garaj.')
-    refreshGarageList(src, getGarageForPlayer(src))
+    refreshGarageList(src, parkGarage)
 end)
 
 local function sanitizeGaragePayload(data)
@@ -1097,12 +1161,15 @@ local function sanitizeGaragePayload(data)
     local y = tonumber(coords.y or data.y)
     local z = tonumber(coords.z or data.z)
     local radius = tonumber(data.radius or 4.0) or 4.0
+    local parkRadius = tonumber(data.park_radius or data.parkRadius or 12.0) or 12.0
     local visible = data.visible_radius == true or data.visible_radius == 1 or tostring(data.visible_radius) == '1' or tostring(data.visible_radius):lower() == 'true'
     local id = tonumber(data.id or 0) or 0
 
     if not x or not y or not z then return nil, 'Coordonate garaj invalide.' end
     if radius < 1.0 then radius = 1.0 end
     if radius > 60.0 then radius = 60.0 end
+    if parkRadius < 1.0 then parkRadius = 1.0 end
+    if parkRadius > 120.0 then parkRadius = 120.0 end
 
     local spots = decodeSpots(data.parking_spots or data.spots or {})
     if #spots <= 0 then return nil, 'Adauga minim un loc de parcare.' end
@@ -1114,6 +1181,7 @@ local function sanitizeGaragePayload(data)
         y = y + 0.0,
         z = z + 0.0,
         radius = radius + 0.0,
+        park_radius = parkRadius + 0.0,
         visible_radius = visible and 1 or 0,
         parking_spots = encodeSpots(spots)
     }
@@ -1148,14 +1216,14 @@ RegisterNetEvent('driftzone_garage:server:adminSaveGarage', function(data)
 
     if payload.id > 0 and GarageById[payload.id] then
         MySQL.update.await(
-            ('UPDATE %s SET name = ?, x = ?, y = ?, z = ?, radius = ?, visible_radius = ?, parking_spots = ?, active = 1 WHERE id = ? LIMIT 1'):format(sqlName(garagesTable())),
-            { payload.name, payload.x, payload.y, payload.z, payload.radius, payload.visible_radius, payload.parking_spots, payload.id }
+            ('UPDATE %s SET name = ?, x = ?, y = ?, z = ?, radius = ?, park_radius = ?, visible_radius = ?, parking_spots = ?, active = 1 WHERE id = ? LIMIT 1'):format(sqlName(garagesTable())),
+            { payload.name, payload.x, payload.y, payload.z, payload.radius, payload.park_radius, payload.visible_radius, payload.parking_spots, payload.id }
         )
         notify(src, 'success', 'Garaj editat.')
     else
         local newId = MySQL.insert.await(
-            ('INSERT INTO %s (name, x, y, z, radius, visible_radius, parking_spots, active, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)'):format(sqlName(garagesTable())),
-            { payload.name, payload.x, payload.y, payload.z, payload.radius, payload.visible_radius, payload.parking_spots, admin.uid or 0 }
+            ('INSERT INTO %s (name, x, y, z, radius, park_radius, visible_radius, parking_spots, active, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'):format(sqlName(garagesTable())),
+            { payload.name, payload.x, payload.y, payload.z, payload.radius, payload.park_radius, payload.visible_radius, payload.parking_spots, admin.uid or 0 }
         )
         notify(src, 'success', ('Garaj adaugat cu ID %s.'):format(newId or '?'))
     end

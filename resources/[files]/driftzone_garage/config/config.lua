@@ -12,6 +12,7 @@ Config.ParkCommand = 'park'
 Config.SpawnCooldownMs = 3000
 Config.ParkingSpotClearRadius = 3.2
 Config.DefaultGarageRadius = 4.0
+Config.DefaultParkRadius = 12.0
 Config.DefaultVisibleRadius = true
 
 Config.SpawnDistance = 5.5

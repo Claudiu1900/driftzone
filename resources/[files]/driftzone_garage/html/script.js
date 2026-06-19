@@ -15,7 +15,6 @@ const tabsRow = document.getElementById('tabsRow');
 const ownedTab = document.getElementById('ownedTab');
 const vipTab = document.getElementById('vipTab');
 const garageTitle = document.getElementById('garageTitle');
-const garageIdLabel = document.getElementById('garageIdLabel');
 
 let vehicles = [];
 let vehiclesById = new Map();
@@ -134,7 +133,6 @@ function openGarage(data) {
     pendingVehicleActions.clear();
 
     garageTitle.textContent = currentGarage.name || 'Garage';
-    garageIdLabel.textContent = `#${Number(currentGarage.id || 0)}`;
 
     showGaragePanel();
     bottomBar.classList.add('hidden');
@@ -243,8 +241,16 @@ function selectVehicle(id) {
     selectedVehicleId = v._id;
     selectedName.textContent = v._name;
     selectedMeta.textContent = `${v._model} • ${v._plate}`;
-    actionButton.textContent = v._spawned ? 'Despawn' : 'Spawn';
-    actionButton.className = v._spawned ? 'danger' : 'primary';
+    if (v._spawned) {
+        actionButton.textContent = 'Spawned';
+        actionButton.className = 'ghost disabled';
+        actionButton.disabled = true;
+    } else {
+        actionButton.textContent = 'Spawn';
+        actionButton.className = 'primary';
+        actionButton.disabled = false;
+    }
+
     bottomBar.classList.remove('hidden');
     renderVehicles();
 }
@@ -260,10 +266,10 @@ function runSelectedAction() {
     pendingVehicleActions.add(v._id);
 
     if (v._spawned) {
-        nui('despawn', { id: v._id, garageId: Number(currentGarage?.id || 0) });
-    } else {
-        nui('spawn', { id: v._id, garageId: Number(currentGarage?.id || 0) });
+        return;
     }
+
+    nui('spawn', { id: v._id, garageId: Number(currentGarage?.id || 0) });
 }
 
 function normalizeGarage(g = {}) {
@@ -272,6 +278,7 @@ function normalizeGarage(g = {}) {
         name: String(g.name || ''),
         coords: g.coords || { x: 0, y: 0, z: 0 },
         radius: Number(g.radius || 4),
+        park_radius: Number(g.park_radius || 12),
         visible_radius: g.visible_radius !== false,
         parking_spots: Array.isArray(g.parking_spots) ? g.parking_spots : []
     };
@@ -300,7 +307,7 @@ function renderGarageList() {
     box.innerHTML = garages.map(g => `
         <button class="garage-row ${selectedGarage && selectedGarage.id === g.id ? 'active' : ''}" onclick="loadGarage(${g.id})">
             <b>#${g.id} ${esc(g.name)}</b>
-            <span>${Number(g.parking_spots?.length || 0)} locuri • r=${num(g.radius, 1)}</span>
+            <span>${Number(g.parking_spots?.length || 0)} locuri • open=${num(g.radius, 1)} • park=${num(g.park_radius, 1)}</span>
         </button>
     `).join('');
 }
@@ -312,6 +319,7 @@ function newGarage() {
     document.getElementById('gId').value = '';
     document.getElementById('gName').value = '';
     document.getElementById('gRadius').value = '4';
+    document.getElementById('gParkRadius').value = '12';
     document.getElementById('gVisible').value = '1';
     document.getElementById('gCoords').value = '';
     document.getElementById('adminStatus').textContent = 'Garage nou. Pune coordonatele si minim un loc de parcare.';
@@ -334,6 +342,7 @@ function loadGarage(id) {
     document.getElementById('gId').value = String(selectedGarage.id || '');
     document.getElementById('gName').value = selectedGarage.name || '';
     document.getElementById('gRadius').value = String(selectedGarage.radius || 4);
+    document.getElementById('gParkRadius').value = String(selectedGarage.park_radius || 12);
     document.getElementById('gVisible').value = selectedGarage.visible_radius === false ? '0' : '1';
     document.getElementById('gCoords').value = coordLine(c.x, c.y, c.z);
 
@@ -409,6 +418,7 @@ function collectGaragePayload() {
         id: Number(document.getElementById('gId').value || 0),
         name: document.getElementById('gName').value.trim(),
         radius: Number(document.getElementById('gRadius').value || 4),
+        park_radius: Number(document.getElementById('gParkRadius').value || 12),
         visible_radius: document.getElementById('gVisible').value === '1',
         coords: parsedCoords ? {
             x: parsedCoords.x,

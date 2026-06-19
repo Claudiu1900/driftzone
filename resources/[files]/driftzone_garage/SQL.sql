@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS `garages` (
   `y` DOUBLE NOT NULL DEFAULT 0,
   `z` DOUBLE NOT NULL DEFAULT 0,
   `radius` DOUBLE NOT NULL DEFAULT 4,
+  `park_radius` DOUBLE NOT NULL DEFAULT 12,
   `visible_radius` TINYINT(1) NOT NULL DEFAULT 1,
   `parking_spots` LONGTEXT NULL,
   `active` TINYINT(1) NOT NULL DEFAULT 1,
@@ -22,3 +23,7 @@ ALTER TABLE `ownedvehicles` ADD COLUMN IF NOT EXISTS `gradient` LONGTEXT NULL;
 CREATE INDEX IF NOT EXISTS `idx_ownedvehicles_owner_vip` ON `ownedvehicles` (`owner_id`, `vip`);
 CREATE INDEX IF NOT EXISTS `idx_ownedvehicles_owner_id` ON `ownedvehicles` (`owner_id`, `id`);
 CREATE INDEX IF NOT EXISTS `idx_vehiclenames_model` ON `vehiclenames` (`vehicle_model`);
+
+
+ALTER TABLE `garages` ADD COLUMN IF NOT EXISTS `park_radius` DOUBLE NOT NULL DEFAULT 12 AFTER `radius`;
+ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `outsidevehicles` INT NOT NULL DEFAULT 1;
