@@ -85,23 +85,35 @@ function showRoot() { root.classList.remove('hidden'); }
 function hideRoot() { root.classList.add('hidden'); }
 
 let parkPromptVisible = false;
+let parkPromptHideTimer = null;
 
 function setParkPrompt(state) {
     const show = state === true;
+    if (!parkPrompt) return;
 
     if (parkPromptVisible === show) return;
     parkPromptVisible = show;
 
-    if (!parkPrompt) return;
+    if (parkPromptHideTimer) {
+        clearTimeout(parkPromptHideTimer);
+        parkPromptHideTimer = null;
+    }
 
     if (show) {
-        parkPrompt.classList.remove('hidden');
-        requestAnimationFrame(() => parkPrompt.classList.add('visible'));
+        parkPrompt.classList.remove('hidden', 'closing');
+        requestAnimationFrame(() => {
+            parkPrompt.classList.add('visible');
+        });
     } else {
         parkPrompt.classList.remove('visible');
-        setTimeout(() => {
-            if (!parkPromptVisible) parkPrompt.classList.add('hidden');
-        }, 180);
+        parkPrompt.classList.add('closing');
+
+        parkPromptHideTimer = setTimeout(() => {
+            if (!parkPromptVisible) {
+                parkPrompt.classList.add('hidden');
+                parkPrompt.classList.remove('closing');
+            }
+        }, 420);
     }
 }
 function showGaragePanel() { showRoot(); garagePanel.classList.remove('hidden'); adminPanel.classList.add('hidden'); }

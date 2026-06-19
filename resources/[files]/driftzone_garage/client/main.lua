@@ -1007,6 +1007,7 @@ end
 CreateThread(function()
     while true do
         local waitTime = 800
+        local shouldShowPrompt = false
         local ped = PlayerPedId()
 
         if ped and ped ~= 0 and DoesEntityExist(ped) and IsPedInAnyVehicle(ped, false) and #cachedGarages > 0 then
@@ -1017,8 +1018,8 @@ CreateThread(function()
                 local garage = getParkGarageFromCoords(coords)
 
                 if garage then
+                    shouldShowPrompt = true
                     waitTime = 0
-                    setParkPrompt(true)
 
                     if IsControlJustPressed(0, 38) then
                         TriggerServerEvent('driftzone_garage:server:parkCurrent', VehToNet(vehicle))
@@ -1027,6 +1028,8 @@ CreateThread(function()
                 end
             end
         end
+
+        setParkPrompt(shouldShowPrompt)
 
         Wait(waitTime)
     end

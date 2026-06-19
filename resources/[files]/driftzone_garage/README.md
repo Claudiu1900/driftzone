@@ -152,3 +152,10 @@ ID-ul garajului este AUTO_INCREMENT si incepe de la 1.
 - Promptul de park nu mai este DrawRect GTA.
 - Este NUI real cu animatie, keycap `E`, glow albastru si stil cyber/minimalist.
 - Apare/dispare smooth jos central.
+
+
+## Update V2.12 - park prompt fade-out
+
+- Cand iesi din `park_radius`, promptul nu mai dispare brusc.
+- Are fade-out smooth cu blur usor si slide jos.
+- Clientul trimite show/hide explicit in fiecare stare, nu doar pe fallback.
