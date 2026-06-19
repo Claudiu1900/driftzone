@@ -22,6 +22,9 @@ const audio = {
 
 let state = { myNumber: '', contacts: [], callHistory: [], messages: [], garage: { vehicles: [], garages: [], atGarage: false } };
 let selectedGarageVehicleId = 0;
+let garageAdminGarages = [];
+let garageAdminSelected = null;
+let garageAdminSpots = [];
 let dialTab = 'keypad';
 let activeView = 'home';
 let nav = ['home'];
@@ -646,15 +649,28 @@ function renderGarage() {
     `;
 }
 
+function vehicleDisplayName(v) {
+    return String(v?.name || v?.vehicle_name || v?.label || 'Vehicul');
+}
+
+function vehicleIsSpawned(v) {
+    if (!v) return false;
+    if (v.stored === true) return false;
+    if (v.entitySpawned === true) return true;
+    if (v.spawned === true) return true;
+    return Number(v.garageId || v.garage || 0) <= 0;
+}
+
 function renderGarageCar(v) {
-    const spawned = v.spawned === true;
-    const place = spawned ? 'Pe strada' : (v.garageName || 'Garaj necunoscut');
+    const spawned = vehicleIsSpawned(v);
+    const place = spawned ? 'Pe strada' : (v.garageName || 'In garaj');
     const statusCls = spawned ? 'out' : 'stored';
+
     return `
         <button class="garage-car ${statusCls}" onclick="openGarageVehicle(${Number(v.id || 0)})">
             <span class="garage-car-img"><img src="${icon('car')}" draggable="false"></span>
             <span class="garage-car-info">
-                <b>${esc(v.name || v.model || 'Vehicle')}</b>
+                <b>${esc(vehicleDisplayName(v))}</b>
                 <small>${esc(v.plate || 'DRIFT')} • ${esc(place)}</small>
             </span>
             <em>${spawned ? 'AFARA' : 'GARAJ'}</em>
@@ -677,19 +693,19 @@ function renderGarageDetail() {
         return renderGarage();
     }
 
-    const spawned = v.spawned === true || Number(v.garageId || v.garage || 0) <= 0;
+    const spawned = vehicleIsSpawned(v);
     const atGarage = g.atGarage === true;
-    const garageName = v.garageName || (spawned ? 'Pe strada' : 'Garaj necunoscut');
+    const garageName = v.garageName || (spawned ? 'Pe strada' : 'In garaj');
 
     const spawnDisabled = (!atGarage || spawned) ? 'disabled' : '';
     const parkDisabled = (!atGarage || !spawned) ? 'disabled' : '';
 
     screens.garage.innerHTML = `
-        ${header(v.name || v.model || 'Mașină', "navigate('garage', false)")}
+        ${header('Vehicul', "navigate('garage', false)")}
         <div class="garage-detail-card">
             <div class="garage-detail-visual"><img src="${icon('car')}" draggable="false"></div>
-            <h2>${esc(v.name || v.model || 'Vehicle')}</h2>
-            <p>${esc(v.plate || 'DRIFT')} • ${esc(v.model || '')}</p>
+            <h2>${esc(vehicleDisplayName(v))}</h2>
+            <p>${esc(v.plate || 'DRIFT')}</p>
             <div class="garage-status-row">
                 <span>${spawned ? 'Pe strada' : 'In garaj'}</span>
                 <b>${esc(garageName)}</b>
@@ -714,6 +730,215 @@ function garageAction(action, id) {
     else if (action === 'locate') nui('garageLocate', { id });
 
     setTimeout(() => nui('requestState'), 900);
+}
+
+
+
+function gaNum(value, digits = 2) {
+    const n = Number(value || 0);
+    return Number.isFinite(n) ? n.toFixed(digits) : '0.00';
+}
+
+function gaCoordLine(x, y, z, h = null) {
+    const parts = [gaNum(x, 6), gaNum(y, 6), gaNum(z, 6)];
+    if (h !== null && h !== undefined) parts.push(gaNum(h, 2));
+    return parts.join(', ');
+}
+
+function gaParseCoords(value, needsHeading = false) {
+    const parts = String(value || '').replace(/;/g, ',').split(/[,\s]+/).map(v => v.trim()).filter(Boolean).map(Number);
+    if (parts.length < 3 || parts.some(v => !Number.isFinite(v))) return null;
+    return {
+        x: parts[0],
+        y: parts[1],
+        z: parts[2],
+        h: Number.isFinite(parts[3]) ? parts[3] : (needsHeading ? 0 : undefined)
+    };
+}
+
+function gaRoot() { return document.getElementById('garageAdminRoot'); }
+function gaStatus(text, good = null) {
+    const el = document.getElementById('garageAdminStatus');
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.remove('success', 'error');
+    if (good === true) el.classList.add('success');
+    if (good === false) el.classList.add('error');
+}
+
+function gaNormalizeGarage(g) {
+    g = g || {};
+    const coords = g.coords || g;
+    return {
+        id: Number(g.id || 0),
+        name: String(g.name || 'Garaj'),
+        coords: {
+            x: Number(coords.x || 0),
+            y: Number(coords.y || 0),
+            z: Number(coords.z || 0)
+        },
+        radius: Number(g.radius || 4),
+        park_radius: Number(g.park_radius || g.parkRadius || 12),
+        visible_radius: g.visible_radius !== false,
+        parking_spots: Array.isArray(g.parking_spots) ? g.parking_spots.map(s => ({
+            x: Number(s.x || 0),
+            y: Number(s.y || 0),
+            z: Number(s.z || 0),
+            h: Number(s.h || s.heading || 0)
+        })) : []
+    };
+}
+
+function garageAdminOpen(payload = {}) {
+    garageAdminGarages = Array.isArray(payload.garages) ? payload.garages.map(gaNormalizeGarage) : [];
+    const root = gaRoot();
+    if (root) root.classList.remove('hidden');
+
+    if (payload.mode === 'add') garageAdminNew();
+    else {
+        garageAdminSelected = garageAdminGarages[0] || null;
+        if (garageAdminSelected) garageAdminLoad(garageAdminSelected);
+        else garageAdminNew();
+    }
+
+    garageAdminRenderList();
+}
+
+function garageAdminClose() {
+    const root = gaRoot();
+    if (root) root.classList.add('hidden');
+    nui('garageAdminClose');
+}
+
+function garageAdminRenderList() {
+    const list = document.getElementById('garageAdminList');
+    if (!list) return;
+
+    if (!garageAdminGarages.length) {
+        list.innerHTML = `<div class="garage-admin-empty">Nu exista garaje.</div>`;
+        return;
+    }
+
+    list.innerHTML = garageAdminGarages.map(g => `
+        <button class="garage-admin-row ${garageAdminSelected && garageAdminSelected.id === g.id ? 'active' : ''}" onclick="garageAdminSelect(${g.id})">
+            <b>#${g.id} ${esc(g.name)}</b>
+            <span>${g.parking_spots.length} locuri • open ${gaNum(g.radius, 1)} • park ${gaNum(g.park_radius, 1)}</span>
+        </button>
+    `).join('');
+}
+
+function garageAdminSelect(id) {
+    const g = garageAdminGarages.find(x => Number(x.id) === Number(id));
+    if (!g) return;
+    garageAdminLoad(g);
+    garageAdminRenderList();
+}
+
+function garageAdminLoad(g) {
+    garageAdminSelected = gaNormalizeGarage(g);
+    garageAdminSpots = [...garageAdminSelected.parking_spots];
+
+    document.getElementById('gaId').value = garageAdminSelected.id || '';
+    document.getElementById('gaName').value = garageAdminSelected.name || '';
+    document.getElementById('gaRadius').value = String(garageAdminSelected.radius || 4);
+    document.getElementById('gaParkRadius').value = String(garageAdminSelected.park_radius || 12);
+    document.getElementById('gaVisible').value = garageAdminSelected.visible_radius === false ? '0' : '1';
+    document.getElementById('gaCoords').value = gaCoordLine(garageAdminSelected.coords.x, garageAdminSelected.coords.y, garageAdminSelected.coords.z);
+    garageAdminRenderSpots();
+    gaStatus('Editezi garajul selectat.');
+}
+
+function garageAdminNew() {
+    garageAdminSelected = { id: 0, name: 'Garaj', coords: { x: 0, y: 0, z: 0 }, radius: 4, park_radius: 12, visible_radius: true, parking_spots: [] };
+    garageAdminSpots = [];
+    document.getElementById('gaId').value = '';
+    document.getElementById('gaName').value = 'Garaj';
+    document.getElementById('gaRadius').value = '4';
+    document.getElementById('gaParkRadius').value = '12';
+    document.getElementById('gaVisible').value = '1';
+    document.getElementById('gaCoords').value = '';
+    garageAdminRenderSpots();
+    gaStatus('Creezi un garaj nou.');
+    garageAdminRenderList();
+}
+
+function garageAdminRenderSpots() {
+    const el = document.getElementById('garageAdminSpots');
+    if (!el) return;
+    if (!garageAdminSpots.length) {
+        el.innerHTML = `<div class="garage-admin-empty">Nu ai locuri de parcare.</div>`;
+        return;
+    }
+    el.innerHTML = garageAdminSpots.map((s, i) => `
+        <div class="garage-admin-spot">
+            <span>${i + 1}. ${gaCoordLine(s.x, s.y, s.z, s.h)}</span>
+            <button onclick="garageAdminRemoveSpot(${i})">×</button>
+        </div>
+    `).join('');
+}
+
+function garageAdminRemoveSpot(index) {
+    garageAdminSpots.splice(Number(index), 1);
+    garageAdminRenderSpots();
+}
+
+async function garageAdminUsePosition() {
+    const res = await nui('garageAdminGetPlayerPosition');
+    if (!res || !res.ok) return gaStatus('Nu pot lua pozitia.', false);
+    document.getElementById('gaCoords').value = gaCoordLine(res.x, res.y, res.z);
+}
+
+async function garageAdminAddSpot() {
+    const res = await nui('garageAdminGetPlayerPosition');
+    if (!res || !res.ok) return gaStatus('Nu pot lua pozitia.', false);
+    garageAdminSpots.push({ x: Number(res.x), y: Number(res.y), z: Number(res.z), h: Number(res.h || 0) });
+    garageAdminRenderSpots();
+}
+
+function garageAdminPayload() {
+    const coords = gaParseCoords(document.getElementById('gaCoords').value, false);
+    return {
+        id: Number(document.getElementById('gaId').value || 0),
+        name: String(document.getElementById('gaName').value || '').trim(),
+        radius: Number(document.getElementById('gaRadius').value || 4),
+        park_radius: Number(document.getElementById('gaParkRadius').value || 12),
+        visible_radius: document.getElementById('gaVisible').value === '1',
+        coords: coords ? { x: coords.x, y: coords.y, z: coords.z } : null,
+        parking_spots: garageAdminSpots
+    };
+}
+
+function garageAdminSave() {
+    const p = garageAdminPayload();
+    if (!p.name) return gaStatus('Pune nume la garaj.', false);
+    if (!p.coords) return gaStatus('Coordonatele trebuie sa fie: x, y, z.', false);
+    if (!p.parking_spots.length) return gaStatus('Adauga minim un loc de parcare.', false);
+    gaStatus('Se salveaza...');
+    nui('garageAdminSave', p);
+}
+
+function garageAdminDelete() {
+    const id = Number(document.getElementById('gaId').value || 0);
+    if (!id) return;
+    gaStatus('Se dezactiveaza...');
+    nui('garageAdminDelete', { id });
+}
+
+function garageAdminReload() {
+    gaStatus('Se reincarca...');
+    nui('garageAdminReload');
+}
+
+function garageAdminResult(ok, message, garages) {
+    gaStatus(message || (ok ? 'Gata.' : 'Eroare.'), ok === true);
+    if (Array.isArray(garages)) {
+        garageAdminGarages = garages.map(gaNormalizeGarage);
+        if (garageAdminSelected && garageAdminSelected.id) {
+            const updated = garageAdminGarages.find(g => g.id === garageAdminSelected.id);
+            if (updated) garageAdminLoad(updated);
+        }
+        garageAdminRenderList();
+    }
 }
 
 
@@ -826,6 +1051,9 @@ window.addEventListener('message', (event) => {
         if (phoneMode !== 'full') openPeek('message', payload);
         playOne('message');
     }
+    if (data.action === 'garageAdminOpen') garageAdminOpen(data.data || {});
+    if (data.action === 'garageAdminResult') garageAdminResult(data.ok === true, data.message || '', data.garages || []);
+
     if (data.action === 'feedback') {
         const payload = data.payload || {};
         if (payload.kind === 'call_closed') {
@@ -862,3 +1090,13 @@ nui('ready');
 window.dialNow = dialNow;
 window.dialKey = dialKey;
 window.setDialTab = setDialTab;
+
+window.garageAdminClose = garageAdminClose;
+window.garageAdminNew = garageAdminNew;
+window.garageAdminReload = garageAdminReload;
+window.garageAdminSelect = garageAdminSelect;
+window.garageAdminUsePosition = garageAdminUsePosition;
+window.garageAdminAddSpot = garageAdminAddSpot;
+window.garageAdminRemoveSpot = garageAdminRemoveSpot;
+window.garageAdminSave = garageAdminSave;
+window.garageAdminDelete = garageAdminDelete;

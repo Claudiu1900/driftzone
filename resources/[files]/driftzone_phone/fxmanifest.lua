@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'DriftZone Phone - calls, contacts, messages, garage app'
-version '1.2.0-full-garage'
+version '1.2.1-garage-polish'
 
 ui_page 'html/index.html'
 

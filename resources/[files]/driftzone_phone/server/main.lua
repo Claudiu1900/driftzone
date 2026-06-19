@@ -646,6 +646,7 @@ local function getPhoneGarageVehicleRows(uid)
         local entity = findGarageVehicleEntity(vehicleId)
         local entitySpawned = vehicleExists(entity)
         local dbOutside = garageId <= 0
+        local stored = garageId > 0 and not entitySpawned
         local spawned = entitySpawned or dbOutside
         local active = GarageVehicles[vehicleId]
         local currentGarageId = active and tonumber(active.garageId or 0) or 0
@@ -662,6 +663,7 @@ local function getPhoneGarageVehicleRows(uid)
             garage = garageId,
             garageId = garageId,
             garageName = garage and garage.name or (garageId > 0 and ('Garaj #' .. garageId) or 'Pe strada'),
+            stored = stored,
             spawned = spawned,
             entitySpawned = entitySpawned,
             activeGarageId = currentGarageId,
@@ -864,8 +866,9 @@ local function endCall(callId, reason, endedBy)
 end
 
 
+
 -- =========================
--- GARAGE ADMIN COMMANDS (integrate driftzone_garage commands in phone)
+-- GARAGE ADMIN COMMANDS / EDITOR
 -- =========================
 local function phoneAdutyValue(value)
     local text = tostring(value or ''):lower()
@@ -912,98 +915,142 @@ local function requireGarageAdmin(src)
     return admin
 end
 
-local function getEntityCoordsHeadingForGarage(src)
-    local ped = GetPlayerPed(src)
-    if not ped or ped == 0 then return nil end
+local function sanitizeGaragePayload(data)
+    data = type(data) == 'table' and data or {}
+    local coords = type(data.coords) == 'table' and data.coords or {}
 
-    local entity = ped
-    if GetVehiclePedIsIn then
-        local veh = GetVehiclePedIsIn(ped, false)
-        if veh and veh ~= 0 then entity = veh end
-    end
+    local x = tonumber(coords.x)
+    local y = tonumber(coords.y)
+    local z = tonumber(coords.z)
+    if not x or not y or not z then return nil, 'Coordonate garaj invalide.' end
 
-    local c = GetEntityCoords(entity)
-    local h = GetEntityHeading(entity)
-    return { x = c.x + 0.0, y = c.y + 0.0, z = c.z + 0.0, h = h + 0.0 }
-end
-
-local function encodeGarageSpots(spots)
-    local ok, encoded = pcall(json.encode, spots or {})
-    return ok and encoded or '[]'
-end
-
-RegisterCommand('addgarage', function(src, args)
-    local admin = requireGarageAdmin(src)
-    if not admin then return end
-
-    local pos = getEntityCoordsHeadingForGarage(src)
-    if not pos then return notifyPhone(src, 'warning', 'Nu pot lua pozitia.') end
-
-    local radius = tonumber(args[1] or 4.0) or 4.0
-    local parkRadius = tonumber(args[2] or 12.0) or 12.0
-    local name = table.concat(args or {}, ' ', 3)
+    local name = tostring(data.name or 'Garaj'):gsub('^%s+', ''):gsub('%s+$', '')
     if name == '' then name = 'Garaj' end
 
-    local spots = { { x = pos.x, y = pos.y, z = pos.z, h = pos.h } }
+    local radius = tonumber(data.radius or 4.0) or 4.0
+    local parkRadius = tonumber(data.park_radius or data.parkRadius or 12.0) or 12.0
+    if radius < 1.0 then radius = 1.0 end
+    if radius > 60.0 then radius = 60.0 end
+    if parkRadius < 1.0 then parkRadius = 1.0 end
+    if parkRadius > 120.0 then parkRadius = 120.0 end
 
-    local id = MySQL.insert.await(('INSERT INTO %s (name, x, y, z, radius, park_radius, visible_radius, parking_spots, active, created_by) VALUES (?, ?, ?, ?, ?, ?, 1, ?, 1, ?)'):format(sqlName(garageTable())), {
-        name, pos.x, pos.y, pos.z, radius, parkRadius, encodeGarageSpots(spots), admin.uid or 0
+    local spots = {}
+    for _, spot in ipairs(type(data.parking_spots) == 'table' and data.parking_spots or {}) do
+        local sx = tonumber(spot.x)
+        local sy = tonumber(spot.y)
+        local sz = tonumber(spot.z)
+        local sh = tonumber(spot.h or spot.heading or 0) or 0
+        if sx and sy and sz then
+            spots[#spots + 1] = { x = sx + 0.0, y = sy + 0.0, z = sz + 0.0, h = sh + 0.0 }
+        end
+    end
+
+    if #spots <= 0 then return nil, 'Adauga minim un loc de parcare.' end
+
+    local ok, encoded = pcall(json.encode, spots)
+    return {
+        id = tonumber(data.id or 0) or 0,
+        name = name,
+        x = x + 0.0,
+        y = y + 0.0,
+        z = z + 0.0,
+        radius = radius + 0.0,
+        park_radius = parkRadius + 0.0,
+        visible_radius = (data.visible_radius == false or data.visible_radius == 0 or tostring(data.visible_radius) == '0') and 0 or 1,
+        parking_spots = ok and encoded or '[]'
+    }
+end
+
+local function openGarageAdminPanel(src, mode)
+    if not requireGarageAdmin(src) then return false end
+    TriggerClientEvent('driftzone_phone:client:garageAdminOpen', src, {
+        mode = mode or 'edit',
+        garages = loadPhoneGarages(true)
     })
+    return true
+end
 
-    GaragesCache = nil
-    loadPhoneGarages(true)
-    notifyPhone(src, 'success', ('Garaj creat: #%s.'):format(tostring(id or '?')))
-end, false)
-
-RegisterCommand('addgaragespot', function(src, args)
+RegisterNetEvent('driftzone_phone:server:garageAdminSave', function(data)
+    local src = source
     local admin = requireGarageAdmin(src)
     if not admin then return end
 
-    local garageId = tonumber(args[1] or 0) or 0
-    if garageId <= 0 then return notifyPhone(src, 'warning', 'Foloseste: /addgaragespot <garageId>') end
+    local payload, err = sanitizeGaragePayload(data or {})
+    if not payload then
+        notifyPhone(src, 'warning', err or 'Date invalide.')
+        TriggerClientEvent('driftzone_phone:client:garageAdminResult', src, false, err or 'Date invalide.')
+        return
+    end
 
-    local garage = getGarageById(garageId)
-    if not garage then return notifyPhone(src, 'warning', 'Garaj invalid.') end
-
-    local pos = getEntityCoordsHeadingForGarage(src)
-    if not pos then return notifyPhone(src, 'warning', 'Nu pot lua pozitia.') end
-
-    local row = MySQL.single.await(('SELECT parking_spots FROM %s WHERE id = ? LIMIT 1'):format(sqlName(garageTable())), { garageId })
-    local spots = decodeJsonList(row and row.parking_spots or '[]')
-    spots[#spots + 1] = { x = pos.x, y = pos.y, z = pos.z, h = pos.h }
-
-    MySQL.update.await(('UPDATE %s SET parking_spots = ?, updated_at = NOW() WHERE id = ? LIMIT 1'):format(sqlName(garageTable())), {
-        encodeGarageSpots(spots), garageId
-    })
+    if payload.id > 0 then
+        MySQL.update.await(('UPDATE %s SET name = ?, x = ?, y = ?, z = ?, radius = ?, park_radius = ?, visible_radius = ?, parking_spots = ?, active = 1 WHERE id = ? LIMIT 1'):format(sqlName(garageTable())), {
+            payload.name, payload.x, payload.y, payload.z, payload.radius, payload.park_radius, payload.visible_radius, payload.parking_spots, payload.id
+        })
+    else
+        local id = MySQL.insert.await(('INSERT INTO %s (name, x, y, z, radius, park_radius, visible_radius, parking_spots, active, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'):format(sqlName(garageTable())), {
+            payload.name, payload.x, payload.y, payload.z, payload.radius, payload.park_radius, payload.visible_radius, payload.parking_spots, admin.uid or 0
+        })
+        payload.id = tonumber(id or 0) or 0
+    end
 
     GaragesCache = nil
-    loadPhoneGarages(true)
-    notifyPhone(src, 'success', ('Loc de parcare adaugat la garaj #%s.'):format(garageId))
+    local garages = loadPhoneGarages(true)
+    TriggerClientEvent('driftzone_phone:client:garageAdminResult', src, true, 'Garaj salvat.', garages)
+    TriggerClientEvent('driftzone_phone:client:garageWorld', -1, garages)
+end)
+
+RegisterNetEvent('driftzone_phone:server:garageAdminDelete', function(id)
+    local src = source
+    if not requireGarageAdmin(src) then return end
+
+    id = tonumber(id or 0) or 0
+    if id <= 0 then return end
+
+    MySQL.update.await(('UPDATE %s SET active = 0 WHERE id = ? LIMIT 1'):format(sqlName(garageTable())), { id })
+    GaragesCache = nil
+    local garages = loadPhoneGarages(true)
+    TriggerClientEvent('driftzone_phone:client:garageAdminResult', src, true, 'Garaj dezactivat.', garages)
+    TriggerClientEvent('driftzone_phone:client:garageWorld', -1, garages)
+end)
+
+RegisterNetEvent('driftzone_phone:server:garageAdminReload', function()
+    local src = source
+    if not requireGarageAdmin(src) then return end
+
+    GaragesCache = nil
+    local garages = loadPhoneGarages(true)
+    notifyPhone(src, 'success', 'Garajele au fost reincarcate.')
+    TriggerClientEvent('driftzone_phone:client:garageAdminOpen', src, { mode = 'edit', garages = garages })
+    TriggerClientEvent('driftzone_phone:client:garageWorld', src, garages)
+end)
+
+RegisterCommand('addgarage', function(src)
+    if src ~= 0 then openGarageAdminPanel(src, 'add') end
 end, false)
 
 RegisterCommand('editgarages', function(src)
-    local admin = requireGarageAdmin(src)
-    if not admin then return end
-
-    local garages = loadPhoneGarages(true)
-    notifyPhone(src, 'info', ('Garaje incarcate: %s. Foloseste /addgarage sau /addgaragespot <id>.'):format(#garages), 6500)
-
-    for _, g in ipairs(garages) do
-        print(('[DRIFTZONE_PHONE][GARAGE] #%s %s | %.3f %.3f %.3f | spots=%s'):format(
-            tostring(g.id), tostring(g.name), tonumber(g.x or 0), tonumber(g.y or 0), tonumber(g.z or 0), tostring(#(g.parking_spots or {}))
-        ))
-    end
+    if src ~= 0 then openGarageAdminPanel(src, 'edit') end
 end, false)
 
 RegisterCommand('resetgarages', function(src)
-    local admin = requireGarageAdmin(src)
-    if not admin then return end
-
-    GaragesCache = nil
-    loadPhoneGarages(true)
-    notifyPhone(src, 'success', 'Garajele au fost reincarcate.')
+    if src ~= 0 then
+        if not requireGarageAdmin(src) then return end
+        GaragesCache = nil
+        local garages = loadPhoneGarages(true)
+        notifyPhone(src, 'success', 'Garajele au fost reincarcate.')
+        TriggerClientEvent('driftzone_phone:client:garageAdminOpen', src, { mode = 'edit', garages = garages })
+        TriggerClientEvent('driftzone_phone:client:garageWorld', src, garages)
+    else
+        GaragesCache = nil
+        loadPhoneGarages(true)
+        print('[DRIFTZONE_PHONE] Garages reloaded.')
+    end
 end, false)
 
+
+RegisterNetEvent('driftzone_phone:server:requestGarageWorld', function()
+    TriggerClientEvent('driftzone_phone:client:garageWorld', source, loadPhoneGarages(true))
+end)
 
 RegisterNetEvent('driftzone_phone:server:requestState', function()
     local src = source

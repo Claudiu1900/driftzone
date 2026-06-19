@@ -103,3 +103,15 @@ Mesaje:
 - `Tracteaza` nu merge daca masina este scoasa.
 - Aplicatia Telefon permite cautare/apel si dupa nume de contact, nu doar cifre.
 - Reparat apelurile: `dialNow` / `dialKey`, call state si sunete.
+
+
+## V1.2.1 garage polish
+
+- Masinile afiseaza doar numele lor, nu si model name-ul.
+- In pagina masinii, numele apare o singura data.
+- Reparat statusul inversat: masinile parcate apar `GARAJ`, cele scoase apar `AFARA`.
+- Telefonul porneste animatia de phone cat timp este deschis, cu flag upper-body ca sa nu blocheze/freezere caracterul.
+- Animatia se opreste cand inchizi telefonul.
+- Adaugat sign-ul albastru de masina la garaje, plus radius vizibil.
+- `/addgarage`, `/editgarages`, `/resetgarages` deschid editor NUI in phone resource.
+- Editorul de garaje are coordonate, radius, park radius si locuri de parcare ca in driftzone_garage.

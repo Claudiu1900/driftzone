@@ -520,3 +520,223 @@ input, textarea { user-select: text; }
 .dial-input {
     text-transform: none !important;
 }
+
+
+/* V1.2.1 garage admin overlay */
+.garage-admin-root {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: grid;
+    place-items: center;
+    background:
+        radial-gradient(circle at 20% 12%, rgba(4,199,247,.18), transparent 36%),
+        rgba(0,0,0,.56);
+    color: #fff;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+.garage-admin-panel {
+    position: relative;
+    width: min(1240px, 94vw);
+    height: min(800px, 90vh);
+    padding: 24px;
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 28px;
+    background: linear-gradient(145deg, rgba(4,199,247,.12), rgba(255,255,255,.025)), rgba(5,10,18,.95);
+    box-shadow: 0 42px 140px rgba(0,0,0,.72), 0 0 55px rgba(4,199,247,.13);
+    overflow: hidden;
+}
+.garage-admin-close {
+    position: absolute;
+    right: 22px;
+    top: 20px;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 14px;
+    background: rgba(255,255,255,.07);
+    color: #fff;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 4;
+}
+.garage-admin-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: flex-start;
+    padding-right: 58px;
+    border-bottom: 1px solid rgba(255,255,255,.13);
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+}
+.garage-admin-kicker {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: #04c7f7;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 1000;
+}
+.garage-admin-kicker img { width: 22px; height: 22px; filter: drop-shadow(0 0 12px rgba(4,199,247,.7)); }
+.garage-admin-hero h1 { margin: 7px 0 0; font-size: 42px; letter-spacing: -1.1px; }
+.garage-admin-hero p { margin: 7px 0 0; color: rgba(255,255,255,.58); font-size: 14px; font-weight: 650; }
+.garage-admin-actions { display: flex; gap: 10px; align-items: center; }
+.garage-admin-actions button, .garage-admin-save-row button, .garage-admin-section-head button {
+    height: 40px;
+    border: 0;
+    border-radius: 13px;
+    padding: 0 15px;
+    background: #04c7f7;
+    color: #03111a;
+    font-size: 12px;
+    font-weight: 1000;
+    letter-spacing: .6px;
+    cursor: pointer;
+}
+.garage-admin-actions .ghost, .garage-admin-section-head .ghost {
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.13);
+    color: #fff;
+}
+.garage-admin-layout {
+    display: grid;
+    grid-template-columns: 292px 1fr;
+    gap: 16px;
+    height: calc(100% - 112px);
+}
+.garage-admin-list {
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 22px;
+    background: rgba(0,0,0,.22);
+    padding: 12px;
+    overflow-y: auto;
+}
+.garage-admin-list-title {
+    color: #04c7f7;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    font-weight: 1000;
+    margin: 4px 0 10px;
+}
+.garage-admin-row {
+    width: 100%;
+    height: auto;
+    text-align: left;
+    background: rgba(255,255,255,.055);
+    border: 1px solid rgba(255,255,255,.09);
+    color: #fff;
+    margin-bottom: 8px;
+    padding: 12px;
+    border-radius: 15px;
+    cursor: pointer;
+}
+.garage-admin-row b { display: block; font-size: 13px; }
+.garage-admin-row span { display: block; color: rgba(255,255,255,.58); font-size: 11px; margin-top: 4px; }
+.garage-admin-row.active { border-color: #04c7f7; background: rgba(4,199,247,.15); }
+.garage-admin-editor { height: 100%; overflow: hidden; display: flex; flex-direction: column; gap: 12px; }
+.garage-admin-form { display: grid; grid-template-columns: .6fr 1.4fr 1fr 1fr 1fr; gap: 10px; }
+.garage-admin-root label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: rgba(255,255,255,.58);
+    font-size: 10px;
+    font-weight: 1000;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.garage-admin-root input, .garage-admin-root select {
+    height: 40px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.26);
+    color: #fff;
+    border-radius: 12px;
+    padding: 0 12px;
+    outline: 0;
+    font-weight: 800;
+}
+.garage-admin-root select option { color: #000; }
+.garage-admin-card {
+    padding: 14px;
+    border: 1px solid rgba(255,255,255,.11);
+    border-radius: 20px;
+    background: rgba(0,0,0,.20);
+}
+.garage-admin-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.garage-admin-section-head b { display: block; font-size: 14px; }
+.garage-admin-section-head span { display: block; margin-top: 3px; color: rgba(255,255,255,.50); font-size: 11px; font-weight: 750; }
+.garage-admin-wide { width: 100%; }
+.garage-admin-spots {
+    max-height: 172px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.garage-admin-spot {
+    min-height: 38px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.055);
+    border: 1px solid rgba(255,255,255,.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.garage-admin-spot span { color: rgba(255,255,255,.82); font-size: 12px; font-weight: 800; }
+.garage-admin-spot button {
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 9px;
+    background: rgba(255,73,104,.20);
+    color: #fff;
+    cursor: pointer;
+}
+.garage-admin-empty {
+    padding: 12px;
+    border-radius: 14px;
+    color: rgba(255,255,255,.55);
+    background: rgba(255,255,255,.045);
+    font-size: 12px;
+    font-weight: 800;
+}
+.garage-admin-status {
+    min-height: 38px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.055);
+    color: rgba(255,255,255,.72);
+    font-size: 12px;
+    font-weight: 850;
+}
+.garage-admin-status.success { color: #56ffc2; }
+.garage-admin-status.error { color: #ff4968; }
+.garage-admin-save-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: auto;
+}
+.garage-admin-save-row .danger {
+    background: rgba(255,73,104,.22);
+    border: 1px solid rgba(255,73,104,.46);
+    color: #fff;
+}
+.garage-detail-card h2 {
+    max-width: 240px;
+    margin-left: auto;
+    margin-right: auto;
+}

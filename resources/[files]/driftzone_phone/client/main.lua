@@ -2,6 +2,9 @@ local phoneVisible = false
 local phoneOpen = false
 local phoneFocus = false
 local lastState = {}
+local PhoneGarageWorld = {}
+local garageAdminOpen = false
+local phoneAnimPlaying = false
 local currentCallOptions = { muted = false, speaker = false }
 
 
@@ -209,6 +212,60 @@ RegisterNetEvent('driftzone_phone:client:garageWaypoint', function(coords)
 end)
 
 
+
+local function requestAnimDictPhone(dict)
+    dict = tostring(dict or '')
+    if dict == '' then return false end
+    RequestAnimDict(dict)
+    local timeout = GetGameTimer() + 1500
+    while not HasAnimDictLoaded(dict) and GetGameTimer() < timeout do
+        Wait(0)
+    end
+    return HasAnimDictLoaded(dict)
+end
+
+local function startPhoneAnim()
+    if phoneAnimPlaying then return end
+    local ped = PlayerPedId()
+    if not ped or ped == 0 or IsPedDeadOrDying(ped, true) then return end
+
+    local dict = 'cellphone@'
+    local anim = 'cellphone_text_read_base'
+    if not requestAnimDictPhone(dict) then return end
+
+    -- Flag 49 = upper body/secondary task, nu blocheaza mersul si nu ingheata ped-ul.
+    TaskPlayAnim(ped, dict, anim, 2.0, -2.0, -1, 49, 0.0, false, false, false)
+    phoneAnimPlaying = true
+end
+
+local function stopPhoneAnim()
+    if not phoneAnimPlaying then return end
+    local ped = PlayerPedId()
+    if ped and ped ~= 0 then
+        StopAnimTask(ped, 'cellphone@', 'cellphone_text_read_base', 1.0)
+        ClearPedSecondaryTask(ped)
+    end
+    phoneAnimPlaying = false
+end
+
+CreateThread(function()
+    while true do
+        if phoneVisible or phoneOpen then
+            startPhoneAnim()
+            local ped = PlayerPedId()
+            if ped and ped ~= 0 and not IsEntityPlayingAnim(ped, 'cellphone@', 'cellphone_text_read_base', 3) then
+                phoneAnimPlaying = false
+                startPhoneAnim()
+            end
+            Wait(1200)
+        else
+            stopPhoneAnim()
+            Wait(500)
+        end
+    end
+end)
+
+
 local function sendNui(data)
     SendNUIMessage(data)
 end
@@ -408,6 +465,60 @@ RegisterNUICallback('shareLocation', function(data, cb)
 end)
 
 
+
+RegisterNetEvent('driftzone_phone:client:garageAdminOpen', function(data)
+    garageAdminOpen = true
+    phoneVisible = false
+    phoneOpen = false
+    setFocus(true)
+    sendNui({ action = 'garageAdminOpen', data = data or {} })
+end)
+
+RegisterNetEvent('driftzone_phone:client:garageAdminResult', function(ok, message, garages)
+    if type(garages) == 'table' then PhoneGarageWorld = garages end
+    sendNui({ action = 'garageAdminResult', ok = ok == true, message = tostring(message or ''), garages = garages or {} })
+end)
+
+RegisterNUICallback('garageAdminClose', function(_, cb)
+    garageAdminOpen = false
+    setFocus(false)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('garageAdminGetPlayerPosition', function(_, cb)
+    local ped = PlayerPedId()
+    local entity = ped
+
+    if ped and ped ~= 0 and IsPedInAnyVehicle(ped, false) then
+        entity = GetVehiclePedIsIn(ped, false)
+    end
+
+    if not entity or entity == 0 then
+        cb({ ok = false })
+        return
+    end
+
+    local c = GetEntityCoords(entity)
+    local h = GetEntityHeading(entity)
+    cb({ ok = true, x = c.x + 0.0, y = c.y + 0.0, z = c.z + 0.0, h = h + 0.0 })
+end)
+
+RegisterNUICallback('garageAdminSave', function(data, cb)
+    TriggerServerEvent('driftzone_phone:server:garageAdminSave', data or {})
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('garageAdminDelete', function(data, cb)
+    TriggerServerEvent('driftzone_phone:server:garageAdminDelete', data and data.id or 0)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('garageAdminReload', function(_, cb)
+    TriggerServerEvent('driftzone_phone:server:garageAdminReload')
+    cb({ ok = true })
+end)
+
+
 RegisterNUICallback('garageSpawn', function(data, cb)
     TriggerServerEvent('driftzone_phone:server:garageSpawn', data and data.id or 0)
     cb({ ok = true })
@@ -429,6 +540,67 @@ RegisterNUICallback('garageLocate', function(data, cb)
 end)
 
 
+
+RegisterNetEvent('driftzone_phone:client:garageWorld', function(garages)
+    PhoneGarageWorld = type(garages) == 'table' and garages or {}
+end)
+
+CreateThread(function()
+    Wait(2000)
+    TriggerServerEvent('driftzone_phone:server:requestGarageWorld')
+end)
+
+CreateThread(function()
+    while true do
+        local waitTime = 900
+        local ped = PlayerPedId()
+
+        if ped and ped ~= 0 and #PhoneGarageWorld > 0 then
+            local pcoords = GetEntityCoords(ped)
+
+            for _, garage in ipairs(PhoneGarageWorld) do
+                local x = tonumber(garage.x or (garage.coords and garage.coords.x))
+                local y = tonumber(garage.y or (garage.coords and garage.coords.y))
+                local z = tonumber(garage.z or (garage.coords and garage.coords.z))
+
+                if x and y and z then
+                    local dist = #(pcoords - vector3(x, y, z))
+                    if dist <= 45.0 then
+                        waitTime = 0
+
+                        -- Sign albastru de masina, ca in driftzone_garage.
+                        DrawMarker(
+                            36,
+                            x, y, z + 0.55,
+                            0.0, 0.0, 0.0,
+                            0.0, 0.0, 0.0,
+                            0.82, 0.82, 0.82,
+                            4, 199, 247, 210,
+                            false, true, 2, false, nil, nil, false
+                        )
+
+                        if garage.visible_radius ~= false then
+                            local radius = tonumber(garage.radius or 4.0) or 4.0
+                            DrawMarker(
+                                1,
+                                x, y, z - 1.02,
+                                0.0, 0.0, 0.0,
+                                0.0, 0.0, 0.0,
+                                radius * 2.0, radius * 2.0, 0.22,
+                                4, 199, 247, 50,
+                                false, false, 2, false, nil, nil, false
+                            )
+                        end
+                    end
+                end
+            end
+        end
+
+        Wait(waitTime)
+    end
+end)
+
+
 RegisterNUICallback('setWaypoint', function(data, cb)
     local loc = data and data.location or {}
     local x = tonumber(loc.x)
@@ -443,6 +615,10 @@ RegisterNetEvent('driftzone_phone:client:state', function(state)
     local wasInCall = lastState and lastState.inCall == true
     local wasActive = lastState and lastState.active == true
     lastState = state or {}
+
+    if lastState.garage and type(lastState.garage.garages) == 'table' then
+        PhoneGarageWorld = lastState.garage.garages
+    end
 
     sendNui({ action = 'state', state = lastState })
 

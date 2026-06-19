@@ -35,5 +35,71 @@
     <audio id="messageSound" preload="auto" src="assets/sounds/message.mp3"></audio>
 
     <script src="script.js"></script>
+
+    <main id="garageAdminRoot" class="garage-admin-root hidden">
+        <section class="garage-admin-panel">
+            <button class="garage-admin-close" onclick="garageAdminClose()">×</button>
+
+            <header class="garage-admin-hero">
+                <div>
+                    <div class="garage-admin-kicker"><img src="assets/icons/garage.svg"> GARAGE BUILDER</div>
+                    <h1>Garage Manager</h1>
+                    <p>Adauga, editeaza si reincarca garaje si locuri de parcare.</p>
+                </div>
+                <div class="garage-admin-actions">
+                    <button onclick="garageAdminNew()">+ Add Garage</button>
+                    <button class="ghost" onclick="garageAdminReload()">Reset / Reload</button>
+                </div>
+            </header>
+
+            <div class="garage-admin-layout">
+                <aside class="garage-admin-list">
+                    <div class="garage-admin-list-title">Garaje</div>
+                    <div id="garageAdminList"></div>
+                </aside>
+
+                <main class="garage-admin-editor">
+                    <div class="garage-admin-form">
+                        <label>ID<input id="gaId" disabled placeholder="Auto"></label>
+                        <label>Nume<input id="gaName" placeholder="Central Garage"></label>
+                        <label>Open Radius<input id="gaRadius" type="number" step="0.1" min="1" value="4"></label>
+                        <label>Park Radius<input id="gaParkRadius" type="number" step="0.1" min="1" value="12"></label>
+                        <label>Radius vizibil
+                            <select id="gaVisible">
+                                <option value="1">Vizibil</option>
+                                <option value="0">Transparent</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="garage-admin-card">
+                        <div class="garage-admin-section-head">
+                            <div><b>Coordonate garaj</b><span>x, y, z. Aici apare sign-ul albastru cu masina.</span></div>
+                            <button class="ghost" onclick="garageAdminUsePosition()">Foloseste pozitia mea</button>
+                        </div>
+                        <label>Coordonate x, y, z
+                            <input id="gaCoords" class="garage-admin-wide" placeholder="215.15, -809.95, 30.73">
+                        </label>
+                    </div>
+
+                    <div class="garage-admin-card">
+                        <div class="garage-admin-section-head">
+                            <div><b>Locuri de parcare</b><span>x, y, z, heading.</span></div>
+                            <button class="ghost" onclick="garageAdminAddSpot()">Adauga pozitia mea</button>
+                        </div>
+                        <div id="garageAdminSpots" class="garage-admin-spots"></div>
+                    </div>
+
+                    <div id="garageAdminStatus" class="garage-admin-status">Selecteaza sau creeaza un garaj.</div>
+
+                    <div class="garage-admin-save-row">
+                        <button onclick="garageAdminSave()">SAVE GARAGE</button>
+                        <button class="danger" onclick="garageAdminDelete()">DELETE</button>
+                    </div>
+                </main>
+            </div>
+        </section>
+    </main>
+
 </body>
 </html>
