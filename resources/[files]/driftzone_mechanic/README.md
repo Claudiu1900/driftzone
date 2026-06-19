@@ -53,3 +53,10 @@ Dacă evenimentul sistemului tău are altă structură, modifică funcția `noti
 Toate coordonatele, plățile, XP-ul, rangurile, uniformele, vehiculele și probabilitatea intervențiilor urgente sunt în `config.lua`.
 
 Nu există `/mechanic`, F6 sau tabletă. Meniul se deschide doar la NPC.
+
+## Corecție v1.1.0
+
+- angajarea confirmă rezultatul direct din baza de date
+- tabela este verificată și reparată automat dacă lipsesc coloane
+- butoanele afișează corect starea de procesare și nu mai pot fi apăsate repetat
+- erorile SQL sunt afișate în consola serverului și jucătorul primește notificare

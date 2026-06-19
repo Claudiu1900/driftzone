@@ -13,11 +13,15 @@ let cleanupGame = () => {};
 let lives = 3;
 let finished = false;
 let gameOpenedAt = 0;
+let menuBusy = false;
 
 const post = (endpoint, data = {}) => fetch(`https://${GetParentResourceName()}/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json; charset=UTF-8' },
     body: JSON.stringify(data)
+}).then(response => response.json()).catch(error => {
+    console.error(`[driftzone_mechanic] NUI ${endpoint}:`, error);
+    return { ok: false };
 });
 
 const money = value => `$${Number(value || 0).toLocaleString('ro-RO')}`;
@@ -55,8 +59,19 @@ function button(label, action, className = 'action-button') {
     const element = document.createElement('button');
     element.className = className;
     element.textContent = label;
-    element.addEventListener('click', () => post('menuAction', { action }));
+    element.addEventListener('click', () => {
+        if (menuBusy) return;
+        post('menuAction', { action });
+    });
     return element;
+}
+
+
+function setMenuBusy(busy) {
+    menuBusy = Boolean(busy);
+    actions.querySelectorAll('button').forEach(element => {
+        element.disabled = menuBusy;
+    });
 }
 
 function renderMenu(profile) {
@@ -77,6 +92,7 @@ function renderMenu(profile) {
     }
 
     actions.innerHTML = '';
+    menuBusy = false;
     if (!profile.employed) {
         actions.append(button('Angajează-te', 'hire'));
     } else if (profile.onDuty) {
@@ -311,6 +327,8 @@ window.addEventListener('message', event => {
         renderMenu(data.profile);
         game.classList.add('hidden');
         menu.classList.remove('hidden');
+    } else if (data.action === 'setMenuBusy') {
+        setMenuBusy(data.busy);
     } else if (data.action === 'startGame') {
         startGame(data.task);
     } else if (data.action === 'closeGame') {

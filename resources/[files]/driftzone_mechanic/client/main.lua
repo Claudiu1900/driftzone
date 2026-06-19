@@ -2,6 +2,8 @@ local state = {
     npc = nil,
     bossBlip = nil,
     menuOpen = false,
+    menuActionPending = false,
+    menuActionToken = 0,
     onDuty = false,
     hasTools = false,
     serviceVehicle = nil,
@@ -128,6 +130,8 @@ end
 
 local function closeMenu()
     state.menuOpen = false
+    state.menuActionPending = false
+    state.menuActionToken = state.menuActionToken + 1
     SetNuiFocus(false, false)
     SendNUIMessage({ action = 'closeAll' })
 end
@@ -354,8 +358,20 @@ end)
 
 RegisterNetEvent('driftzone_mechanic:client:openMenu', function(profile)
     state.menuOpen = true
+    state.menuActionPending = false
+    state.menuActionToken = state.menuActionToken + 1
     SetNuiFocus(true, true)
+    SendNUIMessage({ action = 'setMenuBusy', busy = false })
     SendNUIMessage({ action = 'openMenu', profile = profile })
+end)
+
+RegisterNetEvent('driftzone_mechanic:client:menuActionFinished', function(showMessage)
+    state.menuActionPending = false
+    state.menuActionToken = state.menuActionToken + 1
+    SendNUIMessage({ action = 'setMenuBusy', busy = false })
+    if showMessage then
+        notify('error', 'Atelier', 'Acțiunea nu a putut fi finalizată.')
+    end
 end)
 
 RegisterNetEvent('driftzone_mechanic:client:shiftStarted', function()
@@ -444,15 +460,44 @@ RegisterNUICallback('menuAction', function(data, cb)
     local action = data.action
     if action == 'close' then
         closeMenu()
-    elseif action == 'hire' then
-        TriggerServerEvent('driftzone_mechanic:server:hire')
-    elseif action == 'resign' then
-        TriggerServerEvent('driftzone_mechanic:server:resign')
-    elseif action == 'start' then
-        TriggerServerEvent('driftzone_mechanic:server:startShift')
-    elseif action == 'stop' then
-        TriggerServerEvent('driftzone_mechanic:server:endShift')
+        cb({ ok = true })
+        return
     end
+
+    if state.menuActionPending then
+        cb({ ok = false, error = 'pending' })
+        return
+    end
+
+    local eventByAction = {
+        hire = 'driftzone_mechanic:server:hire',
+        resign = 'driftzone_mechanic:server:resign',
+        start = 'driftzone_mechanic:server:startShift',
+        stop = 'driftzone_mechanic:server:endShift'
+    }
+
+    local serverEvent = eventByAction[action]
+    if not serverEvent then
+        cb({ ok = false, error = 'invalid_action' })
+        return
+    end
+
+    state.menuActionPending = true
+    state.menuActionToken = state.menuActionToken + 1
+    local requestToken = state.menuActionToken
+    SendNUIMessage({ action = 'setMenuBusy', busy = true })
+    TriggerServerEvent(serverEvent)
+
+    CreateThread(function()
+        local requestedAction = action
+        Wait(8000)
+        if state.menuActionPending and state.menuActionToken == requestToken then
+            state.menuActionPending = false
+            SendNUIMessage({ action = 'setMenuBusy', busy = false })
+            notify('error', 'Atelier', ('Serverul nu a confirmat acțiunea „%s”. Verifică consola serverului.'):format(requestedAction), 7000)
+        end
+    end)
+
     cb({ ok = true })
 end)
 

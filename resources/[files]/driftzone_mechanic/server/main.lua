@@ -1,5 +1,7 @@
 local sessions = {}
 local tableName = Config.DatabaseTable
+local databaseReady = false
+local databaseInitializing = false
 
 math.randomseed(os.time())
 
@@ -39,32 +41,125 @@ local function getNextRankProgress(xp, rankIndex)
     return math.max(0, math.min(100, progress)), xp - current.minXP, span, nextRank.name
 end
 
+local requiredColumns = {
+    player_name = "VARCHAR(80) NOT NULL DEFAULT 'Necunoscut'",
+    employed = 'TINYINT(1) NOT NULL DEFAULT 0',
+    xp = 'INT NOT NULL DEFAULT 0',
+    total_jobs = 'INT NOT NULL DEFAULT 0',
+    total_earnings = 'INT NOT NULL DEFAULT 0',
+    internal_wallet = 'INT NOT NULL DEFAULT 0',
+    created_at = 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    updated_at = 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
+}
+
+local function ensureDatabase()
+    if databaseReady then return true end
+
+    if databaseInitializing then
+        local timeout = GetGameTimer() + 10000
+        while databaseInitializing and GetGameTimer() < timeout do
+            Wait(50)
+        end
+        return databaseReady
+    end
+
+    databaseInitializing = true
+    local ok, err = pcall(function()
+        if type(tableName) ~= 'string' or not tableName:match('^[%w_]+$') then
+            error('Config.DatabaseTable conține un nume invalid.')
+        end
+
+        MySQL.query.await(([[
+            CREATE TABLE IF NOT EXISTS `%s` (
+                `identifier` VARCHAR(80) NOT NULL,
+                `player_name` VARCHAR(80) NOT NULL DEFAULT 'Necunoscut',
+                `employed` TINYINT(1) NOT NULL DEFAULT 0,
+                `xp` INT NOT NULL DEFAULT 0,
+                `total_jobs` INT NOT NULL DEFAULT 0,
+                `total_earnings` INT NOT NULL DEFAULT 0,
+                `internal_wallet` INT NOT NULL DEFAULT 0,
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`identifier`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ]]):format(tableName))
+
+        -- CREATE TABLE IF NOT EXISTS nu repară tabelele vechi. Adăugăm automat
+        -- coloanele lipsă, astfel încât angajarea să nu rămână blocată după update-uri.
+        local existing = {}
+        for _, column in ipairs(MySQL.query.await(('SHOW COLUMNS FROM `%s`'):format(tableName)) or {}) do
+            existing[column.Field] = true
+        end
+
+        for column, definition in pairs(requiredColumns) do
+            if not existing[column] then
+                MySQL.query.await(('ALTER TABLE `%s` ADD COLUMN `%s` %s'):format(tableName, column, definition))
+                print(('[driftzone_mechanic] Coloana lipsă `%s` a fost creată.'):format(column))
+            end
+        end
+    end)
+
+    databaseInitializing = false
+    databaseReady = ok
+
+    if not ok then
+        print(('[driftzone_mechanic] EROARE BAZĂ DE DATE: %s'):format(tostring(err)))
+        return false
+    end
+
+    print('[driftzone_mechanic] Baza de date este pregătită și verificată.')
+    return true
+end
+
 local function ensureProfile(source)
+    if not ensureDatabase() then
+        return nil, 'Baza de date nu este disponibilă.'
+    end
+
     local identifier = DZMechanicBridge.GetIdentifier(source)
-    MySQL.insert.await(([[
-        INSERT IGNORE INTO `%s` (`identifier`, `player_name`)
-        VALUES (?, ?)
-    ]]):format(tableName), { identifier, DZMechanicBridge.GetPlayerName(source) })
+    if not identifier or identifier == '' then
+        return nil, 'Identificatorul jucătorului nu a putut fi obținut.'
+    end
 
-    MySQL.update.await(([[
-        UPDATE `%s` SET `player_name` = ?, `updated_at` = CURRENT_TIMESTAMP
-        WHERE `identifier` = ?
-    ]]):format(tableName), { DZMechanicBridge.GetPlayerName(source), identifier })
+    local ok, rowOrError = pcall(function()
+        local playerName = DZMechanicBridge.GetPlayerName(source)
+        MySQL.query.await(([[
+            INSERT INTO `%s` (`identifier`, `player_name`)
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE
+                `player_name` = VALUES(`player_name`),
+                `updated_at` = CURRENT_TIMESTAMP
+        ]]):format(tableName), { identifier, playerName })
 
-    return MySQL.single.await(([[
-        SELECT * FROM `%s` WHERE `identifier` = ? LIMIT 1
-    ]]):format(tableName), { identifier })
+        return MySQL.single.await(([[
+            SELECT * FROM `%s` WHERE `identifier` = ? LIMIT 1
+        ]]):format(tableName), { identifier })
+    end)
+
+    if not ok then
+        print(('[driftzone_mechanic] Eroare profil pentru ID %s: %s'):format(source, tostring(rowOrError)))
+        return nil, 'Profilul de mecanic nu a putut fi încărcat.'
+    end
+
+    if not rowOrError then
+        return nil, 'Profilul de mecanic nu a fost găsit după creare.'
+    end
+
+    return rowOrError
 end
 
 local function buildProfile(source)
-    local row = ensureProfile(source)
+    local row, profileError = ensureProfile(source)
+    if not row then return nil, profileError end
+
     local xp = tonumber(row.xp) or 0
     local rankIndex, rank = getRank(xp)
     local progress, currentXP, neededXP, nextRank = getNextRankProgress(xp, rankIndex)
     local session = sessions[source]
+    local employed = row.employed == true or tonumber(row.employed) == 1
 
     return {
-        employed = tonumber(row.employed) == 1,
+        employed = employed,
         xp = xp,
         rankIndex = rankIndex,
         rankName = rank.name,
@@ -80,6 +175,18 @@ local function buildProfile(source)
         shiftJobs = session and session.completions or 0,
         shiftMistakes = session and session.mistakes or 0
     }
+end
+
+local function sendProfile(source)
+    local profile, profileError = buildProfile(source)
+    if not profile then
+        notify(source, 'error', 'Atelier', profileError or 'Profilul nu a putut fi încărcat.', 7000)
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
+        return false
+    end
+
+    TriggerClientEvent('driftzone_mechanic:client:openMenu', source, profile)
+    return true
 end
 
 local function validPlayerDistance(source, target, maximum)
@@ -127,6 +234,10 @@ local function createTask(source)
     if not session or not session.onDuty or not session.hasTools or session.task then return end
 
     local profile = buildProfile(source)
+    if not profile then
+        notify(source, 'error', 'Dispecerat', 'Profilul nu a putut fi încărcat. Încearcă din nou.')
+        return
+    end
     local allowed = availableTaskTypes(profile.rankIndex)
     if #allowed == 0 then return end
 
@@ -181,58 +292,112 @@ local function finishShift(source, aborted)
 end
 
 CreateThread(function()
-    Wait(700)
-    MySQL.query.await(([[
-        CREATE TABLE IF NOT EXISTS `%s` (
-            `identifier` VARCHAR(80) NOT NULL,
-            `player_name` VARCHAR(80) NOT NULL DEFAULT 'Necunoscut',
-            `employed` TINYINT(1) NOT NULL DEFAULT 0,
-            `xp` INT NOT NULL DEFAULT 0,
-            `total_jobs` INT NOT NULL DEFAULT 0,
-            `total_earnings` INT NOT NULL DEFAULT 0,
-            `internal_wallet` INT NOT NULL DEFAULT 0,
-            `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (`identifier`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    ]]):format(tableName))
-    print('[driftzone_mechanic] Baza de date este pregătită.')
+    Wait(0)
+    ensureDatabase()
 end)
 
 RegisterNetEvent('driftzone_mechanic:server:requestMenu', function()
     local source = source
-    TriggerClientEvent('driftzone_mechanic:client:openMenu', source, buildProfile(source))
+    sendProfile(source)
 end)
 
 RegisterNetEvent('driftzone_mechanic:server:hire', function()
     local source = source
+    local row, profileError = ensureProfile(source)
+    if not row then
+        notify(source, 'error', 'Atelier', profileError or 'Angajarea nu a putut fi procesată.', 7000)
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
+        return
+    end
+
+    if row.employed == true or tonumber(row.employed) == 1 then
+        notify(source, 'info', 'Atelier', 'Ești deja angajat ca mecanic.')
+        sendProfile(source)
+        return
+    end
+
     local identifier = DZMechanicBridge.GetIdentifier(source)
-    ensureProfile(source)
-    MySQL.update.await(([[UPDATE `%s` SET `employed` = 1 WHERE `identifier` = ?]]):format(tableName), { identifier })
-    notify(source, 'success', 'Atelier', 'Ai fost angajat ca Mecanic I. Vorbește din nou cu șeful pentru a începe tura.')
-    TriggerClientEvent('driftzone_mechanic:client:openMenu', source, buildProfile(source))
+    local ok, verificationOrError = pcall(function()
+        MySQL.update.await(([[
+            UPDATE `%s`
+            SET `employed` = 1, `updated_at` = CURRENT_TIMESTAMP
+            WHERE `identifier` = ?
+        ]]):format(tableName), { identifier })
+
+        return MySQL.single.await(([[
+            SELECT `employed` FROM `%s` WHERE `identifier` = ? LIMIT 1
+        ]]):format(tableName), { identifier })
+    end)
+
+    if not ok then
+        print(('[driftzone_mechanic] Angajare eșuată pentru ID %s: %s'):format(source, tostring(verificationOrError)))
+        notify(source, 'error', 'Atelier', 'A apărut o eroare la salvarea angajării. Verifică consola serverului.', 7000)
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
+        return
+    end
+
+    local verification = verificationOrError
+    if not verification or not (verification.employed == true or tonumber(verification.employed) == 1) then
+        notify(source, 'error', 'Atelier', 'Angajarea nu a fost confirmată de baza de date.', 7000)
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
+        return
+    end
+
+    notify(source, 'success', 'Atelier', 'Ai fost angajat ca Mecanic I. Acum poți începe tura.')
+    sendProfile(source)
 end)
 
 RegisterNetEvent('driftzone_mechanic:server:resign', function()
     local source = source
     if sessions[source] and sessions[source].onDuty then
         notify(source, 'error', 'Atelier', 'Încheie tura înainte de a demisiona.')
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
+        return
+    end
+
+    local row, profileError = ensureProfile(source)
+    if not row then
+        notify(source, 'error', 'Atelier', profileError or 'Demisia nu a putut fi procesată.', 7000)
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
         return
     end
 
     local identifier = DZMechanicBridge.GetIdentifier(source)
-    MySQL.update.await(([[UPDATE `%s` SET `employed` = 0 WHERE `identifier` = ?]]):format(tableName), { identifier })
+    local ok, updateError = pcall(function()
+        MySQL.update.await(([[
+            UPDATE `%s`
+            SET `employed` = 0, `updated_at` = CURRENT_TIMESTAMP
+            WHERE `identifier` = ?
+        ]]):format(tableName), { identifier })
+    end)
+
+    if not ok then
+        print(('[driftzone_mechanic] Demisie eșuată pentru ID %s: %s'):format(source, tostring(updateError)))
+        notify(source, 'error', 'Atelier', 'Demisia nu a putut fi salvată.', 7000)
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
+        return
+    end
+
     notify(source, 'info', 'Atelier', 'Ai demisionat. Progresul tău a fost păstrat.')
-    TriggerClientEvent('driftzone_mechanic:client:openMenu', source, buildProfile(source))
+    sendProfile(source)
 end)
 
 RegisterNetEvent('driftzone_mechanic:server:startShift', function()
     local source = source
-    if sessions[source] and sessions[source].onDuty then return end
+    if sessions[source] and sessions[source].onDuty then
+        sendProfile(source)
+        return
+    end
 
-    local profile = buildProfile(source)
+    local profile, profileError = buildProfile(source)
+    if not profile then
+        notify(source, 'error', 'Atelier', profileError or 'Profilul nu a putut fi încărcat.', 7000)
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
+        return
+    end
     if not profile.employed then
         notify(source, 'error', 'Atelier', 'Trebuie să te angajezi mai întâi.')
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
         return
     end
 
@@ -354,6 +519,11 @@ RegisterNetEvent('driftzone_mechanic:server:taskResult', function(taskId, succes
     end
 
     local profileBefore = buildProfile(source)
+    if not profileBefore then
+        notify(source, 'error', 'Intervenție', 'Profilul nu a putut fi încărcat. Plata nu a fost procesată.')
+        session.task.gameStartedAt = nil
+        return
+    end
     local taskConfig = Config.TaskTypes[session.task.type]
     local rank = Config.Ranks[profileBefore.rankIndex]
     local reward = math.random(taskConfig.pay[1], taskConfig.pay[2])
@@ -372,7 +542,7 @@ RegisterNetEvent('driftzone_mechanic:server:taskResult', function(taskId, succes
     local completedTask = session.task
     session.task = nil
 
-    local profileAfter = buildProfile(source)
+    local profileAfter = buildProfile(source) or profileBefore
     local promoted = profileAfter.rankIndex > profileBefore.rankIndex
 
     TriggerClientEvent('driftzone_mechanic:client:taskCompleted', source, {
@@ -390,9 +560,13 @@ end)
 RegisterNetEvent('driftzone_mechanic:server:endShift', function()
     local source = source
     local session = sessions[source]
-    if not session or not session.onDuty then return end
+    if not session or not session.onDuty then
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
+        return
+    end
     if not validPlayerDistance(source, vector3(Config.BossNPC.coords.x, Config.BossNPC.coords.y, Config.BossNPC.coords.z), 7.0) then
         notify(source, 'error', 'Atelier', 'Trebuie să fii lângă șeful atelierului pentru a încheia tura.')
+        TriggerClientEvent('driftzone_mechanic:client:menuActionFinished', source, false)
         return
     end
     finishShift(source, false)

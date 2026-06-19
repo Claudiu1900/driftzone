@@ -5,7 +5,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'Job complet de mecanic pentru DriftZone'
-version '1.0.0'
+version '1.1.0'
 
 ui_page 'html/index.html'
 
