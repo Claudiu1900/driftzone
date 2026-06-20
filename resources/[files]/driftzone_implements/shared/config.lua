@@ -29,6 +29,7 @@ Config.Client = {
     DisableStealthMode = true,
     EnableCrouchReplacement = true,
     CrouchControl = 36,
+    CrouchKey = 'LCONTROL',
     CrouchMoveClipset = 'move_ped_crouched',
     CrouchStrafeClipset = 'move_ped_crouched_strafing',
 
@@ -99,4 +100,14 @@ Config.PlayerStats = {
     },
 
     ClientApplyDelayMs = 1200
+}
+
+
+-- Fallback daca UID-ul nu este in state/export imediat.
+-- Scriptul incearca aceste coloane; daca o coloana nu exista, o sare fara crash.
+Config.IdentifierColumns = {
+    'identifier',
+    'license',
+    'steam',
+    'discord'
 }

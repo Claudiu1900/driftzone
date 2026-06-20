@@ -1,21 +1,14 @@
 # DriftZone Implements - Clean
 
-Resource curat si optimizat pentru server.
+## v2.2.0
 
-## Face:
-
-- reseteaza `users.aduty = 0` cand porneste resource-ul/serverul;
-- reseteaza `users.aduty = 0` cand intra un player;
-- ascunde HUD-ul default GTA;
-- dezactiveaza weapon wheel-ul;
-- dezactiveaza radio/music wheel-ul in masina;
-- opreste radio-ul masinii automat;
-- blocheaza scosul soferului din masina prin animatia de carjack cand tii F;
-- blocheaza trasul din masina / drive-by;
-- dezactiveaza stealth mode-ul GTA;
-- in loc de stealth mode, tasta CTRL pune playerul pe crouch;
-- dezactiveaza camera AFK / idle cinematic camera;
-- cand intra un player, incarca `health` si `armour` din `users.stats`.
+Fixuri:
+- CTRL nu mai intra in stealth mode.
+- CTRL este prins cu `RegisterKeyMapping` si pune playerul pe crouch custom.
+- stealth/action mode este fortat OFF in fiecare frame.
+- camera AFK / idle cinematic ramane dezactivata.
+- health/armour din `users.stats` se incarca mai agresiv dupa spawn.
+- daca UID-ul nu exista imediat in state/export, incearca fallback pe identificatori din DB.
 
 ## users.stats
 
@@ -25,11 +18,11 @@ Exemplu:
 {"health": 100, "armour": 0, "food": 61, "water": 81}
 ```
 
-Resource-ul citeste doar:
+Citeste doar:
 - `health`
 - `armour`
 
-`health = 100` inseamna full HP in GTA, adica `SetEntityHealth(ped, 200)`.
+`health = 100` devine full HP in GTA.
 
 ## Instalare
 
@@ -38,5 +31,3 @@ ensure oxmysql
 ensure driftzone_auth
 ensure driftzone_implements
 ```
-
-Nu are NUI, nu are `runtime_module.js`, nu are godmode, nu are no-ragdoll, nu are infinite stamina, nu are hat lock.

@@ -81,15 +81,59 @@ local function setPlayerStateOff(src)
     end
 end
 
+
+local function getUidFromIdentifiers(src)
+    src = tonumber(src or 0) or 0
+    if src <= 0 then return nil end
+
+    local identifiers = GetPlayerIdentifiers(src)
+    if type(identifiers) ~= 'table' or #identifiers <= 0 then return nil end
+
+    local columns = Config.IdentifierColumns or { 'identifier', 'license', 'steam', 'discord' }
+
+    for _, identifier in ipairs(identifiers) do
+        identifier = tostring(identifier or '')
+
+        if identifier ~= '' then
+            for _, column in ipairs(columns) do
+                local query = ('SELECT %s AS uid FROM %s WHERE %s = ? LIMIT 1'):format(
+                    sqlName(Config.UsersUidColumn),
+                    sqlName(Config.UsersTable),
+                    sqlName(column)
+                )
+
+                local ok, row = dbSingle(query, { identifier })
+                local uid = ok and row and tonumber(row.uid) or nil
+
+                if uid and uid > 0 then
+                    UidCache[src] = {
+                        uid = uid,
+                        expires = GetGameTimer() + 30000
+                    }
+                    return uid
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
 local function getUid(src)
     src = tonumber(src or 0) or 0
     if src <= 0 then return nil end
 
     local state = Player(src).state
-    local keys = { 'dz_uid', 'uid', 'user_id', 'userId', 'driftzone_uid' }
+    local keys = { 'dz_uid', 'uid', 'user_id', 'userId', 'driftzone_uid', 'id', 'user', 'dz_user_id', 'driftzone_user_id' }
 
     for i = 1, #keys do
-        local uid = tonumber(state and state[keys[i]])
+        local value = state and state[keys[i]]
+        local uid = tonumber(value)
+
+        if not uid and type(value) == 'table' then
+            uid = tonumber(value.uid or value.id or value.user_id or value.userId)
+        end
+
         if uid and uid > 0 then return uid end
     end
 
@@ -103,7 +147,15 @@ local function getUid(src)
         function() return exports.driftzone_auth:GetUid(src) end,
         function() return exports.driftzone_auth:getUID(src) end,
         function() return exports.driftzone_auth:getUid(src) end,
-        function() return exports.driftzone_auth:GetUserId(src) end
+        function() return exports.driftzone_auth:GetUserId(src) end,
+        function() return exports.driftzone_auth:getUserId(src) end,
+        function() return exports.driftzone_auth:GetPlayerUid(src) end,
+        function() return exports.driftzone_auth:getPlayerUid(src) end,
+        function()
+            local user = exports.driftzone_auth:GetUser(src)
+            if type(user) == 'table' then return user.uid or user.id or user.user_id end
+            return user
+        end
     }
 
     for _, fn in ipairs(attempts) do
@@ -162,7 +214,7 @@ local function loadPlayerStats(src, reason)
 
     CreateThread(function()
         local joinCfg = statsCfg.JoinLoad or {}
-        local attempts = tonumber(joinCfg.attempts or 20) or 20
+        local attempts = tonumber(joinCfg.attempts or 30) or 30
         local interval = tonumber(joinCfg.intervalMs or 1000) or 1000
 
         for _ = 1, attempts do

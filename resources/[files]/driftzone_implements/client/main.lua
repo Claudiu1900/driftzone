@@ -1,5 +1,6 @@
 local lastVehicle = 0
 local crouched = false
+local lastCrouchToggle = 0
 
 local function cfg()
     return Config.Client or {}
@@ -87,31 +88,64 @@ local function disableIdleCamera()
     end)
 end
 
+local function toggleCrouch()
+    local now = GetGameTimer()
+    if now - lastCrouchToggle < 250 then return end
+    lastCrouchToggle = now
+    setCrouch(not crouched)
+end
+
+local function forceStealthOff(ped)
+    if ped == 0 then return end
+
+    safeCall(function()
+        SetPedStealthMovement(ped, false, 0)
+    end)
+
+    safeCall(function()
+        SetPedStealthMovement(ped, false, 'DEFAULT_ACTION')
+    end)
+
+    safeCall(function()
+        SetPedUsingActionMode(ped, false, -1, 'DEFAULT_ACTION')
+    end)
+end
+
 local function handleStealthAndCrouch(ped)
     if cfg().DisableStealthMode ~= true then return end
 
+    -- Control 36 este stealth/duck. Il blocam in toate control group-urile.
+    DisableControlAction(0, 36, true)
+    DisableControlAction(1, 36, true)
+    DisableControlAction(2, 36, true)
     disableControls(Config.DisabledStealthControls)
 
-    if ped ~= 0 then
-        safeCall(function()
-            SetPedStealthMovement(ped, false, 'DEFAULT_ACTION')
-        end)
-    end
+    forceStealthOff(ped)
 
     if cfg().EnableCrouchReplacement ~= true then
         if crouched then setCrouch(false) end
         return
     end
 
-    local control = tonumber(cfg().CrouchControl or 36) or 36
-
     if ped == 0 or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) or IsPedRagdoll(ped) then
         if crouched then setCrouch(false) end
         return
     end
 
+    local control = tonumber(cfg().CrouchControl or 36) or 36
+
+    -- Fallback pentru control, dar keymap-ul de mai jos este principal.
     if IsDisabledControlJustPressed(0, control) then
-        setCrouch(not crouched)
+        toggleCrouch()
+    end
+
+    -- Tine clipset-ul activ daca alt script/GTA il reseteaza.
+    if crouched then
+        local moveClipset = tostring(cfg().CrouchMoveClipset or 'move_ped_crouched')
+        if loadAnimSet(moveClipset) then
+            SetPedMovementClipset(ped, moveClipset, 0.25)
+        end
+        forceStealthOff(ped)
     end
 end
 
@@ -134,16 +168,20 @@ local function applyStatsPayload(payload)
     if type(payload) ~= 'table' then return end
 
     local health = gtaHealthFromStatsHealth(payload.health)
-    local armour = tonumber(payload.armour)
+    local armourValue = tonumber(payload.armour)
 
     CreateThread(function()
         local delay = tonumber((Config.PlayerStats or {}).ClientApplyDelayMs or 1200) or 1200
         Wait(delay)
 
-        for _ = 1, 20 do
-            local ped = getPed()
+        -- Aplicam de mai multe ori, pentru ca spawnmanager / alte scripturi pot reseta HP-ul dupa spawn.
+        local applyTimes = { 0, 800, 1600, 3000, 5000, 8000 }
 
-            if ped ~= 0 and not IsEntityDead(ped) then
+        for _, extraDelay in ipairs(applyTimes) do
+            if extraDelay > 0 then Wait(extraDelay) end
+
+            local ped = getPed()
+            if ped ~= 0 and DoesEntityExist(ped) and not IsEntityDead(ped) then
                 if health then
                     safeCall(function()
                         SetEntityMaxHealth(ped, 200)
@@ -152,8 +190,8 @@ local function applyStatsPayload(payload)
                     SetEntityHealth(ped, health)
                 end
 
-                if armour then
-                    armour = math.max(0, math.min(100, math.floor(armour)))
+                if armourValue then
+                    local armour = math.max(0, math.min(100, math.floor(armourValue)))
 
                     safeCall(function()
                         SetPlayerMaxArmour(PlayerId(), 100)
@@ -161,11 +199,7 @@ local function applyStatsPayload(payload)
 
                     SetPedArmour(ped, armour)
                 end
-
-                return
             end
-
-            Wait(500)
         end
     end)
 end
@@ -295,6 +329,20 @@ local function applyFrameControls()
     disableVehicleDriveBy(ped)
 end
 
+
+RegisterCommand('+dz_crouch', function()
+    if cfg().DisableStealthMode ~= true or cfg().EnableCrouchReplacement ~= true then return end
+    toggleCrouch()
+end, false)
+
+RegisterCommand('-dz_crouch', function() end, false)
+
+CreateThread(function()
+    Wait(500)
+    local key = tostring(cfg().CrouchKey or 'LCONTROL')
+    RegisterKeyMapping('+dz_crouch', 'DriftZone Crouch', 'keyboard', key)
+end)
+
 CreateThread(function()
     while true do
         applyFrameControls()
@@ -316,6 +364,12 @@ end)
 AddEventHandler('playerSpawned', function()
     TriggerServerEvent('driftzone_implements:server:resetAdutyOnJoin')
     TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
+    SetTimeout(2500, function()
+        TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
+    end)
+    SetTimeout(6500, function()
+        TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
+    end)
 
     SetTimeout(700, function()
         local ped = getPed()
@@ -330,6 +384,12 @@ AddEventHandler('onClientResourceStart', function(resource)
 
     TriggerServerEvent('driftzone_implements:server:resetAdutyOnJoin')
     TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
+    SetTimeout(2500, function()
+        TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
+    end)
+    SetTimeout(6500, function()
+        TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
+    end)
     SetPlayerCanDoDriveBy(PlayerId(), false)
 end)
 
