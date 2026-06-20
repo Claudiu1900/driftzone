@@ -251,19 +251,27 @@ local function getStateUserId(source)
         state.userId,
         state.userid,
         state.id,
+        state.user,
+        state.dz_user_id,
+        state.driftzone_user_id,
         state.character_id,
         state.citizenid
     }
 
     for i = 1, #candidates do
-        if candidates[i] ~= nil and tostring(candidates[i]) ~= '' then
-            return candidates[i]
+        local value = candidates[i]
+
+        if type(value) == 'table' then
+            value = value.uid or value.id or value.user_id or value.userId
+        end
+
+        if value ~= nil and tostring(value) ~= '' then
+            return value
         end
     end
 
     return nil
 end
-
 
 local function getExportUserId(source)
     local attempts = {
@@ -272,13 +280,27 @@ local function getExportUserId(source)
         function() return exports.driftzone_auth:getUID(source) end,
         function() return exports.driftzone_auth:getUid(source) end,
         function() return exports.driftzone_auth:GetUserId(source) end,
-        function() return exports.driftzone_auth:getUserId(source) end
+        function() return exports.driftzone_auth:getUserId(source) end,
+        function() return exports.driftzone_auth:GetPlayerUid(source) end,
+        function() return exports.driftzone_auth:getPlayerUid(source) end,
+        function()
+            local user = exports.driftzone_auth:GetUser(source)
+            if type(user) == 'table' then return user.uid or user.id or user.user_id or user.userId end
+            return user
+        end
     }
 
     for i = 1, #attempts do
         local ok, value = pcall(attempts[i])
-        if ok and value ~= nil and tostring(value) ~= '' then
-            return value
+
+        if ok and value ~= nil then
+            if type(value) == 'table' then
+                value = value.uid or value.id or value.user_id or value.userId
+            end
+
+            if value ~= nil and tostring(value) ~= '' then
+                return value
+            end
         end
     end
 
@@ -288,23 +310,20 @@ end
 local function resolveUserRow(source)
     local identifiers = getPlayerIdentifierData(source)
 
-    -- 1. Mapări uzuale: vrp_user_ids.identifier -> users.id.
+    -- 1. DriftZone: uid din state/export -> users.uid.
     if schema.userIdColumn then
-        for _, mapping in ipairs(schema.mappingTables) do
-            for i = 1, #identifiers.all do
-                local query = ('SELECT `%s` AS `mapped_id` FROM `%s` WHERE `%s` = ? LIMIT 1')
-                    :format(mapping.userIdColumn, mapping.tableName, mapping.identifierColumn)
-                local mapped = singleAwait(query, { identifiers.all[i] })
+        local directUserId = getStateUserId(source)
+        if directUserId == nil then
+            directUserId = getExportUserId(source)
+        end
 
-                if mapped and mapped.mapped_id ~= nil then
-                    local row = selectUserBy(schema.userIdColumn, mapped.mapped_id)
-                    if row then return row end
-                end
-            end
+        if directUserId ~= nil and tostring(directUserId) ~= '' then
+            local row = selectUserBy(schema.userIdColumn, directUserId)
+            if row then return row end
         end
     end
 
-    -- 2. Coloane de identifier direct în users.
+    -- 2. Coloane de identifier direct in users.
     local directColumns = {
         identifier = identifiers.all,
         license = identifiers.byType.license,
@@ -325,18 +344,19 @@ local function resolveUserRow(source)
         end
     end
 
-    -- 3. User ID pus de framework în state bag sau oferit prin export.
+    -- 3. Mapping tables: vrp_user_ids/user_ids -> users.uid/id.
     if schema.userIdColumn then
-        local stateUserId = getStateUserId(source)
-        if stateUserId ~= nil then
-            local row = selectUserBy(schema.userIdColumn, stateUserId)
-            if row then return row end
-        end
+        for _, mapping in ipairs(schema.mappingTables) do
+            for i = 1, #identifiers.all do
+                local query = ('SELECT `%s` AS `mapped_id` FROM `%s` WHERE `%s` = ? LIMIT 1')
+                    :format(mapping.userIdColumn, mapping.tableName, mapping.identifierColumn)
+                local mapped = singleAwait(query, { identifiers.all[i] })
 
-        local exportUserId = getExportUserId(source)
-        if exportUserId ~= nil then
-            local row = selectUserBy(schema.userIdColumn, exportUserId)
-            if row then return row end
+                if mapped and mapped.mapped_id ~= nil then
+                    local row = selectUserBy(schema.userIdColumn, mapped.mapped_id)
+                    if row then return row end
+                end
+            end
         end
     end
 
@@ -540,6 +560,7 @@ local function loadStatus(source, applyVitals)
 
     warnedPlayers[source] = nil
     playerStatus[source] = createStatus(locator, locator.rawStats)
+    print(('[driftzone_minimap] Loaded status for source %s | health=%s armour=%s food=%s water=%s'):format(source, playerStatus[source].health, playerStatus[source].armour, playerStatus[source].food, playerStatus[source].water))
     loadingPlayers[source] = nil
 
     applyPendingData(source)
@@ -596,12 +617,16 @@ local function clientTriggerAllowed(source, triggerName)
     return true
 end
 
-AddEventHandler('playerJoining', function()
-    scheduleJoinLoad(source, 'playerJoining')
-end)
+
+local scheduleJoinLoad
 
 RegisterNetEvent('driftzone_minimap:requestStatus', function(applyVitals)
     local playerSource = source
+
+    if applyVitals == true and scheduleJoinLoad then
+        scheduleJoinLoad(playerSource, 'requestStatus')
+        return
+    end
 
     CreateThread(function()
         loadStatus(playerSource, applyVitals == true)
@@ -716,7 +741,7 @@ local function applyStatusDamage(source, data, percent)
     TriggerClientEvent('driftzone_minimap:client:applyStatusDamage', source, percent)
 end
 
-local function scheduleJoinLoad(source, reason)
+scheduleJoinLoad = function(source, reason)
     source = tonumber(source)
     if not source or (Config.JoinLoad and Config.JoinLoad.Enabled == false) then return end
 
@@ -739,6 +764,11 @@ local function scheduleJoinLoad(source, reason)
         print(('^1[driftzone_minimap] Nu am putut incarca status pentru %s. Reason: %s^7'):format(tostring(source), tostring(reason or 'join')))
     end)
 end
+
+AddEventHandler('playerJoining', function()
+    scheduleJoinLoad(source, 'playerJoining')
+end)
+
 
 CreateThread(function()
     while GetResourceState('oxmysql') ~= 'started' do

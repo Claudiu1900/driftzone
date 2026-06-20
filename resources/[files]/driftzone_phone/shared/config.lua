@@ -39,7 +39,23 @@ Config.Garage = {
     DefaultGarageId = 1,
     SpawnCooldownMs = 3000,
     ParkingSpotClearRadius = 3.2,
-    OutsideVehiclesColumn = 'outsidevehicles'
+    OutsideVehiclesColumn = 'outsidevehicles',
+
+    -- Verifica periodic daca masinile spawnate inca exista.
+    -- Daca o masina este stearsa de alt script/admin/restart, nu mai apare ca scoasa.
+    GarageVehicleCleanupIntervalMs = 5000,
+
+    -- Tuning/VS integration.
+    ApplyTuningRetries = { 150, 450, 900, 1600, 2800 },
+    RegisterVehicleConfig = true,
+
+    -- Blip-uri garaje pe harta.
+    GarageBlipEnabled = true,
+    GarageBlipSprite = 357,
+    GarageBlipColor = 38,
+    GarageBlipScale = 0.78,
+    GarageBlipShortRange = true,
+    GarageBlipName = 'Garaj'
 }
 
 

@@ -646,7 +646,38 @@ end
 
 local function simpleGetSpawnedData(vehicleId)
     vehicleId = tonumber(vehicleId or 0) or 0
-    return SimpleSpawnedVehicles[vehicleId] or GarageVehicles[vehicleId]
+    if vehicleId <= 0 then return nil end
+
+    local data = SimpleSpawnedVehicles[vehicleId] or GarageVehicles[vehicleId]
+    if not data then return nil end
+
+    -- Pending ramane temporar spawned ca sa blocheze spawn dublu pana confirma/fails.
+    if data.pending == true then return data end
+
+    if vehicleExists(data.entity) then return data end
+
+    local netId = tonumber(data.netId or 0) or 0
+    if netId > 0 then
+        local entity = NetworkGetEntityFromNetworkId(netId)
+        if vehicleExists(entity) then
+            data.entity = entity
+            return data
+        end
+    end
+
+    -- Cauta dupa state bag, ca in driftzone_garage.
+    for _, entity in ipairs(getServerVehiclesSafe()) do
+        if vehicleExists(entity) and getEntityVehicleId(entity) == vehicleId then
+            data.entity = entity
+            data.netId = NetworkGetNetworkIdFromEntity(entity)
+            return data
+        end
+    end
+
+    -- Vehiculul a fost sters de alt script/admin/resource. Curatam runtime status.
+    SimpleSpawnedVehicles[vehicleId] = nil
+    GarageVehicles[vehicleId] = nil
+    return nil
 end
 
 local function simpleIsSpawned(vehicleId)
@@ -804,20 +835,91 @@ local function refreshPhoneGarage(src)
     end
 end
 
+
+local function cleanupStalePhoneGarageVehicles()
+    local changedBySrc = {}
+
+    for vehicleId, data in pairs(SimpleSpawnedVehicles or {}) do
+        if data and data.pending ~= true then
+            local exists = false
+
+            if vehicleExists(data.entity) then
+                exists = true
+            else
+                local netId = tonumber(data.netId or 0) or 0
+                if netId > 0 then
+                    local entity = NetworkGetEntityFromNetworkId(netId)
+                    if vehicleExists(entity) then
+                        data.entity = entity
+                        exists = true
+                    end
+                end
+            end
+
+            if not exists then
+                for _, entity in ipairs(getServerVehiclesSafe()) do
+                    if vehicleExists(entity) and getEntityVehicleId(entity) == tonumber(vehicleId or 0) then
+                        data.entity = entity
+                        data.netId = NetworkGetNetworkIdFromEntity(entity)
+                        exists = true
+                        break
+                    end
+                end
+            end
+
+            if not exists then
+                local ownerSrc = tonumber(data.ownerSrc or 0) or 0
+                SimpleSpawnedVehicles[vehicleId] = nil
+                GarageVehicles[vehicleId] = nil
+
+                if ownerSrc > 0 and GetPlayerName(ownerSrc) then
+                    changedBySrc[ownerSrc] = true
+                end
+            end
+        end
+    end
+
+    for src in pairs(changedBySrc) do
+        refreshPhoneGarage(src)
+    end
+end
+
 local function setVehicleStatePhone(entity, data)
     if not vehicleExists(entity) then return end
+    data = data or {}
+
     local state = Entity(entity).state
+    local tuningRaw = normalizeTuning(data.tuning or '{}')
+    local gradientRaw = normalizeGradient(data.gradient or '')
+
     state:set('dz_phone_garage_vehicle', true, true)
     state:set('dz_phone_garage_vehicle_id', tonumber(data.vehicleId or 0) or 0, true)
     state:set('dz_phone_garage_owner_uid', tonumber(data.ownerUid or 0) or 0, true)
     state:set('dz_phone_garage_plate', tostring(data.plate or ''), true)
     state:set('dz_phone_garage_model', tostring(data.model or ''), true)
+
+    -- Compatibilitate completa cu driftzone_garage / driftzone_vehicleconfig / VS.
     state:set('dz_garage_vehicle', true, true)
+    state:set('dz_garage_owner_uid', tonumber(data.ownerUid or 0) or 0, true)
+    state:set('dz_garage_owner_name', tostring(data.ownerName or ''), true)
     state:set('dz_garage_db_id', tonumber(data.vehicleId or 0) or 0, true)
     state:set('ownedVehicleId', tonumber(data.vehicleId or 0) or 0, true)
-    state:set('dz_garage_owner_uid', tonumber(data.ownerUid or 0) or 0, true)
-    state:set('dz_garage_tuning', normalizeTuning(data.tuning or '{}'), true)
-    state:set('dz_garage_gradient', normalizeGradient(data.gradient or ''), true)
+    state:set('vehicle_id', tonumber(data.vehicleId or 0) or 0, true)
+    state:set('dz_garage_model', tostring(data.model or ''), true)
+    state:set('dz_garage_name', tostring(data.name or data.model or 'Vehiculul tau'), true)
+    state:set('dz_garage_plate', tostring(data.plate or ''), true)
+    state:set('vehicle_plate', tostring(data.plate or ''), true)
+    state:set('dz_garage_is_vip', data.vip == true, true)
+    state:set('dz_garage_godmode', false, true)
+    state:set('dz_garage_id', tonumber(data.garageId or 0) or 0, true)
+
+    state:set('dz_garage_tuning', tuningRaw, true)
+    state:set('vehicleTunning', tuningRaw, true)
+    state:set('dz_vehicle_tunning', tuningRaw, true)
+
+    state:set('dz_garage_gradient', gradientRaw, true)
+    state:set('vehicleGradient', gradientRaw, true)
+    state:set('dz_vehicle_gradient', gradientRaw, true)
 end
 
 local function cleanupPhoneGarageVehicle(vehicleId)
@@ -1192,6 +1294,15 @@ RegisterNetEvent('driftzone_phone:server:requestGarageWorld', function()
     TriggerClientEvent('driftzone_phone:client:garageWorld', source, loadPhoneGarages(true))
 end)
 
+
+-- PHONE GARAGE STALE VEHICLE CLEANUP
+CreateThread(function()
+    while true do
+        Wait(tonumber((garageCfg() or {}).GarageVehicleCleanupIntervalMs or 5000) or 5000)
+        cleanupStalePhoneGarageVehicles()
+    end
+end)
+
 RegisterNetEvent('driftzone_phone:server:requestState', function()
     local src = source
     if isLogged(src) then sendState(src) end
@@ -1424,7 +1535,19 @@ RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
     if storedGarage <= 0 then storedGarage = tonumber((garageCfg() or {}).DefaultGarageId or 1) or 1 end
 
     if storedGarage ~= tonumber(garage.id or 0) then
-        notifyPhone(src, 'warning', 'Masina nu se afla in acest garaj.')
+        local targetGarage = getGarageById(storedGarage)
+
+        if targetGarage then
+            notifyPhone(src, 'warning', ('Masina nu este la acest garaj. Ti-am pus waypoint la %s.'):format(tostring(targetGarage.name or ('Garaj #' .. tostring(storedGarage)))), 6500)
+            TriggerClientEvent('driftzone_phone:client:garageWaypoint', src, {
+                x = tonumber(targetGarage.x or 0) or 0,
+                y = tonumber(targetGarage.y or 0) or 0,
+                z = tonumber(targetGarage.z or 0) or 0
+            })
+        else
+            notifyPhone(src, 'warning', 'Masina nu este la acest garaj.')
+        end
+
         return refreshPhoneGarage(src)
     end
 
@@ -1453,7 +1576,9 @@ RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
         plate = plate,
         tuning = tuningRaw,
         gradient = gradientRaw,
-        garageId = tonumber(garage.id or 0) or 0
+        garageId = tonumber(garage.id or 0) or 0,
+        vip = tonumber(row.vip or 0) == 1,
+        name = model
     })
 
     PendingGarageSpawns[vehicleId] = {
@@ -1465,6 +1590,14 @@ RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
         tuning = tuningRaw,
         gradient = gradientRaw,
         garageId = tonumber(garage.id or 0) or 0,
+        vip = tonumber(row.vip or 0) == 1,
+        name = model,
+        spawn = {
+            x = tonumber(spot.x or 0) or 0,
+            y = tonumber(spot.y or 0) or 0,
+            z = tonumber(spot.z or 0) or 0,
+            h = tonumber(spot.h or 0) or 0
+        },
         bucket = GetPlayerRoutingBucket(src) or 0
     }
 
@@ -1530,10 +1663,15 @@ RegisterNetEvent('driftzone_phone:server:garageConfirmSpawn', function(vehicleId
     setVehicleStatePhone(entity, {
         vehicleId = vehicleId,
         ownerUid = pending.uid,
+        ownerSrc = src,
+        ownerName = getPlayerName(src) or '',
         model = pending.model,
+        name = pending.name or pending.model,
         plate = pending.plate,
         tuning = pending.tuning,
-        gradient = pending.gradient
+        gradient = pending.gradient,
+        garageId = pending.garageId,
+        vip = pending.vip == true
     })
 
     simpleSetSpawned(vehicleId, {
@@ -1546,7 +1684,19 @@ RegisterNetEvent('driftzone_phone:server:garageConfirmSpawn', function(vehicleId
         plate = pending.plate,
         tuning = pending.tuning,
         gradient = pending.gradient,
-        garageId = pending.garageId
+        garageId = pending.garageId,
+        vip = pending.vip == true
+    })
+
+    TriggerClientEvent('driftzone_phone:client:garageApplyVehicle', -1, netId, {
+        id = vehicleId,
+        vehicleId = vehicleId,
+        model = pending.model,
+        plate = pending.plate,
+        tuning = pending.tuning,
+        gradient = pending.gradient,
+        garageId = pending.garageId,
+        spawn = pending.spawn
     })
 
     PendingGarageSpawns[vehicleId] = nil

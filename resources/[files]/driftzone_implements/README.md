@@ -1,15 +1,16 @@
 # DriftZone Implements - Clean
 
-## v2.7.0 - Crosshair Fixed
+## v2.8.0 - Crosshair Aim Only
 
 Resource curat si optimizat pentru server.
 
 ## Fix nou
 
-- crosshair-ul / reticle-ul apare din nou când ții arma;
-- am scos HUD component `14` din lista ascunsă;
-- am adăugat `ForceCrosshair = true`;
-- crosshair-ul este forțat într-un thread separat la `0ms`, ca să nu fie ascuns de alte UI-uri.
+- crosshair-ul apare doar cand playerul tine arma indreptata / apasa aim;
+- nu mai apare doar pentru ca arma este in mana;
+- `ForceCrosshair = true`;
+- `CrosshairOnlyWhileAiming = true`;
+- HUD component `14` nu mai este ascuns din config.
 
 ## Face:
 
@@ -19,7 +20,7 @@ Resource curat si optimizat pentru server.
 - activeaza friendly fire;
 - reseteaza `users.aduty = 0` cand porneste resource-ul/serverul;
 - reseteaza `users.aduty = 0` cand intra un player;
-- ascunde HUD-ul default GTA, dar NU mai ascunde reticle-ul;
+- ascunde HUD-ul default GTA, dar nu omoara crosshair-ul;
 - dezactiveaza weapon wheel-ul;
 - dezactiveaza radio/music wheel-ul in masina;
 - opreste radio-ul masinii automat;
@@ -28,11 +29,6 @@ Resource curat si optimizat pentru server.
 - dezactiveaza stealth mode-ul GTA;
 - CTRL pune playerul pe crouch custom;
 - dezactiveaza camera AFK / idle cinematic camera.
-
-## Important
-
-Drive-by ramane blocat.
-PvP normal pe jos ramane activ.
 
 ## Instalare
 

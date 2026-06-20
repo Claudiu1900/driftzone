@@ -22,6 +22,7 @@ local vitalsApplyToken = 0
 local lastSentHealth = nil
 local lastSentArmour = nil
 local lastVitalsHeartbeat = 0
+local sendHudUpdate
 
 local function clamp(value, minimum, maximum)
     value = tonumber(value) or minimum
@@ -136,7 +137,7 @@ local function applySavedVitals(health, armour)
     end)
 end
 
-local function sendHudUpdate(force)
+sendHudUpdate = function(force)
     local pauseActive = IsPauseMenuActive()
     local shouldShow = hudVisible and not pauseActive
 
@@ -310,10 +311,16 @@ local function requestStatus(applyVitals)
     TriggerServerEvent('driftzone_minimap:requestStatus', applyVitals == true)
 end
 
+local function forceRequestStatus(applyVitals)
+    lastStatusRequestAt = 0
+    TriggerServerEvent('driftzone_minimap:requestStatus', applyVitals == true)
+end
+
 RegisterNUICallback('ready', function(_, callback)
     nuiReady = true
     lastPayload = nil
     sendHudUpdate(true)
+    forceRequestStatus(true)
     callback({ ok = true })
 end)
 
@@ -326,7 +333,7 @@ RegisterNetEvent('driftzone_minimap:client:syncStatus', function(data)
     status.synced = true
 
     if data.applyVitals == true then
-        applySavedVitals(data.health or Config.DefaultHealth, data.armour or Config.DefaultArmour)
+        applySavedVitals(data.health ~= nil and data.health or Config.DefaultHealth, data.armour ~= nil and data.armour or Config.DefaultArmour)
     end
 
     sendHudUpdate(true)
@@ -426,18 +433,18 @@ AddEventHandler('playerSpawned', function()
     vitalsApplied = false
     Wait(1000)
 
-    requestStatus(true)
+    forceRequestStatus(true)
 
-    SetTimeout(tonumber((Config.JoinLoad or {}).ClientRetryMs or 5000) or 5000, function()
-        if not vitalsApplied then
-            requestStatus(true)
-        end
+    SetTimeout(2500, function()
+        if not vitalsApplied then forceRequestStatus(true) end
     end)
 
-    SetTimeout(9000, function()
-        if not vitalsApplied then
-            requestStatus(true)
-        end
+    SetTimeout(6000, function()
+        if not vitalsApplied then forceRequestStatus(true) end
+    end)
+
+    SetTimeout(10000, function()
+        if not vitalsApplied then forceRequestStatus(true) end
     end)
 
     applyMinimapPosition()
@@ -453,12 +460,14 @@ AddEventHandler('onClientResourceStart', function(resourceName)
     vitalsApplied = false
     applyMinimapPosition()
     hideDefaultHealthArmour()
-    requestStatus(true)
+    forceRequestStatus(true)
 
-    SetTimeout(5000, function()
-        if not vitalsApplied then
-            requestStatus(true)
-        end
+    SetTimeout(3000, function()
+        if not vitalsApplied then forceRequestStatus(true) end
+    end)
+
+    SetTimeout(8000, function()
+        if not vitalsApplied then forceRequestStatus(true) end
     end)
 end)
 

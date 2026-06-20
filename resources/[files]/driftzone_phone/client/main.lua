@@ -3,6 +3,7 @@ local phoneOpen = false
 local phoneFocus = false
 local lastState = {}
 local PhoneGarageWorld = {}
+local PhoneGarageBlips = {}
 local garageAdminOpen = false
 local phoneAnimPlaying = false
 local currentCallOptions = { muted = false, speaker = false }
@@ -56,16 +57,314 @@ local function getGroundSpawnZ(x, y, z)
     return z
 end
 
-local function applyGarageVehicleTuning(entity, tuningRaw, gradientRaw)
-    if not entity or entity == 0 or not DoesEntityExist(entity) then return end
-    requestVehicleControl(entity, 1200)
-    SetVehicleModKit(entity, 0)
 
-    if tuningRaw and tostring(tuningRaw) ~= '' then
-        TriggerEvent('client:tunning:applyVehicle', VehToNet(entity), tostring(tuningRaw))
-        TriggerEvent('driftzone_tunning:client:applyVehicle', VehToNet(entity), tostring(tuningRaw))
+local MOD_KEY_TYPES = {
+    spoiler = 0, frontBumper = 1, rearBumper = 2, sideSkirt = 3, exhaust = 4, frame = 5, grille = 6, hood = 7,
+    fender = 8, rightFender = 9, roof = 10, engine = 11, brakes = 12, transmission = 13, horn = 14, horns = 14,
+    suspension = 15, armor = 16, frontWheels = 23, wheels = 23, wheel = 23, backWheels = 24, plateHolder = 25,
+    vanityPlate = 26, trimA = 27, ornaments = 28, dashboard = 29, dial = 30, doorSpeaker = 31, seats = 32,
+    steeringWheel = 33, shiftLever = 34, plaques = 35, speakers = 36, trunk = 37, hydraulics = 38, engineBlock = 39,
+    airFilter = 40, struts = 41, archCover = 42, aerials = 43, trimB = 44, tank = 45, windows = 46, livery = 48
+}
+
+local function decodeTuning(raw)
+    if type(raw) == 'table' then return raw end
+
+    local text = tostring(raw or '{}')
+    if text == '' or text == 'null' or text == 'nil' then return {} end
+
+    local ok, decoded = pcall(json.decode, text)
+    if ok and type(decoded) == 'table' then return decoded end
+
+    return {}
+end
+
+local function parseHexColor(value)
+    local clean = tostring(value or ''):gsub('#', '')
+    if not clean:match('^[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]$') then
+        return nil
+    end
+
+    return {
+        r = tonumber(clean:sub(1, 2), 16) or 0,
+        g = tonumber(clean:sub(3, 4), 16) or 0,
+        b = tonumber(clean:sub(5, 6), 16) or 0
+    }
+end
+
+local function normalizeColor(value)
+    if type(value) == 'string' then
+        return parseHexColor(value)
+    end
+
+    if type(value) == 'table' then
+        return {
+            r = tonumber(value.r or value[1] or 0) or 0,
+            g = tonumber(value.g or value[2] or 0) or 0,
+            b = tonumber(value.b or value[3] or 0) or 0
+        }
+    end
+
+    return nil
+end
+
+local function boolValue(value)
+    if value == true then return true end
+    local text = tostring(value or ''):lower()
+    return tonumber(value) == 1 or text == 'true' or text == 'yes' or text == 'on'
+end
+
+local function applyColorData(entity, tuning)
+    local primary = normalizeColor(tuning.primaryColor or tuning.primary or tuning.customPrimaryColor)
+    local secondary = normalizeColor(tuning.secondaryColor or tuning.secondary or tuning.customSecondaryColor)
+
+    if primary then
+        SetVehicleCustomPrimaryColour(entity, primary.r, primary.g, primary.b)
+    end
+
+    if secondary then
+        SetVehicleCustomSecondaryColour(entity, secondary.r, secondary.g, secondary.b)
+    end
+
+    local pearl, wheel = GetVehicleExtraColours(entity)
+
+    if tuning.pearlescentColor ~= nil or tuning.pearl ~= nil then
+        pearl = tonumber(tuning.pearlescentColor or tuning.pearl) or pearl or 0
+    end
+
+    if tuning.wheelColor ~= nil then
+        wheel = tonumber(tuning.wheelColor) or wheel or 0
+    end
+
+    SetVehicleExtraColours(entity, pearl or 0, wheel or 0)
+
+    if tuning.windowTint ~= nil then
+        SetVehicleWindowTint(entity, tonumber(tuning.windowTint) or 0)
+    end
+
+    if tuning.xenonColor ~= nil then
+        ToggleVehicleMod(entity, 22, true)
+        SetVehicleXenonLightsColor(entity, tonumber(tuning.xenonColor) or 0)
+    end
+
+    if tuning.neonColor ~= nil then
+        local c = normalizeColor(tuning.neonColor)
+        if c then
+            SetVehicleNeonLightsColour(entity, c.r, c.g, c.b)
+            for i = 0, 3 do SetVehicleNeonLightEnabled(entity, i, true) end
+        end
+    end
+
+    if tuning.tyreSmokeColor ~= nil or tuning.tireSmokeColor ~= nil then
+        local c = normalizeColor(tuning.tyreSmokeColor or tuning.tireSmokeColor)
+        if c then
+            ToggleVehicleMod(entity, 20, true)
+            SetVehicleTyreSmokeColor(entity, c.r, c.g, c.b)
+        end
     end
 end
+
+local function applyNumberMods(entity, tuning)
+    for key, modType in pairs(MOD_KEY_TYPES) do
+        if tuning[key] ~= nil then
+            local value = tonumber(tuning[key])
+            if value ~= nil then
+                SetVehicleMod(entity, modType, value, false)
+            end
+        end
+    end
+
+    -- Compatibilitate cand tuning-ul este salvat direct pe mod type numeric/string numeric.
+    for key, value in pairs(tuning) do
+        local modType = tonumber(key)
+        if modType and modType >= 0 and modType <= 60 then
+            SetVehicleMod(entity, modType, tonumber(value) or -1, false)
+        end
+    end
+end
+
+local function applyToggleMods(entity, tuning)
+    if tuning.turbo ~= nil then
+        ToggleVehicleMod(entity, 18, boolValue(tuning.turbo))
+    end
+
+    if tuning.xenon ~= nil then
+        ToggleVehicleMod(entity, 22, boolValue(tuning.xenon))
+    end
+
+    if tuning.tireSmoke ~= nil or tuning.tyreSmoke ~= nil then
+        ToggleVehicleMod(entity, 20, boolValue(tuning.tireSmoke or tuning.tyreSmoke))
+    end
+end
+
+local function decodeGradient(raw)
+    if type(raw) == 'table' then return raw end
+    local text = tostring(raw or '')
+    if text == '' or text == 'null' or text == 'nil' or text == '{}' then return nil end
+    local ok, decoded = pcall(json.decode, text)
+    if ok and type(decoded) == 'table' then return decoded end
+    return nil
+end
+
+local function applyGarageGradient(entity, gradientRaw)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
+
+    local gradient = decodeGradient(gradientRaw)
+    if not gradient then return false end
+
+    local colorId = tonumber(gradient.colorId or gradient.colourId or gradient.color or 0) or 0
+    if colorId <= 0 then return false end
+
+    local applyTo = tostring(gradient.applyTo or gradient.appliedTo or 'both'):lower()
+    if applyTo ~= 'primary' and applyTo ~= 'secondary' and applyTo ~= 'both' then
+        applyTo = 'both'
+    end
+
+    requestVehicleControl(entity, 1500)
+    SetVehicleModKit(entity, 0)
+
+    local primary, secondary = GetVehicleColours(entity)
+    primary = tonumber(primary or 0) or 0
+    secondary = tonumber(secondary or 0) or 0
+
+    if applyTo == 'primary' then
+        ClearVehicleCustomPrimaryColour(entity)
+        SetVehicleColours(entity, colorId, secondary)
+    elseif applyTo == 'secondary' then
+        ClearVehicleCustomSecondaryColour(entity)
+        SetVehicleColours(entity, primary, colorId)
+    else
+        ClearVehicleCustomPrimaryColour(entity)
+        ClearVehicleCustomSecondaryColour(entity)
+        SetVehicleColours(entity, colorId, colorId)
+    end
+
+    SetVehicleDirtLevel(entity, 0.0)
+    return true
+end
+
+local function applyGarageVehicleTuning(entity, tuningRaw, gradientRaw)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
+
+    requestVehicleControl(entity, 2500)
+    SetVehicleModKit(entity, 0)
+
+    local tuning = decodeTuning(tuningRaw)
+    if type(tuning) == 'table' then
+        applyColorData(entity, tuning)
+        applyNumberMods(entity, tuning)
+        applyToggleMods(entity, tuning)
+
+        if tuning.plate ~= nil then
+            SetVehicleNumberPlateText(entity, tostring(tuning.plate):sub(1, 8))
+        end
+    end
+
+    -- Gradientul se aplica dupa tuning, ca vopseaua salvata din tuning sa nu il suprascrie.
+    applyGarageGradient(entity, gradientRaw)
+
+    local netId = VehToNet(entity)
+    if netId and netId > 0 and tuningRaw and tostring(tuningRaw) ~= '' and tostring(tuningRaw) ~= '{}' then
+        TriggerEvent('client:tunning:applyVehicle', netId, tostring(tuningRaw))
+        TriggerEvent('driftzone_tunning:client:applyVehicle', netId, tostring(tuningRaw))
+    end
+
+    return true
+end
+
+local function getVehicleFromNetId(netId)
+    netId = tonumber(netId or 0) or 0
+    if netId <= 0 then return 0 end
+
+    local timeout = GetGameTimer() + 15000
+    while GetGameTimer() < timeout do
+        if NetworkDoesNetworkIdExist(netId) then
+            local entity = NetToVeh(netId)
+            if entity and entity ~= 0 and DoesEntityExist(entity) then return entity end
+        end
+        Wait(100)
+    end
+
+    return 0
+end
+
+local function forcePhoneGarageVehicleByNetId(netId, data)
+    data = type(data) == 'table' and data or {}
+
+    local entity = getVehicleFromNetId(netId)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
+
+    requestVehicleControl(entity, 5000)
+
+    if data.plate then
+        SetVehicleNumberPlateText(entity, tostring(data.plate or 'DRIFT'):sub(1, 8))
+    end
+
+    SetVehicleModKit(entity, 0)
+    SetVehicleDirtLevel(entity, 0.0)
+    SetVehicleEngineOn(entity, false, true, true)
+    SetVehicleDoorsLocked(entity, 2)
+
+    applyGarageVehicleTuning(entity, data.tuning, data.gradient)
+
+    -- Integrare driftzone_vehicleconfig / VS:
+    -- seteaza SQL ID, lock default real si motor oprit.
+    pcall(function()
+        TriggerEvent('driftzone_vehicleconfig:client:registerSpawnedVehicle', entity, tonumber(data.id or data.vehicleId or 0))
+    end)
+
+    return true
+end
+
+local function schedulePhoneGarageTuning(netId, data)
+    CreateThread(function()
+        forcePhoneGarageVehicleByNetId(netId, data)
+
+        local retries = (Config.Garage and Config.Garage.ApplyTuningRetries) or { 150, 450, 900, 1600, 2800 }
+        for i = 1, #retries do
+            Wait(tonumber(retries[i] or 0) or 0)
+
+            local entity = getVehicleFromNetId(netId)
+            if not entity or entity == 0 or not DoesEntityExist(entity) then break end
+
+            forcePhoneGarageVehicleByNetId(netId, data)
+        end
+    end)
+end
+
+local function applyStateBagGarageData(bagName)
+    CreateThread(function()
+        local entity = GetEntityFromStateBagName(bagName)
+        local timeout = GetGameTimer() + 6000
+
+        while (not entity or entity == 0 or not DoesEntityExist(entity)) and GetGameTimer() < timeout do
+            Wait(100)
+            entity = GetEntityFromStateBagName(bagName)
+        end
+
+        if not entity or entity == 0 or not DoesEntityExist(entity) then return end
+
+        local state = Entity(entity).state
+        local tuning = state.dz_garage_tuning or state.vehicleTunning or state.dz_vehicle_tunning or '{}'
+        local gradient = state.dz_garage_gradient or state.vehicleGradient or state.dz_vehicle_gradient or ''
+
+        Wait(250)
+        applyGarageVehicleTuning(entity, tuning, gradient)
+    end)
+end
+
+AddStateBagChangeHandler('dz_garage_tuning', nil, function(bagName)
+    applyStateBagGarageData(bagName)
+end)
+
+AddStateBagChangeHandler('vehicleTunning', nil, function(bagName)
+    applyStateBagGarageData(bagName)
+end)
+
+AddStateBagChangeHandler('dz_garage_gradient', nil, function(bagName)
+    applyStateBagGarageData(bagName)
+end)
+
 
 local function deleteGarageVehicle(vehicle)
     if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
@@ -141,9 +440,18 @@ RegisterNetEvent('driftzone_phone:client:garageCreateVehicle', function(data)
     state:set('dz_phone_garage_vehicle', true, true)
     state:set('dz_phone_garage_vehicle_id', vehicleId, true)
     state:set('dz_phone_garage_plate', tostring(data.plate or ''), true)
+    state:set('dz_phone_garage_model', tostring(data.model or model or ''), true)
     state:set('dz_garage_vehicle', true, true)
     state:set('dz_garage_db_id', vehicleId, true)
     state:set('ownedVehicleId', vehicleId, true)
+    state:set('vehicle_id', vehicleId, true)
+    state:set('vehicle_plate', tostring(data.plate or ''), true)
+    state:set('dz_garage_tuning', tostring(data.tuning or '{}'), true)
+    state:set('vehicleTunning', tostring(data.tuning or '{}'), true)
+    state:set('dz_vehicle_tunning', tostring(data.tuning or '{}'), true)
+    state:set('dz_garage_gradient', tostring(data.gradient or ''), true)
+    state:set('vehicleGradient', tostring(data.gradient or ''), true)
+    state:set('dz_vehicle_gradient', tostring(data.gradient or ''), true)
 
     applyGarageVehicleTuning(vehicle, data.tuning, data.gradient)
 
@@ -169,9 +477,22 @@ RegisterNetEvent('driftzone_phone:client:garageCreateVehicle', function(data)
         return
     end
 
+    schedulePhoneGarageTuning(netId, {
+        id = vehicleId,
+        vehicleId = vehicleId,
+        model = model,
+        plate = data.plate,
+        tuning = data.tuning,
+        gradient = data.gradient
+    })
+
     ConfirmedGarageVehicles[vehicleId] = true
     SetModelAsNoLongerNeeded(hash)
     TriggerServerEvent('driftzone_phone:server:garageConfirmSpawn', vehicleId, netId)
+end)
+
+RegisterNetEvent('driftzone_phone:client:garageApplyVehicle', function(netId, data)
+    schedulePhoneGarageTuning(netId, data or {})
 end)
 
 RegisterNetEvent('driftzone_phone:client:garageSpawnSuccess', function(vehicleId)
@@ -582,8 +903,50 @@ end)
 
 
 
+
+local function clearPhoneGarageBlips()
+    for _, blip in pairs(PhoneGarageBlips or {}) do
+        if blip and DoesBlipExist(blip) then
+            RemoveBlip(blip)
+        end
+    end
+
+    PhoneGarageBlips = {}
+end
+
+local function refreshPhoneGarageBlips()
+    clearPhoneGarageBlips()
+
+    local cfg = Config.Garage or {}
+    if cfg.GarageBlipEnabled == false then return end
+
+    for _, garage in ipairs(PhoneGarageWorld or {}) do
+        local id = tonumber(garage.id or 0) or 0
+        local x = tonumber(garage.x or (garage.coords and garage.coords.x))
+        local y = tonumber(garage.y or (garage.coords and garage.coords.y))
+        local z = tonumber(garage.z or (garage.coords and garage.coords.z))
+
+        if id > 0 and x and y and z then
+            local blip = AddBlipForCoord(x + 0.0, y + 0.0, z + 0.0)
+
+            SetBlipSprite(blip, tonumber(cfg.GarageBlipSprite or 357) or 357)
+            SetBlipColour(blip, tonumber(cfg.GarageBlipColor or 38) or 38)
+            SetBlipScale(blip, tonumber(cfg.GarageBlipScale or 0.78) or 0.78)
+            SetBlipAsShortRange(blip, cfg.GarageBlipShortRange ~= false)
+            SetBlipDisplay(blip, 4)
+
+            BeginTextCommandSetBlipName('STRING')
+            AddTextComponentString(tostring(garage.name or cfg.GarageBlipName or 'Garaj'))
+            EndTextCommandSetBlipName(blip)
+
+            PhoneGarageBlips[id] = blip
+        end
+    end
+end
+
 RegisterNetEvent('driftzone_phone:client:garageWorld', function(garages)
     PhoneGarageWorld = type(garages) == 'table' and garages or {}
+    refreshPhoneGarageBlips()
 end)
 
 CreateThread(function()

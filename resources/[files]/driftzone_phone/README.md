@@ -180,3 +180,26 @@ Mesaje:
 - Daca masina este in tabel: AFARA. Daca nu este: GARAJ.
 - Nu se mai foloseste `ownedvehicles.garage = 0` pentru status.
 - `ownedvehicles.garage` ramane doar ID-ul garajului unde este parcata masina.
+
+
+## V1.5.0 - Garage tuning + VS fix
+
+Fixuri:
+- daca o masina spawnata este stearsa de alt script/admin/restart, nu mai ramane marcata ca "scoasa";
+- statusul "spawned" verifica acum daca entitatea chiar mai exista;
+- tuning-ul se aplica direct pe masina, nu doar prin trigger extern;
+- tuning-ul este reaplicat de mai multe ori dupa spawn, ca in `driftzone_garage`;
+- gradientul este aplicat dupa tuning;
+- seteaza state bag complet compatibil cu `driftzone_garage`;
+- trimite masina catre `driftzone_vehicleconfig:client:registerSpawnedVehicle`, adica o baga corect in VS;
+- seteaza SQL ID, plate, lock si motor oprit pe vehiculul spawnat.
+
+
+## V1.6.0 - Garage blips + waypoint corect
+
+Fixuri:
+- toate garajele primesc blip pe hartă;
+- blip-ul folosește numele garajului;
+- dacă încerci să scoți o mașină din garajul greșit, primești mesaj;
+- automat îți pune waypoint la garajul unde este mașina;
+- statusul garage/tuning/VS din V1.5 rămâne păstrat.

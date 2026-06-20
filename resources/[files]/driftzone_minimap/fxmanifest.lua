@@ -5,7 +5,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'Optimized minimap HUD with persistent health, armour, food and water in users.stats.'
-version '3.3.0'
+version '3.4.0'
 
 shared_script 'config.lua'
 

@@ -233,15 +233,19 @@ local function forceCrosshair(ped)
     local weapon = GetSelectedPedWeapon(ped)
     if not weapon or weapon == 0 or weapon == `WEAPON_UNARMED` then return end
 
-    -- HUD component 14 = reticle/crosshair.
-    -- Unele UI-uri il ascund cu HideHudComponentThisFrame(14), deci il fortam inapoi.
-    ShowHudComponentThisFrame(14)
+    local aiming = IsPlayerFreeAiming(PlayerId())
+        or IsControlPressed(0, 25)
+        or IsDisabledControlPressed(0, 25)
+        or IsPedShooting(ped)
 
-    if IsPlayerFreeAiming(PlayerId()) or IsControlPressed(0, 25) or IsPedShooting(ped) then
-        ShowHudComponentThisFrame(14)
+    -- Crosshair doar cand arma este indreptata / playerul tine aim.
+    if cfg().CrosshairOnlyWhileAiming ~= false and not aiming then
+        return
     end
-end
 
+    -- HUD component 14 = reticle/crosshair.
+    ShowHudComponentThisFrame(14)
+end
 
 local function hideDefaultHud()
     if cfg().HideDefaultHud ~= true then return end

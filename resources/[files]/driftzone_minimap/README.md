@@ -1,51 +1,34 @@
-# driftzone_minimap v3.3.0
+# driftzone_minimap v3.4.0
 
-HUD FiveM optimizat pentru viață, armură, mâncare, apă și stamina.
+Fix pentru load la viață și armură.
 
-## Ce face
+## Reparat
 
-- Încarcă la intrare/spawn `health`, `armour`, `food`, `water` din `users.stats`.
-- Aplică pe player viața și armura salvate.
-- Salvează periodic în `users.stats`.
-- Scade mâncarea și apa automat.
-- Când mâncarea sau apa ajung la `0`, scade viața.
-- Damage-ul de la foame/sete este acum server-authoritative: scade `health` direct în status și apoi aplică pe client.
-- Păstrează celelalte chei din JSON, modifică doar `health`, `armour`, `food`, `water`.
+- `health` și `armour` se încarcă mai sigur din `users.stats`;
+- reparată problema de ordine Lua unde funcțiile locale erau apelate înainte să fie definite;
+- `sendHudUpdate` este forward-declared corect pe client;
+- `scheduleJoinLoad` este forward-declared corect pe server;
+- identificarea jucătorului încearcă mai întâi `uid` din state/export `driftzone_auth`;
+- apoi caută în `users.uid`;
+- abia după aceea încearcă license/identifier și mapping tables;
+- la spawn/resource start face retry de mai multe ori;
+- log în consolă când statusul a fost încărcat.
 
 ## users.stats
 
+Exemplu:
+
 ```json
-{
-  "health": 100,
-  "armour": 0,
-  "food": 100,
-  "water": 100
-}
+{"health": 100, "armour": 0, "food": 61, "water": 81}
 ```
 
-## Trigger-e pentru mâncare și apă
+Resource-ul aplică pe player:
+- `health`
+- `armour`
 
-Client:
-
-```lua
-TriggerServerEvent('driftzone_minimap:addFood', 25)
-TriggerServerEvent('driftzone_minimap:addWater', 25)
-```
-
-Server:
-
-```lua
-TriggerEvent('driftzone_minimap:server:addFood', playerSource, 25)
-TriggerEvent('driftzone_minimap:server:addWater', playerSource, 25)
-```
-
-Exports:
-
-```lua
-exports['driftzone_minimap']:AddFood(playerSource, 25)
-exports['driftzone_minimap']:AddWater(playerSource, 25)
-exports['driftzone_minimap']:GetStatus(playerSource)
-```
+Și păstrează:
+- `food`
+- `water`
 
 ## Instalare
 
@@ -59,5 +42,3 @@ Dacă nu ai coloana `users.stats`, rulează:
 ```text
 sql/users_stats.sql
 ```
-
-Configul este în `config.lua`.

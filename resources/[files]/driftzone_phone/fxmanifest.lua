@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'DriftZone Phone - calls, contacts, messages, garage app'
-version '1.4.0-simple-garage'
+version '1.6.0-garage-blips-waypoint'
 
 ui_page 'html/index.html'
 

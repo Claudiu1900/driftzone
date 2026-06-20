@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'DriftZone Implements - clean optimized core'
-version '2.7.0'
+version '2.8.0'
 
 shared_scripts {
     'shared/config.lua'

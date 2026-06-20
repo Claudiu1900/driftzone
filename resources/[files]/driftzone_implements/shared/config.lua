@@ -45,6 +45,7 @@ Config.Client = {
     -- Crosshair / reticle.
     -- Daca alte UI-uri/HUD-uri il ascund, il fortam cand tii arma/aim.
     ForceCrosshair = true,
+    CrosshairOnlyWhileAiming = true,
 
     -- Cu 0 trebuie sa ruleze in fiecare frame pentru controale/HUD.
     MainLoopWaitMs = 0,
