@@ -36,6 +36,16 @@ Config.Client = {
     -- Dezactiveaza camera idle / AFK cinematic camera.
     DisableIdleCamera = true,
 
+    -- Activeaza damage intre playeri: gloante, pumni, melee.
+    -- Nu activeaza drive-by; drive-by ramane blocat separat.
+    EnablePlayerDamage = true,
+    PlayerDamageLoopWaitMs = 750,
+    ForceDisableInvincible = false,
+
+    -- Crosshair / reticle.
+    -- Daca alte UI-uri/HUD-uri il ascund, il fortam cand tii arma/aim.
+    ForceCrosshair = true,
+
     -- Cu 0 trebuie sa ruleze in fiecare frame pentru controale/HUD.
     MainLoopWaitMs = 0,
 
@@ -58,7 +68,6 @@ Config.HiddenHudComponents = {
     11, -- floating help text 1
     12, -- floating help text 2
     13, -- cash change
-    14, -- reticle
     16, -- radio stations
     17, -- saving
     19, -- weapon wheel
@@ -85,29 +94,3 @@ Config.DisabledStealthControls = {
 }
 
 
-Config.PlayerStats = {
-    LoadOnJoin = true,
-    UsersStatsColumn = 'stats',
-
-    -- users.stats:
-    -- {"health": 100, "armour": 0, "food": 61, "water": 81}
-    -- Incarca doar health si armour.
-    HealthMode = 'percent',
-
-    JoinLoad = {
-        attempts = 20,
-        intervalMs = 1000
-    },
-
-    ClientApplyDelayMs = 1200
-}
-
-
--- Fallback daca UID-ul nu este in state/export imediat.
--- Scriptul incearca aceste coloane; daca o coloana nu exista, o sare fara crash.
-Config.IdentifierColumns = {
-    'identifier',
-    'license',
-    'steam',
-    'discord'
-}

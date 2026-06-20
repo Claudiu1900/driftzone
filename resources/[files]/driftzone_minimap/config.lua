@@ -50,7 +50,7 @@ Config.Database = {
     StatsColumn = 'stats',
 
     -- Coloana principală din users. Resursa încearcă automat și alte variante.
-    UserIdColumn = 'id',
+    UserIdColumn = 'uid',
 
     -- Tabele uzuale care leagă license/identifier de users.id.
     MappingTables = {
@@ -96,3 +96,19 @@ Config.Minimap = {
 
 -- Trigger extern pentru HUD:
 -- TriggerEvent('driftzone_minimap:client:setVisible', true/false)
+
+
+-- Load mai sigur la intrare/spawn.
+Config.JoinLoad = {
+    Enabled = true,
+    Attempts = 30,
+    IntervalMs = 1000,
+    ClientRetryMs = 5000
+}
+
+-- Damage reliable de la mancare/apa.
+-- Serverul scade direct health-ul din status si apoi clientul primeste applyVitals.
+Config.StatusDamage = {
+    ServerAuthoritative = true,
+    MinimumHealth = 0
+}

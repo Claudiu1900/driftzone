@@ -20,6 +20,48 @@ local function getPed()
 end
 
 
+local function enablePlayerDamage()
+    if cfg().EnablePlayerDamage ~= true then return end
+
+    local player = PlayerId()
+    local ped = getPed()
+
+    safeCall(function()
+        NetworkSetFriendlyFireOption(true)
+    end)
+
+    if ped ~= 0 then
+        safeCall(function()
+            SetCanAttackFriendly(ped, true, false)
+        end)
+
+        safeCall(function()
+            SetEntityCanBeDamaged(ped, true)
+        end)
+
+        safeCall(function()
+            SetPedCanBeTargetted(ped, true)
+        end)
+
+        safeCall(function()
+            SetPedSuffersCriticalHits(ped, true)
+        end)
+
+        -- Doar daca vrei sa fortezi complet off la invincible.
+        -- Default false ca sa nu strice admin/godmode din alte scripturi.
+        if cfg().ForceDisableInvincible == true then
+            safeCall(function()
+                SetPlayerInvincible(player, false)
+            end)
+
+            safeCall(function()
+                SetEntityInvincible(ped, false)
+            end)
+        end
+    end
+end
+
+
 local function loadAnimSet(animSet)
     animSet = tostring(animSet or '')
     if animSet == '' then return false end
@@ -168,65 +210,6 @@ local function handleStealthAndCrouch(ped)
     end
 end
 
-local function gtaHealthFromStatsHealth(value)
-    local health = tonumber(value)
-    if not health then return nil end
-
-    if health <= 0 then return 0 end
-
-    health = math.floor(health)
-
-    if health <= 100 then
-        return math.max(101, math.min(200, health + 100))
-    end
-
-    return math.max(101, math.min(200, health))
-end
-
-local function applyStatsPayload(payload)
-    if type(payload) ~= 'table' then return end
-
-    local health = gtaHealthFromStatsHealth(payload.health)
-    local armourValue = tonumber(payload.armour)
-
-    CreateThread(function()
-        local delay = tonumber((Config.PlayerStats or {}).ClientApplyDelayMs or 1200) or 1200
-        Wait(delay)
-
-        -- Aplicam de mai multe ori, pentru ca spawnmanager / alte scripturi pot reseta HP-ul dupa spawn.
-        local applyTimes = { 0, 800, 1600, 3000, 5000, 8000 }
-
-        for _, extraDelay in ipairs(applyTimes) do
-            if extraDelay > 0 then Wait(extraDelay) end
-
-            local ped = getPed()
-            if ped ~= 0 and DoesEntityExist(ped) and not IsEntityDead(ped) then
-                if health then
-                    safeCall(function()
-                        SetEntityMaxHealth(ped, 200)
-                    end)
-
-                    SetEntityHealth(ped, health)
-                end
-
-                if armourValue then
-                    local armour = math.max(0, math.min(100, math.floor(armourValue)))
-
-                    safeCall(function()
-                        SetPlayerMaxArmour(PlayerId(), 100)
-                    end)
-
-                    SetPedArmour(ped, armour)
-                end
-            end
-        end
-    end)
-end
-
-RegisterNetEvent('driftzone_implements:client:applyStats', function(payload)
-    applyStatsPayload(payload)
-end)
-
 
 local function disableControls(list)
     if type(list) ~= 'table' then return end
@@ -241,6 +224,25 @@ local function disableControls(list)
     end
 end
 
+
+local function forceCrosshair(ped)
+    if cfg().ForceCrosshair ~= true then return end
+    if ped == 0 then return end
+    if IsPedInAnyVehicle(ped, false) then return end
+
+    local weapon = GetSelectedPedWeapon(ped)
+    if not weapon or weapon == 0 or weapon == `WEAPON_UNARMED` then return end
+
+    -- HUD component 14 = reticle/crosshair.
+    -- Unele UI-uri il ascund cu HideHudComponentThisFrame(14), deci il fortam inapoi.
+    ShowHudComponentThisFrame(14)
+
+    if IsPlayerFreeAiming(PlayerId()) or IsControlPressed(0, 25) or IsPedShooting(ped) then
+        ShowHudComponentThisFrame(14)
+    end
+end
+
+
 local function hideDefaultHud()
     if cfg().HideDefaultHud ~= true then return end
 
@@ -251,7 +253,10 @@ local function hideDefaultHud()
     end)
 
     for i = 1, #(Config.HiddenHudComponents or {}) do
-        HideHudComponentThisFrame(Config.HiddenHudComponents[i])
+        local component = Config.HiddenHudComponents[i]
+        if not (cfg().ForceCrosshair == true and component == 14) then
+            HideHudComponentThisFrame(component)
+        end
     end
 end
 
@@ -341,6 +346,7 @@ local function applyFrameControls()
     local ped = getPed()
 
     hideDefaultHud()
+    forceCrosshair(ped)
     disableIdleCamera()
     forceStealthOff(ped)
     disableWeaponWheel()
@@ -382,6 +388,27 @@ CreateThread(function()
     end
 end)
 
+
+
+-- HIGH PRIORITY CROSSHAIR FIX
+-- Reticle/crosshair este forțat când ai armă în mână.
+CreateThread(function()
+    while true do
+        local ped = getPed()
+        forceCrosshair(ped)
+        Wait(0)
+    end
+end)
+
+-- PLAYER DAMAGE / PVP ENABLE
+-- Activeaza damage intre playeri: arme, pumni, melee.
+CreateThread(function()
+    while true do
+        enablePlayerDamage()
+        Wait(tonumber(cfg().PlayerDamageLoopWaitMs or 750) or 750)
+    end
+end)
+
 CreateThread(function()
     while true do
         applyFrameControls()
@@ -402,19 +429,12 @@ end)
 
 AddEventHandler('playerSpawned', function()
     TriggerServerEvent('driftzone_implements:server:resetAdutyOnJoin')
-    TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
-    SetTimeout(2500, function()
-        TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
-    end)
-    SetTimeout(6500, function()
-        TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
-    end)
-
-    SetTimeout(700, function()
+SetTimeout(700, function()
         local ped = getPed()
         forceRadioOff(ped)
         preventDriverPullout()
         SetPlayerCanDoDriveBy(PlayerId(), false)
+        enablePlayerDamage()
     end)
 end)
 
@@ -422,14 +442,8 @@ AddEventHandler('onClientResourceStart', function(resource)
     if resource ~= GetCurrentResourceName() then return end
 
     TriggerServerEvent('driftzone_implements:server:resetAdutyOnJoin')
-    TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
-    SetTimeout(2500, function()
-        TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
-    end)
-    SetTimeout(6500, function()
-        TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
-    end)
-    SetPlayerCanDoDriveBy(PlayerId(), false)
+SetPlayerCanDoDriveBy(PlayerId(), false)
+    enablePlayerDamage()
 end)
 
 AddEventHandler('onClientResourceStop', function(resource)

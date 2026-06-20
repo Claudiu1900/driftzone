@@ -144,7 +144,7 @@ local function initializeDatabase()
         schema.userIdColumn = configuredId
     else
         schema.userIdColumn = pickExistingColumn(usersColumns, {
-            'id', 'user_id', 'uid', 'character_id', 'citizenid'
+            'uid', 'id', 'user_id', 'userId', 'character_id', 'citizenid'
         })
     end
 
@@ -244,10 +244,13 @@ local function getStateUserId(source)
 
     local state = player.state
     local candidates = {
+        state.uid,
+        state.dz_uid,
+        state.driftzone_uid,
         state.user_id,
         state.userId,
         state.userid,
-        state.uid,
+        state.id,
         state.character_id,
         state.citizenid
     }
@@ -255,6 +258,27 @@ local function getStateUserId(source)
     for i = 1, #candidates do
         if candidates[i] ~= nil and tostring(candidates[i]) ~= '' then
             return candidates[i]
+        end
+    end
+
+    return nil
+end
+
+
+local function getExportUserId(source)
+    local attempts = {
+        function() return exports.driftzone_auth:GetUID(source) end,
+        function() return exports.driftzone_auth:GetUid(source) end,
+        function() return exports.driftzone_auth:getUID(source) end,
+        function() return exports.driftzone_auth:getUid(source) end,
+        function() return exports.driftzone_auth:GetUserId(source) end,
+        function() return exports.driftzone_auth:getUserId(source) end
+    }
+
+    for i = 1, #attempts do
+        local ok, value = pcall(attempts[i])
+        if ok and value ~= nil and tostring(value) ~= '' then
+            return value
         end
     end
 
@@ -306,6 +330,12 @@ local function resolveUserRow(source)
         local stateUserId = getStateUserId(source)
         if stateUserId ~= nil then
             local row = selectUserBy(schema.userIdColumn, stateUserId)
+            if row then return row end
+        end
+
+        local exportUserId = getExportUserId(source)
+        if exportUserId ~= nil then
+            local row = selectUserBy(schema.userIdColumn, exportUserId)
             if row then return row end
         end
     end
@@ -566,6 +596,10 @@ local function clientTriggerAllowed(source, triggerName)
     return true
 end
 
+AddEventHandler('playerJoining', function()
+    scheduleJoinLoad(source, 'playerJoining')
+end)
+
 RegisterNetEvent('driftzone_minimap:requestStatus', function(applyVitals)
     local playerSource = source
 
@@ -660,12 +694,64 @@ exports('LoadForUserId', function(playerSource, userId)
     return true
 end)
 
+
+local function applyStatusDamage(source, data, percent)
+    source = tonumber(source)
+    if not source or not data then return end
+
+    percent = clamp(round(percent), 1, 100)
+
+    if Config.StatusDamage and Config.StatusDamage.ServerAuthoritative == true then
+        local minimumHealth = clamp(round(Config.StatusDamage.MinimumHealth or 0), 0, 100)
+        local newHealth = clamp(data.health - percent, minimumHealth, 100)
+
+        if newHealth ~= data.health then
+            data.health = newHealth
+            markDirty(data)
+            syncStatus(source, true)
+            return
+        end
+    end
+
+    TriggerClientEvent('driftzone_minimap:client:applyStatusDamage', source, percent)
+end
+
+local function scheduleJoinLoad(source, reason)
+    source = tonumber(source)
+    if not source or (Config.JoinLoad and Config.JoinLoad.Enabled == false) then return end
+
+    CreateThread(function()
+        local attempts = tonumber((Config.JoinLoad or {}).Attempts or 30) or 30
+        local interval = tonumber((Config.JoinLoad or {}).IntervalMs or 1000) or 1000
+
+        for _ = 1, attempts do
+            if not GetPlayerName(source) then return end
+
+            loadStatus(source, true)
+
+            if playerStatus[source] then
+                return
+            end
+
+            Wait(interval)
+        end
+
+        print(('^1[driftzone_minimap] Nu am putut incarca status pentru %s. Reason: %s^7'):format(tostring(source), tostring(reason or 'join')))
+    end)
+end
+
 CreateThread(function()
     while GetResourceState('oxmysql') ~= 'started' do
         Wait(250)
     end
 
     initializeDatabase()
+
+    if databaseReady then
+        for _, id in ipairs(GetPlayers()) do
+            scheduleJoinLoad(tonumber(id), 'resource_start')
+        end
+    end
 
     while true do
         local now = os.time()
@@ -718,10 +804,10 @@ CreateThread(function()
                     end
                 elseif damageMode and data.nextDamageAt and now >= data.nextDamageAt then
                     if damageMode == 'both' then
-                        TriggerClientEvent('driftzone_minimap:client:applyStatusDamage', source, Config.BothZeroDamagePercent)
+                        applyStatusDamage(source, data, Config.BothZeroDamagePercent)
                         data.nextDamageAt = now + math.max(1, math.floor(Config.BothZeroDamageInterval / 1000))
                     else
-                        TriggerClientEvent('driftzone_minimap:client:applyStatusDamage', source, Config.SingleZeroDamagePercent)
+                        applyStatusDamage(source, data, Config.SingleZeroDamagePercent)
                         data.nextDamageAt = now + math.max(1, math.floor(Config.SingleZeroDamageInterval / 1000))
                     end
                 end

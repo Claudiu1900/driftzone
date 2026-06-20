@@ -15,6 +15,7 @@ local lastPayload = nil
 local lastResolutionX, lastResolutionY = 0, 0
 local minimapScaleform = nil
 local nuiReady = false
+local lastStatusRequestAt = 0
 
 local vitalsApplied = false
 local vitalsApplyToken = 0
@@ -109,14 +110,18 @@ local function applySavedVitals(health, armour)
     CreateThread(function()
         Wait(Config.VitalsApplyDelay)
 
-        local timeoutAt = GetGameTimer() + 10000
-        while token == vitalsApplyToken and GetGameTimer() < timeoutAt do
+        local safeHealth = clamp(round(health), Config.MinimumLoadedHealth, 100)
+        local safeArmour = clamp(round(armour), 0, 100)
+
+        -- Aplicam de mai multe ori dupa spawn, pentru ca spawnmanager/alte resurse pot reseta HP/armour.
+        local applySteps = { 0, 700, 1500, 3000, 5000, 8000 }
+
+        for i = 1, #applySteps do
+            if token ~= vitalsApplyToken then return end
+            if applySteps[i] > 0 then Wait(applySteps[i]) end
+
             local ped = PlayerPedId()
-
             if NetworkIsPlayerActive(PlayerId()) and DoesEntityExist(ped) then
-                local safeHealth = clamp(round(health), Config.MinimumLoadedHealth, 100)
-                local safeArmour = clamp(round(armour), 0, 100)
-
                 setHealthPercent(ped, safeHealth)
                 SetPedArmour(ped, safeArmour)
 
@@ -125,10 +130,8 @@ local function applySavedVitals(health, armour)
                 lastSentArmour = safeArmour
                 lastVitalsHeartbeat = GetGameTimer()
                 lastPayload = nil
-                return
+                sendHudUpdate(true)
             end
-
-            Wait(250)
         end
     end)
 end
@@ -301,6 +304,9 @@ local function hideDefaultHealthArmour()
 end
 
 local function requestStatus(applyVitals)
+    local now = GetGameTimer()
+    if now - lastStatusRequestAt < 500 then return end
+    lastStatusRequestAt = now
     TriggerServerEvent('driftzone_minimap:requestStatus', applyVitals == true)
 end
 
@@ -332,12 +338,13 @@ RegisterNetEvent('driftzone_minimap:client:applyStatusDamage', function(percent)
     local ped = PlayerPedId()
     if not DoesEntityExist(ped) or IsEntityDead(ped) then return end
 
-    local health = GetEntityHealth(ped)
-    local maxHealth = GetEntityMaxHealth(ped)
-    local effectiveMaximum = math.max(1, maxHealth - 100)
-    local damage = math.max(1, round(effectiveMaximum * (percent / 100)))
+    local currentPercent = getHealthPercent(ped)
+    local newPercent = clamp(currentPercent - percent, 0, 100)
 
-    SetEntityHealth(ped, health - damage)
+    setHealthPercent(ped, newPercent)
+    lastPayload = nil
+    sendHudUpdate(true)
+    reportVitals(true)
 end)
 
 RegisterNetEvent('driftzone_minimap:client:setVisible', function(visible)
@@ -416,13 +423,22 @@ end)
 
 AddEventHandler('playerSpawned', function()
     resetStamina()
+    vitalsApplied = false
     Wait(1000)
 
-    if not status.synced or not vitalsApplied then
-        requestStatus(true)
-    else
-        requestStatus(false)
-    end
+    requestStatus(true)
+
+    SetTimeout(tonumber((Config.JoinLoad or {}).ClientRetryMs or 5000) or 5000, function()
+        if not vitalsApplied then
+            requestStatus(true)
+        end
+    end)
+
+    SetTimeout(9000, function()
+        if not vitalsApplied then
+            requestStatus(true)
+        end
+    end)
 
     applyMinimapPosition()
     hideDefaultHealthArmour()
@@ -438,6 +454,12 @@ AddEventHandler('onClientResourceStart', function(resourceName)
     applyMinimapPosition()
     hideDefaultHealthArmour()
     requestStatus(true)
+
+    SetTimeout(5000, function()
+        if not vitalsApplied then
+            requestStatus(true)
+        end
+    end)
 end)
 
 AddEventHandler('onClientResourceStop', function(resourceName)
