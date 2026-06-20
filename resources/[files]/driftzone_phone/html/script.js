@@ -22,7 +22,6 @@ const audio = {
 
 let state = { myNumber: '', contacts: [], callHistory: [], messages: [], garage: { vehicles: [], garages: [], atGarage: false } };
 let selectedGarageVehicleId = 0;
-let localGarageSpawned = new Map();
 let garageAdminGarages = [];
 let garageAdminSelected = null;
 let garageAdminSpots = [];
@@ -102,22 +101,6 @@ function normalizeState(incoming) {
             ? { ...incoming.garage, vehicles: Array.isArray(incoming.garage.vehicles) ? incoming.garage.vehicles : [], garages: Array.isArray(incoming.garage.garages) ? incoming.garage.garages : [] }
             : { vehicles: [], garages: [], atGarage: false }
     };
-
-    const now = Date.now();
-    if (out.garage && Array.isArray(out.garage.vehicles)) {
-        out.garage.vehicles.forEach((v) => {
-            const id = Number(v.id || 0);
-            const until = localGarageSpawned.get(id) || 0;
-            if (until > now) {
-                v.spawned = true;
-                v.entitySpawned = true;
-                v.stored = false;
-                v.garageName = 'Pe strada';
-            } else if (until) {
-                localGarageSpawned.delete(id);
-            }
-        });
-    }
 
     return out;
 }
@@ -674,9 +657,7 @@ function vehicleDisplayName(v) {
 
 function vehicleIsSpawned(v) {
     if (!v) return false;
-    if (v.entitySpawned === true) return true;
-    if (v.spawned === true && v.stored !== true) return true;
-    return false;
+    return v.spawned === true || v.entitySpawned === true;
 }
 
 function renderGarageCar(v) {
@@ -743,18 +724,10 @@ function updateGarageVehicleLocalState(id, spawned) {
     const g = garageState();
     const v = (g.vehicles || []).find((entry) => Number(entry.id || 0) === id);
     if (!v) return;
-
     v.spawned = spawned === true;
     v.entitySpawned = spawned === true;
     v.stored = spawned !== true;
-
-    if (spawned === true) {
-        localGarageSpawned.set(id, Date.now() + 30000);
-        v.garageName = 'Pe strada';
-    } else {
-        localGarageSpawned.delete(id);
-        v.garageName = v.garageName && v.garageName !== 'Pe strada' ? v.garageName : 'In garaj';
-    }
+    v.garageName = spawned === true ? 'Pe strada' : (v.garageName && v.garageName !== 'Pe strada' ? v.garageName : 'In garaj');
 }
 
 function garageAction(action, id) {

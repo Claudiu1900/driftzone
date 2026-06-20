@@ -173,3 +173,10 @@ Mesaje:
 - Daca spawn-ul esueaza, statusul runtime se sterge.
 - State-ul NUI nu mai poate intoarce masina pe GARAJ imediat dupa spawn.
 - UI pastreaza local statusul AFARA 30 secunde ca protectie contra refresh vechi.
+
+## V1.4 SIMPLE GARAGE
+- Sistemul de garaj a fost simplificat.
+- Singura sursa pentru AFARA este tabelul runtime `SimpleSpawnedVehicles`.
+- Daca masina este in tabel: AFARA. Daca nu este: GARAJ.
+- Nu se mai foloseste `ownedvehicles.garage = 0` pentru status.
+- `ownedvehicles.garage` ramane doar ID-ul garajului unde este parcata masina.
