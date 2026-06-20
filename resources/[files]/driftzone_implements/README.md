@@ -1,30 +1,38 @@
 # DriftZone Implements - Clean
 
-## v2.3.0
+## v2.4.0 Final
 
-Fix CTRL/stealth:
-- Am scos `RegisterKeyMapping` de pe CTRL ca sa nu se bata cu GTA stealth.
-- CTRL este prins direct prin `IsDisabledControlJustPressed(36)`.
-- Controlul 36 este blocat intr-un thread separat 0ms.
-- `SetPedStealthMovement(false)` si `SetPedUsingActionMode(false)` ruleaza constant.
-- Cand apesi CTRL, nu mai intra in stealth, ci face toggle la crouch.
-- Ai si comanda `/crouch` pentru test.
+Resource curat si optimizat pentru server.
 
-Stats:
-- `users.stats` incarca `health` si `armour`.
-- Ai comanda `/loadstats` pentru test manual daca vrei sa verifici rapid.
+## Face:
+
+- reseteaza `users.aduty = 0` cand porneste resource-ul/serverul;
+- reseteaza `users.aduty = 0` cand intra un player;
+- ascunde HUD-ul default GTA;
+- dezactiveaza weapon wheel-ul;
+- dezactiveaza radio/music wheel-ul in masina;
+- opreste radio-ul masinii automat;
+- blocheaza scosul soferului din masina prin animatia de carjack cand tii F;
+- blocheaza trasul din masina / drive-by;
+- dezactiveaza stealth mode-ul GTA;
+- CTRL este prins direct si pune playerul pe crouch custom;
+- stealth/action mode este fortat OFF constant;
+- dezactiveaza camera AFK / idle cinematic camera;
+- cand intra un player, incarca `health` si `armour` din `users.stats`.
 
 ## users.stats
+
+Exemplu:
 
 ```json
 {"health": 100, "armour": 0, "food": 61, "water": 81}
 ```
 
-Citeste doar:
+Resource-ul citeste doar:
 - `health`
 - `armour`
 
-`health = 100` devine full HP in GTA.
+`health = 100` inseamna full HP in GTA.
 
 ## Instalare
 
@@ -33,3 +41,5 @@ ensure oxmysql
 ensure driftzone_auth
 ensure driftzone_implements
 ```
+
+Nu are NUI, nu are comenzi de test, nu are `runtime_module.js`, nu are godmode, nu are no-ragdoll, nu are infinite stamina, nu are hat lock.

@@ -349,12 +349,6 @@ local function applyFrameControls()
 end
 
 
-
-RegisterCommand('crouch', function()
-    if cfg().EnableCrouchReplacement ~= true then return end
-    toggleCrouch()
-end, false)
-
 -- HIGH PRIORITY STEALTH BLOCK
 -- Ruleaza separat la 0ms ca CTRL sa nu mai intre deloc in stealth.
 CreateThread(function()
@@ -455,6 +449,3 @@ AddEventHandler('onClientResourceStop', function(resource)
 end)
 
 
-RegisterCommand('loadstats', function()
-    TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
-end, false)
