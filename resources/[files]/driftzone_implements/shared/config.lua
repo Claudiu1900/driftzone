@@ -25,6 +25,16 @@ Config.Client = {
     DisableVehicleDriveBy = true,
     DisableCarjackDriverPullout = true,
 
+    -- Dezactiveaza stealth mode-ul GTA. Pe CTRL pune crouch custom.
+    DisableStealthMode = true,
+    EnableCrouchReplacement = true,
+    CrouchControl = 36,
+    CrouchMoveClipset = 'move_ped_crouched',
+    CrouchStrafeClipset = 'move_ped_crouched_strafing',
+
+    -- Dezactiveaza camera idle / AFK cinematic camera.
+    DisableIdleCamera = true,
+
     -- Cu 0 trebuie sa ruleze in fiecare frame pentru controale/HUD.
     MainLoopWaitMs = 0,
 
@@ -66,4 +76,27 @@ Config.DisabledVehicleMusicControls = {
 
 Config.DisabledVehicleShootingControls = {
     24, 25, 68, 69, 70, 91, 92, 114, 257, 263, 264
+}
+
+
+Config.DisabledStealthControls = {
+    36 -- INPUT_DUCK / stealth
+}
+
+
+Config.PlayerStats = {
+    LoadOnJoin = true,
+    UsersStatsColumn = 'stats',
+
+    -- users.stats:
+    -- {"health": 100, "armour": 0, "food": 61, "water": 81}
+    -- Incarca doar health si armour.
+    HealthMode = 'percent',
+
+    JoinLoad = {
+        attempts = 20,
+        intervalMs = 1000
+    },
+
+    ClientApplyDelayMs = 1200
 }

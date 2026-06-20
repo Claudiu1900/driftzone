@@ -28,6 +28,48 @@ local function dbUpdate(query, params)
     return ok, result
 end
 
+
+local function dbSingle(query, params)
+    params = params or {}
+
+    if MySQL and MySQL.single and MySQL.single.await then
+        local ok, result = pcall(function()
+            return MySQL.single.await(query, params)
+        end)
+        if ok then return true, result end
+    end
+
+    if MySQL and MySQL.query and MySQL.query.await then
+        local ok, result = pcall(function()
+            local rows = MySQL.query.await(query, params)
+            if type(rows) == 'table' then return rows[1] end
+            return nil
+        end)
+        if ok then return true, result end
+    end
+
+    local ok, result = pcall(function()
+        local rows = exports.oxmysql:executeSync(query, params)
+        if type(rows) == 'table' then return rows[1] end
+        return nil
+    end)
+
+    return ok, result
+end
+
+local function decodeJsonObject(raw)
+    if type(raw) == 'table' then return raw end
+    if type(raw) ~= 'string' or raw == '' then return nil end
+
+    local ok, data = pcall(function()
+        return json.decode(raw)
+    end)
+
+    if ok and type(data) == 'table' then return data end
+    return nil
+end
+
+
 local function setPlayerStateOff(src)
     src = tonumber(src or 0) or 0
     if src <= 0 or not GetPlayerName(src) then return end
@@ -79,6 +121,76 @@ local function getUid(src)
 
     return nil
 end
+
+
+local function loadStatsByUid(uid)
+    uid = tonumber(uid or 0) or 0
+    if uid <= 0 then return nil end
+
+    local statsCfg = Config.PlayerStats or {}
+    local statsColumn = tostring(statsCfg.UsersStatsColumn or 'stats')
+
+    local query = ('SELECT %s AS stats FROM %s WHERE %s = ? LIMIT 1'):format(
+        sqlName(statsColumn),
+        sqlName(Config.UsersTable),
+        sqlName(Config.UsersUidColumn)
+    )
+
+    local ok, row = dbSingle(query, { uid })
+    if not ok or type(row) ~= 'table' then return nil end
+
+    local stats = decodeJsonObject(row.stats)
+    if not stats then return nil end
+
+    local health = tonumber(stats.health)
+    local armour = tonumber(stats.armour)
+
+    if health == nil and armour == nil then return nil end
+
+    return {
+        health = health,
+        armour = armour
+    }
+end
+
+local function loadPlayerStats(src, reason)
+    src = tonumber(src or 0) or 0
+    if src <= 0 then return false end
+
+    local statsCfg = Config.PlayerStats or {}
+    if statsCfg.LoadOnJoin == false then return false end
+
+    CreateThread(function()
+        local joinCfg = statsCfg.JoinLoad or {}
+        local attempts = tonumber(joinCfg.attempts or 20) or 20
+        local interval = tonumber(joinCfg.intervalMs or 1000) or 1000
+
+        for _ = 1, attempts do
+            if not GetPlayerName(src) then return end
+
+            local uid = getUid(src)
+            if uid and uid > 0 then
+                local stats = loadStatsByUid(uid)
+
+                if stats then
+                    TriggerClientEvent('driftzone_implements:client:applyStats', src, stats)
+                    print(('[DRIFTZONE_IMPLEMENTS] Loaded health/armour for UID %s. Reason: %s'):format(uid, tostring(reason or 'join')))
+                else
+                    print(('[DRIFTZONE_IMPLEMENTS] Nu exista stats valide pentru UID %s.'):format(uid))
+                end
+
+                return
+            end
+
+            Wait(interval)
+        end
+
+        print(('[DRIFTZONE_IMPLEMENTS] Nu am gasit UID-ul pentru source %s ca sa incarc viata/armura.'):format(src))
+    end)
+
+    return true
+end
+
 
 local function resetAllAduty(reason)
     local query = ('UPDATE %s SET %s = 0'):format(
@@ -167,6 +279,7 @@ AddEventHandler('onResourceStart', function(resource)
         if Config.ResetAduty and Config.ResetAduty.ResetOnlinePlayersOnResourceStart ~= false then
             for _, id in ipairs(GetPlayers()) do
                 resetPlayerAduty(tonumber(id), 'resource_start_online_player')
+                loadPlayerStats(tonumber(id), 'resource_start_online_player')
             end
         end
 
@@ -176,6 +289,7 @@ end)
 
 AddEventHandler('playerJoining', function()
     resetPlayerAduty(source, 'player_joining')
+    loadPlayerStats(source, 'player_joining')
 end)
 
 AddEventHandler('playerDropped', function()
@@ -184,6 +298,11 @@ end)
 
 RegisterNetEvent('driftzone_implements:server:resetAdutyOnJoin', function()
     resetPlayerAduty(source, 'client_loaded')
+    loadPlayerStats(source, 'client_loaded')
+end)
+
+RegisterNetEvent('driftzone_implements:server:loadStatsOnJoin', function()
+    loadPlayerStats(source, 'client_requested')
 end)
 
 exports('ResetAllAduty', function()

@@ -2,7 +2,7 @@
 
 Resource curat si optimizat pentru server.
 
-## Face doar:
+## Face:
 
 - reseteaza `users.aduty = 0` cand porneste resource-ul/serverul;
 - reseteaza `users.aduty = 0` cand intra un player;
@@ -11,7 +11,25 @@ Resource curat si optimizat pentru server.
 - dezactiveaza radio/music wheel-ul in masina;
 - opreste radio-ul masinii automat;
 - blocheaza scosul soferului din masina prin animatia de carjack cand tii F;
-- blocheaza trasul din masina / drive-by.
+- blocheaza trasul din masina / drive-by;
+- dezactiveaza stealth mode-ul GTA;
+- in loc de stealth mode, tasta CTRL pune playerul pe crouch;
+- dezactiveaza camera AFK / idle cinematic camera;
+- cand intra un player, incarca `health` si `armour` din `users.stats`.
+
+## users.stats
+
+Exemplu:
+
+```json
+{"health": 100, "armour": 0, "food": 61, "water": 81}
+```
+
+Resource-ul citeste doar:
+- `health`
+- `armour`
+
+`health = 100` inseamna full HP in GTA, adica `SetEntityHealth(ped, 200)`.
 
 ## Instalare
 
