@@ -109,16 +109,28 @@ local function forceStealthOff(ped)
     safeCall(function()
         SetPedUsingActionMode(ped, false, -1, 'DEFAULT_ACTION')
     end)
+
+    -- Uneori jocul schimba movement clipset-ul pe stealth inainte sa il prindem.
+    -- Daca nu suntem in crouch-ul nostru, resetam clipset-ul.
+    if not crouched then
+        safeCall(function()
+            ResetPedMovementClipset(ped, 0.15)
+        end)
+
+        safeCall(function()
+            ResetPedStrafeClipset(ped)
+        end)
+    end
 end
 
 local function handleStealthAndCrouch(ped)
     if cfg().DisableStealthMode ~= true then return end
 
-    -- Control 36 este stealth/duck. Il blocam in toate control group-urile.
+    -- Control 36 = INPUT_DUCK / stealth. Il blocam direct, fara disableControls(),
+    -- ca functia sa mearga indiferent de ordinea din fisier.
     DisableControlAction(0, 36, true)
     DisableControlAction(1, 36, true)
     DisableControlAction(2, 36, true)
-    disableControls(Config.DisabledStealthControls)
 
     forceStealthOff(ped)
 
@@ -134,18 +146,25 @@ local function handleStealthAndCrouch(ped)
 
     local control = tonumber(cfg().CrouchControl or 36) or 36
 
-    -- Fallback pentru control, dar keymap-ul de mai jos este principal.
-    if IsDisabledControlJustPressed(0, control) then
+    -- Pentru CTRL folosim controlul dezactivat, nu keybind-ul GTA.
+    if IsDisabledControlJustPressed(0, control) or IsDisabledControlJustPressed(1, control) or IsDisabledControlJustPressed(2, control) then
         toggleCrouch()
     end
 
-    -- Tine clipset-ul activ daca alt script/GTA il reseteaza.
+    -- Daca GTA/alt script incearca sa intre in stealth, il scoatem imediat.
+    forceStealthOff(ped)
+
     if crouched then
         local moveClipset = tostring(cfg().CrouchMoveClipset or 'move_ped_crouched')
+        local strafeClipset = tostring(cfg().CrouchStrafeClipset or 'move_ped_crouched_strafing')
+
         if loadAnimSet(moveClipset) then
             SetPedMovementClipset(ped, moveClipset, 0.25)
         end
-        forceStealthOff(ped)
+
+        safeCall(function()
+            SetPedStrafeClipset(ped, strafeClipset)
+        end)
     end
 end
 
@@ -323,24 +342,50 @@ local function applyFrameControls()
 
     hideDefaultHud()
     disableIdleCamera()
-    handleStealthAndCrouch(ped)
+    forceStealthOff(ped)
     disableWeaponWheel()
     disableVehicleMusicWheel(ped)
     disableVehicleDriveBy(ped)
 end
 
 
-RegisterCommand('+dz_crouch', function()
-    if cfg().DisableStealthMode ~= true or cfg().EnableCrouchReplacement ~= true then return end
+
+RegisterCommand('crouch', function()
+    if cfg().EnableCrouchReplacement ~= true then return end
     toggleCrouch()
 end, false)
 
-RegisterCommand('-dz_crouch', function() end, false)
-
+-- HIGH PRIORITY STEALTH BLOCK
+-- Ruleaza separat la 0ms ca CTRL sa nu mai intre deloc in stealth.
 CreateThread(function()
-    Wait(500)
-    local key = tostring(cfg().CrouchKey or 'LCONTROL')
-    RegisterKeyMapping('+dz_crouch', 'DriftZone Crouch', 'keyboard', key)
+    while true do
+        local ped = getPed()
+
+        if cfg().DisableStealthMode == true then
+            DisableControlAction(0, 36, true)
+            DisableControlAction(1, 36, true)
+            DisableControlAction(2, 36, true)
+
+            forceStealthOff(ped)
+
+            if cfg().EnableCrouchReplacement == true and ped ~= 0 and not IsPedInAnyVehicle(ped, false) and not IsEntityDead(ped) and not IsPedRagdoll(ped) then
+                if IsDisabledControlJustPressed(0, 36) or IsDisabledControlJustPressed(1, 36) or IsDisabledControlJustPressed(2, 36) then
+                    toggleCrouch()
+                end
+
+                if crouched then
+                    local moveClipset = tostring(cfg().CrouchMoveClipset or 'move_ped_crouched')
+                    if loadAnimSet(moveClipset) then
+                        SetPedMovementClipset(ped, moveClipset, 0.25)
+                    end
+                end
+            elseif crouched then
+                setCrouch(false)
+            end
+        end
+
+        Wait(0)
+    end
 end)
 
 CreateThread(function()
@@ -408,3 +453,8 @@ AddEventHandler('onClientResourceStop', function(resource)
         setCrouch(false)
     end
 end)
+
+
+RegisterCommand('loadstats', function()
+    TriggerServerEvent('driftzone_implements:server:loadStatsOnJoin')
+end, false)

@@ -1,18 +1,20 @@
 # DriftZone Implements - Clean
 
-## v2.2.0
+## v2.3.0
 
-Fixuri:
-- CTRL nu mai intra in stealth mode.
-- CTRL este prins cu `RegisterKeyMapping` si pune playerul pe crouch custom.
-- stealth/action mode este fortat OFF in fiecare frame.
-- camera AFK / idle cinematic ramane dezactivata.
-- health/armour din `users.stats` se incarca mai agresiv dupa spawn.
-- daca UID-ul nu exista imediat in state/export, incearca fallback pe identificatori din DB.
+Fix CTRL/stealth:
+- Am scos `RegisterKeyMapping` de pe CTRL ca sa nu se bata cu GTA stealth.
+- CTRL este prins direct prin `IsDisabledControlJustPressed(36)`.
+- Controlul 36 este blocat intr-un thread separat 0ms.
+- `SetPedStealthMovement(false)` si `SetPedUsingActionMode(false)` ruleaza constant.
+- Cand apesi CTRL, nu mai intra in stealth, ci face toggle la crouch.
+- Ai si comanda `/crouch` pentru test.
+
+Stats:
+- `users.stats` incarca `health` si `armour`.
+- Ai comanda `/loadstats` pentru test manual daca vrei sa verifici rapid.
 
 ## users.stats
-
-Exemplu:
 
 ```json
 {"health": 100, "armour": 0, "food": 61, "water": 81}
