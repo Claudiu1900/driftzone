@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'DriftZone'
 description 'DriftZone Phone - calls, contacts, messages, garage app'
-version '1.6.0-garage-blips-waypoint'
+version '1.7.1-spawn-park-vs-notify-fix'
 
 ui_page 'html/index.html'
 

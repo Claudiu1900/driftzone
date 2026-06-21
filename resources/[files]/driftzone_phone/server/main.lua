@@ -649,7 +649,27 @@ local function simpleGetSpawnedData(vehicleId)
     if vehicleId <= 0 then return nil end
 
     local data = SimpleSpawnedVehicles[vehicleId] or GarageVehicles[vehicleId]
-    if not data then return nil end
+
+    -- Daca runtime data lipseste dar vehiculul inca exista pe server, il reconstruim dupa state bag.
+    if not data then
+        for _, entity in ipairs(getServerVehiclesSafe()) do
+            if vehicleExists(entity) and getEntityVehicleId(entity) == vehicleId then
+                data = {
+                    pending = false,
+                    entity = entity,
+                    netId = NetworkGetNetworkIdFromEntity(entity),
+                    vehicleId = vehicleId,
+                    ownerUid = tonumber(Entity(entity).state.dz_phone_garage_owner_uid or Entity(entity).state.dz_garage_owner_uid or 0) or 0
+                }
+
+                SimpleSpawnedVehicles[vehicleId] = data
+                GarageVehicles[vehicleId] = data
+                return data
+            end
+        end
+
+        return nil
+    end
 
     -- Pending ramane temporar spawned ca sa blocheze spawn dublu pana confirma/fails.
     if data.pending == true then return data end
@@ -705,15 +725,37 @@ end
 
 local function simpleClearSpawned(vehicleId)
     vehicleId = tonumber(vehicleId or 0) or 0
-    if vehicleId <= 0 then return end
+    if vehicleId <= 0 then return 0 end
 
+    local data = SimpleSpawnedVehicles[vehicleId] or GarageVehicles[vehicleId] or {}
+    local netId = tonumber(data.netId or 0) or 0
     local entity = simpleGetSpawnedEntity(vehicleId)
+
     if vehicleExists(entity) then
+        netId = NetworkGetNetworkIdFromEntity(entity)
+        TriggerClientEvent('driftzone_phone:client:garageDeleteNet', -1, netId, vehicleId)
+
         DeleteEntity(entity)
+
+        SetTimeout(500, function()
+            if vehicleExists(entity) then
+                DeleteEntity(entity)
+            end
+        end)
+
+        SetTimeout(1500, function()
+            if vehicleExists(entity) then
+                DeleteEntity(entity)
+            end
+        end)
+    elseif netId > 0 then
+        TriggerClientEvent('driftzone_phone:client:garageDeleteNet', -1, netId, vehicleId)
     end
 
     SimpleSpawnedVehicles[vehicleId] = nil
     GarageVehicles[vehicleId] = nil
+
+    return netId
 end
 
 local function simpleFindGarageForPlayer(src)
@@ -821,7 +863,15 @@ local function getPhoneGarageState(src, uid)
 end
 
 local function notifyPhone(src, typ, message, duration)
-    TriggerClientEvent('client:notify', src, typ or 'info', duration or 4500, tostring(message or ''))
+    src = tonumber(src or 0) or 0
+    if src <= 0 then return end
+
+    local kind = typ or 'info'
+    local text = tostring(message or '')
+    local time = tonumber(duration or 4500) or 4500
+
+    TriggerClientEvent('client:notify', src, kind, time, text)
+    TriggerClientEvent('driftzone_phone:client:garageNotify', src, kind, text, time)
 end
 
 local function refreshPhoneGarage(src)
@@ -1608,6 +1658,7 @@ RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
         model = model,
         plate = plate,
         name = model,
+        ownerUid = uid,
         tuning = tuningRaw,
         gradient = gradientRaw,
         spawn = {
@@ -1699,10 +1750,30 @@ RegisterNetEvent('driftzone_phone:server:garageConfirmSpawn', function(vehicleId
         spawn = pending.spawn
     })
 
+    TriggerEvent('driftzone_vehicleconfig:server:registerSpawnedVehicle', {
+        netId = netId,
+        sqlId = vehicleId,
+        id = vehicleId,
+        ownerUid = pending.uid,
+        plate = pending.plate
+    })
+
+    TriggerEvent('driftzone_vehicleconfig:server:registerVehicle', {
+        netId = netId,
+        sqlId = vehicleId,
+        id = vehicleId,
+        ownerUid = pending.uid,
+        plate = pending.plate
+    })
+
+    TriggerEvent('driftzone_vehicleconfig:server:setEngineOff', netId)
+    TriggerEvent('driftzone_vehicleconfig:server:setLockBySqlId', vehicleId, true)
+
+
     PendingGarageSpawns[vehicleId] = nil
 
     notifyPhone(src, 'success', 'Masina a fost scoasa din garaj.')
-    TriggerClientEvent('driftzone_phone:client:garageSpawnSuccess', src, vehicleId)
+    TriggerClientEvent('driftzone_phone:client:garageSpawnSuccess', src, vehicleId, 'Masina a fost scoasa din garaj.')
     refreshPhoneGarage(src)
 end)
 
@@ -1749,6 +1820,19 @@ RegisterNetEvent('driftzone_phone:server:garagePark', function(vehicleId)
         end
     end
 
+    local spawnedData = simpleGetSpawnedData(vehicleId)
+    local netId = spawnedData and tonumber(spawnedData.netId or 0) or 0
+    local entityToDelete = simpleGetSpawnedEntity(vehicleId)
+
+    if vehicleExists(entityToDelete) then
+        netId = NetworkGetNetworkIdFromEntity(entityToDelete)
+    end
+
+    if netId > 0 then
+        TriggerClientEvent('driftzone_phone:client:garageForceDespawn', src, vehicleId, netId)
+        TriggerClientEvent('driftzone_phone:client:garageDeleteNet', -1, netId, vehicleId)
+    end
+
     simpleClearSpawned(vehicleId)
 
     MySQL.update.await(('UPDATE %s SET %s = ? WHERE id = ? AND owner_id = ?'):format(sqlName(ownedVehiclesTable()), sqlName(garageColumn())), {
@@ -1756,7 +1840,18 @@ RegisterNetEvent('driftzone_phone:server:garagePark', function(vehicleId)
     })
 
     notifyPhone(src, 'success', 'Masina a fost parcata.')
+    TriggerClientEvent('driftzone_phone:client:garageNotify', src, 'success', 'Masina a fost parcata.', 4500)
     refreshPhoneGarage(src)
+
+    SetTimeout(700, function()
+        if netId > 0 then TriggerClientEvent('driftzone_phone:client:garageDeleteNet', -1, netId, vehicleId) end
+        refreshPhoneGarage(src)
+    end)
+
+    SetTimeout(1800, function()
+        if netId > 0 then TriggerClientEvent('driftzone_phone:client:garageDeleteNet', -1, netId, vehicleId) end
+        refreshPhoneGarage(src)
+    end)
 end)
 
 RegisterNetEvent('driftzone_phone:server:garageParkCurrent', function(netId)

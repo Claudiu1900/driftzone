@@ -203,3 +203,22 @@ Fixuri:
 - dacă încerci să scoți o mașină din garajul greșit, primești mesaj;
 - automat îți pune waypoint la garajul unde este mașina;
 - statusul garage/tuning/VS din V1.5 rămâne păstrat.
+
+
+## V1.7.0 - Spawn notification + VS + park despawn fix
+
+Fixuri:
+- notificare sigură când mașina este scoasă din garaj;
+- notificare sigură când mașina este parcată;
+- mașina este înregistrată în `driftzone_vehicleconfig` și client-side și server-side;
+- trimite `netId`, `sqlId`, `ownerUid` și `plate` către VS;
+- la parcare trimite despawn către clientul owner și către toți clienții;
+- despawn-ul are retry-uri, control request și DeleteVehicle/DeleteEntity;
+- după parcare curăță statusul runtime ca să nu mai poți spawna la infinit cu mașina rămasă pe hartă.
+
+
+### V1.7.1 microfix
+
+- adăugat event client-side `driftzone_phone:client:garageNotify`;
+- `simpleIsSpawned` reconstruiește statusul dacă mașina încă există pe server, chiar dacă runtime table a fost curățat;
+- asta oprește spawn-ul infinit dacă despawn-ul eșuează.

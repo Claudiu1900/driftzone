@@ -55,7 +55,11 @@ Config.Garage = {
     GarageBlipColor = 38,
     GarageBlipScale = 0.78,
     GarageBlipShortRange = true,
-    GarageBlipName = 'Garaj'
+    GarageBlipName = 'Garaj',
+
+    -- Despawn/parcare robusta.
+    GarageDeleteRetries = 12,
+    GarageDeleteRetryMs = 250
 }
 
 

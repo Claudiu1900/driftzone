@@ -296,21 +296,71 @@ local function forcePhoneGarageVehicleByNetId(netId, data)
 
     requestVehicleControl(entity, 5000)
 
-    if data.plate then
-        SetVehicleNumberPlateText(entity, tostring(data.plate or 'DRIFT'):sub(1, 8))
+    local sqlId = tonumber(data.id or data.vehicleId or data.sqlId or 0) or 0
+    local ownerUid = tonumber(data.ownerUid or data.uid or 0) or 0
+    local plate = tostring(data.plate or GetVehicleNumberPlateText(entity) or 'DRIFT'):sub(1, 8)
+
+    if plate ~= '' then
+        SetVehicleNumberPlateText(entity, plate)
+    end
+
+    local state = Entity(entity).state
+    state:set('ownedVehicleId', sqlId, true)
+    state:set('vehicle_id', sqlId, true)
+    state:set('dz_garage_db_id', sqlId, true)
+    state:set('dz_phone_garage_vehicle_id', sqlId, true)
+    state:set('vehicle_plate', plate, true)
+    state:set('dz_garage_plate', plate, true)
+
+    if ownerUid > 0 then
+        state:set('dz_garage_owner_uid', ownerUid, true)
+        state:set('dz_phone_garage_owner_uid', ownerUid, true)
     end
 
     SetVehicleModKit(entity, 0)
     SetVehicleDirtLevel(entity, 0.0)
     SetVehicleEngineOn(entity, false, true, true)
     SetVehicleDoorsLocked(entity, 2)
+    SetVehicleDoorsLockedForAllPlayers(entity, true)
 
     applyGarageVehicleTuning(entity, data.tuning, data.gradient)
 
-    -- Integrare driftzone_vehicleconfig / VS:
-    -- seteaza SQL ID, lock default real si motor oprit.
+    -- Integrare driftzone_vehicleconfig / VS.
+    -- Trimitem si client-side si server-side, pentru compatibilitate cu toate versiunile tale.
     pcall(function()
-        TriggerEvent('driftzone_vehicleconfig:client:registerSpawnedVehicle', entity, tonumber(data.id or data.vehicleId or 0))
+        TriggerEvent('driftzone_vehicleconfig:client:registerSpawnedVehicle', entity, sqlId, ownerUid)
+    end)
+
+    pcall(function()
+        TriggerEvent('driftzone_vehicleconfig:client:registerSpawnedVehicle', netId, sqlId, ownerUid)
+    end)
+
+    pcall(function()
+        TriggerEvent('driftzone_vehicleconfig:client:setEngineOff', entity, sqlId)
+    end)
+
+    pcall(function()
+        TriggerServerEvent('driftzone_vehicleconfig:server:registerSpawnedVehicle', {
+            netId = tonumber(netId or 0) or 0,
+            sqlId = sqlId,
+            id = sqlId,
+            ownerUid = ownerUid,
+            plate = plate
+        })
+    end)
+
+    pcall(function()
+        TriggerServerEvent('driftzone_vehicleconfig:server:registerVehicle', {
+            netId = tonumber(netId or 0) or 0,
+            sqlId = sqlId,
+            id = sqlId,
+            ownerUid = ownerUid,
+            plate = plate
+        })
+    end)
+
+    pcall(function()
+        TriggerServerEvent('driftzone_vehicleconfig:server:setEngineOff', tonumber(netId or 0) or 0)
     end)
 
     return true
@@ -367,11 +417,27 @@ end)
 
 
 local function deleteGarageVehicle(vehicle)
-    if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
-        requestVehicleControl(vehicle, 1000)
+    if not vehicle or vehicle == 0 then return false end
+
+    local retries = tonumber((Config.Garage or {}).GarageDeleteRetries or 12) or 12
+    local delay = tonumber((Config.Garage or {}).GarageDeleteRetryMs or 250) or 250
+
+    for _ = 1, retries do
+        if not DoesEntityExist(vehicle) then return true end
+
+        requestVehicleControl(vehicle, 1200)
+        SetEntityAsMissionEntity(vehicle, true, true)
         DeleteVehicle(vehicle)
-        if DoesEntityExist(vehicle) then DeleteEntity(vehicle) end
+
+        if DoesEntityExist(vehicle) then
+            DeleteEntity(vehicle)
+        end
+
+        if not DoesEntityExist(vehicle) then return true end
+        Wait(delay)
     end
+
+    return not DoesEntityExist(vehicle)
 end
 
 local function cleanupPendingGarageVehicle(vehicleId)
@@ -483,7 +549,8 @@ RegisterNetEvent('driftzone_phone:client:garageCreateVehicle', function(data)
         model = model,
         plate = data.plate,
         tuning = data.tuning,
-        gradient = data.gradient
+        gradient = data.gradient,
+        ownerUid = data.ownerUid
     })
 
     ConfirmedGarageVehicles[vehicleId] = true
@@ -495,12 +562,14 @@ RegisterNetEvent('driftzone_phone:client:garageApplyVehicle', function(netId, da
     schedulePhoneGarageTuning(netId, data or {})
 end)
 
-RegisterNetEvent('driftzone_phone:client:garageSpawnSuccess', function(vehicleId)
+RegisterNetEvent('driftzone_phone:client:garageSpawnSuccess', function(vehicleId, message)
     vehicleId = tonumber(vehicleId or 0) or 0
     if vehicleId > 0 then
         PendingGarageVehicles[vehicleId] = nil
         ConfirmedGarageVehicles[vehicleId] = true
     end
+
+    garageNotify('success', tostring(message or 'Masina a fost scoasa din garaj.'), 4500)
 
     SetTimeout(250, function()
         TriggerServerEvent('driftzone_phone:server:requestState')
@@ -517,15 +586,57 @@ RegisterNetEvent('driftzone_phone:client:garageDeletePending', function(vehicleI
     cleanupPendingGarageVehicle(vehicleId)
 end)
 
-RegisterNetEvent('driftzone_phone:client:garageDeleteNet', function(netId)
+RegisterNetEvent('driftzone_phone:client:garageDeleteNet', function(netId, vehicleId)
     netId = tonumber(netId or 0) or 0
-    if netId <= 0 then return end
+    vehicleId = tonumber(vehicleId or 0) or 0
+
+    if vehicleId > 0 then
+        ConfirmedGarageVehicles[vehicleId] = nil
+        PendingGarageVehicles[vehicleId] = nil
+    end
 
     CreateThread(function()
-        if NetworkDoesNetworkIdExist(netId) then
-            deleteGarageVehicle(NetToVeh(netId))
+        local retries = tonumber((Config.Garage or {}).GarageDeleteRetries or 12) or 12
+        local delay = tonumber((Config.Garage or {}).GarageDeleteRetryMs or 250) or 250
+
+        for _ = 1, retries do
+            local vehicle = 0
+
+            if netId > 0 and NetworkDoesNetworkIdExist(netId) then
+                vehicle = NetToVeh(netId)
+            end
+
+            if vehicleId > 0 and (not vehicle or vehicle == 0 or not DoesEntityExist(vehicle)) then
+                vehicle = PendingGarageVehicles[vehicleId] or 0
+            end
+
+            if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
+                deleteGarageVehicle(vehicle)
+            end
+
+            if (not vehicle or vehicle == 0 or not DoesEntityExist(vehicle)) then
+                return
+            end
+
+            Wait(delay)
         end
     end)
+end)
+
+RegisterNetEvent('driftzone_phone:client:garageForceDespawn', function(vehicleId, netId)
+    vehicleId = tonumber(vehicleId or 0) or 0
+    netId = tonumber(netId or 0) or 0
+
+    if vehicleId > 0 then
+        ConfirmedGarageVehicles[vehicleId] = nil
+        PendingGarageVehicles[vehicleId] = nil
+    end
+
+    TriggerEvent('driftzone_phone:client:garageDeleteNet', netId, vehicleId)
+end)
+
+RegisterNetEvent('driftzone_phone:client:garageNotify', function(typ, msg, duration)
+    garageNotify(typ or 'info', tostring(msg or ''), tonumber(duration or 4500) or 4500)
 end)
 
 RegisterNetEvent('driftzone_phone:client:garageWaypoint', function(coords)
