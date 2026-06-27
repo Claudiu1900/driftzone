@@ -1026,10 +1026,13 @@ local function clearPhoneGarageBlips()
 end
 
 local function refreshPhoneGarageBlips()
-    clearPhoneGarageBlips()
-
     local cfg = Config.Garage or {}
-    if cfg.GarageBlipEnabled == false then return end
+    if cfg.GarageBlipEnabled == false then
+        clearPhoneGarageBlips()
+        return
+    end
+
+    local keep = {}
 
     for _, garage in ipairs(PhoneGarageWorld or {}) do
         local id = tonumber(garage.id or 0) or 0
@@ -1038,7 +1041,14 @@ local function refreshPhoneGarageBlips()
         local z = tonumber(garage.z or (garage.coords and garage.coords.z))
 
         if id > 0 and x and y and z then
-            local blip = AddBlipForCoord(x + 0.0, y + 0.0, z + 0.0)
+            local blip = PhoneGarageBlips[id]
+
+            if not blip or not DoesBlipExist(blip) then
+                blip = AddBlipForCoord(x + 0.0, y + 0.0, z + 0.0)
+                PhoneGarageBlips[id] = blip
+            else
+                SetBlipCoords(blip, x + 0.0, y + 0.0, z + 0.0)
+            end
 
             SetBlipSprite(blip, tonumber(cfg.GarageBlipSprite or 357) or 357)
             SetBlipColour(blip, tonumber(cfg.GarageBlipColor or 38) or 38)
@@ -1050,7 +1060,16 @@ local function refreshPhoneGarageBlips()
             AddTextComponentString(tostring(garage.name or cfg.GarageBlipName or 'Garaj'))
             EndTextCommandSetBlipName(blip)
 
-            PhoneGarageBlips[id] = blip
+            keep[id] = true
+        end
+    end
+
+    for id, blip in pairs(PhoneGarageBlips or {}) do
+        if not keep[id] then
+            if blip and DoesBlipExist(blip) then
+                RemoveBlip(blip)
+            end
+            PhoneGarageBlips[id] = nil
         end
     end
 end
@@ -1133,6 +1152,7 @@ RegisterNetEvent('driftzone_phone:client:state', function(state)
 
     if lastState.garage and type(lastState.garage.garages) == 'table' then
         PhoneGarageWorld = lastState.garage.garages
+        refreshPhoneGarageBlips()
     end
 
     sendNui({ action = 'state', state = lastState })

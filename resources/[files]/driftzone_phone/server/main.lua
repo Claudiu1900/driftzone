@@ -672,7 +672,29 @@ local function simpleGetSpawnedData(vehicleId)
     end
 
     -- Pending ramane temporar spawned ca sa blocheze spawn dublu pana confirma/fails.
-    if data.pending == true then return data end
+    -- Totusi incercam sa reconstruim entity/netId daca masina exista deja, ca sa nu fie stearsa la timeout.
+    if data.pending == true then
+        if not vehicleExists(data.entity) then
+            local netId = tonumber(data.netId or 0) or 0
+            if netId > 0 then
+                local entity = NetworkGetEntityFromNetworkId(netId)
+                if vehicleExists(entity) then
+                    data.entity = entity
+                    return data
+                end
+            end
+
+            for _, entity in ipairs(getServerVehiclesSafe()) do
+                if vehicleExists(entity) and getEntityVehicleId(entity) == vehicleId then
+                    data.entity = entity
+                    data.netId = NetworkGetNetworkIdFromEntity(entity)
+                    return data
+                end
+            end
+        end
+
+        return data
+    end
 
     if vehicleExists(data.entity) then return data end
 
@@ -1669,9 +1691,45 @@ RegisterNetEvent('driftzone_phone:server:garageSpawn', function(vehicleId)
         }
     })
 
-    SetTimeout(15000, function()
+    SetTimeout(25000, function()
         local pending = PendingGarageSpawns[vehicleId]
         if pending and pending.src == src then
+            -- Daca masina exista deja in lume, nu o mai stergem doar pentru ca ACK-ul a intarziat.
+            local entity = simpleGetSpawnedEntity(vehicleId)
+            if vehicleExists(entity) then
+                local netId = NetworkGetNetworkIdFromEntity(entity)
+                PendingGarageSpawns[vehicleId] = nil
+                simpleSetSpawned(vehicleId, {
+                    pending = false,
+                    entity = entity,
+                    netId = netId,
+                    ownerUid = pending.uid,
+                    ownerSrc = src,
+                    model = pending.model,
+                    plate = pending.plate,
+                    tuning = pending.tuning,
+                    gradient = pending.gradient,
+                    garageId = pending.garageId,
+                    vip = pending.vip == true
+                })
+                if netId and netId > 0 then
+                    TriggerClientEvent('driftzone_phone:client:garageApplyVehicle', -1, netId, {
+                        id = vehicleId,
+                        vehicleId = vehicleId,
+                        model = pending.model,
+                        plate = pending.plate,
+                        tuning = pending.tuning,
+                        gradient = pending.gradient,
+                        garageId = pending.garageId,
+                        ownerUid = pending.uid,
+                        spawn = pending.spawn
+                    })
+                end
+                TriggerClientEvent('driftzone_phone:client:garageSpawnSuccess', src, vehicleId, 'Masina a fost scoasa din garaj.')
+                refreshPhoneGarage(src)
+                return
+            end
+
             PendingGarageSpawns[vehicleId] = nil
             local data = simpleGetSpawnedData(vehicleId)
             if data and data.pending == true then simpleClearSpawned(vehicleId) end
@@ -1715,7 +1773,7 @@ RegisterNetEvent('driftzone_phone:server:garageConfirmSpawn', function(vehicleId
         vehicleId = vehicleId,
         ownerUid = pending.uid,
         ownerSrc = src,
-        ownerName = getPlayerName(src) or '',
+        ownerName = GetPlayerName(src) or '',
         model = pending.model,
         name = pending.name or pending.model,
         plate = pending.plate,
@@ -1772,7 +1830,6 @@ RegisterNetEvent('driftzone_phone:server:garageConfirmSpawn', function(vehicleId
 
     PendingGarageSpawns[vehicleId] = nil
 
-    notifyPhone(src, 'success', 'Masina a fost scoasa din garaj.')
     TriggerClientEvent('driftzone_phone:client:garageSpawnSuccess', src, vehicleId, 'Masina a fost scoasa din garaj.')
     refreshPhoneGarage(src)
 end)
